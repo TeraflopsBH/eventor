@@ -1,8 +1,8 @@
 # Project state
 
-**Status:** design artifacts imported; initial static reconciliation completed; Phase 0 validation remains open  
+**Status:** accepted product/domain design baseline; initial PostgreSQL migration and OpenAPI v0.3 implementation draft in PR #26; initial PostgreSQL 18.6 and OpenAPI CI validation passing; deeper review and production-readiness checks remain open  
 **Last updated:** 2026-11-10  
-**Implementation status:** no application code or production database has been established in this repository.
+**Implementation status:** database migrations and API contract exist in draft PR #26; no application route code or production database deployment has been established.
 
 ## Product
 
@@ -30,7 +30,7 @@ Eventor is a reusable, self-hosted platform that can operate as a venue booking/
 - Distinguish venue provider, booking requester/customer, contracting party, event organizer and operational operator; these roles may belong to different entities.
 - Organizer-side guest management, invitation/RSVP, seating, check-in, external prerequisites and live event cockpit are optional for venue-provider-only workflows.
 - Task/module responsibility and scoped collaboration must be explicit. A booking customer does not automatically become a tenant/member or gain access to the venue provider's workspace.
-- Proposed cross-organization model: venue and booking data remain provider-owned; operational event and guest data remain organizer-owned; collaboration uses explicit grants and immutable, revision-pinned venue-space snapshots. See [Cross-Organization Collaboration v0.3](implementation-design/v0.3/CROSS_ORGANIZATION_COLLABORATION_DESIGN_v0.3.md) and [ADR 0006](decisions/0006-cross-organization-collaboration.md), now accepted. The schema is not yet updated; implementation remains tracked in Issue #12.
+- Accepted cross-organization model: venue and booking data remain provider-owned; operational event and guest data remain organizer-owned; collaboration uses explicit grants and immutable, revision-pinned venue-space snapshots. See [Cross-Organization Collaboration v0.3](implementation-design/v0.3/CROSS_ORGANIZATION_COLLABORATION_DESIGN_v0.3.md) and [ADR 0006](decisions/0006-cross-organization-collaboration.md). The initial migration implementation is present in draft PR #26; broader authority/tenant review remains open.
 - The venue provider retains its own venue/facility and contracted service responsibilities. Eventor records assigned operational ownership; it does not transfer duties or make legal determinations.
 
 ### Optional event capabilities
@@ -113,23 +113,23 @@ See [Operating Model](OPERATING_MODEL.md) and [ADR 0004](decisions/0004-optional
 
 ## Cancellation and event disruption
 
-The proposed v0.3 design covers customer/organizer-initiated booking cancellation, venue-provider-initiated booking cancellation, organizer-owned event cancellation/postponement, guest notification campaigns and cross-organization disruption handling. Booking and event outcomes remain independent; invitation, RSVP and attendance history is preserved. The design is tracked in [Issue #21](https://github.com/TeraflopsBH/eventor/issues/21) and documented in [Cancellation and Event Disruption Design v0.3](implementation-design/v0.3/CANCELLATION_AND_EVENT_DISRUPTION_DESIGN_v0.3.md). The workflow proposal is documented; successor schema/API implementation and GHB-specific policy validation remain open.
+The accepted v0.3 design covers customer/organizer-initiated booking cancellation, venue-provider-initiated booking cancellation, organizer-owned event cancellation/postponement, guest notification campaigns and cross-organization disruption handling. Booking and event outcomes remain independent; invitation, RSVP and attendance history is preserved. The workflow is tracked in [Issue #21](https://github.com/TeraflopsBH/eventor/issues/21) and documented in [Cancellation and Event Disruption Design v0.3](implementation-design/v0.3/CANCELLATION_AND_EVENT_DISRUPTION_DESIGN_v0.3.md). Initial schema and API contract coverage is included in draft PR #26. GHB-specific commercial terms, approval thresholds and operational policies still require confirmation.
 
-## Successor schema contract baseline
+## Successor database and API baseline
 
-The successor relational model and v0.3 API are being produced from accepted ADRs 0004–0006, the RSVP/invitation and cancellation designs, and the accepted venue-first MVP/role model. The database integrity baseline was merged in PR #24; the aligned logical schema/API successor design is in PR #25. Executable migrations and OpenAPI YAML remain separate deliverables and are not yet validated.
-
-## Successor schema and API contract work
-
-The logical successor schema and API route/security design are documented in [SCHEMA_DESIGN_v0.3.md](database/SCHEMA_DESIGN_v0.3.md) and [API_DESIGN_v0.3.md](api/API_DESIGN_v0.3.md), respectively. They incorporate accepted operating scope, collaboration, RSVP and cancellation designs. The database integrity baseline is merged; ordered executable PostgreSQL 18 migrations and OpenAPI 3.1.1 YAML are the next deliverables. These are not yet runtime-validated.
+The accepted successor logical model and API design derive from ADRs 0004–0006, the RSVP/invitation and cancellation designs, and the venue-first MVP/role model. The database integrity baseline was merged in PR #24 and the aligned logical schema/API design in PR #25. The executable migration and OpenAPI implementation draft is PR #26; it remains unmerged and requires review.
 
 ## Executable schema and API contract draft
 
-The implementation branch [feat/postgresql18-migrations-openapi-v0.3](https://github.com/TeraflopsBH/eventor/tree/feat/postgresql18-migrations-openapi-v0.3) now contains a first ordered PostgreSQL 18 migration draft (16 files), role bootstrap and checksum runner, tenant/constraint smoke tests, a concurrent pooled-capacity test, and the canonical OpenAPI 3.1.1 v0.3 YAML (`docs/api/openapi.v0.3.yaml`; 106 paths / 123 unique operations). The unified CI workflow runs the strict Eventor validator, pinned OpenAPI validator and Redocly lint, and applies migrations against PostgreSQL 18.6 before database smoke/RLS/concurrency tests. A static FK-target audit across 120 declared tables found no unresolved target/candidate-key references; this is a structural scan, not the primary validation. The latest CI run passed against PostgreSQL 18.6: all 16 migrations applied, database integrity smoke tests passed, RLS tenant isolation passed as the non-owner runtime role, independent-connection pooled-capacity tests passed, extended hierarchy/interval checks passed, and the external self-service cancellation actor-attribution scenario passed. The migration ledger reporting step also passed. The OpenAPI CI job passed the strict Eventor checks, pinned OpenAPI 3.1.1 validator and Redocly lint. No production database has been migrated, and application API routes are not implemented.
+The branch [feat/postgresql18-migrations-openapi-v0.3](https://github.com/TeraflopsBH/eventor/tree/feat/postgresql18-migrations-openapi-v0.3), in [draft PR #26](https://github.com/TeraflopsBH/eventor/pull/26), contains 16 ordered PostgreSQL 18 migrations, least-privilege role bootstrap, a checksum-verified migration runner, database integrity/RLS tests, pooled-capacity concurrency tests and the canonical OpenAPI 3.1.1 contract at `docs/api/openapi.v0.3.yaml` (106 paths / 123 operations).
 
-## Database schema review
+The latest PR-triggered workflow run on head `42eeec1f2a18dcd6c638d8eff627d5d99e7a4bfc` is [run #42825572146](https://github.com/TeraflopsBH/eventor/actions/runs/42825572146); both jobs succeeded. The OpenAPI job passed the Eventor structural/security validator, pinned OpenAPI validator and Redocly lint. The PostgreSQL 18.6 job applied all 16 migrations to a fresh CI database and passed migration/integrity smoke tests, runtime-role tenant RLS isolation, independent-connection pooled-capacity concurrency checks, venue hierarchy and half-open interval checks, external self-service cancellation actor attribution, and migration-ledger reporting.
 
-An initial structural review of the v0.2 PostgreSQL schema is recorded in [Database Review v0.2](database/DATABASE_REVIEW_v0.2.md). It found a connected 86-table structure but also important cross-organization ownership, tenant integrity, availability-concurrency and optional-module gaps. The migration approach is documented in [Migration Conventions](database/MIGRATION_CONVENTIONS.md). PostgreSQL parser/runtime testing remains outstanding because no PostgreSQL server/client or parser is available in the current working environment. Issue #2 remains open; blockers are tracked in Issues #12 and #13. RSVP migration/API implementation is tracked in Issue #10.
+A static candidate-key/FK-target audit covered 120 declared tables without unresolved targets; this is a structural scan, not a substitute for database/runtime validation. No production database has been migrated, and no application API routes have been implemented. PR #26 remains a draft pending review.
+
+## Database schema review and remaining validation
+
+The initial [Database Review v0.2](database/DATABASE_REVIEW_v0.2.md) records findings in the historical 86-table starter schema. The new v0.3 migrations have now been executed successfully against PostgreSQL 18.6 in CI; the earlier statement that PostgreSQL runtime testing was unavailable is no longer current. Issue #2 and related schema issues remain open for deeper DDL/RLS/authority review, broader constraint-matrix coverage, migration upgrade testing and backup/restore validation. The v0.2 SQL remains a historical reference rather than the executable successor schema.
 
 ## Accepted MVP boundary
 
@@ -139,7 +139,7 @@ The accepted initial scope and acceptance scenarios are in [MVP Scope v0.1](prod
 
 ## API contract review
 
-The imported OpenAPI v0.2 contract passed YAML parsing and local structural checks (36 paths, 46 operations, unique operation IDs, 172 resolved local references, declared path parameters and response declarations). This is not a full OpenAPI semantic validation. The review and missing successor coverage are documented in [API Contract Review v0.2](api/API_CONTRACT_REVIEW_v0.2.md). The canonical OpenAPI v0.3 draft is now present at [openapi.v0.3.yaml](api/openapi.v0.3.yaml); its strict structural/security validator, pinned OpenAPI semantic validator and Redocly lint run in the unified CI workflow. Route semantics against the full design inventory and route implementation/contract tests remain open under Issues #3 and #17.
+The imported OpenAPI v0.2 contract passed YAML parsing and local structural checks (36 paths, 46 operations, unique operation IDs, 172 resolved local references); that historical check was not a full OpenAPI semantic validation. The canonical v0.3 contract is [`docs/api/openapi.v0.3.yaml`](api/openapi.v0.3.yaml) and is validated in CI by the strict Eventor structural/security validator, the pinned OpenAPI 3.1.1 validator and Redocly lint. It currently contains 106 paths and 123 operations. API route implementation, generated TypeScript client verification and route-level request/response contract tests remain open under Issues #3 and #17.
 
 ## Imported design artifacts and reconciliation
 
@@ -153,16 +153,13 @@ The working design sources are now in the repository:
 
 The separate v0.2 booking SQL addendum duplicates all 22 booking/configuration table definitions already present in the consolidated schema and is therefore not included as an additional executable schema file. The source workbook, rendered workbook image and spatial observations register remain outside GitHub pending venue-owner review.
 
-The OpenAPI YAML has been parsed and its 36 paths / 46 operations / unique operation IDs checked. The SQL has only been statically inspected; it has not been executed against PostgreSQL. Neither artifact should be treated as production-ready. The reconciliation report records these limitations and the RSVP model/API gap.
-
 ## Immediate next steps
 
-1. Specify the complete invitation/RSVP lifecycle, including staff-recorded responses ([Issue #6](https://github.com/TeraflopsBH/eventor/issues/6)).
-2. Review and validate the consolidated SQL schema; establish versioned PostgreSQL migrations ([Issue #2](https://github.com/TeraflopsBH/eventor/issues/2)).
-3. Run full OpenAPI validation and align contracts with the finalized domain model ([Issue #3](https://github.com/TeraflopsBH/eventor/issues/3)).
-4. Carry the accepted MVP boundary and role baseline into the successor schema/API contracts and implementation planning ([PR #20](https://github.com/TeraflopsBH/eventor/pull/20)).
-5. Establish CI and repository protection settings ([Issue #5](https://github.com/TeraflopsBH/eventor/issues/5)).
-6. Start application implementation only after the foundation contracts are coherent.
+1. Complete a deeper review of the v0.3 DDL, RLS policies, actor attribution, cross-organization access boundaries and full constraint-test matrix.
+2. Add migration-upgrade and backup/restore validation; current CI proves fresh-database installation, not recovery readiness.
+3. Add API route implementations, generated TypeScript client verification and route-level request/response contract tests.
+4. Begin the application foundation and first venue-booking vertical slice only after the database/API contract review is accepted: staff authentication and organization context, public booking inquiry, staff draft, offer/approval and explicit reservation confirmation.
+5. Confirm GHB-specific venue inventory, capacities, pricing, cancellation terms, approval thresholds and operating policies before seeding production configuration.
 
 ## Open questions / validation gates
 
