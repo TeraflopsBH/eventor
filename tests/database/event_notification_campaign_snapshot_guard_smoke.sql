@@ -2,11 +2,7 @@
 BEGIN;
 SET LOCAL ROLE eventor_owner;
 SET LOCAL app.organization_id = '22222222-2222-4222-8222-222222222222';
-, independently of the
--- runtime role's revoked table privileges.
-BEGIN;
-SET LOCAL ROLE eventor_owner;
-SET LOCAL app.organization_id = '22222222-2222-4222-8222-222222222222';
+
 DO $snapshot_guard$
 DECLARE
   v_rejected boolean;
@@ -62,5 +58,4 @@ BEGIN
   END IF;
 END;
 $snapshot_guard$;
-ROLLBACK;
 COMMIT;
