@@ -34,6 +34,7 @@ export interface ApiDependencies {
   readonly revokeStaffSession?: (principal: StaffPrincipal) => Promise<void>;
   readonly getCurrentPrincipal?: (principal: StaffPrincipal) => Promise<Record<string, unknown>>;
   readonly privateFieldEncryptionKey?: Buffer;
+  readonly trustedProxyAddresses?: readonly string[];
 }
 
 declare module "fastify" {
@@ -268,7 +269,13 @@ function principalIsValid(principal: StaffPrincipal | null): principal is StaffP
 }
 
 export function buildApi(dependencies: ApiDependencies): FastifyInstance {
-  const server = Fastify({ logger: false, bodyLimit: 64 * 1024 });
+  const server = Fastify({
+    logger: true,
+    bodyLimit: 64 * 1024,
+    trustProxy: dependencies.trustedProxyAddresses?.length
+      ? [...dependencies.trustedProxyAddresses]
+      : false,
+  });
   server.decorateRequest("staffPrincipal", null);
 
   // Login is the only unauthenticated staff route and still requires an exact
