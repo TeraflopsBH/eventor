@@ -1,0 +1,496 @@
+      schema: { type: string, format: uuid }
+    IfMatch:
+      in: header
+      name: If-Match
+      required: false
+      schema: { type: string }
+      description: ETag of the current resource/revision for optimistic concurrency.
+    IdempotencyKey:
+      in: header
+      name: Idempotency-Key
+      required: true
+      schema: { type: string, minLength: 16, maxLength: 128 }
+  responses:
+    Unauthorized:
+      description: Missing or invalid authentication/credential.
+      content:
+        application/problem+json:
+          schema: { $ref: '#/components/schemas/Problem' }
+    Forbidden:
+      description: Authenticated, but not authorized for this scope/action.
+      content:
+        application/problem+json:
+          schema: { $ref: '#/components/schemas/Problem' }
+    NotFound:
+      description: Resource not found in the caller's authorized scope.
+      content:
+        application/problem+json:
+          schema: { $ref: '#/components/schemas/Problem' }
+    Conflict:
+      description: Revision, uniqueness or state conflict.
+      content:
+        application/problem+json:
+          schema: { $ref: '#/components/schemas/Problem' }
+    ValidationError:
+      description: Request or domain validation failed.
+      content:
+        application/problem+json:
+          schema: { $ref: '#/components/schemas/Problem' }
+  schemas:
+    Meta:
+      type: object
+      properties:
+        requestId: { type: string }
+        revision: { type: integer }
+      required: [requestId]
+    Problem:
+      type: object
+      required: [type, title, status, code, requestId]
+      properties:
+        type: { type: string, format: uri-reference }
+        title: { type: string }
+        status: { type: integer }
+        code: { type: string }
+        detail: { type: string }
+        requestId: { type: string }
+        conflicts: { type: array, items: { type: object, additionalProperties: true } }
+    SessionResponse:
+      type: object
+      required: [data, meta]
+      properties:
+        data:
+          type: object
+          required: [userId, displayName, memberships]
+          properties:
+            userId: { type: string, format: uuid }
+            displayName: { type: string }
+            memberships: { type: array, items: { type: object, additionalProperties: true } }
+        meta: { $ref: '#/components/schemas/Meta' }
+    CurrentUserResponse:
+      type: object
+      required: [data, meta]
+      properties:
+        data:
+          type: object
+          properties:
+            userId: { type: string, format: uuid }
+            displayName: { type: string }
+            permissions: { type: array, items: { type: string } }
+        meta: { $ref: '#/components/schemas/Meta' }
+    PersonCreate:
+      type: object
+      required: [givenName, familyName, displayName]
+      properties:
+        personCode: { type: string, maxLength: 40 }
+        givenName: { type: string, minLength: 1, maxLength: 150 }
+        familyName: { type: string, minLength: 1, maxLength: 150 }
+        displayName: { type: string, minLength: 1, maxLength: 250 }
+        title: { type: string, maxLength: 100 }
+        organizationName: { type: string, maxLength: 200 }
+        positionTitle: { type: string, maxLength: 200 }
+        preferredLocale: { type: string, maxLength: 20 }
+        contacts:
+          type: array
+          items:
+            type: object
+            required: [contactType, value]
+            properties:
+              contactType: { type: string, enum: [email, phone, address, other] }
+              value: { type: string, maxLength: 500 }
+              isPrimary: { type: boolean, default: false }
+    PersonPatch:
+      type: object
+      properties:
+        givenName: { type: string, maxLength: 150 }
+        familyName: { type: string, maxLength: 150 }
+        displayName: { type: string, maxLength: 250 }
+        title: { type: string, maxLength: 100 }
+        organizationName: { type: string, maxLength: 200 }
+        positionTitle: { type: string, maxLength: 200 }
+        preferredLocale: { type: string, maxLength: 20 }
+        profileStatus: { type: string, enum: [active, inactive, archived] }
+    Person:
+      allOf:
+        - $ref: '#/components/schemas/PersonCreate'
+        - type: object
+          required: [id, profileStatus]
+          properties:
+            id: { type: string, format: uuid }
+            profileStatus: { type: string }
+            contacts: { type: array, items: { type: object, additionalProperties: true } }
+    PersonResponse:
+      type: object
+      required: [data, meta]
+      properties:
+        data: { $ref: '#/components/schemas/Person' }
+        meta: { $ref: '#/components/schemas/Meta' }
+    PersonListResponse:
+      type: object
+      required: [data, page, meta]
+      properties:
+        data: { type: array, items: { $ref: '#/components/schemas/Person' } }
+        page: { $ref: '#/components/schemas/Page' }
+        meta: { $ref: '#/components/schemas/Meta' }
+    Page:
+      type: object
+      required: [limit]
+      properties:
+        limit: { type: integer }
+        nextCursor: { type: [string, 'null'] }
+    EventCreate:
+      type: object
+      required: [organizationId, code, name, timezone, startsAt, endsAt]
+      properties:
+        organizationId: { type: string, format: uuid }
+        code: { type: string, maxLength: 50 }
+        name: { type: string, maxLength: 250 }
+        eventType: { type: string, maxLength: 80 }
+        timezone: { type: string, example: Europe/Sarajevo }
+        startsAt: { type: string, format: date-time }
+        endsAt: { type: string, format: date-time }
+        guestPortalEnabled: { type: boolean, default: false }
+    EventPatch:
+      type: object
+      properties:
+        name: { type: string, maxLength: 250 }
+        startsAt: { type: string, format: date-time }
+        endsAt: { type: string, format: date-time }
+        lifecycleState: { type: string, enum: [draft, planning, ready, live, completed, cancelled, archived] }
+        guestPortalEnabled: { type: boolean }
+    Event:
+      allOf:
+        - $ref: '#/components/schemas/EventCreate'
+        - type: object
+          required: [id, lifecycleState]
+          properties:
+            id: { type: string, format: uuid }
+            lifecycleState: { type: string }
+    EventResponse:
+      type: object
+      required: [data, meta]
+      properties:
+        data: { $ref: '#/components/schemas/Event' }
+        meta: { $ref: '#/components/schemas/Meta' }
+    EventListResponse:
+      type: object
+      required: [data, page, meta]
+      properties:
+        data: { type: array, items: { $ref: '#/components/schemas/Event' } }
+        page: { $ref: '#/components/schemas/Page' }
+        meta: { $ref: '#/components/schemas/Meta' }
+    EventGuest:
+      type: object
+      required: [id, personId, eventGuestCode, rsvpStatus, displayName]
+      properties:
+        id: { type: string, format: uuid }
+        personId: { type: string, format: uuid }
+        eventGuestCode: { type: string }
+        displayName: { type: string }
+        categoryId: { type: [string, 'null'], format: uuid }
+        rsvpStatus: { type: string, enum: [pending, invited, confirmed, declined, waitlisted, not_required] }
+        participationStatus: { type: string, enum: [active, cancelled, archived] }
+        allocationLocator: { type: [string, 'null'] }
+        checkinState: { type: string, enum: [not_arrived, checked_in, checked_out, manual_review] }
+    EventGuestResponse:
+      type: object
+      required: [data, meta]
+      properties:
+        data: { $ref: '#/components/schemas/EventGuest' }
+        meta: { $ref: '#/components/schemas/Meta' }
+    EventGuestListResponse:
+      type: object
+      required: [data, page, meta]
+      properties:
+        data: { type: array, items: { $ref: '#/components/schemas/EventGuest' } }
+        page: { $ref: '#/components/schemas/Page' }
+        meta: { $ref: '#/components/schemas/Meta' }
+    JobResponse:
+      type: object
+      required: [data, meta]
+      properties:
+        data:
+          type: object
+          required: [jobId, status]
+          properties:
+            jobId: { type: string, format: uuid }
+            status: { type: string }
+            statusUrl: { type: string }
+        meta: { $ref: '#/components/schemas/Meta' }
+    ImportBatchResponse:
+      type: object
+      required: [data, meta]
+      properties:
+        data:
+          type: object
+          properties:
+            batchId: { type: string, format: uuid }
+            status: { type: string }
+            rowCount: { type: integer }
+            errorCount: { type: integer }
+            duplicateCandidates: { type: integer }
+            previewRows: { type: array, items: { type: object, additionalProperties: true } }
+        meta: { $ref: '#/components/schemas/Meta' }
+    VenueCreate:
+      type: object
+      required: [organizationId, code, name]
+      properties:
+        organizationId: { type: string, format: uuid }
+        code: { type: string }
+        name: { type: string }
+        description: { type: string }
+    Venue:
+      allOf:
+        - $ref: '#/components/schemas/VenueCreate'
+        - type: object
+          required: [id, status]
+          properties:
+            id: { type: string, format: uuid }
+            status: { type: string }
+    VenueResponse:
+      type: object
+      required: [data, meta]
+      properties:
+        data: { $ref: '#/components/schemas/Venue' }
+        meta: { $ref: '#/components/schemas/Meta' }
+    VenueListResponse:
+      type: object
+      required: [data, meta]
+      properties:
+        data: { type: array, items: { $ref: '#/components/schemas/Venue' } }
+        meta: { $ref: '#/components/schemas/Meta' }
+    SpatialObjectCreate:
+      type: object
+      required: [objectType, geometry]
+      properties:
+        objectType: { type: string, enum: [space_boundary, region, feature, row, row_segment, table, seat, floor_position, label, path, symbol, other] }
+        code: { type: string }
+        displayLabel: { type: string }
+        geometry: { type: object, additionalProperties: true }
+        transform: { type: object, additionalProperties: true }
+        style: { type: object, additionalProperties: true }
+        properties: { type: object, additionalProperties: true }
+        visibility: { type: string, enum: [public, guest, staff, management, restricted] }
+    SpatialObject:
+      allOf:
+        - $ref: '#/components/schemas/SpatialObjectCreate'
+        - type: object
+          required: [id]
+          properties:
+            id: { type: string, format: uuid }
+    SpatialObjectResponse:
+      type: object
+      required: [data, meta]
+      properties:
+        data: { $ref: '#/components/schemas/SpatialObject' }
+        meta: { $ref: '#/components/schemas/Meta' }
+    SpatialObjectListResponse:
+      type: object
+      required: [data, meta]
+      properties:
+        data: { type: array, items: { $ref: '#/components/schemas/SpatialObject' } }
+        meta: { $ref: '#/components/schemas/Meta' }
+    AllocationRunRequest:
+      type: object
+      required: [mode, expectedRevision]
+      properties:
+        mode: { type: string, enum: [full, category, targeted_reflow, manual_validation, what_if] }
+        expectedRevision: { type: integer, minimum: 0 }
+        guestIds: { type: array, items: { type: string, format: uuid } }
+        groupIds: { type: array, items: { type: string, format: uuid } }
+        resourceIds: { type: array, items: { type: string, format: uuid } }
+        includeAdjacentZones: { type: boolean, default: false }
+        preserveUnaffected: { type: boolean, default: true }
+        allowUnassigned: { type: boolean, default: false }
+        timeLimitSeconds: { type: integer, minimum: 1, maximum: 600, default: 30 }
+    AllocationRunResponse:
+      type: object
+      required: [data, meta]
+      properties:
+        data:
+          type: object
+          properties:
+            runId: { type: string, format: uuid }
+            status: { type: string, enum: [queued, running, optimal, feasible, infeasible, model_invalid, unknown, failed, cancelled] }
+            objectiveValues: { type: object, additionalProperties: true }
+            diagnostics: { type: object, additionalProperties: true }
+            proposalRevisionId: { type: [string, 'null'], format: uuid }
+        meta: { $ref: '#/components/schemas/Meta' }
+    AllocationRevisionResponse:
+      type: object
+      required: [data, meta]
+      properties:
+        data:
+          type: object
+          properties:
+            revisionId: { type: string, format: uuid }
+            revisionNo: { type: integer }
+            status: { type: string }
+            changedGuestCount: { type: integer }
+            unassignedGuestCount: { type: integer }
+        meta: { $ref: '#/components/schemas/Meta' }
+    GuestPortalContextResponse:
+      type: object
+      required: [data, meta]
+      properties:
+        data:
+          type: object
+          properties:
+            guestDisplayName: { type: string }
+            eventName: { type: string }
+            eventStartsAt: { type: string, format: date-time }
+            allocationAvailable: { type: boolean }
+        meta: { $ref: '#/components/schemas/Meta' }
+    GuestAllocationViewResponse:
+      type: object
+      required: [data, meta]
+      properties:
+        data:
+          type: object
+          properties:
+            guestDisplayName: { type: string }
+            locator:
+              type: object
+              properties:
+                building: { type: [string, 'null'] }
+                level: { type: [string, 'null'] }
+                room: { type: string }
+                zone: { type: [string, 'null'] }
+                section: { type: [string, 'null'] }
+                row: { type: [string, 'null'] }
+                position: { type: [string, 'null'] }
+                table: { type: [string, 'null'] }
+                seat: { type: [string, 'null'] }
+            guestMapProjection: { type: object, additionalProperties: true }
+            planRevision: { type: integer }
+            directions: { type: array, items: { type: string } }
+        meta: { $ref: '#/components/schemas/Meta' }
+    CheckinResultResponse:
+      type: object
+      required: [data, meta]
+      properties:
+        data:
+          type: object
+          required: [result]
+          properties:
+            result: { type: string, enum: [accepted, duplicate, rejected, pending_sync] }
+            guestDisplayName: { type: [string, 'null'] }
+            eventGuestId: { type: [string, 'null'], format: uuid }
+            locator: { type: [object, 'null'], additionalProperties: true }
+            reasonCode: { type: [string, 'null'] }
+            checkedInAt: { type: [string, 'null'], format: date-time }
+        meta: { $ref: '#/components/schemas/Meta' }
+    CockpitSnapshotResponse:
+      type: object
+      required: [data, meta]
+      properties:
+        data:
+          type: object
+          properties:
+            generatedAt: { type: string, format: date-time }
+            freshnessSeconds: { type: integer }
+            metrics: { type: object, additionalProperties: true }
+            spaceSummaries: { type: array, items: { type: object, additionalProperties: true } }
+            alerts: { type: array, items: { type: object, additionalProperties: true } }
+            currentPlanRevisions: { type: array, items: { type: object, additionalProperties: true } }
+        meta: { $ref: '#/components/schemas/Meta' }
+    PrerequisiteCreate:
+      type: object
+      required: [prerequisiteType, title, mandatory]
+      properties:
+        prerequisiteType: { type: string, enum: [cdi_police_inspection, venue_approval, authority_notification, other] }
+        title: { type: string }
+        mandatory: { type: boolean }
+        readinessGate: { type: boolean, default: false }
+        externalPartyName: { type: string }
+        internalCoordinatorId: { type: string, format: uuid }
+        dueAt: { type: string, format: date-time }
+    PrerequisiteListResponse:
+      type: object
+      required: [data, meta]
+      properties:
+        data: { type: array, items: { type: object, additionalProperties: true } }
+        meta: { $ref: '#/components/schemas/Meta' }
+
+
+    PublishedBookingFormResponse:
+      type: object
+      required: [data, meta]
+      properties:
+        data:
+          type: object
+          required: [formCode, revision, locale, fields]
+          properties:
+            formCode: { type: string }
+            revision: { type: integer }
+            locale: { type: string }
+            fields: { type: array, items: { type: object, additionalProperties: true } }
+            publicBrand: { type: object, additionalProperties: true }
+        meta: { $ref: '#/components/schemas/Meta' }
+    BookingInquiryCreate:
+      type: object
+      required: [formRevision, locale, values, privacyAcknowledged]
+      properties:
+        formRevision: { type: integer }
+        locale: { type: string, maxLength: 20 }
+        values: { type: object, additionalProperties: true }
+        attachmentTokens: { type: array, items: { type: string } }
+        privacyAcknowledged: { type: boolean, const: true }
+        antiAbuseToken: { type: string, maxLength: 4000 }
+    BookingInquiryReceipt:
+      type: object
+      required: [data, meta]
+      properties:
+        data:
+          type: object
+          required: [publicReference, receivedAt, message]
+          properties:
+            publicReference: { type: string }
+            receivedAt: { type: string, format: date-time }
+            message: { type: string }
+        meta: { $ref: '#/components/schemas/Meta' }
+    BookingInquiry:
+      type: object
+      required: [id, inquiryCode, status, receivedAt, formRevisionId, submittedPayload]
+      properties:
+        id: { type: string, format: uuid }
+        inquiryCode: { type: string }
+        status: { type: string }
+        receivedAt: { type: string, format: date-time }
+        formRevisionId: { type: string, format: uuid }
+        submittedPayload: { type: object, additionalProperties: true }
+        submittedOptionSnapshot: { type: object, additionalProperties: true }
+    BookingInquiryResponse:
+      type: object
+      required: [data, meta]
+      properties:
+        data: { $ref: '#/components/schemas/BookingInquiry' }
+        meta: { $ref: '#/components/schemas/Meta' }
+    BookingInquiryListResponse:
+      type: object
+      required: [data, page, meta]
+      properties:
+        data: { type: array, items: { $ref: '#/components/schemas/BookingInquiry' } }
+        page: { $ref: '#/components/schemas/Page' }
+        meta: { $ref: '#/components/schemas/Meta' }
+    BookingDraftRevisionCreate:
+      type: object
+      required: [workingPayload, changeReason]
+      properties:
+        expectedRevision: { type: integer }
+        workingPayload: { type: object, additionalProperties: true }
+        requestedApprovedDelivered: { type: object, additionalProperties: true }
+        changeReason: { type: string, minLength: 3, maxLength: 2000 }
+    BookingDraftResponse:
+      type: object
+      required: [data, meta]
+      properties:
+        data:
+          type: object
+          required: [draftId, revisionId, revisionNumber, lifecycleStatus]
+          properties:
+            draftId: { type: string, format: uuid }
+            revisionId: { type: string, format: uuid }
+            revisionNumber: { type: integer }
+            lifecycleStatus: { type: string }
+            workingPayload: { type: object, additionalProperties: true }
+        meta: { $ref: '#/components/schemas/Meta' }
