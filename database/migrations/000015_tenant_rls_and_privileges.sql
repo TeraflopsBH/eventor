@@ -66,6 +66,8 @@ DECLARE
   v_grantor_organization_id uuid;
   v_status text;
   v_accepted_by uuid;
+  v_valid_from timestamptz;
+  v_valid_until timestamptz;
 BEGIN
   IF v_organization_id IS NULL THEN
     RAISE EXCEPTION 'tenant context is required' USING ERRCODE = '42501';
@@ -79,8 +81,8 @@ BEGIN
     RAISE EXCEPTION 'active grantee membership is required' USING ERRCODE = '42501';
   END IF;
 
-  SELECT organization_id, status, accepted_by_membership_id
-    INTO v_grantor_organization_id, v_status, v_accepted_by
+  SELECT organization_id, status, accepted_by_membership_id, valid_from, valid_until
+    INTO v_grantor_organization_id, v_status, v_accepted_by, v_valid_from, v_valid_until
     FROM eogp.collaboration_grants
    WHERE id = p_grant_id
      AND grantee_organization_id = v_organization_id
@@ -95,6 +97,9 @@ BEGIN
   IF v_status <> 'proposed' THEN
     RAISE EXCEPTION 'collaboration grant is not awaiting acceptance' USING ERRCODE = '55000';
   END IF;
+  IF v_valid_from > clock_timestamp() OR (v_valid_until IS NOT NULL AND v_valid_until <= clock_timestamp()) THEN
+    RAISE EXCEPTION 'collaboration grant is outside its acceptance window' USING ERRCODE = '55000';
+  END IF;
 
   UPDATE eogp.collaboration_grants
      SET status = 'active',
@@ -104,16 +109,76 @@ BEGIN
      AND id = p_grant_id;
 
   INSERT INTO eogp.audit_events (
-    organization_id, actor_membership_id, actor_kind, action,
+    organization_id, actor_organization_id, actor_membership_id, actor_kind, action,
     aggregate_type, aggregate_id, safe_metadata
   ) VALUES (
-    v_organization_id, p_actor_membership_id, 'membership',
+    v_organization_id, v_organization_id, p_actor_membership_id, 'membership',
     'collaboration.grant.accepted', 'collaboration_grant', p_grant_id,
     jsonb_build_object('grantorOrganizationId', v_grantor_organization_id)
   );
 END;
 $function$;
+
+CREATE FUNCTION eogp.revoke_collaboration_grant(
+  p_grant_id uuid,
+  p_actor_membership_id uuid,
+  p_reason text
+) RETURNS void
+LANGUAGE plpgsql
+SECURITY DEFINER
+SET search_path = pg_catalog, eogp
+AS $function$
+DECLARE
+  v_organization_id uuid := eogp.current_organization_id();
+  v_member_status text;
+  v_status text;
+BEGIN
+  IF v_organization_id IS NULL OR nullif(trim(p_reason), '') IS NULL THEN
+    RAISE EXCEPTION 'tenant context and revocation reason are required' USING ERRCODE = '22023';
+  END IF;
+
+  SELECT status INTO v_member_status
+    FROM eogp.organization_memberships
+   WHERE organization_id = v_organization_id
+     AND id = p_actor_membership_id;
+  IF NOT FOUND OR v_member_status <> 'active' THEN
+    RAISE EXCEPTION 'active grantor membership is required' USING ERRCODE = '42501';
+  END IF;
+
+  SELECT status INTO v_status
+    FROM eogp.collaboration_grants
+   WHERE organization_id = v_organization_id
+     AND id = p_grant_id
+   FOR UPDATE;
+  IF NOT FOUND THEN
+    RAISE EXCEPTION 'collaboration grant not found' USING ERRCODE = 'P0002';
+  END IF;
+  IF v_status = 'revoked' THEN
+    RETURN;
+  END IF;
+  IF v_status NOT IN ('proposed','active') THEN
+    RAISE EXCEPTION 'collaboration grant cannot be revoked from its current state' USING ERRCODE = '55000';
+  END IF;
+
+  UPDATE eogp.collaboration_grants
+     SET status = 'revoked',
+         revoked_at = clock_timestamp()
+   WHERE organization_id = v_organization_id
+     AND id = p_grant_id;
+
+  INSERT INTO eogp.audit_events (
+    organization_id, actor_organization_id, actor_membership_id, actor_kind, action,
+    aggregate_type, aggregate_id, reason_code, safe_metadata
+  ) VALUES (
+    v_organization_id, v_organization_id, p_actor_membership_id, 'membership',
+    'collaboration.grant.revoked', 'collaboration_grant', p_grant_id, 'grant_revoked',
+    jsonb_build_object('reason', p_reason)
+  );
+END;
+$function$;
+
 REVOKE ALL ON FUNCTION eogp.accept_collaboration_grant(uuid,uuid) FROM PUBLIC;
+REVOKE ALL ON FUNCTION eogp.revoke_collaboration_grant(uuid,uuid,text) FROM PUBLIC;
 
 -- Event-owned association is visible to the event owner and booking owner; field projections remain service-controlled.
 DROP POLICY tenant_isolation ON eogp.booking_event_links;
@@ -151,6 +216,7 @@ DECLARE
     'event_venue_snapshot_objects',
     'event_venue_snapshot_resources',
     'event_change_approval_decisions',
+    'event_decision_sessions',
     'event_decisions',
     'event_status_history',
     'participation_status_history',
@@ -180,7 +246,7 @@ GRANT USAGE, SELECT ON ALL SEQUENCES IN SCHEMA eogp TO eventor_runtime;
 GRANT SELECT ON eogp.permissions TO eventor_runtime, eventor_worker;
 REVOKE INSERT, UPDATE, DELETE ON eogp.collaboration_grants FROM eventor_runtime, eventor_worker;
 GRANT SELECT ON eogp.collaboration_grants TO eventor_runtime;
-GRANT EXECUTE ON FUNCTION eogp.accept_collaboration_grant(uuid,uuid) TO eventor_runtime;
+GRANT EXECUTE ON FUNCTION eogp.accept_collaboration_grant(uuid,uuid), eogp.revoke_collaboration_grant(uuid,uuid,text) TO eventor_runtime;
 REVOKE ALL ON eogp.schema_migrations FROM eventor_runtime, eventor_worker;
 REVOKE INSERT, UPDATE, DELETE ON eogp.permissions FROM eventor_runtime, eventor_worker;
 GRANT SELECT, UPDATE ON eogp.outbox_events, eogp.background_jobs TO eventor_worker;
