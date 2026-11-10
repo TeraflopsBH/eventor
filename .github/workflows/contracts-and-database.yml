@@ -73,6 +73,8 @@ jobs:
           sudo apt-get install --yes postgresql-client
           bash -n scripts/db/migrate.sh
           bash -n scripts/db/test_resource_concurrency.sh
+          bash -n scripts/db/test-concurrency.sh
+          bash -n scripts/db/test-migrations.sh
 
       - name: Bootstrap least-privilege roles
         run: |
