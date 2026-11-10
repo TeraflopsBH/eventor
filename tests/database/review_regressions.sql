@@ -132,6 +132,210 @@ BEGIN
 END;
 $test$;
 
+-- The booking line limit applies across individually tracked units as well as
+-- pooled reservations. Four separate units satisfy the requested quantity;
+-- a fifth overlapping unit must be rejected even though pool capacity is ten.
+INSERT INTO eogp.resource_units
+  (id, organization_id, resource_pool_id, unit_code, status)
+VALUES
+  ('42000000-0000-4000-8000-000000000005',
+   '11111111-1111-4111-8111-111111111111',
+   '41000000-0000-4000-8000-000000000003',
+   'CI-LINE-UNIT-05','available'),
+  ('42000000-0000-4000-8000-000000000006',
+   '11111111-1111-4111-8111-111111111111',
+   '41000000-0000-4000-8000-000000000003',
+   'CI-LINE-UNIT-06','available'),
+  ('42000000-0000-4000-8000-000000000007',
+   '11111111-1111-4111-8111-111111111111',
+   '41000000-0000-4000-8000-000000000003',
+   'CI-LINE-UNIT-07','available'),
+  ('42000000-0000-4000-8000-000000000008',
+   '11111111-1111-4111-8111-111111111111',
+   '41000000-0000-4000-8000-000000000003',
+   'CI-LINE-UNIT-08','available'),
+  ('42000000-0000-4000-8000-000000000009',
+   '11111111-1111-4111-8111-111111111111',
+   '41000000-0000-4000-8000-000000000003',
+   'CI-LINE-UNIT-09','available');
+
+DO $test$
+DECLARE
+  v_unit_id uuid;
+  v_reservation_count integer;
+BEGIN
+  FOR v_unit_id IN
+    SELECT unnest(ARRAY[
+      '42000000-0000-4000-8000-000000000005'::uuid,
+      '42000000-0000-4000-8000-000000000006'::uuid,
+      '42000000-0000-4000-8000-000000000007'::uuid,
+      '42000000-0000-4000-8000-000000000008'::uuid
+    ])
+  LOOP
+    PERFORM eogp.reserve_resource_unit(
+      '11111111-1111-4111-8111-111111111111',
+      v_unit_id,
+      '51000000-0000-4000-8000-000000000001',
+      NULL,NULL,
+      '52000000-0000-4000-8000-000000000003',
+      '2027-01-08 10:00+00','2027-01-08 11:00+00',
+      clock_timestamp() + interval '1 day',
+      'ci-unit-line-' || substr(md5(v_unit_id::text),1,16)
+    );
+  END LOOP;
+
+  BEGIN
+    PERFORM eogp.reserve_resource_unit(
+      '11111111-1111-4111-8111-111111111111',
+      '42000000-0000-4000-8000-000000000009',
+      '51000000-0000-4000-8000-000000000001',
+      NULL,NULL,
+      '52000000-0000-4000-8000-000000000003',
+      '2027-01-08 10:00+00','2027-01-08 11:00+00',
+      clock_timestamp() + interval '1 day',
+      'ci-unit-line-over-0001'
+    );
+    RAISE EXCEPTION 'individually tracked units exceeded the booking resource line quantity';
+  EXCEPTION WHEN SQLSTATE '23514' THEN
+    NULL;
+  END;
+
+  SELECT count(*) INTO v_reservation_count
+    FROM eogp.resource_reservations
+   WHERE organization_id = '11111111-1111-4111-8111-111111111111'
+     AND booking_draft_revision_id = '51000000-0000-4000-8000-000000000001'
+     AND booking_resource_line_id = '52000000-0000-4000-8000-000000000003'
+     AND starts_at = '2027-01-08 10:00+00'
+     AND status = 'held'
+     AND idempotency_key LIKE 'ci-unit-line-%';
+
+  IF v_reservation_count <> 4 THEN
+    RAISE EXCEPTION 'expected four discrete reservations under a line limit of four, got %',
+      v_reservation_count;
+  END IF;
+END;
+$test$;
+
+-- The worker expiry path must include discrete-unit rows, whose resource_pool_id
+-- column is NULL. Expired pooled holds must also release their pool capacity.
+INSERT INTO eogp.resource_pools
+  (id, organization_id, venue_id, resource_type_id, code, name, capacity)
+VALUES
+  ('41000000-0000-4000-8000-000000000004',
+   '11111111-1111-4111-8111-111111111111',
+   '10000000-0000-4000-8000-000000000001',
+   '40000000-0000-4000-8000-000000000001',
+   'CI-EXPIRY-POOL','Expired hold regression pool',1);
+
+INSERT INTO eogp.resource_units
+  (id, organization_id, resource_pool_id, unit_code, status)
+VALUES
+  ('42000000-0000-4000-8000-00000000000a',
+   '11111111-1111-4111-8111-111111111111',
+   '41000000-0000-4000-8000-000000000004',
+   'CI-EXPIRY-UNIT','available');
+
+DO $test$
+DECLARE
+  v_expired_count bigint;
+  v_pool_reservation_id uuid;
+  v_unit_reservation_id uuid;
+  v_status text;
+BEGIN
+  -- Insert an expired pooled hold at the only unit of capacity.
+  INSERT INTO eogp.resource_reservations (
+    id, organization_id, resource_pool_id, booking_draft_revision_id,
+    quantity, starts_at, ends_at, status, expires_at, idempotency_key
+  ) VALUES (
+    '43000000-0000-4000-8000-00000000000a',
+    '11111111-1111-4111-8111-111111111111',
+    '41000000-0000-4000-8000-000000000004',
+    '51000000-0000-4000-8000-000000000001',
+    1,'2027-01-09 10:00+00','2027-01-09 11:00+00',
+    'held',clock_timestamp() - interval '1 minute','ci-expired-pool-0001'
+  );
+
+  v_expired_count := eogp.expire_resource_holds(
+    '11111111-1111-4111-8111-111111111111'
+  );
+  IF v_expired_count <> 1 THEN
+    RAISE EXCEPTION 'worker should expire one stale pooled hold, got %', v_expired_count;
+  END IF;
+
+  SELECT status INTO v_status
+    FROM eogp.resource_reservations
+   WHERE id = '43000000-0000-4000-8000-00000000000a';
+  IF v_status <> 'expired' THEN
+    RAISE EXCEPTION 'stale pooled hold was not moved to expired status';
+  END IF;
+
+  -- The pool has capacity one; a new overlapping hold must now succeed.
+  v_pool_reservation_id := eogp.reserve_pooled_resource(
+    '11111111-1111-4111-8111-111111111111',
+    '41000000-0000-4000-8000-000000000004',
+    '51000000-0000-4000-8000-000000000001',NULL,NULL,
+    '2027-01-09 10:00+00','2027-01-09 11:00+00',1,
+    clock_timestamp() + interval '1 day','ci-expired-pool-reuse-01'
+  );
+
+  IF NOT EXISTS (
+    SELECT 1 FROM eogp.resource_reservations
+     WHERE id = v_pool_reservation_id
+       AND status = 'held'
+       AND resource_pool_id = '41000000-0000-4000-8000-000000000004'
+  ) THEN
+    RAISE EXCEPTION 'new pooled reservation did not occupy capacity released by expiry';
+  END IF;
+
+  -- Create a stale discrete-unit hold. The expiry worker must resolve its pool
+  -- through resource_units and expire it, despite resource_pool_id being NULL.
+  INSERT INTO eogp.resource_reservations (
+    id, organization_id, resource_unit_id, booking_draft_revision_id,
+    quantity, starts_at, ends_at, status, expires_at, idempotency_key
+  ) VALUES (
+    '43000000-0000-4000-8000-00000000000b',
+    '11111111-1111-4111-8111-111111111111',
+    '42000000-0000-4000-8000-00000000000a',
+    '51000000-0000-4000-8000-000000000001',
+    1,'2027-01-10 10:00+00','2027-01-10 11:00+00',
+    'held',clock_timestamp() - interval '1 minute','ci-expired-unit-0001'
+  );
+
+  v_expired_count := eogp.expire_resource_holds(
+    '11111111-1111-4111-8111-111111111111'
+  );
+  IF v_expired_count <> 1 THEN
+    RAISE EXCEPTION 'worker should expire one stale discrete-unit hold, got %', v_expired_count;
+  END IF;
+
+  SELECT status INTO v_status
+    FROM eogp.resource_reservations
+   WHERE id = '43000000-0000-4000-8000-00000000000b';
+  IF v_status <> 'expired' THEN
+    RAISE EXCEPTION 'stale discrete-unit hold was not moved to expired status';
+  END IF;
+
+  -- The same physical unit and interval can be reserved again once its hold expires.
+  v_unit_reservation_id := eogp.reserve_resource_unit(
+    '11111111-1111-4111-8111-111111111111',
+    '42000000-0000-4000-8000-00000000000a',
+    '51000000-0000-4000-8000-000000000001',
+    NULL,NULL,NULL,
+    '2027-01-10 10:00+00','2027-01-10 11:00+00',
+    clock_timestamp() + interval '1 day','ci-expired-unit-reuse-01'
+  );
+
+  IF NOT EXISTS (
+    SELECT 1 FROM eogp.resource_reservations
+     WHERE id = v_unit_reservation_id
+       AND status = 'held'
+       AND resource_unit_id = '42000000-0000-4000-8000-00000000000a'
+  ) THEN
+    RAISE EXCEPTION 'discrete unit could not be reused after its expired hold was cleaned';
+  END IF;
+END;
+$test$;
+
 -- Same idempotency key + same resource payload is idempotent. Changing only
 -- the booking_resource_line_id must be rejected, not treated as a replay.
 DO $test$
