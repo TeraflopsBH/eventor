@@ -55,7 +55,7 @@ for file in "${files[@]}"; do
     printf '%s\n' 'SET LOCAL ROLE eventor_owner;'
     printf '%s\n' 'SET LOCAL search_path TO eogp, public;'
     printf '%s\n' 'SELECT pg_advisory_xact_lock(23104, 18001);'
-    printf "DO \\$migration_guard\\$ BEGIN IF EXISTS (SELECT 1 FROM eogp.schema_migrations WHERE version = '%s') THEN RAISE EXCEPTION 'migration already applied by another runner' USING ERRCODE = '40001'; END IF; END \\$migration_guard\\$;\n" "$version"
+    printf "DO \$migration_guard\$ BEGIN IF EXISTS (SELECT 1 FROM eogp.schema_migrations WHERE version = '%s') THEN RAISE EXCEPTION 'migration already applied by another runner' USING ERRCODE = '40001'; END IF; END \$migration_guard\$;\n" "$version"
     printf '%s\n' "SELECT clock_timestamp() AS migration_started_at \\gset"
     cat "$file"
     printf "INSERT INTO eogp.schema_migrations (version, filename, checksum_sha256, execution_ms, applied_by) VALUES ('%s','%s','%s', GREATEST(0, floor(extract(epoch FROM clock_timestamp() - :'migration_started_at') * 1000)::bigint), session_user);\n" "$version" "$filename" "$checksum"
