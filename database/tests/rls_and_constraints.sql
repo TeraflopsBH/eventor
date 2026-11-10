@@ -619,6 +619,34 @@ VALUES
   '61000000-0000-4000-8000-00000000000b',
   '30000000-0000-0000-0000-00000000000b');
 
+DO $test$
+DECLARE
+  link_audits integer;
+BEGIN
+  SELECT count(*) INTO link_audits
+    FROM eogp.audit_events
+   WHERE organization_id = '10000000-0000-0000-0000-00000000000b'
+     AND action = 'booking.event.linked'
+     AND aggregate_id = '66000000-0000-4000-8000-00000000000a'
+     AND actor_organization_id = '10000000-0000-0000-0000-00000000000b'
+     AND authorization_grant_owner_organization_id = '10000000-0000-0000-0000-00000000000a'
+     AND authorization_grant_id = '61000000-0000-4000-8000-00000000000b';
+  IF link_audits <> 1 THEN
+    RAISE EXCEPTION 'booking-event link creation must be audited with delegated grant provenance; got %', link_audits;
+  END IF;
+
+  BEGIN
+    UPDATE eogp.booking_event_links
+       SET relationship_kind = 'other'
+     WHERE organization_id = '10000000-0000-0000-0000-00000000000b'
+       AND id = '66000000-0000-4000-8000-00000000000a';
+    RAISE EXCEPTION 'expected booking-event link immutable-field update rejection';
+  EXCEPTION WHEN SQLSTATE '55000' THEN
+    NULL;
+  END;
+END;
+$test$;
+
 INSERT INTO eogp.event_sessions
  (id, organization_id, event_id, code, title, starts_at, ends_at, status)
 VALUES
