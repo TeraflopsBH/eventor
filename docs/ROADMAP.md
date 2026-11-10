@@ -6,7 +6,8 @@ This roadmap is provisional. Scope and acceptance criteria must be finalized aft
 
 - [x] Import Technical Blueprint v1.2 and Implementation Design v0.2 source artifacts.
 - [x] Perform initial static reconciliation and record findings in `docs/DESIGN_RECONCILIATION_v0.2.md` (remaining technical validation tracked separately).
-- [ ] Complete PostgreSQL schema validation/migration testing and full OpenAPI 3.1.1 validation.
+- [ ] Complete PostgreSQL parser/runtime validation and migration tests; initial structural schema review is documented in `docs/database/DATABASE_REVIEW_v0.2.md`.
+- [ ] Resolve cross-organization ownership and tenant/resource integrity findings (Issues #12 and #13).
 - [x] Record initial architectural decisions and unresolved assumptions; add follow-up ADRs as decisions are approved.
 - [ ] Define MVP and acceptance criteria.
 - [ ] Add CI, issue/PR templates and repository protection settings.
@@ -15,7 +16,7 @@ This roadmap is provisional. Scope and acceptance criteria must be finalized aft
 
 - [ ] Monorepo workspace and build tooling.
 - [ ] Fastify API skeleton, configuration and health/readiness endpoints.
-- [ ] PostgreSQL migrations, connection management and transaction conventions.
+- [ ] PostgreSQL migrations, connection management and transaction conventions (migration standards documented; executable migrations pending schema reconciliation).
 - [ ] Shared contracts, validation and error model.
 - [ ] Authentication, sessions, authorization and audit foundation.
 - [ ] Organization, venue and event tenancy model.
