@@ -32,6 +32,14 @@ Eventor is a reusable, self-hosted platform that can operate as a venue booking/
 - Task/module responsibility and scoped collaboration must be explicit. A booking customer does not automatically become a tenant/member or gain access to the venue provider's workspace.
 - The venue provider retains its own venue/facility and contracted service responsibilities. Eventor records assigned operational ownership; it does not transfer duties or make legal determinations.
 
+### Optional event capabilities
+
+- An operational event is created only when the booking/event scope requires it; confirmed venue booking alone does not create one.
+- Guest Registry, invitations/RSVP, seating, check-in, external prerequisites and event-day cockpit are independently optional capabilities.
+- Capability activation and task responsibility are explicit; module defaults may be overridden for an individual event.
+- The organizer's guest data is not made visible to the venue provider solely because it supplies the space. Cross-party access is task-specific and explicitly granted.
+- See [RSVP and Invitation Design v0.3](implementation-design/v0.3/RSVP_AND_INVITATION_DESIGN_v0.3.md) and [ADR 0005](decisions/0005-separate-invitations-rsvp-attendance.md).
+
 ### Booking
 
 - Public inquiry is a relatively simple intake, not a complex booking configuration exercise.
@@ -43,15 +51,18 @@ Eventor is a reusable, self-hosted platform that can operate as a venue booking/
 - Rehearsals are separately schedulable reservations with their own date, time and duration.
 - Historical records pin the form and catalogue revisions and retain the labels/answers shown at the time.
 
-### RSVP and attendance
+### Invitations, RSVP and attendance
 
-- Guest self-service response through a personalized, secure invitation link; email is the initial delivery channel.
-- No guest account is required by default.
-- Staff can record a response received in person, by telephone, email, letter or another configured channel.
-- Record response source, timestamp, operator and optional notes.
-- Guests may change a response until the configured deadline/rule allows it.
-- RSVP response and actual attendance/check-in are separate states.
-- Invitation and check-in credentials must be distinct, opaque and revocable.
+- Invitations, delivery attempts, invitation-link validity, RSVP answers, participation/waitlist eligibility and physical attendance are separate lifecycle dimensions.
+- Guest self-service RSVP uses a high-entropy, opaque, revocable invitation link; no guest account is required by default.
+- Email is the initial delivery channel; channels, templates and reminder cadence are configurable.
+- Staff can record responses received in person, by telephone, email, written communication, a representative or another configured channel, without requiring a guest link or email address.
+- Capture source, response-received time, server-recorded time, authenticated operator and optional restricted notes/reason.
+- Response history is append-only. Changes/corrections add a new record and do not erase the prior response.
+- RSVP choices, deadline, event timezone, reminder policy and response-change rules are versioned event configuration.
+- No response remains unanswered; it is not an automatic decline. Invitation delivery failure does not change RSVP state.
+- RSVP response and physical attendance/check-in are separate. Accepting an invitation never creates attendance.
+- Guest operations are optional and assigned to the organizer or explicitly contracted operating party; a venue-only booking requires no guest records, invitations or RSVP.
 
 ### Guest registry
 
