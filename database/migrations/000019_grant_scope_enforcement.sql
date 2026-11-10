@@ -75,28 +75,43 @@ BEGIN
       RAISE EXCEPTION 'same-tenant booking-event links must not carry a collaboration grant'
         USING ERRCODE = '23514';
     END IF;
-    RETURN NEW;
+  ELSE
+    SELECT status, scope_kind, scope_booking_id, valid_from, valid_until, allowed_actions
+      INTO v_grant_status, v_scope_kind, v_scope_booking_id,
+           v_valid_from, v_valid_until, v_allowed_actions
+      FROM eogp.collaboration_grants
+     WHERE organization_id = NEW.booking_owner_organization_id
+       AND grantee_organization_id = NEW.organization_id
+       AND id = NEW.collaboration_grant_id
+     FOR UPDATE;
+
+    IF NOT FOUND
+       OR v_grant_status <> 'active'
+       OR v_valid_from > clock_timestamp()
+       OR (v_valid_until IS NOT NULL AND v_valid_until <= clock_timestamp())
+       OR v_scope_kind <> 'booking'
+       OR v_scope_booking_id IS DISTINCT FROM NEW.booking_id
+       OR NOT (v_allowed_actions @> ARRAY['booking.event.link']::text[]) THEN
+      RAISE EXCEPTION 'an active booking-scoped booking.event.link grant is required'
+        USING ERRCODE = '42501';
+    END IF;
   END IF;
 
-  SELECT status, scope_kind, scope_booking_id, valid_from, valid_until, allowed_actions
-    INTO v_grant_status, v_scope_kind, v_scope_booking_id,
-         v_valid_from, v_valid_until, v_allowed_actions
-    FROM eogp.collaboration_grants
-   WHERE organization_id = NEW.booking_owner_organization_id
-     AND grantee_organization_id = NEW.organization_id
-     AND id = NEW.collaboration_grant_id
-   FOR UPDATE;
-
-  IF NOT FOUND
-     OR v_grant_status <> 'active'
-     OR v_valid_from > clock_timestamp()
-     OR (v_valid_until IS NOT NULL AND v_valid_until <= clock_timestamp())
-     OR v_scope_kind <> 'booking'
-     OR v_scope_booking_id IS DISTINCT FROM NEW.booking_id
-     OR NOT (v_allowed_actions @> ARRAY['booking.event.link']::text[]) THEN
-    RAISE EXCEPTION 'an active booking-scoped booking.event.link grant is required'
-      USING ERRCODE = '42501';
-  END IF;
+  INSERT INTO eogp.audit_events (
+    organization_id, actor_organization_id, actor_membership_id, actor_kind,
+    authorization_grant_owner_organization_id, authorization_grant_id,
+    action, aggregate_type, aggregate_id, safe_metadata
+  ) VALUES (
+    NEW.organization_id, NEW.organization_id, NEW.created_by_membership_id, 'membership',
+    NEW.grant_owner_organization_id, NEW.collaboration_grant_id,
+    'booking.event.linked', 'booking_event_link', NEW.id,
+    jsonb_build_object(
+      'bookingOwnerOrganizationId', NEW.booking_owner_organization_id,
+      'bookingId', NEW.booking_id,
+      'eventId', NEW.event_id,
+      'relationshipKind', NEW.relationship_kind
+    )
+  );
 
   RETURN NEW;
 END;
@@ -157,7 +172,7 @@ BEGIN
      OR v_grant_status <> 'active'
      OR NEW.approved_at < v_valid_from
      OR (v_valid_until IS NOT NULL AND NEW.approved_at >= v_valid_until) THEN
-    RAISE EXCEPTION 'an active grant with venue.snapshot.share is required'
+    RAISE EXCEPTION 'an active grant covering the venue-space revision is required'
       USING ERRCODE = '42501';
   END IF;
 
