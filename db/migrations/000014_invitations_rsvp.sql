@@ -16,7 +16,7 @@ CREATE TABLE eogp.rsvp_policy_revisions (
   allow_staff_late_record boolean NOT NULL DEFAULT true,
   enabled_answers text[] NOT NULL DEFAULT ARRAY['accepted','declined','tentative'],
   reminder_policy jsonb NOT NULL DEFAULT '{}'::jsonb,
-  status          text NOT NULL DEFAULT 'published' CHECK (status IN ('draft','published','retired')),
+  status          text NOT NULL DEFAULT 'draft' CHECK (status IN ('draft','published','retired')),
   published_at    timestamptz,
   created_at      timestamptz NOT NULL DEFAULT clock_timestamp(),
   UNIQUE (organization_id, event_id, id),
