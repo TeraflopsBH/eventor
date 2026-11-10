@@ -64,7 +64,7 @@ CREATE TABLE eogp.event_decisions (
     original_schedule_revision_id uuid,
     replacement_schedule_revision_id uuid,
     reason_code text NOT NULL,
-    reason_internal text,
+    reason_internal_ciphertext bytea,
     public_message text,
     executed_by_organization_id uuid NOT NULL,
     executed_by_membership_id uuid NOT NULL,
