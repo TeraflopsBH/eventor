@@ -20,6 +20,7 @@ CREATE TABLE eogp.collaboration_grants (
     revoked_at timestamptz,
     created_at timestamptz NOT NULL DEFAULT clock_timestamp(),
     UNIQUE (organization_id, id),
+    UNIQUE (organization_id, grantee_organization_id, id),
     CHECK (organization_id <> grantee_organization_id),
     CHECK (
       (scope_kind = 'venue' AND scope_venue_id IS NOT NULL AND scope_space_id IS NULL AND scope_booking_id IS NULL)
@@ -73,12 +74,13 @@ CREATE TABLE eogp.venue_snapshot_shares (
     approved_at timestamptz NOT NULL DEFAULT clock_timestamp(),
     status text NOT NULL DEFAULT 'active' CHECK (status IN ('active','revoked','expired')),
     UNIQUE (organization_id, id),
+    UNIQUE (organization_id, event_owner_organization_id, event_id, id, venue_space_revision_id, source_content_sha256),
     FOREIGN KEY (organization_id, venue_space_revision_id)
       REFERENCES eogp.venue_space_revisions(organization_id, id),
     FOREIGN KEY (event_owner_organization_id, event_id)
       REFERENCES eogp.events(organization_id, id),
-    FOREIGN KEY (organization_id, collaboration_grant_id)
-      REFERENCES eogp.collaboration_grants(organization_id, id),
+    FOREIGN KEY (organization_id, event_owner_organization_id, collaboration_grant_id)
+      REFERENCES eogp.collaboration_grants(organization_id, grantee_organization_id, id),
     FOREIGN KEY (organization_id, approved_by_membership_id)
       REFERENCES eogp.organization_memberships(organization_id, id),
     CHECK (organization_id <> event_owner_organization_id),
@@ -99,8 +101,8 @@ CREATE TABLE eogp.event_venue_snapshots (
     UNIQUE (organization_id, id),
     UNIQUE (organization_id, event_id, id),
     FOREIGN KEY (organization_id, event_id) REFERENCES eogp.events(organization_id, id),
-    FOREIGN KEY (share_owner_organization_id, snapshot_share_id)
-      REFERENCES eogp.venue_snapshot_shares(organization_id, id),
+    FOREIGN KEY (share_owner_organization_id, organization_id, event_id, snapshot_share_id, source_space_revision_id, source_content_sha256)
+      REFERENCES eogp.venue_snapshot_shares(organization_id, event_owner_organization_id, event_id, id, venue_space_revision_id, source_content_sha256),
     FOREIGN KEY (source_organization_id, source_space_revision_id)
       REFERENCES eogp.venue_space_revisions(organization_id, id)
 );
@@ -165,8 +167,8 @@ CREATE TABLE eogp.booking_event_links (
     FOREIGN KEY (organization_id, event_id) REFERENCES eogp.events(organization_id, id),
     FOREIGN KEY (booking_owner_organization_id, booking_id)
       REFERENCES eogp.booking_records(organization_id, id),
-    FOREIGN KEY (grant_owner_organization_id, collaboration_grant_id)
-      REFERENCES eogp.collaboration_grants(organization_id, id),
+    FOREIGN KEY (grant_owner_organization_id, organization_id, collaboration_grant_id)
+      REFERENCES eogp.collaboration_grants(organization_id, grantee_organization_id, id),
     CHECK (
       (organization_id = booking_owner_organization_id AND collaboration_grant_id IS NULL)
       OR (organization_id <> booking_owner_organization_id AND collaboration_grant_id IS NOT NULL)
