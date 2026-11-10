@@ -292,3 +292,70 @@ $function$;
 CREATE TRIGGER event_notification_campaign_update_guard
   BEFORE UPDATE ON eogp.event_notification_campaigns
   FOR EACH ROW EXECUTE FUNCTION eogp.guard_event_notification_campaign_update();
+
+
+-- A confirmed campaign is a fixed snapshot: no later worker or privileged
+-- application path may append recipients or exclusions to it.
+CREATE OR REPLACE FUNCTION eogp.protect_queued_event_notification_recipients()
+RETURNS trigger
+LANGUAGE plpgsql
+SECURITY DEFINER
+SET search_path = pg_catalog, eogp
+AS $function$
+DECLARE
+  v_campaign_id uuid;
+  v_organization_id uuid;
+  v_campaign_status text;
+BEGIN
+  IF TG_OP = 'DELETE' THEN
+    v_campaign_id := OLD.campaign_id;
+    v_organization_id := OLD.organization_id;
+  ELSE
+    v_campaign_id := NEW.campaign_id;
+    v_organization_id := NEW.organization_id;
+  END IF;
+
+  SELECT status
+    INTO v_campaign_status
+    FROM eogp.event_notification_campaigns
+   WHERE organization_id = v_organization_id
+     AND id = v_campaign_id;
+
+  IF v_campaign_status IN ('confirmed','queued','sending','completed','partial','failed','cancelled') THEN
+    RAISE EXCEPTION 'confirmed or queued notification campaign recipients are immutable'
+      USING ERRCODE = '55000';
+  END IF;
+
+  IF TG_OP = 'DELETE' THEN
+    RETURN OLD;
+  END IF;
+  RETURN NEW;
+END;
+$function$;
+
+CREATE FUNCTION eogp.protect_confirmed_event_notification_exclusions()
+RETURNS trigger
+LANGUAGE plpgsql
+SECURITY DEFINER
+SET search_path = pg_catalog, eogp
+AS $function$
+DECLARE
+  v_campaign_status text;
+BEGIN
+  SELECT status
+    INTO v_campaign_status
+    FROM eogp.event_notification_campaigns
+   WHERE organization_id = NEW.organization_id
+     AND id = NEW.campaign_id;
+
+  IF v_campaign_status IN ('confirmed','queued','sending','completed','partial','failed','cancelled') THEN
+    RAISE EXCEPTION 'confirmed or queued notification campaign exclusions are immutable'
+      USING ERRCODE = '55000';
+  END IF;
+  RETURN NEW;
+END;
+$function$;
+
+CREATE TRIGGER event_notification_exclusions_audience_guard
+  BEFORE INSERT ON eogp.event_notification_exclusions
+  FOR EACH ROW EXECUTE FUNCTION eogp.protect_confirmed_event_notification_exclusions();
