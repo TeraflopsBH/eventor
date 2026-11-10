@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 set -Eeuo pipefail
 
-: "\${DATABASE_URL:?Set DATABASE_URL to the migrated PostgreSQL 18 database}"
+: "${DATABASE_URL:?Set DATABASE_URL to the migrated PostgreSQL 18 database}"
 org="11111111-1111-4111-8111-111111111111"
 pool="41000000-0000-4000-8000-000000000002"
 draft_revision="51000000-0000-4000-8000-000000000001"
