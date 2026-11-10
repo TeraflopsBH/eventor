@@ -119,7 +119,7 @@ Before production use, the design/schema must be extended and tested for:
 
 Original package checksums for imported files:
 
-- Blueprint v1.2 Markdown: not recalculated from the normalized Files text export.
+- Blueprint v1.2 Markdown: `3ebb97dab8d5b596cb1b05d1b8f8cdf96578ec4cdccff6cf4d67dded41112728`.
 - Implementation Design v0.2 Markdown: `b81eb1a90cea4d4989ebefca65a4cbb5b3cafb960be5265f0d1925698f448b73`.
 - Consolidated SQL v0.2: `3ca75c855d5bf49566a40807f722de8ea38785042f50f2094e7ee27014c9b7f7`.
 - OpenAPI v0.2: `99289459b27e8721e1c453b42cebf0a98c705a651ebd3472616e29fd1cba40d3`.
