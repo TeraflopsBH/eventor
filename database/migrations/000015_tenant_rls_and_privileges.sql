@@ -194,6 +194,8 @@ REVOKE INSERT, UPDATE, DELETE ON eogp.resource_reservations FROM eventor_runtime
 GRANT SELECT ON eogp.resource_reservations TO eventor_runtime, eventor_worker;
 GRANT EXECUTE ON FUNCTION eogp.reserve_pooled_resource(uuid,uuid,uuid,uuid,uuid,timestamptz,timestamptz,integer,timestamptz,text)
   TO eventor_runtime;
+GRANT EXECUTE ON FUNCTION eogp.expire_space_holds(uuid), eogp.expire_resource_holds(uuid)
+  TO eventor_worker;
 
 REVOKE UPDATE, DELETE ON
   eogp.audit_events,
