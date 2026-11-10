@@ -6,14 +6,41 @@ SELECT set_config('app.organization_id','11111111-1111-4111-8111-111111111111',t
 -- SECURITY DEFINER expiry functions must never be executable by PUBLIC,
 -- the normal runtime role or the isolated authentication role.
 DO $test$
+DECLARE
+  v_public_execute boolean;
 BEGIN
-  IF has_function_privilege('public','eogp.expire_space_holds(uuid)','EXECUTE')
+  SELECT EXISTS (
+    SELECT 1
+      FROM pg_proc AS proc
+      JOIN pg_namespace AS ns ON ns.oid = proc.pronamespace
+      CROSS JOIN LATERAL aclexplode(
+        coalesce(proc.proacl, acldefault('f', proc.proowner))
+      ) AS acl
+     WHERE ns.nspname = 'eogp'
+       AND proc.oid = 'eogp.expire_space_holds(uuid)'::regprocedure
+       AND acl.grantee = 0
+       AND acl.privilege_type = 'EXECUTE'
+  ) INTO v_public_execute;
+  IF v_public_execute
      OR has_function_privilege('eventor_runtime','eogp.expire_space_holds(uuid)','EXECUTE')
      OR has_function_privilege('eventor_auth','eogp.expire_space_holds(uuid)','EXECUTE')
      OR NOT has_function_privilege('eventor_worker','eogp.expire_space_holds(uuid)','EXECUTE') THEN
     RAISE EXCEPTION 'space-hold expiry function privilege boundary is incorrect';
   END IF;
-  IF has_function_privilege('public','eogp.expire_resource_holds(uuid)','EXECUTE')
+
+  SELECT EXISTS (
+    SELECT 1
+      FROM pg_proc AS proc
+      JOIN pg_namespace AS ns ON ns.oid = proc.pronamespace
+      CROSS JOIN LATERAL aclexplode(
+        coalesce(proc.proacl, acldefault('f', proc.proowner))
+      ) AS acl
+     WHERE ns.nspname = 'eogp'
+       AND proc.oid = 'eogp.expire_resource_holds(uuid)'::regprocedure
+       AND acl.grantee = 0
+       AND acl.privilege_type = 'EXECUTE'
+  ) INTO v_public_execute;
+  IF v_public_execute
      OR has_function_privilege('eventor_runtime','eogp.expire_resource_holds(uuid)','EXECUTE')
      OR has_function_privilege('eventor_auth','eogp.expire_resource_holds(uuid)','EXECUTE')
      OR NOT has_function_privilege('eventor_worker','eogp.expire_resource_holds(uuid)','EXECUTE') THEN
