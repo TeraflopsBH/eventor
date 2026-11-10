@@ -107,7 +107,8 @@ GRANT SELECT, INSERT, UPDATE, DELETE ON ALL TABLES IN SCHEMA eogp TO eventor_run
 GRANT USAGE, SELECT ON ALL SEQUENCES IN SCHEMA eogp TO eventor_runtime;
 
 GRANT SELECT ON eogp.permissions TO eventor_runtime, eventor_worker;
-REVOKE INSERT, UPDATE, DELETE ON eogp.permissions, eogp.schema_migrations FROM eventor_runtime, eventor_worker;
+REVOKE ALL ON eogp.schema_migrations FROM eventor_runtime, eventor_worker;
+REVOKE INSERT, UPDATE, DELETE ON eogp.permissions FROM eventor_runtime, eventor_worker;
 GRANT SELECT, UPDATE ON eogp.outbox_events, eogp.background_jobs TO eventor_worker;
 GRANT SELECT, INSERT, UPDATE ON eogp.invitation_deliveries TO eventor_worker;
 GRANT SELECT, INSERT, UPDATE ON eogp.event_notification_recipients TO eventor_worker;
