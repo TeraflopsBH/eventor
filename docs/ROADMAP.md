@@ -12,6 +12,14 @@ This roadmap is provisional. Scope and acceptance criteria must be finalized aft
 - [ ] Define MVP and acceptance criteria.
 - [ ] Add CI, issue/PR templates and repository protection settings.
 
+## Phase 0.5 — Successor contracts
+
+- [ ] Accept database integrity and resource reservation constraints (Issue #13 / PR #19).
+- [ ] Complete logical schema review and produce ordered executable PostgreSQL 18 migrations.
+- [ ] Produce OpenAPI 3.1.1 v0.3 YAML from the route/security design.
+- [ ] Add PostgreSQL integration/concurrency/RLS tests and pinned OpenAPI validation/auth contract tests.
+- [ ] Close Issues #2, #3, #13 and #17 only after their runtime/CI acceptance criteria pass.
+
 ## Phase 1 — Platform foundation
 
 - [ ] Monorepo workspace and build tooling.
