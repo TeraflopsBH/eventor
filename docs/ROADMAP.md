@@ -1,0 +1,66 @@
+# Delivery roadmap
+
+This roadmap is provisional. Scope and acceptance criteria must be finalized after the design artifacts are reconciled.
+
+## Phase 0 — Repository and design baseline
+
+- [ ] Import Technical Blueprint v1.2 and Implementation Design v0.2 source artifacts.
+- [ ] Reconcile domain model, SQL drafts, OpenAPI and backlog.
+- [ ] Validate schema and API specification with repeatable tooling.
+- [ ] Record architectural decisions and unresolved assumptions.
+- [ ] Define MVP and acceptance criteria.
+- [ ] Add CI, issue/PR templates and repository protection settings.
+
+## Phase 1 — Platform foundation
+
+- [ ] Monorepo workspace and build tooling.
+- [ ] Fastify API skeleton, configuration and health/readiness endpoints.
+- [ ] PostgreSQL migrations, connection management and transaction conventions.
+- [ ] Shared contracts, validation and error model.
+- [ ] Authentication, sessions, authorization and audit foundation.
+- [ ] Organization, venue and event tenancy model.
+- [ ] CI checks and synthetic test fixtures.
+
+## Phase 2 — Configurable venue booking
+
+- [ ] Versioned form/catalogue/configuration management.
+- [ ] Public inquiry intake and spam/rate protections.
+- [ ] Staff inquiry review and immutable inquiry history.
+- [ ] Separate editable booking draft and offer/approval flow.
+- [ ] Explicit booking confirmation and resource reservation.
+- [ ] Resource inventory, pricing and separately scheduled rehearsals.
+- [ ] Notifications and booking audit trail.
+
+## Phase 3 — Guest registry, invitations and RSVP
+
+- [ ] Persistent guest registry and event participation.
+- [ ] Imports, duplicate detection and supervised merge.
+- [ ] Invitation batches, secure links and delivery tracking.
+- [ ] Guest self-service RSVP and response-change rules.
+- [ ] Staff-recorded RSVP with source/operator/time/notes.
+- [ ] Guest portal and privacy-safe personal view.
+
+## Phase 4 — Venue spatial model and seating
+
+- [ ] Venue geometry, floors, rooms, zones, rows, positions and capacity pools.
+- [ ] SVG floor-plan editor and versioned maps.
+- [ ] Manual and category-based allocation.
+- [ ] Constraint model, diagnostics and solver integration.
+- [ ] Proposal preview, locking, scoped reruns and explicit commit.
+- [ ] Sanitized guest-facing map rendering.
+
+## Phase 5 — Check-in and live operations
+
+- [ ] QR issuance and revocation.
+- [ ] Staff check-in PWA and attendance corrections.
+- [ ] Live operations cockpit and role-specific workspaces.
+- [ ] Real-time events, alerts, readiness and operational audit.
+- [ ] Reports, signage and guest materials.
+
+## Phase 6 — Hardening and deployment
+
+- [ ] Security review and threat model.
+- [ ] Backup/restore and disaster-recovery validation.
+- [ ] Performance, accessibility and browser/device testing.
+- [ ] Monitoring, logs and operational runbooks.
+- [ ] Pilot deployment, user acceptance and production readiness.
