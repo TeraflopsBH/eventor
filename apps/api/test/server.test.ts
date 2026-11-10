@@ -124,7 +124,9 @@ function makePool() {
     pool,
     commandCalls,
     get reservationCalls() { return reservationCalls; },
-    get changeCalls() { return changeCalls; },\n    get campaignReviewCalls() { return campaignReviewCalls; },\n    get campaignConfirmCalls() { return campaignConfirmCalls; },
+    get changeCalls() { return changeCalls; },
+    get campaignReviewCalls() { return campaignReviewCalls; },
+    get campaignConfirmCalls() { return campaignConfirmCalls; },
   };
 }
 
