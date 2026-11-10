@@ -714,6 +714,22 @@ VALUES
   '64100000-0000-4000-8000-00000000000b',
   'zone','CI-PRIVATE-ZONE','{"x":50,"y":0,"width":10,"height":10}'::jsonb);
 
+INSERT INTO eogp.spatial_layers
+ (id, organization_id, venue_space_revision_id, code, label, layer_kind)
+VALUES
+ ('64100000-0000-0000-0000-00000000000c',
+  '10000000-0000-0000-0000-00000000000a',
+  '64000000-0000-4000-8000-00000000000a',
+  'CI-ZONES-SECOND','CI Second Zones','zones');
+
+INSERT INTO eogp.spatial_objects
+ (id, organization_id, layer_id, object_kind, stable_code, geometry)
+VALUES
+ ('64200000-0000-4000-8000-00000000000c',
+  '10000000-0000-0000-0000-00000000000a',
+  '64100000-0000-0000-0000-00000000000c',
+  'zone','CI-ZONE-SECOND','{"x":20,"y":0,"width":10,"height":10}'::jsonb);
+
 INSERT INTO eogp.floor_plan_assets
  (id, organization_id, venue_space_revision_id, storage_key, media_type, content_sha256, byte_length)
 VALUES
@@ -823,7 +839,7 @@ VALUES
   '10000000-0000-0000-0000-00000000000b',
   '62000000-0000-4000-8000-00000000000a',
   '61000000-0000-4000-8000-00000000000a',
-  '["64100000-0000-4000-8000-00000000000a"]'::jsonb,
+  '["64100000-0000-4000-8000-00000000000a","64100000-0000-0000-0000-00000000000c"]'::jsonb,
   '["a0000000-0000-0000-0000-00000000000a"]'::jsonb,
   repeat('d',64),
   clock_timestamp() + interval '23 hours',
@@ -862,7 +878,7 @@ BEGIN
    WHERE organization_id = '10000000-0000-0000-0000-00000000000a';
 
   IF source_revisions <> 1 OR source_spaces <> 1
-     OR source_layers <> 1 OR source_objects <> 1 OR source_pools <> 1 THEN
+     OR source_layers <> 2 OR source_objects <> 2 OR source_pools <> 1 THEN
     RAISE EXCEPTION
       'recipient source projection is too broad or incomplete: revisions %, spaces %, layers %, objects %, pools %',
       source_revisions, source_spaces, source_layers, source_objects, source_pools;
@@ -980,6 +996,16 @@ VALUES
   '64100000-0000-4000-8000-00000000000a',
   'CI-LAYER','{"kind":"zones"}'::jsonb);
 
+INSERT INTO eogp.event_venue_snapshot_layers
+ (id, organization_id, event_id, snapshot_id, source_layer_id, layer_code, layer_snapshot)
+VALUES
+ ('65100000-0000-4000-8000-00000000000b',
+  '10000000-0000-0000-0000-00000000000b',
+  '62000000-0000-4000-8000-00000000000a',
+  '65000000-0000-4000-8000-00000000000a',
+  '64100000-0000-0000-0000-00000000000c',
+  'CI-LAYER-SECOND','{"kind":"zones"}'::jsonb);
+
 INSERT INTO eogp.event_venue_snapshot_objects
  (id, organization_id, snapshot_id, snapshot_layer_id, source_object_id, object_kind, object_snapshot)
 VALUES
@@ -999,6 +1025,25 @@ VALUES
   '65000000-0000-4000-8000-00000000000a',
   'a0000000-0000-0000-0000-00000000000a',
   '{"kind":"pool","label":"CI Resource"}'::jsonb);
+
+DO $test$
+BEGIN
+  BEGIN
+    INSERT INTO eogp.event_venue_snapshot_objects
+     (id, organization_id, snapshot_id, snapshot_layer_id, source_object_id, object_kind, object_snapshot)
+    VALUES
+     ('65200000-0000-4000-8000-00000000000c',
+      '10000000-0000-0000-0000-00000000000b',
+      '65000000-0000-4000-8000-00000000000a',
+      '65100000-0000-4000-8000-00000000000b',
+      '64200000-0000-0000-0000-00000000000a',
+      'zone','{"code":"WRONG-LAYER-MAPPING"}'::jsonb);
+    RAISE EXCEPTION 'source object was attached to a different copied snapshot layer';
+  EXCEPTION WHEN SQLSTATE '42501' THEN
+    NULL;
+  END;
+END;
+$test$;
 
 DO $test$
 BEGIN
