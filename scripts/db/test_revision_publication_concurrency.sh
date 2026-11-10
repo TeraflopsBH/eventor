@@ -40,7 +40,7 @@ INSERT INTO eogp.venue_space_revisions
   (id, organization_id, venue_space_id, revision_number,
    geometry, semantic_snapshot, content_sha256)
 VALUES
-  ('$REVISION', '$ORG', '70000000-0000-4000-8000-00000000000a', 3,
+  ('$REVISION', '$ORG', '70000000-0000-0000-0000-00000000000a', 3,
    '{}'::jsonb, '{"label":"CI concurrent publication revision"}'::jsonb,
    repeat('a',64));
 COMMIT;
