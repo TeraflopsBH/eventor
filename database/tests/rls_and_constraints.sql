@@ -9,7 +9,7 @@ INSERT INTO eogp.organizations (id, slug, name)
 VALUES ('10000000-0000-0000-0000-00000000000a', 'ci-tenant-a', 'CI Tenant A');
 
 INSERT INTO eogp.users (id, email, display_name)
-VALUES ('20000000-0000-0000-0000-00000000000a', 'ci-a@example.invalid', 'CI A');
+VALUES ('20000000-0000-0000-0000-00000000000a', 'ci-extended-a@example.invalid', 'CI A');
 
 INSERT INTO eogp.organization_memberships (id, organization_id, user_id, status, joined_at)
 VALUES ('30000000-0000-0000-0000-00000000000a',
@@ -163,7 +163,7 @@ SELECT set_config('app.organization_id', '10000000-0000-0000-0000-00000000000b',
 INSERT INTO eogp.organizations (id, slug, name)
 VALUES ('10000000-0000-0000-0000-00000000000b', 'ci-tenant-b', 'CI Tenant B');
 INSERT INTO eogp.users (id, email, display_name)
-VALUES ('20000000-0000-0000-0000-00000000000b', 'ci-b@example.invalid', 'CI B');
+VALUES ('20000000-0000-0000-0000-00000000000b', 'ci-extended-b@example.invalid', 'CI B');
 INSERT INTO eogp.organization_memberships (id, organization_id, user_id, status, joined_at)
 VALUES ('30000000-0000-0000-0000-00000000000b',
         '10000000-0000-0000-0000-00000000000b',
