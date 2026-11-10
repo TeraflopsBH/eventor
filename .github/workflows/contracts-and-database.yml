@@ -123,5 +123,5 @@ jobs:
 
       - name: Report migration ledger
         run: |
-          psql "$ADMIN_URL" -X -v ON_ERROR_STOP=1 -d eventor \
+          psql "$MIGRATOR_URL" -X -v ON_ERROR_STOP=1 \
             -c "SET ROLE eventor_owner; SELECT version, filename, execution_ms FROM eogp.schema_migrations ORDER BY version;"
