@@ -31,7 +31,8 @@ DO $confirm$
 DECLARE
   v_campaign_id uuid;
   v_result jsonb;
-  v_count integer;\n  v_second_confirmation_rejected boolean := false;
+  v_count integer;
+  v_second_confirmation_rejected boolean := false;
 BEGIN
   SELECT id INTO v_campaign_id
     FROM eogp.event_notification_campaigns
