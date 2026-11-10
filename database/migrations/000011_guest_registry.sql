@@ -28,8 +28,8 @@ CREATE TABLE eogp.person_contact_points (
     organization_id uuid NOT NULL,
     person_id uuid NOT NULL,
     contact_kind text NOT NULL CHECK (contact_kind IN ('email','phone','postal','other')),
-    normalized_value text NOT NULL,
-    encrypted_value bytea,
+    normalized_value_hash text NOT NULL,
+    encrypted_value bytea NOT NULL,
     is_primary boolean NOT NULL DEFAULT false,
     is_verified boolean NOT NULL DEFAULT false,
     contact_consent text NOT NULL DEFAULT 'unknown'
@@ -41,7 +41,7 @@ CREATE TABLE eogp.person_contact_points (
     CHECK (normalized_value <> '')
 );
 CREATE INDEX person_contact_points_lookup_idx
-  ON eogp.person_contact_points (organization_id, contact_kind, normalized_value);
+  ON eogp.person_contact_points (organization_id, contact_kind, normalized_value_hash);
 
 CREATE TABLE eogp.person_identifiers (
     id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
@@ -147,7 +147,7 @@ CREATE TABLE eogp.guest_notes (
     organization_id uuid NOT NULL,
     event_id uuid NOT NULL,
     participation_id uuid NOT NULL,
-    note text NOT NULL,
+    note_ciphertext bytea NOT NULL,
     sensitivity text NOT NULL DEFAULT 'restricted'
       CHECK (sensitivity IN ('internal','restricted','highly_restricted')),
     created_by_membership_id uuid NOT NULL,
@@ -162,7 +162,7 @@ CREATE TABLE eogp.guest_notes (
 CREATE TABLE eogp.guest_custom_field_definitions (
     id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
     organization_id uuid NOT NULL,
-    event_id uuid,
+    event_id uuid NOT NULL,
     field_code text NOT NULL,
     label text NOT NULL,
     value_schema jsonb NOT NULL,
@@ -170,6 +170,7 @@ CREATE TABLE eogp.guest_custom_field_definitions (
       CHECK (sensitivity IN ('public','internal','restricted','highly_restricted')),
     status text NOT NULL DEFAULT 'active' CHECK (status IN ('active','retired')),
     UNIQUE (organization_id, id),
+    UNIQUE (organization_id, event_id, id),
     UNIQUE (organization_id, event_id, field_code),
     FOREIGN KEY (organization_id, event_id) REFERENCES eogp.events(organization_id, id),
     CHECK (jsonb_typeof(value_schema) = 'object')
@@ -188,8 +189,8 @@ CREATE TABLE eogp.guest_custom_field_values (
     UNIQUE (organization_id, participation_id, field_definition_id),
     FOREIGN KEY (organization_id, event_id, participation_id)
       REFERENCES eogp.event_participations(organization_id, event_id, id),
-    FOREIGN KEY (organization_id, field_definition_id)
-      REFERENCES eogp.guest_custom_field_definitions(organization_id, id),
+    FOREIGN KEY (organization_id, event_id, field_definition_id)
+      REFERENCES eogp.guest_custom_field_definitions(organization_id, event_id, id),
     FOREIGN KEY (organization_id, updated_by_membership_id)
       REFERENCES eogp.organization_memberships(organization_id, id)
 );
@@ -197,12 +198,13 @@ CREATE TABLE eogp.guest_custom_field_values (
 CREATE TABLE eogp.guest_tags (
     id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
     organization_id uuid NOT NULL,
-    event_id uuid,
+    event_id uuid NOT NULL,
     tag_code text NOT NULL,
     label text NOT NULL,
     sensitivity text NOT NULL DEFAULT 'internal'
       CHECK (sensitivity IN ('public','internal','restricted')),
     UNIQUE (organization_id, id),
+    UNIQUE (organization_id, event_id, id),
     UNIQUE (organization_id, event_id, tag_code),
     FOREIGN KEY (organization_id, event_id) REFERENCES eogp.events(organization_id, id)
 );
@@ -217,7 +219,7 @@ CREATE TABLE eogp.event_participation_tags (
     PRIMARY KEY (organization_id, participation_id, tag_id),
     FOREIGN KEY (organization_id, event_id, participation_id)
       REFERENCES eogp.event_participations(organization_id, event_id, id),
-    FOREIGN KEY (organization_id, tag_id) REFERENCES eogp.guest_tags(organization_id, id),
+    FOREIGN KEY (organization_id, event_id, tag_id) REFERENCES eogp.guest_tags(organization_id, event_id, id),
     FOREIGN KEY (organization_id, added_by_membership_id)
       REFERENCES eogp.organization_memberships(organization_id, id)
 );
@@ -245,7 +247,7 @@ CREATE TABLE eogp.guest_import_rows (
     organization_id uuid NOT NULL,
     batch_id uuid NOT NULL,
     row_number integer NOT NULL CHECK (row_number > 0),
-    source_values jsonb NOT NULL,
+    source_values_ciphertext bytea NOT NULL,
     normalized_values jsonb,
     validation_errors jsonb NOT NULL DEFAULT '[]'::jsonb,
     duplicate_candidates jsonb NOT NULL DEFAULT '[]'::jsonb,
