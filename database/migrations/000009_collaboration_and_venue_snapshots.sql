@@ -171,8 +171,9 @@ CREATE TABLE eogp.booking_event_links (
     FOREIGN KEY (grant_owner_organization_id, organization_id, collaboration_grant_id)
       REFERENCES eogp.collaboration_grants(organization_id, grantee_organization_id, id),
     CHECK (
-      (organization_id = booking_owner_organization_id AND collaboration_grant_id IS NULL)
-      OR (organization_id <> booking_owner_organization_id AND collaboration_grant_id IS NOT NULL)
+      (organization_id = booking_owner_organization_id AND collaboration_grant_id IS NULL AND grant_owner_organization_id IS NULL)
+      OR (organization_id <> booking_owner_organization_id AND collaboration_grant_id IS NOT NULL
+          AND grant_owner_organization_id = booking_owner_organization_id)
     ),
     CHECK ((collaboration_grant_id IS NULL) = (grant_owner_organization_id IS NULL))
 );
