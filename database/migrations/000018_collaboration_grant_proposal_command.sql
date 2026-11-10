@@ -32,12 +32,13 @@ BEGIN
   END IF;
 
   IF nullif(btrim(p_purpose), '') IS NULL
+     OR p_projection IS NULL
      OR jsonb_typeof(p_projection) <> 'object'
      OR p_allowed_actions IS NULL
      OR cardinality(p_allowed_actions) = 0
      OR EXISTS (
-       SELECT 1 FROM unnest(p_allowed_actions) AS action
-        WHERE nullif(btrim(action), '') IS NULL
+       SELECT 1 FROM unnest(p_allowed_actions) AS a(action_code)
+        WHERE action_code IS NULL OR nullif(btrim(action_code), '') IS NULL
      )
      OR p_valid_from IS NULL
      OR (p_valid_until IS NOT NULL AND p_valid_until <= p_valid_from) THEN
