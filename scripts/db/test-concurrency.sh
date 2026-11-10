@@ -17,7 +17,7 @@ run_attempt() {
   local key="$1"
   psql "$DATABASE_URL_RUNTIME" -X -qAt -v ON_ERROR_STOP=1 <<SQL
 BEGIN;
-SELECT set_config('app.organization_id', '$ORG', true);
+SET LOCAL app.organization_id TO '$ORG';
 SELECT eogp.reserve_pooled_resource(
   '$ORG', '$POOL', '$REVISION', NULL, NULL,
   '$START'::timestamptz, '$END'::timestamptz, 1,
@@ -62,7 +62,7 @@ fi
 
 active_count="$(psql "$DATABASE_URL_RUNTIME" -X -qAt -v ON_ERROR_STOP=1 <<SQL
 BEGIN;
-SELECT set_config('app.organization_id', '$ORG', true);
+SET LOCAL app.organization_id TO '$ORG';
 SELECT count(*)
 FROM eogp.resource_reservations
 WHERE organization_id = '$ORG'
