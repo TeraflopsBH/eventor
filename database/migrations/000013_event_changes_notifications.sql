@@ -188,9 +188,10 @@ CREATE TABLE eogp.event_notification_recipients (
       REFERENCES eogp.event_notification_campaigns(organization_id, event_id, id),
     FOREIGN KEY (organization_id, event_id, participation_id)
       REFERENCES eogp.event_participations(organization_id, event_id, id),
-    FOREIGN KEY (organization_id, event_id, invitation_id)
-      REFERENCES eogp.invitations(organization_id, event_id, id),
-    CHECK (participation_id IS NOT NULL OR invitation_id IS NOT NULL)
+    FOREIGN KEY (organization_id, event_id, invitation_id, participation_id)
+      REFERENCES eogp.invitations(organization_id, event_id, id, participation_id),
+    CHECK (participation_id IS NOT NULL OR invitation_id IS NOT NULL),
+    CHECK (invitation_id IS NULL OR participation_id IS NOT NULL)
 );
 CREATE INDEX event_notification_recipients_pending_idx
   ON eogp.event_notification_recipients (organization_id, campaign_id, status);
