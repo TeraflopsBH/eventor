@@ -2,6 +2,12 @@
 BEGIN;
 SELECT set_config('app.organization_id','11111111-1111-4111-8111-111111111111',true);
 SELECT eogp.current_organization_id() AS runtime_rls_tenant_context;
+SELECT current_user, session_user, current_setting('app.organization_id', true) AS app_organization_id;
+SELECT schemaname, tablename, policyname, permissive, roles, cmd, qual, with_check
+  FROM pg_policies
+ WHERE schemaname = 'eogp'
+   AND tablename IN ('resource_reservations','venue_space_time_blocks')
+ ORDER BY tablename, policyname;
 
 DO $test$
 DECLARE
