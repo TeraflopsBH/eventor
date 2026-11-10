@@ -28,6 +28,7 @@ CREATE TABLE eogp.event_responsibility_assignments (
     created_at timestamptz NOT NULL DEFAULT clock_timestamp(),
     updated_at timestamptz NOT NULL DEFAULT clock_timestamp(),
     UNIQUE (organization_id, id),
+    UNIQUE (organization_id, event_id, id),
     FOREIGN KEY (organization_id, event_id) REFERENCES eogp.events(organization_id, id),
     FOREIGN KEY (accountable_organization_id) REFERENCES eogp.organizations(id),
     FOREIGN KEY (performing_organization_id) REFERENCES eogp.organizations(id),
@@ -65,7 +66,7 @@ CREATE TABLE eogp.event_disruption_resolutions (
     source_notice_snapshot jsonb NOT NULL,
     resolution_kind text NOT NULL DEFAULT 'unresolved'
       CHECK (resolution_kind IN ('relocate','amend_booking','postpone','cancel_event','unresolved')),
-    status text NOT NULL DEFAULT 'acknowledged'
+    status text NOT NULL DEFAULT 'received'
       CHECK (status IN ('received','acknowledged','in_progress','resolved','dismissed')),
     grant_owner_organization_id uuid,
     collaboration_grant_id uuid,
@@ -83,7 +84,8 @@ CREATE TABLE eogp.event_disruption_resolutions (
       REFERENCES eogp.organization_memberships(organization_id, id),
     FOREIGN KEY (organization_id, resolved_by_membership_id)
       REFERENCES eogp.organization_memberships(organization_id, id),
-    CHECK ((collaboration_grant_id IS NULL) = (grant_owner_organization_id IS NULL)),
+    CHECK (collaboration_grant_id IS NOT NULL),
+    CHECK (grant_owner_organization_id = source_provider_organization_id),
     CHECK ((acknowledged_at IS NULL) = (acknowledged_by_membership_id IS NULL)),
     CHECK ((resolved_at IS NULL) = (resolved_by_membership_id IS NULL))
 );
@@ -120,6 +122,7 @@ CREATE TABLE eogp.user_role_grants (
     scope_space_id uuid,
     scope_booking_id uuid,
     scope_event_id uuid,
+    scope_task_event_id uuid,
     scope_task_id uuid,
     granted_by_membership_id uuid NOT NULL,
     created_at timestamptz NOT NULL DEFAULT clock_timestamp(),
@@ -134,17 +137,17 @@ CREATE TABLE eogp.user_role_grants (
     FOREIGN KEY (organization_id, scope_space_id) REFERENCES eogp.venue_spaces(organization_id, id),
     FOREIGN KEY (organization_id, scope_booking_id) REFERENCES eogp.booking_records(organization_id, id),
     FOREIGN KEY (organization_id, scope_event_id) REFERENCES eogp.events(organization_id, id),
-    FOREIGN KEY (organization_id, scope_task_id)
-      REFERENCES eogp.event_responsibility_assignments(organization_id, id),
+    FOREIGN KEY (organization_id, scope_task_event_id, scope_task_id)
+      REFERENCES eogp.event_responsibility_assignments(organization_id, event_id, id),
     FOREIGN KEY (organization_id, granted_by_membership_id)
       REFERENCES eogp.organization_memberships(organization_id, id),
     CHECK (
-      (scope_kind = 'organization' AND num_nonnulls(scope_venue_id,scope_space_id,scope_booking_id,scope_event_id,scope_task_id) = 0)
-      OR (scope_kind = 'venue' AND scope_venue_id IS NOT NULL AND num_nonnulls(scope_space_id,scope_booking_id,scope_event_id,scope_task_id) = 0)
-      OR (scope_kind = 'space' AND scope_space_id IS NOT NULL AND num_nonnulls(scope_venue_id,scope_booking_id,scope_event_id,scope_task_id) = 0)
-      OR (scope_kind = 'booking' AND scope_booking_id IS NOT NULL AND num_nonnulls(scope_venue_id,scope_space_id,scope_event_id,scope_task_id) = 0)
-      OR (scope_kind = 'event' AND scope_event_id IS NOT NULL AND num_nonnulls(scope_venue_id,scope_space_id,scope_booking_id,scope_task_id) = 0)
-      OR (scope_kind = 'task' AND scope_task_id IS NOT NULL AND num_nonnulls(scope_venue_id,scope_space_id,scope_booking_id,scope_event_id) = 0)
+      (scope_kind = 'organization' AND num_nonnulls(scope_venue_id,scope_space_id,scope_booking_id,scope_event_id,scope_task_event_id,scope_task_id) = 0)
+      OR (scope_kind = 'venue' AND scope_venue_id IS NOT NULL AND num_nonnulls(scope_space_id,scope_booking_id,scope_event_id,scope_task_event_id,scope_task_id) = 0)
+      OR (scope_kind = 'space' AND scope_space_id IS NOT NULL AND num_nonnulls(scope_venue_id,scope_booking_id,scope_event_id,scope_task_event_id,scope_task_id) = 0)
+      OR (scope_kind = 'booking' AND scope_booking_id IS NOT NULL AND num_nonnulls(scope_venue_id,scope_space_id,scope_event_id,scope_task_event_id,scope_task_id) = 0)
+      OR (scope_kind = 'event' AND scope_event_id IS NOT NULL AND num_nonnulls(scope_venue_id,scope_space_id,scope_booking_id,scope_task_event_id,scope_task_id) = 0)
+      OR (scope_kind = 'task' AND scope_task_id IS NOT NULL AND scope_task_event_id IS NOT NULL AND num_nonnulls(scope_venue_id,scope_space_id,scope_booking_id,scope_event_id) = 0)
     ),
     CHECK ((expires_at IS NULL OR revoked_at IS NULL) AND (expires_at IS NULL OR expires_at > created_at))
 );
