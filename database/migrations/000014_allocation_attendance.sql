@@ -14,6 +14,7 @@ CREATE TABLE eogp.event_allocation_revisions (
     UNIQUE (organization_id, id),
     UNIQUE (organization_id, event_id, session_id, id),
     UNIQUE (organization_id, event_id, session_id, revision_number),
+    UNIQUE (organization_id, event_id, session_id, id, event_venue_snapshot_id),
     FOREIGN KEY (organization_id, event_id, session_id)
       REFERENCES eogp.event_sessions(organization_id, event_id, id),
     FOREIGN KEY (organization_id, event_id, event_venue_snapshot_id)
@@ -52,6 +53,7 @@ CREATE TABLE eogp.event_allocations (
     event_id uuid NOT NULL,
     session_id uuid NOT NULL,
     allocation_revision_id uuid NOT NULL,
+    event_venue_snapshot_id uuid NOT NULL,
     participation_id uuid NOT NULL,
     snapshot_object_id uuid,
     zone_code text,
@@ -64,12 +66,12 @@ CREATE TABLE eogp.event_allocations (
     created_at timestamptz NOT NULL DEFAULT clock_timestamp(),
     UNIQUE (organization_id, id),
     UNIQUE (organization_id, allocation_revision_id, participation_id),
-    FOREIGN KEY (organization_id, event_id, session_id, allocation_revision_id)
-      REFERENCES eogp.event_allocation_revisions(organization_id, event_id, session_id, id),
-    FOREIGN KEY (organization_id, event_id, session_id, participation_id)
+    FOREIGN KEY (organization_id, event_id, session_id, allocation_revision_id, event_venue_snapshot_id)
+      REFERENCES eogp.event_allocation_revisions(organization_id, event_id, session_id, id, event_venue_snapshot_id),
+    FOREIGN KEY (organization_id, event_id, participation_id)
       REFERENCES eogp.event_participations(organization_id, event_id, id),
-    FOREIGN KEY (organization_id, snapshot_object_id)
-      REFERENCES eogp.event_venue_snapshot_objects(organization_id, id),
+    FOREIGN KEY (organization_id, event_venue_snapshot_id, snapshot_object_id)
+      REFERENCES eogp.event_venue_snapshot_objects(organization_id, snapshot_id, id),
     CHECK (snapshot_object_id IS NOT NULL OR zone_code IS NOT NULL)
 );
 CREATE INDEX event_allocations_session_idx
@@ -86,7 +88,7 @@ CREATE TABLE eogp.event_allocation_locks (
     created_at timestamptz NOT NULL DEFAULT clock_timestamp(),
     released_at timestamptz,
     UNIQUE (organization_id, id),
-    FOREIGN KEY (organization_id, event_id, session_id, participation_id)
+    FOREIGN KEY (organization_id, event_id, participation_id)
       REFERENCES eogp.event_participations(organization_id, event_id, id),
     FOREIGN KEY (organization_id, locked_by_membership_id)
       REFERENCES eogp.organization_memberships(organization_id, id),
@@ -179,10 +181,10 @@ CREATE TABLE eogp.attendance_records (
     corrects_attendance_record_id uuid,
     UNIQUE (organization_id, id),
     UNIQUE (organization_id, event_id, session_id, participation_id, id),
-    FOREIGN KEY (organization_id, event_id, session_id, participation_id)
+    FOREIGN KEY (organization_id, event_id, participation_id)
       REFERENCES eogp.event_participations(organization_id, event_id, id),
-    FOREIGN KEY (organization_id, checkin_attempt_id)
-      REFERENCES eogp.checkin_attempts(organization_id, id),
+    FOREIGN KEY (organization_id, event_id, session_id, checkin_attempt_id)
+      REFERENCES eogp.checkin_attempts(organization_id, event_id, session_id, id),
     FOREIGN KEY (organization_id, actor_membership_id)
       REFERENCES eogp.organization_memberships(organization_id, id),
     FOREIGN KEY (organization_id, event_id, session_id, participation_id, corrects_attendance_record_id)
