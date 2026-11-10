@@ -116,12 +116,25 @@ function makeApi(
     authenticated?: boolean;
     originValid?: boolean;
     encryptionKey?: Buffer;
+    loginOriginValid?: boolean;
+    withSessionCallbacks?: boolean;
   } = {},
 ) {
   return buildApi({
     pool,
     authenticateStaff: async () => options.authenticated === false ? null : principal,
     verifyMutationOrigin: async () => options.originValid !== false,
+    verifyLoginOrigin: () => options.loginOriginValid !== false,
+    ...(options.withSessionCallbacks ? {
+      createStaffSession: async () => ({
+        principal,
+        sessionToken: "S".repeat(43),
+        csrfToken: "C".repeat(43),
+        expiresAt: new Date(Date.now() + 60 * 60 * 1000),
+      }),
+      revokeStaffSession: async () => undefined,
+      getCurrentPrincipal: async () => ({ ...principal, memberships: [] }),
+    } : {}),
     privateFieldEncryptionKey: options.encryptionKey ?? Buffer.alloc(32, 7),
   });
 }
@@ -280,4 +293,63 @@ test("staff mutations fail closed without a verified session or accepted origin"
   });
   assert.equal(originResponse.statusCode, 403);
   assert.equal(originPool.commandCalls.length, 0);
+});
+
+
+test("staff login, current-principal and logout routes use cookie sessions and explicit CSRF/origin checks", async (t) => {
+  const mock = makePool();
+  const app = makeApi(mock.pool, { withSessionCallbacks: true });
+  t.after(async () => app.close());
+
+  const login = await app.inject({
+    method: "POST",
+    url: "/auth/session",
+    headers: { origin: "https://staff.example.test" },
+    payload: {
+      email: "staff@example.test",
+      password: "correct horse battery staple",
+      organizationSlug: "event-owner",
+    },
+  });
+  assert.equal(login.statusCode, 200);
+  assert.equal(login.json().data.userId, principal.userId);
+  const setCookie = login.headers["set-cookie"];
+  assert.ok(Array.isArray(setCookie));
+  assert.ok(setCookie.some((value) => value.startsWith("__Host-eventor_session=")));
+  assert.ok(setCookie.some((value) => value.startsWith("__Host-eventor_csrf=")));
+
+  const current = await app.inject({
+    method: "GET",
+    url: "/me",
+    headers: { cookie: "__Host-eventor_session=" + "S".repeat(43) },
+  });
+  assert.equal(current.statusCode, 200);
+  assert.equal(current.json().data.userId, principal.userId);
+
+  const logout = await app.inject({
+    method: "DELETE",
+    url: "/auth/session",
+    headers: { cookie: "__Host-eventor_session=" + "S".repeat(43) },
+  });
+  assert.equal(logout.statusCode, 204);
+  const clearCookie = logout.headers["set-cookie"];
+  assert.ok(Array.isArray(clearCookie));
+  assert.ok(clearCookie.every((value) => value.includes("Max-Age=0")));
+});
+
+test("staff login rejects requests without the configured browser origin", async (t) => {
+  const mock = makePool();
+  const app = makeApi(mock.pool, { withSessionCallbacks: true, loginOriginValid: false });
+  t.after(async () => app.close());
+  const login = await app.inject({
+    method: "POST",
+    url: "/auth/session",
+    payload: {
+      email: "staff@example.test",
+      password: "correct horse battery staple",
+      organizationSlug: "event-owner",
+    },
+  });
+  assert.equal(login.statusCode, 403);
+  assert.equal(login.json().code, "ORIGIN_REJECTED");
 });
