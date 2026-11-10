@@ -33,6 +33,7 @@ CREATE TABLE eogp.event_responsibility_assignments (
   created_at      timestamptz NOT NULL DEFAULT clock_timestamp(),
   updated_at      timestamptz NOT NULL DEFAULT clock_timestamp(),
   UNIQUE (organization_id, id),
+  UNIQUE (organization_id, event_id, id),
   FOREIGN KEY (organization_id, event_id)
     REFERENCES eogp.events(organization_id, id) ON DELETE RESTRICT,
   FOREIGN KEY (organization_id, accountable_external_party_id)
@@ -104,8 +105,8 @@ CREATE TABLE eogp.event_prerequisites (
   restricted_metadata jsonb NOT NULL DEFAULT '{}'::jsonb,
   FOREIGN KEY (organization_id, event_id)
     REFERENCES eogp.events(organization_id, id) ON DELETE RESTRICT,
-  FOREIGN KEY (organization_id, responsibility_assignment_id)
-    REFERENCES eogp.event_responsibility_assignments(organization_id, id) ON DELETE RESTRICT,
+  FOREIGN KEY (organization_id, event_id, responsibility_assignment_id)
+    REFERENCES eogp.event_responsibility_assignments(organization_id, event_id, id) ON DELETE RESTRICT,
   UNIQUE (organization_id, id)
 );
 
