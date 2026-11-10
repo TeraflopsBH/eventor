@@ -14,7 +14,7 @@ This roadmap is provisional. Scope and acceptance criteria must be finalized aft
 
 ## Phase 0.5 — Successor contracts
 
-- [ ] Accept database integrity and resource reservation constraints (Issue #13 / PR #19).
+- [ ] Accept database integrity and resource reservation constraints (Issue #13 / PR #24).
 - [ ] Complete logical schema review and produce ordered executable PostgreSQL 18 migrations.
 - [ ] Produce OpenAPI 3.1.1 v0.3 YAML from the route/security design.
 - [ ] Add PostgreSQL integration/concurrency/RLS tests and pinned OpenAPI validation/auth contract tests.

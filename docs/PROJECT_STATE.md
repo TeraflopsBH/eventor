@@ -117,7 +117,11 @@ The proposed v0.3 design covers customer/organizer-initiated booking cancellatio
 
 ## Successor schema contract baseline
 
-The successor relational model and v0.3 API are being produced from accepted ADRs 0004–0006, the RSVP/invitation and cancellation designs, and the accepted venue-first MVP/role model. The database integrity proposal is in PR #19; the logical schema/API successor design follows it in PR #23. Executable migrations and OpenAPI YAML remain separate deliverables and are not yet validated.
+The successor relational model and v0.3 API are being produced from accepted ADRs 0004–0006, the RSVP/invitation and cancellation designs, and the accepted venue-first MVP/role model. The database integrity baseline was merged in PR #24; the aligned logical schema/API successor design is in PR #25. Executable migrations and OpenAPI YAML remain separate deliverables and are not yet validated.
+
+## Successor schema and API contract work
+
+The logical successor schema and API route/security design are documented in [SCHEMA_DESIGN_v0.3.md](database/SCHEMA_DESIGN_v0.3.md) and [API_DESIGN_v0.3.md](api/API_DESIGN_v0.3.md), respectively. They incorporate accepted operating scope, collaboration, RSVP and cancellation designs. The database integrity baseline is merged; ordered executable PostgreSQL 18 migrations and OpenAPI 3.1.1 YAML are the next deliverables. These are not yet runtime-validated.
 
 ## Database schema review
 
