@@ -111,6 +111,12 @@ Eventor is a reusable, self-hosted platform that can operate as a venue booking/
 
 See [Operating Model](OPERATING_MODEL.md) and [ADR 0004](decisions/0004-optional-event-operations-scope.md). This is a new accepted product requirement and must be reflected in the next successor implementation design and schema/API revision; historical Blueprint v1.2 and Implementation Design v0.2 files remain unchanged snapshots.
 
+## Successor database integrity design
+
+The accepted cross-organization model is merged (ADR 0006): venue and booking data stay provider-owned; event and guest data stay organizer-owned; approved venue geometry/resources are shared as immutable event-owned snapshots under scoped grants.
+
+The follow-up schema proposal is documented in [Database Integrity Design v0.3](database/DATABASE_INTEGRITY_DESIGN_v0.3.md), with acceptance scenarios in [Schema Constraint Test Matrix v0.3](database/SCHEMA_CONSTRAINT_TEST_MATRIX_v0.3.md). It addresses tenant-safe self-references, venue hierarchy, catalogue revision integrity, typed scope references, membership-scoped actors, concurrency-safe space reservations, equipment/personnel capacity, optional event modules and explicit task responsibility. It is a proposed successor model; no production SQL migration has been created or executed.
+
 ## Database schema review
 
 An initial structural review of the v0.2 PostgreSQL schema is recorded in [Database Review v0.2](database/DATABASE_REVIEW_v0.2.md). It found a connected 86-table structure but also important cross-organization ownership, tenant integrity, availability-concurrency and optional-module gaps. The migration approach is documented in [Migration Conventions](database/MIGRATION_CONVENTIONS.md). PostgreSQL parser/runtime testing remains outstanding because no PostgreSQL server/client or parser is available in the current working environment. Issue #2 remains open; blockers are tracked in Issues #12 and #13. RSVP migration/API implementation is tracked in Issue #10.
