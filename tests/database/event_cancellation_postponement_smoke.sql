@@ -206,7 +206,7 @@ INSERT INTO eogp.event_notification_campaigns
    created_by_membership_id, confirmed_by_organization_id, confirmed_by_membership_id,
    confirmed_at, recipient_count)
 VALUES
-  ('92000000-0000-4000-8000-000000000001','22222222-2222-4222-8222-222222222222','90000000-0000-4000-8000-000000000001','91600000-0000-4000-8000-000000000001','event_cancellation','all_active_invitees','queued','91400000-0000-4000-8000-000000000001',
+  ('92000000-0000-4000-8000-000000000001','22222222-2222-4222-8222-222222222222','90000000-0000-4000-8000-000000000001','91600000-0000-4000-8000-000000000001','event_cancellation','all_active_invitees','confirmed','91400000-0000-4000-8000-000000000001',
    '{"audience":"all_active_invitees","resolvedAt":"cancellation-confirmation","includes":["accepted","tentative","declined","no_response"],"invitationStatus":["active"]}'::jsonb,
    '22222222-2222-4222-8222-222222222222','bbbbbbbb-2222-4222-8222-bbbbbbbbbbbb',
    '22222222-2222-4222-8222-222222222222','bbbbbbbb-2222-4222-8222-bbbbbbbbbbbb',clock_timestamp(),4);
@@ -359,7 +359,7 @@ BEGIN
   EXCEPTION WHEN SQLSTATE '55000' THEN
     v_rejected := true;
   END;
-  IF NOT v_rejected THEN RAISE EXCEPTION 'queued cancellation audience snapshot was mutable'; END IF;
+  IF NOT v_rejected THEN RAISE EXCEPTION 'confirmed cancellation audience snapshot was mutable'; END IF;
 
   v_rejected := false;
   BEGIN
