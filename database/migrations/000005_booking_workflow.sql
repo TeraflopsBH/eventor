@@ -275,8 +275,3 @@ CREATE TABLE eogp.booking_resource_lines (
 );
 CREATE INDEX booking_resource_lines_booking_idx ON eogp.booking_resource_lines (organization_id, booking_id);
 
-ALTER TABLE eogp.audit_events
-  ADD CONSTRAINT audit_events_external_capability_fk
-  FOREIGN KEY (organization_id, actor_external_capability_id)
-  REFERENCES eogp.external_action_capabilities(organization_id, id)
-  DEFERRABLE INITIALLY DEFERRED;
