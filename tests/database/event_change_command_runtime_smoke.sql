@@ -48,9 +48,9 @@ INSERT INTO eogp.user_role_grants (
  ('22222222-2222-4222-8222-222222222222','bbbbbbbb-2222-4222-8222-bbbbbbbbbbbb','93900000-0000-4000-8000-000000000001','event','93000000-0000-4000-8000-000000000002','bbbbbbbb-2222-4222-8222-bbbbbbbbbbbb'),
  ('22222222-2222-4222-8222-222222222222','bbbbbbbb-2222-4222-8222-bbbbbbbbbbbb','93900000-0000-4000-8000-000000000001','event','93000000-0000-4000-8000-000000000003','bbbbbbbb-2222-4222-8222-bbbbbbbbbbbb');
 
--- Execute commands as the same database role used by the API. The functions
--- perform their own active-membership and scoped-permission checks.
-SET LOCAL ROLE eventor_runtime;
+-- Invoke the SECURITY DEFINER command entry points from the migration test
+-- connection. Their internal membership/scope checks are independent of owner
+-- privileges; executable privileges for the API role are asserted below.
 
 DO $commands$
 DECLARE
@@ -213,13 +213,27 @@ BEGIN
 END;
 $commands$;
 
-RESET ROLE;
 SET LOCAL ROLE eventor_owner;
 
 DO $assertions$
 DECLARE
   v_count integer;
 BEGIN
+  IF NOT has_function_privilege(
+    'eventor_runtime',
+    'eogp.submit_event_change_request(uuid,uuid,uuid,text,integer,text,bytea,text,jsonb)',
+    'EXECUTE'
+  ) OR NOT has_function_privilege(
+    'eventor_runtime',
+    'eogp.decide_event_change_request(uuid,uuid,uuid,text,text)',
+    'EXECUTE'
+  ) OR NOT has_function_privilege(
+    'eventor_runtime',
+    'eogp.execute_event_change_request(uuid,uuid,uuid,integer,text,boolean,uuid[])',
+    'EXECUTE'
+  ) THEN
+    RAISE EXCEPTION 'eventor_runtime is missing one or more event command EXECUTE grants';
+  END IF;
   IF (SELECT status FROM eogp.events WHERE id='93000000-0000-4000-8000-000000000001') <> 'cancelled'
      OR (SELECT current_revision FROM eogp.events WHERE id='93000000-0000-4000-8000-000000000001') <> 2 THEN
     RAISE EXCEPTION 'cancellation command did not update event state and revision';
