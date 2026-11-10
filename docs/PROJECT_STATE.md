@@ -117,7 +117,7 @@ The accepted v0.3 design covers customer/organizer-initiated booking cancellatio
 
 ## Successor database and API baseline
 
-The accepted successor logical model and API design derive from ADRs 0004–0006, the RSVP/invitation and cancellation designs, and the venue-first MVP/role model. The database integrity baseline was merged in PR #24 and the aligned logical schema/API design in PR #25. The executable migration and OpenAPI baseline is PR #26; the separate remediation branch in PR #27 adds migrations 000022–000031 for reviewed integrity findings, database-backed staff sessions and the notification campaign-preparation worker; PR #27 also contains the Fastify API and worker bootstraps, including staff campaign review and confirmation routes. Both remain draft/unmerged and require review.
+The accepted successor logical model and API design derive from ADRs 0004–0006, the RSVP/invitation and cancellation designs, and the venue-first MVP/role model. The database integrity baseline was merged in PR #24 and the aligned logical schema/API design in PR #25. The executable migration and OpenAPI baseline is PR #26; the separate remediation branch in PR #27 adds migrations 000022–000032 for reviewed integrity findings, database-backed staff sessions, the notification campaign-preparation worker and audited campaign review/confirmation; PR #27 also contains the Fastify API and worker bootstraps, including staff campaign review and confirmation routes. Both remain draft/unmerged and require review.
 
 ## Executable schema and API contract draft
 
