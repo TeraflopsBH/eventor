@@ -19,7 +19,7 @@ function makePool() {
   const idempotency = new Map<string, StoredIdempotency>();
   const commandCalls: Array<{ sql: string; values: unknown[] }> = [];
   let reservationCalls = 0;
-  let changeCalls = 0;
+  let changeCalls = 0;\n  let campaignReviewCalls = 0;\n  let campaignConfirmCalls = 0;
 
   const client = {
     async query(sql: string, values: unknown[] = []) {
@@ -61,6 +61,22 @@ function makePool() {
           found.responseBody = JSON.parse(String(values[5])) as Record<string, unknown>;
         }
         return { rows: [], rowCount: found ? 1 : 0 };
+      }
+      if (normalized.includes("eogp.get_event_notification_campaign_review(")) {
+        campaignReviewCalls += 1;
+        commandCalls.push({ sql: normalized, values });
+        return { rows: [{ result: {
+          campaignId: values[1], status: "previewed", recipientCount: 2,
+          actualRecipientCount: 2, recipients: [{ participationId: "p1", channel: "email" }],
+        } }], rowCount: 1 };
+      }
+      if (normalized.includes("eogp.confirm_event_notification_campaign(")) {
+        campaignConfirmCalls += 1;
+        commandCalls.push({ sql: normalized, values });
+        return { rows: [{ result: {
+          campaignId: values[1], status: "confirmed", recipientCount: 2,
+          deliveryQueued: false,
+        } }], rowCount: 1 };
       }
       if (normalized.includes("eogp.release_booking_reservations(")) {
         reservationCalls += 1;
@@ -106,7 +122,7 @@ function makePool() {
     pool,
     commandCalls,
     get reservationCalls() { return reservationCalls; },
-    get changeCalls() { return changeCalls; },
+    get changeCalls() { return changeCalls; },\n    get campaignReviewCalls() { return campaignReviewCalls; },\n    get campaignConfirmCalls() { return campaignConfirmCalls; },
   };
 }
 
@@ -352,4 +368,64 @@ test("staff login rejects requests without the configured browser origin", async
   });
   assert.equal(login.statusCode, 403);
   assert.equal(login.json().code, "ORIGIN_REJECTED");
+});
+
+
+test("campaign review returns a restricted snapshot projection through the permission-gated database function", async (t) => {
+  const mock = makePool();
+  const app = makeApi(mock.pool);
+  t.after(async () => app.close());
+  const response = await app.inject({
+    method: "GET",
+    url: "/event-notification-campaigns/94900000-0000-4000-8000-000000000001/review",
+  });
+  assert.equal(response.statusCode, 200);
+  assert.equal(response.json<{ data: { status: string; actualRecipientCount: number } }>().data.status, "previewed");
+  assert.equal(response.json<{ data: { actualRecipientCount: number } }>().data.actualRecipientCount, 2);
+  assert.equal(mock.campaignReviewCalls, 1);
+  assert.equal(mock.commandCalls[0]?.values[0], principal.organizationId);
+  assert.equal(mock.commandCalls[0]?.values[2], principal.membershipId);
+});
+
+test("campaign confirmation is idempotent and explicitly does not queue delivery", async (t) => {
+  const mock = makePool();
+  const app = makeApi(mock.pool);
+  t.after(async () => app.close());
+  const headers = { "idempotency-key": "confirm-campaign-0001" };
+  const payload = {};
+  const first = await app.inject({
+    method: "POST",
+    url: "/event-notification-campaigns/94900000-0000-4000-8000-000000000001/confirm",
+    headers,
+    payload,
+  });
+  assert.equal(first.statusCode, 201);
+  assert.equal(first.json<{ data: { status: string; deliveryQueued: boolean } }>().data.status, "confirmed");
+  assert.equal(first.json<{ data: { deliveryQueued: boolean } }>().data.deliveryQueued, false);
+  assert.equal(mock.campaignConfirmCalls, 1);
+  assert.equal(mock.commandCalls[0]?.values[2], principal.membershipId);
+
+  const replay = await app.inject({
+    method: "POST",
+    url: "/event-notification-campaigns/94900000-0000-4000-8000-000000000001/confirm",
+    headers,
+    payload,
+  });
+  assert.equal(replay.statusCode, 201);
+  assert.deepEqual(replay.json<Record<string, unknown>>(), first.json<Record<string, unknown>>());
+  assert.equal(mock.campaignConfirmCalls, 1);
+});
+
+test("campaign confirmation rejects an invalid browser origin before database access", async (t) => {
+  const mock = makePool();
+  const app = makeApi(mock.pool, { originValid: false });
+  t.after(async () => app.close());
+  const response = await app.inject({
+    method: "POST",
+    url: "/event-notification-campaigns/94900000-0000-4000-8000-000000000001/confirm",
+    headers: { "idempotency-key": "confirm-campaign-0002" },
+    payload: {},
+  });
+  assert.equal(response.statusCode, 403);
+  assert.equal(mock.campaignConfirmCalls, 0);
 });
