@@ -213,4 +213,82 @@ BEGIN
 END;
 $test$;
 
+
+-- Task delegation is explicit at both layers: the event owner grant names
+-- the exact task ID, and the performing organization assigns task.perform.
+INSERT INTO eogp.events
+  (id, organization_id, event_code, title, created_by_membership_id)
+VALUES
+  ('68000000-0000-4000-8000-000000000001',
+   '11111111-1111-4111-8111-111111111111',
+   'CI-DELEGATED-TASK','CI Delegated Task Event',
+   'aaaaaaaa-1111-4111-8111-aaaaaaaaaaaa');
+
+SELECT eogp.propose_collaboration_grant(
+  '61000000-0000-4000-8000-000000000099',
+  '22222222-2222-4222-8222-222222222222',
+  'space',
+  NULL,
+  '13000000-0000-4000-8000-000000000001',
+  NULL,
+  'CI delegated task performance',
+  '{"taskIds":["67000000-0000-4000-8000-000000000001"]}'::jsonb,
+  ARRAY['event.task.perform']::text[],
+  clock_timestamp() - interval '1 minute',
+  clock_timestamp() + interval '1 day',
+  'aaaaaaaa-1111-4111-8111-aaaaaaaaaaaa'
+);
+
+SELECT set_config('app.organization_id','22222222-2222-4222-8222-222222222222',true);
+SELECT eogp.accept_collaboration_grant(
+  '61000000-0000-4000-8000-000000000099',
+  'bbbbbbbb-2222-4222-8222-bbbbbbbbbbbb'
+);
+
+INSERT INTO eogp.roles
+  (id, organization_id, code, name, scope_kind)
+VALUES
+  ('69000000-0000-4000-8000-000000000001',
+   '22222222-2222-4222-8222-222222222222',
+   'CI-TASK-PERFORMER','CI Task Performer','organization');
+
+INSERT INTO eogp.role_permissions
+  (organization_id, role_id, permission_code)
+VALUES
+  ('22222222-2222-4222-8222-222222222222',
+   '69000000-0000-4000-8000-000000000001',
+   'task.perform');
+
+INSERT INTO eogp.user_role_grants
+  (id, organization_id, membership_id, role_id, scope_kind,
+   granted_by_membership_id)
+VALUES
+  ('6a000000-0000-4000-8000-000000000001',
+   '22222222-2222-4222-8222-222222222222',
+   'bbbbbbbb-2222-4222-8222-bbbbbbbbbbbb',
+   '69000000-0000-4000-8000-000000000001',
+   'organization',
+   'bbbbbbbb-2222-4222-8222-bbbbbbbbbbbb');
+
+SELECT set_config('app.organization_id','11111111-1111-4111-8111-111111111111',true);
+INSERT INTO eogp.event_responsibility_assignments (
+  id, organization_id, event_id, task_code, task_label,
+  accountable_party_kind, performing_party_kind,
+  performing_organization_id, performing_membership_id,
+  grant_owner_organization_id, collaboration_grant_id,
+  permitted_projection, created_by_membership_id
+) VALUES (
+  '67000000-0000-4000-8000-000000000001',
+  '11111111-1111-4111-8111-111111111111',
+  '68000000-0000-4000-8000-000000000001',
+  'CI-SETUP','Prepare the venue',
+  'event_owner','organization',
+  '22222222-2222-4222-8222-222222222222',
+  'bbbbbbbb-2222-4222-8222-bbbbbbbbbbbb',
+  '11111111-1111-4111-8111-111111111111',
+  '61000000-0000-4000-8000-000000000099',
+  '{"taskStatus":true}'::jsonb,
+  'aaaaaaaa-1111-4111-8111-aaaaaaaaaaaa'
+);
+
 COMMIT;
