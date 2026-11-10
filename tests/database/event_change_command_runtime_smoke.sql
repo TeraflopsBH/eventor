@@ -129,7 +129,8 @@ BEGIN
     '93000000-0000-4000-8000-000000000002',
     'bbbbbbbb-2222-4222-8222-bbbbbbbbbbbb',
     'postpone',1,'provider_disruption',
-    NULL,'The event will be postponed.',NULL
+    NULL,'The event will be postponed.',
+    '{"startsAt":"2099-02-11T08:00:00Z","endsAt":"2099-02-11T17:00:00Z","timezone":"Europe/Sarajevo","materialChange":true,"reconfirmationPolicy":"accepted_tentative"}'::jsonb
   ) ->> 'changeRequestId')::uuid;
   PERFORM eogp.decide_event_change_request(
     '22222222-2222-4222-8222-222222222222',
