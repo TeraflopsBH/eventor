@@ -63,8 +63,8 @@ CREATE TABLE eogp.venue_spaces (
       REFERENCES eogp.venue_buildings(organization_id, venue_id, id),
     FOREIGN KEY (organization_id, building_id, level_id)
       REFERENCES eogp.venue_levels(organization_id, building_id, id),
-    FOREIGN KEY (organization_id, parent_space_id)
-      REFERENCES eogp.venue_spaces(organization_id, id),
+    FOREIGN KEY (organization_id, venue_id, parent_space_id)
+      REFERENCES eogp.venue_spaces(organization_id, venue_id, id),
     CHECK (level_id IS NULL OR building_id IS NOT NULL)
 );
 
