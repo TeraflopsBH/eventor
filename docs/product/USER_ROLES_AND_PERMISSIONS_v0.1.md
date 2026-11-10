@@ -27,13 +27,13 @@ An external renter does not need a user account to submit an inquiry, accept a p
 | Platform administrator | Platform configuration, tenant lifecycle, system health and platform-level support | Technical administration does not automatically grant guest-record, confidential-note or commercial-data access |
 | Organization owner | Organization settings, memberships, operating profile, policy and high-level configuration | Cannot bypass audit or scope rules |
 | Organization administrator | Staff/roles, venue configuration, published forms/catalogues and organization workflows | Sensitive operations may require additional approval |
-| Booking manager | Inquiry inbox, clarification, booking drafts, quotes/offers, amendments and booking communication | Cannot approve own restricted discount/exception unless policy explicitly permits |
-| Booking approver / finance | Approve offers, discounts, exceptions and financial commitments within configured limits | No general access to guest/event operations unless separately assigned |
-| Venue coordinator | Space calendar, setup/rehearsal/teardown, venue task assignments, readiness and issue handling | Only venue-side operational and booking data |
+| Booking manager | Inquiry inbox, clarification, booking drafts, quotes/offers, amendments and booking communication; review/coordinate cancellation requests and execute approved booking cancellations where granted | Cannot approve own restricted discount/exception or cancellation request unless policy explicitly permits |
+| Booking approver / finance | Approve offers, discounts, exceptions and financial commitments within configured limits; approve/reject booking cancellation requests and their commercial consequences within assigned authority | No general access to guest/event operations unless separately assigned |
+| Venue coordinator | Space calendar, setup/rehearsal/teardown, venue task assignments, readiness and issue handling; may initiate a venue-side cancellation for facility/service unavailability when explicitly granted | Only venue-side operational and booking data; cannot independently waive fees/refund terms unless separately authorised |
 | Resource / technical coordinator | Equipment/personnel availability, service preparation, technical fulfilment and issue status | No unrelated commercial or personal data |
 | Management read-only | Approved dashboards, aggregate reports and booking status | No write actions; field-filtered data |
 | Auditor / compliance read-only | Permissioned audit and configuration history | Restricted, logged, read-only |
-| External booking requester | Public inquiry and explicitly allowed offer/booking portal actions | No tenant membership or access to internal notes/resources by default |
+| External booking requester | Public inquiry, explicitly allowed offer/booking actions, submit a permitted cancellation request and view its limited status through a scoped secure action link | No tenant membership, approval authority, immediate cancellation right unless the pinned booking policy explicitly allows it, or access to internal notes/resources |
 
 ## 3. Later organizer/event roles
 
@@ -41,12 +41,13 @@ These roles are not required for a venue-only Release 1. They become available w
 
 | Role | Typical permissions |
 |---|---|
-| Event owner / event administrator | Event scope, capability activation, event policies and responsibility assignment |
-| Guest coordinator | Guest Registry linkage, event participation, import, invitations and RSVP administration |
+| Event owner / event administrator | Event scope, capability activation, event policies and responsibility assignment; initiate/approve/execute event cancellation or postponement only with the corresponding scoped permissions |
+| Guest coordinator | Guest Registry linkage, event participation, import, invitations and RSVP administration; prepare cancellation audience previews and communications when assigned |
 | RSVP operator / reception | Staff-record response entry and permissioned response lookup |
 | Seating coordinator | Venue snapshot use, allocation rules and manual/solver proposal review |
 | Check-in operator | Admission validation and attendance recording using minimum necessary guest fields |
 | Zone/floor coordinator | Only assigned operational map layers, zones and guest/task data |
+| Event communications operator | Prepare/send event and cancellation notifications only for assigned events/audiences under an explicit task grant |
 | Event operations manager | Cockpit, event alerts, task coordination and authorized interventions |
 | External collaborator | Only the booking/event/task projection granted to its organization and role |
 
@@ -61,6 +62,21 @@ These roles are not required for a venue-only Release 1. They become available w
 - External customer/organizer contact data stored in a booking does not grant access to the underlying tenant.
 - Read/export of confidential or restricted information is audited as configured.
 - Service jobs use a service principal identity and narrowly scoped permissions, not a shared human administrator account.
+
+## 4.1 Cancellation authority is explicit
+
+Role presets are defaults; the permission catalogue and booking/event policy determine actual authority.
+
+| Scope | Initiate/request | Approve/reject | Execute/send |
+|---|---|---|---|
+| Booking customer | Authorised external contact may submit a cancellation request through a scoped action link | No authority by default | No direct effective cancellation unless the booking's pinned policy explicitly enables self-service |
+| Venue booking | Venue coordinator or booking manager may initiate when granted | Booking approver/finance or configured authority | Designated booking manager/service after approval; emergency execution is a separate explicit permission and requires review |
+| Organizer event | Event owner/admin may initiate cancellation or postponement | Event approver/owner under organizer policy | Designated event operator; guest campaign send permission is separately checked |
+| Delegated guest communications | Named collaborator/operator may prepare the assigned campaign | Organizer's policy/approval rules still apply unless explicitly delegated | Only the assigned event/audience/action projection; no general guest-list access |
+
+Suggested fine-grained permissions (names to align with the successor catalogue) include `booking.cancellation.request`, `booking.cancellation.review`, `booking.cancellation.approve`, `booking.cancellation.execute`, `booking.cancellation.override`, `event.cancellation.initiate`, `event.cancellation.approve`, `event.cancellation.execute`, `event.postponement.manage` and `event.cancellation.notifications.send`.
+
+Approval and execution may be separated to enforce dual control. Self-approval is disallowed for configured high-risk cancellation or commercial exceptions unless a documented organization policy explicitly permits it. Technical platform administration does not imply business cancellation authority.
 
 ## 5. Approval authority
 
