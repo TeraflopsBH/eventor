@@ -80,8 +80,11 @@ CREATE TABLE eogp.resource_reservations (
     CHECK (ends_at > starts_at),
     CHECK (num_nonnulls(resource_pool_id, resource_unit_id) = 1),
     CHECK (num_nonnulls(booking_draft_revision_id, booking_id, maintenance_window_id) = 1),
-    CHECK (status NOT IN ('held','expired') OR expires_at IS NOT NULL),
-    CHECK (status <> 'blocked' OR maintenance_window_id IS NOT NULL)
+    CHECK (
+      (booking_draft_revision_id IS NOT NULL AND status IN ('held','expired','released','cancelled') AND expires_at IS NOT NULL)
+      OR (booking_id IS NOT NULL AND status IN ('confirmed','released','cancelled') AND expires_at IS NULL)
+      OR (maintenance_window_id IS NOT NULL AND status IN ('blocked','released','cancelled') AND expires_at IS NULL)
+    )
 );
 
 ALTER TABLE eogp.resource_reservations
@@ -120,6 +123,7 @@ DECLARE
     v_capacity integer;
     v_peak bigint;
     v_reservation_id uuid := gen_random_uuid();
+    v_existing eogp.resource_reservations%ROWTYPE;
 BEGIN
     IF nullif(current_setting('app.organization_id', true), '')::uuid
        IS DISTINCT FROM p_organization_id THEN
@@ -134,6 +138,10 @@ BEGIN
     IF p_idempotency_key IS NULL OR length(p_idempotency_key) < 8 THEN
         RAISE EXCEPTION 'a valid idempotency key is required' USING ERRCODE = '22023';
     END IF;
+    IF (p_booking_draft_revision_id IS NOT NULL AND (p_expires_at IS NULL OR p_expires_at <= clock_timestamp()))
+       OR (p_booking_id IS NOT NULL AND p_expires_at IS NOT NULL) THEN
+        RAISE EXCEPTION 'draft reservations require a future expiry; confirmed bookings must not expire' USING ERRCODE = '22023';
+    END IF;
 
     SELECT capacity INTO v_capacity
       FROM eogp.resource_pools
@@ -143,6 +151,36 @@ BEGIN
      FOR UPDATE;
     IF NOT FOUND THEN
         RAISE EXCEPTION 'resource pool not found or inactive' USING ERRCODE = 'P0002';
+    END IF;
+
+    SELECT * INTO v_existing
+      FROM eogp.resource_reservations
+     WHERE organization_id = p_organization_id
+       AND idempotency_key = p_idempotency_key
+     FOR UPDATE;
+    IF FOUND THEN
+      IF v_existing.resource_pool_id = p_resource_pool_id
+         AND v_existing.booking_draft_revision_id IS NOT DISTINCT FROM p_booking_draft_revision_id
+         AND v_existing.booking_id IS NOT DISTINCT FROM p_booking_id
+         AND v_existing.quantity = p_quantity
+         AND v_existing.starts_at = p_starts_at
+         AND v_existing.ends_at = p_ends_at
+         AND v_existing.expires_at IS NOT DISTINCT FROM p_expires_at THEN
+        RETURN v_existing.id;
+      END IF;
+      RAISE EXCEPTION 'idempotency key was previously used for a different reservation payload'
+        USING ERRCODE = '22023';
+    END IF;
+
+    IF p_booking_resource_line_id IS NOT NULL AND NOT EXISTS (
+      SELECT 1 FROM eogp.booking_resource_lines l
+       WHERE l.organization_id = p_organization_id
+         AND l.id = p_booking_resource_line_id
+         AND l.draft_revision_id IS NOT DISTINCT FROM p_booking_draft_revision_id
+         AND l.booking_id IS NOT DISTINCT FROM p_booking_id
+    ) THEN
+      RAISE EXCEPTION 'resource line does not belong to the supplied booking/draft revision'
+        USING ERRCODE = '23503';
     END IF;
 
     UPDATE eogp.resource_reservations
@@ -196,7 +234,7 @@ BEGIN
       v_reservation_id, p_organization_id, p_resource_pool_id,
       p_booking_draft_revision_id, p_booking_id, p_booking_resource_line_id,
       p_quantity, p_starts_at, p_ends_at,
-      CASE WHEN p_expires_at IS NULL THEN 'confirmed' ELSE 'held' END,
+      CASE WHEN p_booking_draft_revision_id IS NOT NULL THEN 'held' ELSE 'confirmed' END,
       p_expires_at, p_idempotency_key
     );
     RETURN v_reservation_id;
