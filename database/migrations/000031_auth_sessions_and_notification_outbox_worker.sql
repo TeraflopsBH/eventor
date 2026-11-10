@@ -172,6 +172,8 @@ BEGIN
   LOOP
     v_processed := v_processed + 1;
     v_attempt := v_item.attempt_count + 1;
+    v_campaign_id := NULL;
+    v_inserted_count := 0;
 
     BEGIN
       IF jsonb_typeof(v_item.payload) IS DISTINCT FROM 'object'
@@ -316,8 +318,7 @@ BEGIN
           SELECT DISTINCT ON (invitation.participation_id)
             invitation.participation_id,
             invitation.id AS invitation_id,
-            invitation.status,
-            invitation.issued_at
+            invitation.status
           FROM eogp.invitations AS invitation
           WHERE invitation.organization_id = v_item.organization_id
             AND invitation.event_id = v_decision.event_id
@@ -325,11 +326,28 @@ BEGIN
                    invitation.created_at DESC,
                    invitation.id DESC
         ),
+        latest_previously_issued_invitation AS (
+          SELECT DISTINCT ON (invitation.participation_id)
+            invitation.participation_id,
+            invitation.id AS invitation_id
+          FROM eogp.invitations AS invitation
+          WHERE invitation.organization_id = v_item.organization_id
+            AND invitation.event_id = v_decision.event_id
+            AND invitation.issued_at IS NOT NULL
+          ORDER BY invitation.participation_id,
+                   invitation.issued_at DESC,
+                   invitation.created_at DESC,
+                   invitation.id DESC
+        ),
         candidates AS (
           SELECT
             participation.id AS participation_id,
             participation.person_id,
-            invitation.invitation_id,
+            CASE
+              WHEN v_audience = 'all_previously_invited'
+                THEN coalesce(previous_invitation.invitation_id, invitation.invitation_id)
+              ELSE invitation.invitation_id
+            END AS invitation_id,
             CASE v_audience
               WHEN 'accepted_tentative' THEN 'latest_rsvp_accepted_or_tentative'
               WHEN 'all_active_invitees' THEN 'active_invitation'
@@ -341,6 +359,8 @@ BEGIN
             ON response.participation_id = participation.id
           LEFT JOIN latest_invitation AS invitation
             ON invitation.participation_id = participation.id
+          LEFT JOIN latest_previously_issued_invitation AS previous_invitation
+            ON previous_invitation.participation_id = participation.id
           WHERE participation.organization_id = v_item.organization_id
             AND participation.event_id = v_decision.event_id
             AND participation.status IN ('eligible','waitlisted')
@@ -352,7 +372,7 @@ BEGIN
                 AND invitation.status = 'active')
               OR
               (v_audience = 'all_previously_invited'
-                AND invitation.issued_at IS NOT NULL)
+                AND previous_invitation.invitation_id IS NOT NULL)
               OR
               (v_audience = 'custom'
                 AND participation.id = ANY(v_custom_ids))
