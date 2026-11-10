@@ -332,4 +332,149 @@ BEGIN
 END;
 $function$;
 
+
+CREATE FUNCTION eogp.reserve_resource_unit(
+    p_organization_id uuid,
+    p_resource_unit_id uuid,
+    p_booking_draft_revision_id uuid,
+    p_booking_id uuid,
+    p_maintenance_window_id uuid,
+    p_booking_resource_line_id uuid,
+    p_starts_at timestamptz,
+    p_ends_at timestamptz,
+    p_expires_at timestamptz,
+    p_idempotency_key text
+) RETURNS uuid
+LANGUAGE plpgsql
+SECURITY DEFINER
+SET search_path = pg_catalog, eogp
+AS $function$
+DECLARE
+    v_pool_id uuid;
+    v_pool_status text;
+    v_unit_status text;
+    v_existing eogp.resource_reservations%ROWTYPE;
+    v_reservation_id uuid := gen_random_uuid();
+    v_target_status text;
+BEGIN
+    IF nullif(current_setting('app.organization_id', true), '')::uuid
+       IS DISTINCT FROM p_organization_id THEN
+        RAISE EXCEPTION 'organization context mismatch' USING ERRCODE = '42501';
+    END IF;
+    IF p_ends_at <= p_starts_at THEN
+        RAISE EXCEPTION 'invalid reservation interval' USING ERRCODE = '22023';
+    END IF;
+    IF num_nonnulls(p_booking_draft_revision_id, p_booking_id, p_maintenance_window_id) <> 1 THEN
+        RAISE EXCEPTION 'exactly one draft revision, booking or maintenance window is required' USING ERRCODE = '22023';
+    END IF;
+    IF p_idempotency_key IS NULL OR length(p_idempotency_key) < 8 THEN
+        RAISE EXCEPTION 'a valid idempotency key is required' USING ERRCODE = '22023';
+    END IF;
+    IF (p_booking_draft_revision_id IS NOT NULL AND (p_expires_at IS NULL OR p_expires_at <= clock_timestamp()))
+       OR (p_booking_id IS NOT NULL AND p_expires_at IS NOT NULL)
+       OR (p_maintenance_window_id IS NOT NULL AND p_expires_at IS NOT NULL) THEN
+        RAISE EXCEPTION 'draft reservations require a future expiry; booking and maintenance blocks must not expire' USING ERRCODE = '22023';
+    END IF;
+
+    PERFORM pg_advisory_xact_lock(hashtextextended(p_organization_id::text || ':' || p_idempotency_key, 0));
+
+    SELECT u.resource_pool_id, u.status, p.status
+      INTO v_pool_id, v_unit_status, v_pool_status
+      FROM eogp.resource_units u
+      JOIN eogp.resource_pools p
+        ON p.organization_id = u.organization_id
+       AND p.id = u.resource_pool_id
+     WHERE u.organization_id = p_organization_id
+       AND u.id = p_resource_unit_id
+     FOR UPDATE OF u, p;
+
+    IF NOT FOUND OR v_unit_status <> 'available' OR v_pool_status <> 'active' THEN
+      RAISE EXCEPTION 'resource unit not found or unavailable' USING ERRCODE = 'P0002';
+    END IF;
+
+    SELECT * INTO v_existing
+      FROM eogp.resource_reservations
+     WHERE organization_id = p_organization_id
+       AND idempotency_key = p_idempotency_key
+     FOR UPDATE;
+    IF FOUND THEN
+      IF v_existing.resource_unit_id = p_resource_unit_id
+         AND v_existing.booking_draft_revision_id IS NOT DISTINCT FROM p_booking_draft_revision_id
+         AND v_existing.booking_id IS NOT DISTINCT FROM p_booking_id
+         AND v_existing.maintenance_window_id IS NOT DISTINCT FROM p_maintenance_window_id
+         AND v_existing.booking_resource_line_id IS NOT DISTINCT FROM p_booking_resource_line_id
+         AND v_existing.quantity = 1
+         AND v_existing.starts_at = p_starts_at
+         AND v_existing.ends_at = p_ends_at
+         AND v_existing.expires_at IS NOT DISTINCT FROM p_expires_at THEN
+        RETURN v_existing.id;
+      END IF;
+      RAISE EXCEPTION 'idempotency key was previously used for a different reservation payload'
+        USING ERRCODE = '22023';
+    END IF;
+
+    UPDATE eogp.resource_reservations
+       SET status = 'expired'
+     WHERE organization_id = p_organization_id
+       AND resource_unit_id = p_resource_unit_id
+       AND status = 'held'
+       AND expires_at <= clock_timestamp();
+
+    IF p_booking_resource_line_id IS NOT NULL AND NOT EXISTS (
+      SELECT 1
+        FROM eogp.booking_resource_lines l
+       WHERE l.organization_id = p_organization_id
+         AND l.id = p_booking_resource_line_id
+         AND l.draft_revision_id IS NOT DISTINCT FROM p_booking_draft_revision_id
+         AND l.booking_id IS NOT DISTINCT FROM p_booking_id
+         AND l.resource_type_id = (
+           SELECT rp.resource_type_id
+             FROM eogp.resource_pools rp
+            WHERE rp.organization_id = p_organization_id
+              AND rp.id = v_pool_id
+         )
+         AND (
+           (p_booking_draft_revision_id IS NOT NULL AND l.requested_quantity >= 1)
+           OR (p_booking_id IS NOT NULL AND l.approved_quantity >= 1)
+         )
+    ) THEN
+      RAISE EXCEPTION 'resource line does not authorize this unit reservation' USING ERRCODE = '42501';
+    END IF;
+
+    IF p_maintenance_window_id IS NOT NULL AND NOT EXISTS (
+      SELECT 1 FROM eogp.maintenance_windows m
+       WHERE m.organization_id = p_organization_id
+         AND m.id = p_maintenance_window_id
+         AND m.resource_unit_id = p_resource_unit_id
+         AND m.starts_at <= p_starts_at
+         AND m.ends_at >= p_ends_at
+         AND m.status = 'scheduled'
+    ) THEN
+      RAISE EXCEPTION 'maintenance window does not cover the requested unit interval' USING ERRCODE = '22023';
+    END IF;
+
+    v_target_status := CASE
+      WHEN p_booking_draft_revision_id IS NOT NULL THEN 'held'
+      WHEN p_booking_id IS NOT NULL THEN 'confirmed'
+      ELSE 'blocked'
+    END;
+
+    INSERT INTO eogp.resource_reservations (
+      id, organization_id, resource_unit_id,
+      booking_draft_revision_id, booking_id, maintenance_window_id,
+      booking_resource_line_id, quantity, starts_at, ends_at,
+      status, expires_at, idempotency_key
+    ) VALUES (
+      v_reservation_id, p_organization_id, p_resource_unit_id,
+      p_booking_draft_revision_id, p_booking_id, p_maintenance_window_id,
+      p_booking_resource_line_id, 1, p_starts_at, p_ends_at,
+      v_target_status, p_expires_at, p_idempotency_key
+    );
+
+    RETURN v_reservation_id;
+END;
+$function$;
+
+REVOKE ALL ON FUNCTION eogp.reserve_resource_unit(uuid,uuid,uuid,uuid,uuid,uuid,timestamptz,timestamptz,timestamptz,text) FROM PUBLIC;
+
 REVOKE ALL ON FUNCTION eogp.reserve_pooled_resource(uuid,uuid,uuid,uuid,uuid,timestamptz,timestamptz,integer,timestamptz,text) FROM PUBLIC;
