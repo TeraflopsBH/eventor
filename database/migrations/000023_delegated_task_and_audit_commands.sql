@@ -3,7 +3,7 @@
 -- Permission checked by the booking reservation release command.
 INSERT INTO eogp.permissions (code, description, scope_kind, is_sensitive)
 VALUES
-  ('task.perform','Perform an explicitly assigned event responsibility task','task',true)
+  ('task.perform','Perform an explicitly assigned event responsibility task','organization',true)
 ON CONFLICT (code) DO NOTHING;
 
 -- Do not fabricate actors for legacy terminal rows. If an environment
