@@ -2015,6 +2015,115 @@ paths:
             delivered: { type: integer, minimum: 0 }
             failed: { type: integer, minimum: 0 }
             suppressed: { type: integer, minimum: 0 }
+    CurrentPrincipal:
+      type: object
+      required: [userId, displayName, memberships]
+      properties:
+        userId: { $ref: '#/components/schemas/Uuid' }
+        displayName: { type: string }
+        memberships:
+          type: array
+          items:
+            type: object
+            required: [organizationId, organizationName, status]
+            properties:
+              organizationId: { $ref: '#/components/schemas/Uuid' }
+              organizationName: { type: string }
+              status: { type: string, enum: [active, suspended] }
+              permissionSummary:
+                type: array
+                items: { type: string }
+    PersonCreate:
+      type: object
+      required: [firstName, lastName]
+      properties:
+        firstName: { type: string, minLength: 1, maxLength: 200 }
+        lastName: { type: string, minLength: 1, maxLength: 200 }
+        displayName: { type: string, maxLength: 300 }
+        preferredName: { type: string, maxLength: 200 }
+        contactPoints:
+          type: array
+          items:
+            type: object
+            required: [kind, value]
+            properties:
+              kind: { type: string, enum: [email, phone, postal, other] }
+              value: { type: string, maxLength: 1000, writeOnly: true }
+              consent: { type: string, enum: [unknown, permitted, restricted, withdrawn] }
+    PersonPatch:
+      type: object
+      minProperties: 1
+      properties:
+        firstName: { type: string, minLength: 1, maxLength: 200 }
+        lastName: { type: string, minLength: 1, maxLength: 200 }
+        displayName: { type: string, maxLength: 300 }
+        preferredName: { type: string, maxLength: 200 }
+        contactPoints:
+          type: array
+          items:
+            type: object
+            required: [kind, value]
+            properties:
+              kind: { type: string, enum: [email, phone, postal, other] }
+              value: { type: string, maxLength: 1000, writeOnly: true }
+              consent: { type: string, enum: [unknown, permitted, restricted, withdrawn] }
+    Person:
+      type: object
+      required: [id, firstName, lastName, status]
+      properties:
+        id: { $ref: '#/components/schemas/Uuid' }
+        firstName: { type: string }
+        lastName: { type: string }
+        displayName: { type: string }
+        preferredName: { type: string }
+        status: { type: string, enum: [active, merged, archived] }
+        mergedIntoPersonId: { $ref: '#/components/schemas/Uuid' }
+    EventParticipation:
+      type: object
+      required: [id, eventId, personId, status]
+      properties:
+        id: { $ref: '#/components/schemas/Uuid' }
+        eventId: { $ref: '#/components/schemas/Uuid' }
+        personId: { $ref: '#/components/schemas/Uuid' }
+        status: { type: string, enum: [eligible, waitlisted, withdrawn, cancelled, ineligible] }
+        categoryCode: { type: string }
+    VenueCreate:
+      type: object
+      required: [code, name, timezone]
+      properties:
+        code: { type: string, minLength: 1, maxLength: 80 }
+        name: { type: string, minLength: 1, maxLength: 300 }
+        timezone: { type: string, default: Europe/Sarajevo }
+        address: { type: object, additionalProperties: true }
+    Venue:
+      type: object
+      required: [id, code, name, timezone, status]
+      properties:
+        id: { $ref: '#/components/schemas/Uuid' }
+        code: { type: string }
+        name: { type: string }
+        timezone: { type: string }
+        status: { type: string, enum: [active, inactive, archived] }
+        address: { type: object, additionalProperties: true }
+    SpatialObjectCreate:
+      type: object
+      required: [layerId, objectKind, geometry]
+      properties:
+        layerId: { $ref: '#/components/schemas/Uuid' }
+        objectKind: { type: string }
+        stableCode: { type: string, maxLength: 120 }
+        geometry: { type: object, additionalProperties: true }
+        attributes: { type: object, additionalProperties: true }
+    SpatialObject:
+      type: object
+      required: [id, layerId, objectKind, geometry]
+      properties:
+        id: { $ref: '#/components/schemas/Uuid' }
+        layerId: { $ref: '#/components/schemas/Uuid' }
+        objectKind: { type: string }
+        stableCode: { type: string }
+        geometry: { type: object, additionalProperties: true }
+        attributes: { type: object, additionalProperties: true }
     JobReceipt:
       type: object
       required: [jobId, status]
