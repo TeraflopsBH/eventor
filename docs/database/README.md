@@ -13,4 +13,4 @@
 - [Independent-connection capacity test](../../scripts/db/test_resource_concurrency.sh) and [additional concurrency runner](../../scripts/db/test-concurrency.sh).
 - [Unified PostgreSQL/API contract workflow](../../.github/workflows/contracts-and-database.yml).
 
-The v0.2 SQL remains a historical reference. The v0.3 migrations are an implementation draft. CI must pass on PostgreSQL 18.6, and the migration set still requires review before any production deployment.
+The v0.2 SQL remains a historical reference. The v0.3 migrations are an implementation draft; the latest CI run successfully applied all 16 migrations and passed RLS, hierarchy, reservation, concurrency and external-cancellation actor-attribution tests on PostgreSQL 18.6. The DDL still requires code review, broader upgrade/backup testing and approval before production deployment.
