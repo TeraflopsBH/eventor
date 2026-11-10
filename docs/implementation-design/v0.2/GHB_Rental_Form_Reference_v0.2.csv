@@ -1,0 +1,22 @@
+field_key,captured_label,control_type,captured_options_semicolon_delimited,html_required_property,initial_dom_visibility,source_and_validation_note
+dropdown-contact,Vrsta upita,select-one,Generalna pitanja; Kako do kataloga; Najava grupne posjete muzeju; Upit za iznajmljivanje sale,false,visible in initial DOM,Shared Contact Form 7 inquiry-type selector; not a rental-only field.
+organizator,Organizator / Naziv ustanove,text,,false,visible in initial DOM,Captured from live GHB page/browser DOM on 2026-11-10; verify with GHB before use.
+kontakt-osoba,Kontakt osoba,text,,false,visible in initial DOM,Captured from live GHB page/browser DOM on 2026-11-10; verify with GHB before use.
+telefon,Telefon,tel,,false,visible in initial DOM,Captured from live GHB page/browser DOM on 2026-11-10; verify with GHB before use.
+your-email,E-mail,email,,false,visible in initial DOM,Captured from live GHB page/browser DOM on 2026-11-10; verify with GHB before use.
+odaberi-salu,Odaberi salu,select-one,Velika sala (206 mjesta); Srednja sala (70 mjesta); Mala sala (24 mjesta),false,visible in initial DOM,These are the captured public rental-form choices; do not infer that other GHB spaces are publicly rentable.
+datum-vrijeme,Datum i vrijeme početka događaja,text,,false,visible in initial DOM,DOM type is text; desired date/time format and any client-side picker behavior are not established by extraction.
+vrsta-dogadjaja,Vrsta događaja,select-one,Promocija knjige; Predavanje; Seminar; Okrugli sto; Konferencija; Godišnjica; Ostalo,false,visible in initial DOM,Captured from live GHB page/browser DOM on 2026-11-10; verify with GHB before use.
+vrijeme-koristenja,Očekivano vrijeme korištenja sale,select-one,Do dva sata; Do četiri sata; Do osam sati,false,visible in initial DOM,Captured from live GHB page/browser DOM on 2026-11-10; verify with GHB before use.
+osnovno-ozvucenje,Osnovno ozvučenje,select-one,"Govornica; Govornica i konferencijski sto; Govornica, konferencijski sto i bežični mikrofon za salu",false,visible in initial DOM,Captured from live GHB page/browser DOM on 2026-11-10; verify with GHB before use.
+dodatno-ozvucenje,Dodatno ozvučenje,select-one,Ne; Solistički mikrofon; Muzički instrumenti i solista; Hor,false,visible in initial DOM,Captured from live GHB page/browser DOM on 2026-11-10; verify with GHB before use.
+projektor,Projektor,select-one,Bez projekcije; Centralno platno; LED display bočno; Centralno platno + LED display bočno,false,visible in initial DOM,Captured from live GHB page/browser DOM on 2026-11-10; verify with GHB before use.
+kontrola-projekcije,Način kontrole projekcije,select-one,Bez projekcije; Laptop uz govornicu; Projekcija iz režije; Laptop uz govornicu + Projekcija iz režije,false,visible in initial DOM,Captured from live GHB page/browser DOM on 2026-11-10; verify with GHB before use.
+posebni-zahtjevi,Posebni zahtjevi,select-one,Ne; Simultani prijevod; Hibridna konferencija - Online; Izložba; Stolovi za registraciju,false,visible in initial DOM,Captured from live GHB page/browser DOM on 2026-11-10; verify with GHB before use.
+proba,Termin za probu,select-one,Ne; Da,false,visible in initial DOM,The current form asks yes/no; no rehearsal date/time field appeared in the captured blank-state control list.
+gardaroba,Gardaroba (dodatni dežurni na Info pultu),select-one,Ne; Da,false,visible in initial DOM,Captured from live GHB page/browser DOM on 2026-11-10; verify with GHB before use.
+osvjezenje,Osvježenje na pauzi,select-one,Ne; U aranžmanu GHB; U vlastitom aranžmanu,false,visible in initial DOM,Visitor request choice; does not itself approve catering or determine price.
+osvjezenje-prostor,Prostor u kojem se služi osvježenje,select-one,Bez osvježenja; U auli kod Info pulta; U VIP sali; U auli i VIP sali,false,visible in initial DOM,Captured from live GHB page/browser DOM on 2026-11-10; verify with GHB before use.
+broj-osoba,Broj osoba za osvježenje / Broj posjetilaca,text,,false,visible in initial DOM,DOM text input; label extraction returned both labels because form markup is reused; confirm rental-specific label.
+osvjezenje-vrsta[],Vrsta osvježenja,checkbox-group,Kafa i čaj; Voda; Sokovi; Slatkiši,false,visible in initial DOM,Four independent checkbox choices; multiple selections allowed.
+napomena,Napomena,textarea,,false,visible in initial DOM,Captured from live GHB page/browser DOM on 2026-11-10; verify with GHB before use.

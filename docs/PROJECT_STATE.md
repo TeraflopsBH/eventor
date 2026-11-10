@@ -1,6 +1,6 @@
 # Project state
 
-**Status:** design consolidation / repository bootstrap  
+**Status:** design artifacts imported; initial static reconciliation completed; Phase 0 validation remains open  
 **Last updated:** 2026-11-10  
 **Implementation status:** no application code or production database has been established in this repository.
 
@@ -84,26 +84,28 @@ Eventor is a reusable, self-hosted event operations and guest logistics platform
 - The supplied mosque workbook is a grid-like spatial drawing. Preserve the source and map approved objects deliberately; do not blindly convert cells/numbers into seats.
 - The source venue workbook and sensitive operational details must not be committed unless explicitly reviewed and sanitized.
 
-## Design artifacts from prior work
+## Imported design artifacts and reconciliation
 
-The previous working package includes:
-- Technical Blueprint v1.2 (Markdown, DOCX, PDF).
-- Implementation Design v0.2 (Markdown, DOCX, PDF).
-- Core and booking SQL schema drafts.
-- OpenAPI v0.2 draft.
-- Backlog and GHB form/spatial reference CSVs.
-- GHB source workbook and visual reference assets.
+The working design sources are now in the repository:
+- [Technical Blueprint v1.2](blueprint/v1.2/Event_Operations_Platform_Technical_Blueprint_v1.2.md).
+- [Implementation Design v0.2](implementation-design/v0.2/Event_Operations_Implementation_Design_v0.2.md).
+- [Consolidated PostgreSQL schema starter](implementation-design/v0.2/eogp_schema_v0.2.sql) — 86 table definitions (64 core + 22 booking/configuration).
+- [OpenAPI v0.2 draft](implementation-design/v0.2/eogp_openapi_v0.2.yaml).
+- [64-item backlog](implementation-design/v0.2/EOGP_Backlog_v0.2.csv) and [GHB rental-form capture](implementation-design/v0.2/GHB_Rental_Form_Reference_v0.2.csv).
+- [Design reconciliation report](DESIGN_RECONCILIATION_v0.2.md).
 
-These are prior design artifacts, not yet imported into this repository or verified against one another in this bootstrap commit. The next documentation task is to import and reconcile the authoritative Markdown/SQL/OpenAPI/backlog artifacts, retaining source version history and recording any corrections.
+The separate v0.2 booking SQL addendum duplicates all 22 booking/configuration table definitions already present in the consolidated schema and is therefore not included as an additional executable schema file. The source workbook, rendered workbook image and spatial observations register remain outside GitHub pending venue-owner review.
+
+The OpenAPI YAML has been parsed and its 36 paths / 46 operations / unique operation IDs checked. The SQL has only been statically inspected; it has not been executed against PostgreSQL. Neither artifact should be treated as production-ready. The reconciliation report records these limitations and the RSVP model/API gap.
 
 ## Immediate next steps
 
-1. Import and reconcile the blueprint and implementation design.
-2. Validate SQL drafts and OpenAPI syntax/semantics; establish PostgreSQL migration conventions.
-3. Resolve domain model and schema inconsistencies before implementation.
-4. Agree MVP boundary and acceptance criteria.
-5. Establish CI checks, branch protection and contribution/review workflow.
-6. Begin implementation only after the design baseline is coherent.
+1. Specify the complete invitation/RSVP lifecycle, including staff-recorded responses ([Issue #6](https://github.com/TeraflopsBH/eventor/issues/6)).
+2. Review and validate the consolidated SQL schema; establish versioned PostgreSQL migrations ([Issue #2](https://github.com/TeraflopsBH/eventor/issues/2)).
+3. Run full OpenAPI validation and align contracts with the finalized domain model ([Issue #3](https://github.com/TeraflopsBH/eventor/issues/3)).
+4. Agree MVP scope, roles and acceptance criteria ([Issue #4](https://github.com/TeraflopsBH/eventor/issues/4)).
+5. Establish CI and repository protection settings ([Issue #5](https://github.com/TeraflopsBH/eventor/issues/5)).
+6. Start application implementation only after the foundation contracts are coherent.
 
 ## Open questions / validation gates
 

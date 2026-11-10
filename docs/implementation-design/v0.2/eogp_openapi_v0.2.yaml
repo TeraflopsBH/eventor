@@ -1,0 +1,1495 @@
+openapi: 3.1.1
+info:
+  title: Event Operations & Guest Logistics Platform API
+  version: 0.2.0
+  summary: First contract draft for the EOGP modular monolith.
+  description: >-
+    API-contract draft derived from Implementation Design v0.2. This file is
+    intentionally a first vertical-slice contract, not an exhaustive production API. Booking and configurable form/catalogue operations are added in v0.2.
+    Staff authentication and guest portal access use separate security schemes.
+servers:
+  - url: https://api.example.invalid/api/v1
+    description: Placeholder deployment URL; configure for each installation.
+tags:
+  - name: Authentication
+  - name: Guest Registry
+  - name: Events
+  - name: Event Guests
+  - name: Venues and Floor Plans
+  - name: Allocation
+  - name: Plans
+  - name: Guest Portal
+  - name: Check-in
+  - name: Cockpit
+  - name: Prerequisites
+  - name: Booking Public Intake
+  - name: Booking Administration
+  - name: Booking Configuration
+  - name: Booking Resources and Pricing
+security:
+  - sessionCookie: []
+paths:
+  /auth/session:
+    post:
+      tags: [Authentication]
+      operationId: createSession
+      security: []
+      summary: Authenticate a staff user
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [email, password]
+              properties:
+                email: { type: string, format: email }
+                password: { type: string, minLength: 1 }
+                mfaCode: { type: string, minLength: 6, maxLength: 12 }
+      responses:
+        '200':
+          description: Authenticated; server sets a secure session cookie.
+          headers:
+            Set-Cookie:
+              schema: { type: string }
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/SessionResponse' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '423': { description: Account locked or disabled. }
+    delete:
+      tags: [Authentication]
+      operationId: deleteSession
+      summary: End the current staff session
+      responses:
+        '204': { description: Session ended. }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+  /me:
+    get:
+      tags: [Authentication]
+      operationId: getCurrentUser
+      summary: Get current user and organization memberships
+      responses:
+        '200':
+          description: Current user profile and scoped grants.
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/CurrentUserResponse' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+  /organizations/{organizationId}/persons:
+    parameters:
+      - $ref: '#/components/parameters/OrganizationId'
+    get:
+      tags: [Guest Registry]
+      operationId: listPersons
+      summary: Search the persistent Guest Registry
+      parameters:
+        - in: query
+          name: q
+          schema: { type: string, maxLength: 200 }
+        - in: query
+          name: limit
+          schema: { type: integer, minimum: 1, maximum: 100, default: 50 }
+        - in: query
+          name: cursor
+          schema: { type: string }
+      responses:
+        '200':
+          description: Paginated person list.
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/PersonListResponse' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+    post:
+      tags: [Guest Registry]
+      operationId: createPerson
+      summary: Create a persistent person profile
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/PersonCreate' }
+      responses:
+        '201':
+          description: Person created.
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/PersonResponse' }
+        '409': { $ref: '#/components/responses/Conflict' }
+        '422': { $ref: '#/components/responses/ValidationError' }
+  /persons/{personId}:
+    parameters:
+      - $ref: '#/components/parameters/PersonId'
+    get:
+      tags: [Guest Registry]
+      operationId: getPerson
+      summary: Get a person profile subject to field permissions
+      responses:
+        '200':
+          description: Person profile.
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/PersonResponse' }
+        '404': { $ref: '#/components/responses/NotFound' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+    patch:
+      tags: [Guest Registry]
+      operationId: updatePerson
+      summary: Update a person profile
+      parameters:
+        - $ref: '#/components/parameters/IfMatch'
+      requestBody:
+        required: true
+        content:
+          application/merge-patch+json:
+            schema: { $ref: '#/components/schemas/PersonPatch' }
+      responses:
+        '200':
+          description: Updated profile.
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/PersonResponse' }
+        '409': { $ref: '#/components/responses/Conflict' }
+        '412': { description: ETag/If-Match precondition failed. }
+  /persons/{personId}/merge:
+    post:
+      tags: [Guest Registry]
+      operationId: mergePersons
+      summary: Merge a duplicate person after explicit review
+      parameters:
+        - $ref: '#/components/parameters/PersonId'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [targetPersonId, reason]
+              properties:
+                targetPersonId: { type: string, format: uuid }
+                reason: { type: string, minLength: 5, maxLength: 1000 }
+      responses:
+        '202': { description: Merge job accepted for controlled processing. }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '409': { $ref: '#/components/responses/Conflict' }
+  /events:
+    get:
+      tags: [Events]
+      operationId: listEvents
+      summary: List events visible to current user
+      parameters:
+        - in: query
+          name: status
+          schema: { type: string }
+        - in: query
+          name: limit
+          schema: { type: integer, minimum: 1, maximum: 100, default: 50 }
+        - in: query
+          name: cursor
+          schema: { type: string }
+      responses:
+        '200':
+          description: Event list.
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/EventListResponse' }
+    post:
+      tags: [Events]
+      operationId: createEvent
+      summary: Create an event
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/EventCreate' }
+      responses:
+        '201':
+          description: Event created.
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/EventResponse' }
+        '422': { $ref: '#/components/responses/ValidationError' }
+  /events/{eventId}:
+    parameters:
+      - $ref: '#/components/parameters/EventId'
+    get:
+      tags: [Events]
+      operationId: getEvent
+      summary: Get event configuration
+      responses:
+        '200':
+          description: Event.
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/EventResponse' }
+        '404': { $ref: '#/components/responses/NotFound' }
+    patch:
+      tags: [Events]
+      operationId: updateEvent
+      summary: Update event configuration
+      parameters:
+        - $ref: '#/components/parameters/IfMatch'
+      requestBody:
+        required: true
+        content:
+          application/merge-patch+json:
+            schema: { $ref: '#/components/schemas/EventPatch' }
+      responses:
+        '200':
+          description: Updated event.
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/EventResponse' }
+        '409': { $ref: '#/components/responses/Conflict' }
+  /events/{eventId}/guests:
+    parameters:
+      - $ref: '#/components/parameters/EventId'
+    get:
+      tags: [Event Guests]
+      operationId: listEventGuests
+      summary: List event participation records
+      parameters:
+        - in: query
+          name: q
+          schema: { type: string }
+        - in: query
+          name: categoryId
+          schema: { type: string, format: uuid }
+        - in: query
+          name: rsvpStatus
+          schema: { type: string }
+        - in: query
+          name: allocationStatus
+          schema: { type: string }
+        - in: query
+          name: limit
+          schema: { type: integer, minimum: 1, maximum: 100, default: 50 }
+        - in: query
+          name: cursor
+          schema: { type: string }
+      responses:
+        '200':
+          description: Event guest list.
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/EventGuestListResponse' }
+    post:
+      tags: [Event Guests]
+      operationId: addEventGuest
+      summary: Add an existing person or create a person for this event
+      parameters:
+        - $ref: '#/components/parameters/IdempotencyKey'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                personId: { type: string, format: uuid }
+                newPerson: { $ref: '#/components/schemas/PersonCreate' }
+                eventGuestCode: { type: string }
+                categoryId: { type: string, format: uuid }
+                rsvpStatus: { type: string, enum: [pending, invited, confirmed, declined, waitlisted, not_required] }
+              oneOf:
+                - required: [personId]
+                - required: [newPerson]
+      responses:
+        '201':
+          description: Event guest created.
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/EventGuestResponse' }
+        '409': { $ref: '#/components/responses/Conflict' }
+  /events/{eventId}/guest-imports:
+    post:
+      tags: [Event Guests]
+      operationId: createGuestImport
+      summary: Upload a guest list import for preview and controlled commit
+      parameters:
+        - $ref: '#/components/parameters/EventId'
+        - $ref: '#/components/parameters/IdempotencyKey'
+      requestBody:
+        required: true
+        content:
+          multipart/form-data:
+            schema:
+              type: object
+              required: [file]
+              properties:
+                file:
+                  type: string
+                  format: binary
+                mapping:
+                  type: string
+                  description: JSON string describing source-to-field mapping.
+      responses:
+        '202':
+          description: Import accepted; preview is asynchronous.
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/JobResponse' }
+        '413': { description: File exceeds configured upload limit. }
+  /imports/{batchId}:
+    get:
+      tags: [Event Guests]
+      operationId: getImportBatch
+      parameters:
+        - in: path
+          name: batchId
+          required: true
+          schema: { type: string, format: uuid }
+      responses:
+        '200':
+          description: Import preview, validation and duplicate candidates.
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/ImportBatchResponse' }
+        '404': { $ref: '#/components/responses/NotFound' }
+  /venues:
+    get:
+      tags: [Venues and Floor Plans]
+      operationId: listVenues
+      responses:
+        '200':
+          description: Venue registry.
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/VenueListResponse' }
+    post:
+      tags: [Venues and Floor Plans]
+      operationId: createVenue
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/VenueCreate' }
+      responses:
+        '201':
+          description: Venue created.
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/VenueResponse' }
+  /spaces/{spaceId}/source-artifacts:
+    post:
+      tags: [Venues and Floor Plans]
+      operationId: uploadSourcePlan
+      parameters:
+        - in: path
+          name: spaceId
+          required: true
+          schema: { type: string, format: uuid }
+        - $ref: '#/components/parameters/IdempotencyKey'
+      requestBody:
+        required: true
+        content:
+          multipart/form-data:
+            schema:
+              type: object
+              required: [file]
+              properties:
+                file: { type: string, format: binary }
+                sourceType: { type: string, enum: [xlsx, pdf, image, svg, cad_export, other] }
+      responses:
+        '202':
+          description: Source artifact stored; rendering/import job queued.
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/JobResponse' }
+  /space-revisions/{revisionId}/objects:
+    get:
+      tags: [Venues and Floor Plans]
+      operationId: listSpatialObjects
+      parameters:
+        - in: path
+          name: revisionId
+          required: true
+          schema: { type: string, format: uuid }
+      responses:
+        '200':
+          description: Spatial objects for authorized view.
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/SpatialObjectListResponse' }
+    post:
+      tags: [Venues and Floor Plans]
+      operationId: createSpatialObject
+      parameters:
+        - in: path
+          name: revisionId
+          required: true
+          schema: { type: string, format: uuid }
+        - $ref: '#/components/parameters/IfMatch'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/SpatialObjectCreate' }
+      responses:
+        '201':
+          description: Spatial object created.
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/SpatialObjectResponse' }
+        '409': { $ref: '#/components/responses/Conflict' }
+  /sessions/{sessionId}/allocation-runs:
+    post:
+      tags: [Allocation]
+      operationId: createAllocationRun
+      parameters:
+        - in: path
+          name: sessionId
+          required: true
+          schema: { type: string, format: uuid }
+        - $ref: '#/components/parameters/IdempotencyKey'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/AllocationRunRequest' }
+      responses:
+        '202':
+          description: Solver run queued.
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/JobResponse' }
+        '409': { $ref: '#/components/responses/Conflict' }
+  /allocation-runs/{runId}:
+    get:
+      tags: [Allocation]
+      operationId: getAllocationRun
+      parameters:
+        - in: path
+          name: runId
+          required: true
+          schema: { type: string, format: uuid }
+      responses:
+        '200':
+          description: Solver state and diagnostics.
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/AllocationRunResponse' }
+        '404': { $ref: '#/components/responses/NotFound' }
+  /allocation-runs/{runId}/commit:
+    post:
+      tags: [Allocation]
+      operationId: commitAllocationRun
+      summary: Validate and commit a selected solver proposal
+      parameters:
+        - in: path
+          name: runId
+          required: true
+          schema: { type: string, format: uuid }
+        - $ref: '#/components/parameters/IdempotencyKey'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [expectedRevision, acceptance]
+              properties:
+                expectedRevision: { type: integer, minimum: 1 }
+                acceptance: { type: string, enum: [all, selected] }
+                acceptedAssignmentIds:
+                  type: array
+                  items: { type: string, format: uuid }
+                changeReason: { type: string, maxLength: 1000 }
+      responses:
+        '201':
+          description: New allocation revision created.
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/AllocationRevisionResponse' }
+        '409': { $ref: '#/components/responses/Conflict' }
+        '422': { $ref: '#/components/responses/ValidationError' }
+  /allocation-revisions/{revisionId}/approve:
+    post:
+      tags: [Plans]
+      operationId: approveAllocationRevision
+      parameters:
+        - in: path
+          name: revisionId
+          required: true
+          schema: { type: string, format: uuid }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [decision]
+              properties:
+                decision: { type: string, enum: [approved, rejected, returned_for_changes] }
+                comment: { type: string, maxLength: 2000 }
+      responses:
+        '200': { description: Approval recorded. }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '409': { $ref: '#/components/responses/Conflict' }
+  /allocation-revisions/{revisionId}/publish:
+    post:
+      tags: [Plans]
+      operationId: publishAllocationRevision
+      parameters:
+        - in: path
+          name: revisionId
+          required: true
+          schema: { type: string, format: uuid }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [audiences]
+              properties:
+                audiences:
+                  type: array
+                  minItems: 1
+                  uniqueItems: true
+                  items: { type: string, enum: [staff, guest, print, management] }
+      responses:
+        '202': { description: Publication accepted; projections/documents are refreshed asynchronously. }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '409': { $ref: '#/components/responses/Conflict' }
+  /guest-portal/access/resolve:
+    post:
+      tags: [Guest Portal]
+      operationId: resolveGuestAccess
+      security: []
+      summary: Resolve a guest's opaque portal access token
+      parameters:
+        - in: header
+          name: X-Guest-Access-Token
+          required: true
+          schema: { type: string, minLength: 32 }
+      responses:
+        '200':
+          description: Minimal guest portal context.
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/GuestPortalContextResponse' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '410': { description: Token expired, revoked or replaced. }
+  /guest-portal/me/allocation:
+    get:
+      tags: [Guest Portal]
+      operationId: getMyGuestAllocation
+      security:
+        - guestToken: []
+      responses:
+        '200':
+          description: Own allocation and guest-safe map projection only.
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/GuestAllocationViewResponse' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+  /check-in/scan:
+    post:
+      tags: [Check-in]
+      operationId: scanCredential
+      parameters:
+        - $ref: '#/components/parameters/IdempotencyKey'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [token, stationId]
+              properties:
+                token: { type: string, minLength: 16 }
+                stationId: { type: string, format: uuid }
+                sessionId: { type: string, format: uuid }
+                deviceSequence: { type: integer, minimum: 0 }
+      responses:
+        '200':
+          description: Scan result, including accepted/duplicate/rejected state.
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/CheckinResultResponse' }
+        '409': { $ref: '#/components/responses/Conflict' }
+        '422': { $ref: '#/components/responses/ValidationError' }
+  /events/{eventId}/cockpit:
+    get:
+      tags: [Cockpit]
+      operationId: getCockpitSnapshot
+      parameters:
+        - $ref: '#/components/parameters/EventId'
+      responses:
+        '200':
+          description: Role-projected cockpit snapshot and data freshness.
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/CockpitSnapshotResponse' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+  /events/{eventId}/prerequisites:
+    get:
+      tags: [Prerequisites]
+      operationId: listPrerequisites
+      parameters:
+        - $ref: '#/components/parameters/EventId'
+      responses:
+        '200':
+          description: External prerequisite coordination records.
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/PrerequisiteListResponse' }
+    post:
+      tags: [Prerequisites]
+      operationId: createPrerequisite
+      parameters:
+        - $ref: '#/components/parameters/EventId'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/PrerequisiteCreate' }
+      responses:
+        '201': { description: Prerequisite created. }
+        '403': { $ref: '#/components/responses/Forbidden' }
+  /prerequisites/{prerequisiteId}/record-completion:
+    post:
+      tags: [Prerequisites]
+      operationId: recordPrerequisiteCompletion
+      parameters:
+        - in: path
+          name: prerequisiteId
+          required: true
+          schema: { type: string, format: uuid }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [confirmedAt, confirmationNote]
+              properties:
+                confirmedAt: { type: string, format: date-time }
+                confirmationNote: { type: string, minLength: 3, maxLength: 1000 }
+                reference: { type: string, maxLength: 200 }
+      responses:
+        '200': { description: Externally completed prerequisite recorded and audited. }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '409': { $ref: '#/components/responses/Conflict' }
+
+  /public/organizations/{organizationSlug}/booking-forms/{formCode}:
+    get:
+      tags: [Booking Public Intake]
+      operationId: getPublishedPublicBookingForm
+      security: []
+      summary: Retrieve the currently published public booking form
+      parameters:
+        - in: path
+          name: organizationSlug
+          required: true
+          schema: { type: string, minLength: 2, maxLength: 80 }
+        - in: path
+          name: formCode
+          required: true
+          schema: { type: string, minLength: 2, maxLength: 80 }
+        - in: query
+          name: locale
+          schema: { type: string, default: bs-BA }
+      responses:
+        '200':
+          description: Public-safe published form schema and allowed options only.
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/PublishedBookingFormResponse' }
+        '404': { description: No published public form exists for this organization and code. }
+  /public/organizations/{organizationSlug}/booking-inquiries:
+    post:
+      tags: [Booking Public Intake]
+      operationId: submitPublicBookingInquiry
+      security: []
+      summary: Submit a public venue booking inquiry
+      parameters:
+        - in: path
+          name: organizationSlug
+          required: true
+          schema: { type: string, minLength: 2, maxLength: 80 }
+        - $ref: '#/components/parameters/IdempotencyKey'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/BookingInquiryCreate' }
+      responses:
+        '201':
+          description: Inquiry received. Response contains a non-enumerable public reference, not internal workflow details.
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/BookingInquiryReceipt' }
+        '400': { $ref: '#/components/responses/ValidationError' }
+        '422': { $ref: '#/components/responses/ValidationError' }
+        '429': { description: Rate limit or anti-abuse control triggered. }
+  /organizations/{organizationId}/booking-inquiries:
+    get:
+      tags: [Booking Administration]
+      operationId: listBookingInquiries
+      parameters:
+        - $ref: '#/components/parameters/OrganizationId'
+        - in: query
+          name: status
+          schema: { type: string }
+        - in: query
+          name: venueId
+          schema: { type: string, format: uuid }
+        - in: query
+          name: from
+          schema: { type: string, format: date-time }
+        - in: query
+          name: to
+          schema: { type: string, format: date-time }
+        - in: query
+          name: limit
+          schema: { type: integer, minimum: 1, maximum: 100, default: 50 }
+        - in: query
+          name: cursor
+          schema: { type: string }
+      responses:
+        '200':
+          description: Permission-filtered inquiry inbox.
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/BookingInquiryListResponse' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+  /booking-inquiries/{inquiryId}:
+    get:
+      tags: [Booking Administration]
+      operationId: getBookingInquiry
+      parameters:
+        - in: path
+          name: inquiryId
+          required: true
+          schema: { type: string, format: uuid }
+      responses:
+        '200':
+          description: Original immutable submission, snapshot, attachments metadata and permitted annotations.
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/BookingInquiryResponse' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '404': { $ref: '#/components/responses/NotFound' }
+  /booking-inquiries/{inquiryId}/create-draft:
+    post:
+      tags: [Booking Administration]
+      operationId: createBookingDraftFromInquiry
+      summary: Copy an inquiry into a separate editable booking draft
+      parameters:
+        - in: path
+          name: inquiryId
+          required: true
+          schema: { type: string, format: uuid }
+        - $ref: '#/components/parameters/IdempotencyKey'
+      requestBody:
+        required: false
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                ownerUserId: { type: string, format: uuid }
+                initialNote: { type: string, maxLength: 4000 }
+      responses:
+        '201':
+          description: New draft and revision created; original inquiry remains unchanged.
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/BookingDraftResponse' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '409': { $ref: '#/components/responses/Conflict' }
+  /booking-drafts/{draftId}/revisions:
+    post:
+      tags: [Booking Administration]
+      operationId: createBookingDraftRevision
+      summary: Create a new draft revision
+      parameters:
+        - in: path
+          name: draftId
+          required: true
+          schema: { type: string, format: uuid }
+        - $ref: '#/components/parameters/IfMatch'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/BookingDraftRevisionCreate' }
+      responses:
+        '201':
+          description: New immutable draft revision created.
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/BookingDraftResponse' }
+        '409': { $ref: '#/components/responses/Conflict' }
+        '422': { $ref: '#/components/responses/ValidationError' }
+  /booking-draft-revisions/{revisionId}/offers:
+    post:
+      tags: [Booking Resources and Pricing]
+      operationId: issueBookingOffer
+      summary: Generate an immutable offer from a selected draft and price revision
+      parameters:
+        - in: path
+          name: revisionId
+          required: true
+          schema: { type: string, format: uuid }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [currency, taxBasis, validUntil]
+              properties:
+                priceListRevisionId: { type: string, format: uuid }
+                currency: { type: string, minLength: 3, maxLength: 3, default: BAM }
+                taxBasis: { type: string, enum: [inclusive, exclusive, not_applicable, to_be_confirmed] }
+                validUntil: { type: string, format: date-time }
+                manualAdjustments: { type: array, items: { type: object, additionalProperties: true } }
+                internalReason: { type: string, maxLength: 2000 }
+      responses:
+        '201': { description: Immutable offer revision created and audited. }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '409': { $ref: '#/components/responses/Conflict' }
+  /booking-draft-revisions/{revisionId}/confirm:
+    post:
+      tags: [Booking Administration]
+      operationId: confirmVenueBooking
+      summary: Confirm a booking and atomically reserve required spaces/resources
+      parameters:
+        - in: path
+          name: revisionId
+          required: true
+          schema: { type: string, format: uuid }
+        - $ref: '#/components/parameters/IdempotencyKey'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [expectedDraftRevisionId, confirmationReason]
+              properties:
+                expectedDraftRevisionId: { type: string, format: uuid }
+                acceptedOfferId: { type: [string, 'null'], format: uuid }
+                confirmationReason: { type: string, minLength: 3, maxLength: 2000 }
+                createOperationalEvent: { type: boolean, default: false }
+      responses:
+        '201': { description: Confirmed booking created; all reservations committed or none committed. }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '409': { description: Stale revision, approval incomplete or resource conflict. }
+        '422': { $ref: '#/components/responses/ValidationError' }
+  /organizations/{organizationId}/config-catalogues:
+    get:
+      tags: [Booking Configuration]
+      operationId: listConfigCatalogues
+      parameters:
+        - $ref: '#/components/parameters/OrganizationId'
+        - in: query
+          name: scopeType
+          schema: { type: string, enum: [organization, venue, space, event] }
+        - in: query
+          name: status
+          schema: { type: string, enum: [draft, active, archived] }
+      responses:
+        '200': { description: Catalogue definitions and active revision metadata. }
+    post:
+      tags: [Booking Configuration]
+      operationId: createConfigCatalogue
+      parameters:
+        - $ref: '#/components/parameters/OrganizationId'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [code, displayName, scopeType]
+              properties:
+                code: { type: string, pattern: '^[a-z][a-z0-9_-]{1,79}$' }
+                displayName: { type: string, minLength: 1, maxLength: 160 }
+                scopeType: { type: string, enum: [organization, venue, space, event] }
+                scopeId: { type: [string, 'null'], format: uuid }
+                description: { type: string, maxLength: 2000 }
+      responses:
+        '201': { description: Catalogue created. }
+        '409': { $ref: '#/components/responses/Conflict' }
+  /config-catalogues/{catalogueId}/options:
+    post:
+      tags: [Booking Configuration]
+      operationId: addConfigCatalogueOption
+      summary: Add a stable option identity to a catalogue
+      parameters:
+        - in: path
+          name: catalogueId
+          required: true
+          schema: { type: string, format: uuid }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [optionCode, labelI18n]
+              properties:
+                optionCode: { type: string, pattern: '^[a-z][a-z0-9_-]{1,79}$' }
+                labelI18n: { type: object, minProperties: 1, additionalProperties: { type: string } }
+                descriptionI18n: { type: object, additionalProperties: { type: string } }
+                sortOrder: { type: integer, default: 0 }
+                resourceServiceMapping: { type: object, additionalProperties: true }
+      responses:
+        '201': { description: Stable option identity and first option revision created. }
+        '409': { $ref: '#/components/responses/Conflict' }
+  /config-catalogue-revisions/{revisionId}/publish:
+    post:
+      tags: [Booking Configuration]
+      operationId: publishConfigCatalogueRevision
+      parameters:
+        - in: path
+          name: revisionId
+          required: true
+          schema: { type: string, format: uuid }
+      responses:
+        '200': { description: Validated catalogue revision published; previous published revision superseded. }
+        '409': { $ref: '#/components/responses/Conflict' }
+        '422': { $ref: '#/components/responses/ValidationError' }
+  /booking-form-definitions/{formId}/revisions/{revisionId}/publish:
+    post:
+      tags: [Booking Configuration]
+      operationId: publishBookingFormRevision
+      parameters:
+        - in: path
+          name: formId
+          required: true
+          schema: { type: string, format: uuid }
+        - in: path
+          name: revisionId
+          required: true
+          schema: { type: string, format: uuid }
+      responses:
+        '200': { description: Validated public booking form revision published. }
+        '409': { $ref: '#/components/responses/Conflict' }
+        '422': { $ref: '#/components/responses/ValidationError' }
+components:
+  securitySchemes:
+    sessionCookie:
+      type: apiKey
+      in: cookie
+      name: eogp_session
+      description: Secure, HttpOnly, SameSite staff session cookie.
+    guestToken:
+      type: apiKey
+      in: header
+      name: X-Guest-Access-Token
+      description: Event-scoped, revocable guest access token; never a staff credential.
+  parameters:
+    OrganizationId:
+      in: path
+      name: organizationId
+      required: true
+      schema: { type: string, format: uuid }
+    EventId:
+      in: path
+      name: eventId
+      required: true
+      schema: { type: string, format: uuid }
+    PersonId:
+      in: path
+      name: personId
+      required: true      schema: { type: string, format: uuid }
+    IfMatch:
+      in: header
+      name: If-Match
+      required: false
+      schema: { type: string }
+      description: ETag of the current resource/revision for optimistic concurrency.
+    IdempotencyKey:
+      in: header
+      name: Idempotency-Key
+      required: true
+      schema: { type: string, minLength: 16, maxLength: 128 }
+  responses:
+    Unauthorized:
+      description: Missing or invalid authentication/credential.
+      content:
+        application/problem+json:
+          schema: { $ref: '#/components/schemas/Problem' }
+    Forbidden:
+      description: Authenticated, but not authorized for this scope/action.
+      content:
+        application/problem+json:
+          schema: { $ref: '#/components/schemas/Problem' }
+    NotFound:
+      description: Resource not found in the caller's authorized scope.
+      content:
+        application/problem+json:
+          schema: { $ref: '#/components/schemas/Problem' }
+    Conflict:
+      description: Revision, uniqueness or state conflict.
+      content:
+        application/problem+json:
+          schema: { $ref: '#/components/schemas/Problem' }
+    ValidationError:
+      description: Request or domain validation failed.
+      content:
+        application/problem+json:
+          schema: { $ref: '#/components/schemas/Problem' }
+  schemas:
+    Meta:
+      type: object
+      properties:
+        requestId: { type: string }
+        revision: { type: integer }
+      required: [requestId]
+    Problem:
+      type: object
+      required: [type, title, status, code, requestId]
+      properties:
+        type: { type: string, format: uri-reference }
+        title: { type: string }
+        status: { type: integer }
+        code: { type: string }
+        detail: { type: string }
+        requestId: { type: string }
+        conflicts: { type: array, items: { type: object, additionalProperties: true } }
+    SessionResponse:
+      type: object
+      required: [data, meta]
+      properties:
+        data:
+          type: object
+          required: [userId, displayName, memberships]
+          properties:
+            userId: { type: string, format: uuid }
+            displayName: { type: string }
+            memberships: { type: array, items: { type: object, additionalProperties: true } }
+        meta: { $ref: '#/components/schemas/Meta' }
+    CurrentUserResponse:
+      type: object
+      required: [data, meta]
+      properties:
+        data:
+          type: object
+          properties:
+            userId: { type: string, format: uuid }
+            displayName: { type: string }
+            permissions: { type: array, items: { type: string } }
+        meta: { $ref: '#/components/schemas/Meta' }
+    PersonCreate:
+      type: object
+      required: [givenName, familyName, displayName]
+      properties:
+        personCode: { type: string, maxLength: 40 }
+        givenName: { type: string, minLength: 1, maxLength: 150 }
+        familyName: { type: string, minLength: 1, maxLength: 150 }
+        displayName: { type: string, minLength: 1, maxLength: 250 }
+        title: { type: string, maxLength: 100 }
+        organizationName: { type: string, maxLength: 200 }
+        positionTitle: { type: string, maxLength: 200 }
+        preferredLocale: { type: string, maxLength: 20 }
+        contacts:
+          type: array
+          items:
+            type: object
+            required: [contactType, value]
+            properties:
+              contactType: { type: string, enum: [email, phone, address, other] }
+              value: { type: string, maxLength: 500 }
+              isPrimary: { type: boolean, default: false }
+    PersonPatch:
+      type: object
+      properties:
+        givenName: { type: string, maxLength: 150 }
+        familyName: { type: string, maxLength: 150 }
+        displayName: { type: string, maxLength: 250 }
+        title: { type: string, maxLength: 100 }
+        organizationName: { type: string, maxLength: 200 }
+        positionTitle: { type: string, maxLength: 200 }
+        preferredLocale: { type: string, maxLength: 20 }
+        profileStatus: { type: string, enum: [active, inactive, archived] }
+    Person:
+      allOf:
+        - $ref: '#/components/schemas/PersonCreate'
+        - type: object
+          required: [id, profileStatus]
+          properties:
+            id: { type: string, format: uuid }
+            profileStatus: { type: string }
+            contacts: { type: array, items: { type: object, additionalProperties: true } }
+    PersonResponse:
+      type: object
+      required: [data, meta]
+      properties:
+        data: { $ref: '#/components/schemas/Person' }
+        meta: { $ref: '#/components/schemas/Meta' }
+    PersonListResponse:
+      type: object
+      required: [data, page, meta]
+      properties:
+        data: { type: array, items: { $ref: '#/components/schemas/Person' } }
+        page: { $ref: '#/components/schemas/Page' }
+        meta: { $ref: '#/components/schemas/Meta' }
+    Page:
+      type: object
+      required: [limit]
+      properties:
+        limit: { type: integer }
+        nextCursor: { type: [string, 'null'] }
+    EventCreate:
+      type: object
+      required: [organizationId, code, name, timezone, startsAt, endsAt]
+      properties:
+        organizationId: { type: string, format: uuid }
+        code: { type: string, maxLength: 50 }
+        name: { type: string, maxLength: 250 }
+        eventType: { type: string, maxLength: 80 }
+        timezone: { type: string, example: Europe/Sarajevo }
+        startsAt: { type: string, format: date-time }
+        endsAt: { type: string, format: date-time }
+        guestPortalEnabled: { type: boolean, default: false }
+    EventPatch:
+      type: object
+      properties:
+        name: { type: string, maxLength: 250 }
+        startsAt: { type: string, format: date-time }
+        endsAt: { type: string, format: date-time }
+        lifecycleState: { type: string, enum: [draft, planning, ready, live, completed, cancelled, archived] }
+        guestPortalEnabled: { type: boolean }
+    Event:
+      allOf:
+        - $ref: '#/components/schemas/EventCreate'
+        - type: object
+          required: [id, lifecycleState]
+          properties:
+            id: { type: string, format: uuid }
+            lifecycleState: { type: string }
+    EventResponse:
+      type: object
+      required: [data, meta]
+      properties:
+        data: { $ref: '#/components/schemas/Event' }
+        meta: { $ref: '#/components/schemas/Meta' }
+    EventListResponse:
+      type: object
+      required: [data, page, meta]
+      properties:
+        data: { type: array, items: { $ref: '#/components/schemas/Event' } }
+        page: { $ref: '#/components/schemas/Page' }
+        meta: { $ref: '#/components/schemas/Meta' }
+    EventGuest:
+      type: object
+      required: [id, personId, eventGuestCode, rsvpStatus, displayName]
+      properties:
+        id: { type: string, format: uuid }
+        personId: { type: string, format: uuid }
+        eventGuestCode: { type: string }
+        displayName: { type: string }
+        categoryId: { type: [string, 'null'], format: uuid }
+        rsvpStatus: { type: string, enum: [pending, invited, confirmed, declined, waitlisted, not_required] }
+        participationStatus: { type: string, enum: [active, cancelled, archived] }
+        allocationLocator: { type: [string, 'null'] }
+        checkinState: { type: string, enum: [not_arrived, checked_in, checked_out, manual_review] }
+    EventGuestResponse:
+      type: object
+      required: [data, meta]
+      properties:
+        data: { $ref: '#/components/schemas/EventGuest' }
+        meta: { $ref: '#/components/schemas/Meta' }
+    EventGuestListResponse:
+      type: object
+      required: [data, page, meta]
+      properties:
+        data: { type: array, items: { $ref: '#/components/schemas/EventGuest' } }
+        page: { $ref: '#/components/schemas/Page' }
+        meta: { $ref: '#/components/schemas/Meta' }
+    JobResponse:
+      type: object
+      required: [data, meta]
+      properties:
+        data:
+          type: object
+          required: [jobId, status]
+          properties:
+            jobId: { type: string, format: uuid }
+            status: { type: string }
+            statusUrl: { type: string }
+        meta: { $ref: '#/components/schemas/Meta' }
+    ImportBatchResponse:
+      type: object
+      required: [data, meta]
+      properties:
+        data:
+          type: object
+          properties:
+            batchId: { type: string, format: uuid }
+            status: { type: string }
+            rowCount: { type: integer }
+            errorCount: { type: integer }
+            duplicateCandidates: { type: integer }
+            previewRows: { type: array, items: { type: object, additionalProperties: true } }
+        meta: { $ref: '#/components/schemas/Meta' }
+    VenueCreate:
+      type: object
+      required: [organizationId, code, name]
+      properties:
+        organizationId: { type: string, format: uuid }
+        code: { type: string }
+        name: { type: string }
+        description: { type: string }
+    Venue:
+      allOf:
+        - $ref: '#/components/schemas/VenueCreate'
+        - type: object
+          required: [id, status]
+          properties:
+            id: { type: string, format: uuid }
+            status: { type: string }
+    VenueResponse:
+      type: object
+      required: [data, meta]
+      properties:
+        data: { $ref: '#/components/schemas/Venue' }
+        meta: { $ref: '#/components/schemas/Meta' }
+    VenueListResponse:
+      type: object
+      required: [data, meta]
+      properties:
+        data: { type: array, items: { $ref: '#/components/schemas/Venue' } }
+        meta: { $ref: '#/components/schemas/Meta' }
+    SpatialObjectCreate:
+      type: object
+      required: [objectType, geometry]
+      properties:
+        objectType: { type: string, enum: [space_boundary, region, feature, row, row_segment, table, seat, floor_position, label, path, symbol, other] }
+        code: { type: string }
+        displayLabel: { type: string }
+        geometry: { type: object, additionalProperties: true }
+        transform: { type: object, additionalProperties: true }
+        style: { type: object, additionalProperties: true }
+        properties: { type: object, additionalProperties: true }
+        visibility: { type: string, enum: [public, guest, staff, management, restricted] }
+    SpatialObject:
+      allOf:
+        - $ref: '#/components/schemas/SpatialObjectCreate'
+        - type: object
+          required: [id]
+          properties:
+            id: { type: string, format: uuid }
+    SpatialObjectResponse:
+      type: object
+      required: [data, meta]
+      properties:
+        data: { $ref: '#/components/schemas/SpatialObject' }
+        meta: { $ref: '#/components/schemas/Meta' }
+    SpatialObjectListResponse:
+      type: object
+      required: [data, meta]
+      properties:
+        data: { type: array, items: { $ref: '#/components/schemas/SpatialObject' } }
+        meta: { $ref: '#/components/schemas/Meta' }
+    AllocationRunRequest:
+      type: object
+      required: [mode, expectedRevision]
+      properties:
+        mode: { type: string, enum: [full, category, targeted_reflow, manual_validation, what_if] }
+        expectedRevision: { type: integer, minimum: 0 }
+        guestIds: { type: array, items: { type: string, format: uuid } }
+        groupIds: { type: array, items: { type: string, format: uuid } }
+        resourceIds: { type: array, items: { type: string, format: uuid } }
+        includeAdjacentZones: { type: boolean, default: false }
+        preserveUnaffected: { type: boolean, default: true }
+        allowUnassigned: { type: boolean, default: false }
+        timeLimitSeconds: { type: integer, minimum: 1, maximum: 600, default: 30 }
+    AllocationRunResponse:
+      type: object
+      required: [data, meta]
+      properties:
+        data:
+          type: object
+          properties:
+            runId: { type: string, format: uuid }
+            status: { type: string, enum: [queued, running, optimal, feasible, infeasible, model_invalid, unknown, failed, cancelled] }
+            objectiveValues: { type: object, additionalProperties: true }
+            diagnostics: { type: object, additionalProperties: true }
+            proposalRevisionId: { type: [string, 'null'], format: uuid }
+        meta: { $ref: '#/components/schemas/Meta' }
+    AllocationRevisionResponse:
+      type: object
+      required: [data, meta]
+      properties:
+        data:
+          type: object
+          properties:
+            revisionId: { type: string, format: uuid }
+            revisionNo: { type: integer }
+            status: { type: string }
+            changedGuestCount: { type: integer }
+            unassignedGuestCount: { type: integer }
+        meta: { $ref: '#/components/schemas/Meta' }
+    GuestPortalContextResponse:
+      type: object
+      required: [data, meta]
+      properties:
+        data:
+          type: object
+          properties:
+            guestDisplayName: { type: string }
+            eventName: { type: string }
+            eventStartsAt: { type: string, format: date-time }
+            allocationAvailable: { type: boolean }
+        meta: { $ref: '#/components/schemas/Meta' }
+    GuestAllocationViewResponse:
+      type: object
+      required: [data, meta]
+      properties:
+        data:
+          type: object
+          properties:
+            guestDisplayName: { type: string }
+            locator:
+              type: object
+              properties:
+                building: { type: [string, 'null'] }
+                level: { type: [string, 'null'] }
+                room: { type: string }
+                zone: { type: [string, 'null'] }
+                section: { type: [string, 'null'] }
+                row: { type: [string, 'null'] }
+                position: { type: [string, 'null'] }
+                table: { type: [string, 'null'] }
+                seat: { type: [string, 'null'] }
+            guestMapProjection: { type: object, additionalProperties: true }
+            planRevision: { type: integer }
+            directions: { type: array, items: { type: string } }
+        meta: { $ref: '#/components/schemas/Meta' }
+    CheckinResultResponse:
+      type: object
+      required: [data, meta]
+      properties:
+        data:
+          type: object
+          required: [result]
+          properties:
+            result: { type: string, enum: [accepted, duplicate, rejected, pending_sync] }
+            guestDisplayName: { type: [string, 'null'] }
+            eventGuestId: { type: [string, 'null'], format: uuid }
+            locator: { type: [object, 'null'], additionalProperties: true }
+            reasonCode: { type: [string, 'null'] }
+            checkedInAt: { type: [string, 'null'], format: date-time }
+        meta: { $ref: '#/components/schemas/Meta' }
+    CockpitSnapshotResponse:
+      type: object
+      required: [data, meta]
+      properties:
+        data:
+          type: object
+          properties:
+            generatedAt: { type: string, format: date-time }
+            freshnessSeconds: { type: integer }
+            metrics: { type: object, additionalProperties: true }
+            spaceSummaries: { type: array, items: { type: object, additionalProperties: true } }
+            alerts: { type: array, items: { type: object, additionalProperties: true } }
+            currentPlanRevisions: { type: array, items: { type: object, additionalProperties: true } }
+        meta: { $ref: '#/components/schemas/Meta' }
+    PrerequisiteCreate:
+      type: object
+      required: [prerequisiteType, title, mandatory]
+      properties:
+        prerequisiteType: { type: string, enum: [cdi_police_inspection, venue_approval, authority_notification, other] }
+        title: { type: string }
+        mandatory: { type: boolean }
+        readinessGate: { type: boolean, default: false }
+        externalPartyName: { type: string }
+        internalCoordinatorId: { type: string, format: uuid }
+        dueAt: { type: string, format: date-time }
+    PrerequisiteListResponse:
+      type: object
+      required: [data, meta]
+      properties:
+        data: { type: array, items: { type: object, additionalProperties: true } }
+        meta: { $ref: '#/components/schemas/Meta' }
+
+
+    PublishedBookingFormResponse:
+      type: object
+      required: [data, meta]
+      properties:
+        data:
+          type: object
+          required: [formCode, revision, locale, fields]
+          properties:
+            formCode: { type: string }
+            revision: { type: integer }
+            locale: { type: string }
+            fields: { type: array, items: { type: object, additionalProperties: true } }
+            publicBrand: { type: object, additionalProperties: true }
+        meta: { $ref: '#/components/schemas/Meta' }
+    BookingInquiryCreate:
+      type: object
+      required: [formRevision, locale, values, privacyAcknowledged]
+      properties:
+        formRevision: { type: integer }
+        locale: { type: string, maxLength: 20 }
+        values: { type: object, additionalProperties: true }
+        attachmentTokens: { type: array, items: { type: string } }
+        privacyAcknowledged: { type: boolean, const: true }
+        antiAbuseToken: { type: string, maxLength: 4000 }
+    BookingInquiryReceipt:
+      type: object
+      required: [data, meta]
+      properties:
+        data:
+          type: object
+          required: [publicReference, receivedAt, message]
+          properties:
+            publicReference: { type: string }
+            receivedAt: { type: string, format: date-time }
+            message: { type: string }
+        meta: { $ref: '#/components/schemas/Meta' }
+    BookingInquiry:
+      type: object
+      required: [id, inquiryCode, status, receivedAt, formRevisionId, submittedPayload]
+      properties:
+        id: { type: string, format: uuid }
+        inquiryCode: { type: string }
+        status: { type: string }
+        receivedAt: { type: string, format: date-time }
+        formRevisionId: { type: string, format: uuid }
+        submittedPayload: { type: object, additionalProperties: true }
+        submittedOptionSnapshot: { type: object, additionalProperties: true }
+    BookingInquiryResponse:
+      type: object
+      required: [data, meta]
+      properties:
+        data: { $ref: '#/components/schemas/BookingInquiry' }
+        meta: { $ref: '#/components/schemas/Meta' }
+    BookingInquiryListResponse:
+      type: object
+      required: [data, page, meta]
+      properties:
+        data: { type: array, items: { $ref: '#/components/schemas/BookingInquiry' } }
+        page: { $ref: '#/components/schemas/Page' }
+        meta: { $ref: '#/components/schemas/Meta' }
+    BookingDraftRevisionCreate:
+      type: object
+      required: [workingPayload, changeReason]
+      properties:
+        expectedRevision: { type: integer }
+        workingPayload: { type: object, additionalProperties: true }
+        requestedApprovedDelivered: { type: object, additionalProperties: true }
+        changeReason: { type: string, minLength: 3, maxLength: 2000 }
+    BookingDraftResponse:
+      type: object
+      required: [data, meta]
+      properties:
+        data:
+          type: object
+          required: [draftId, revisionId, revisionNumber, lifecycleStatus]
+          properties:
+            draftId: { type: string, format: uuid }
+            revisionId: { type: string, format: uuid }
+            revisionNumber: { type: integer }
+            lifecycleStatus: { type: string }
+            workingPayload: { type: object, additionalProperties: true }
+        meta: { $ref: '#/components/schemas/Meta' }
