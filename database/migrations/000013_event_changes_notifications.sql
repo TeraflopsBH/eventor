@@ -67,7 +67,8 @@ CREATE TABLE eogp.event_decisions (
       REFERENCES eogp.organization_memberships(organization_id, id),
     CHECK (
       (decision_kind = 'cancelled' AND replacement_schedule_revision_id IS NULL)
-      OR (decision_kind IN ('postponed','rescheduled') AND replacement_schedule_revision_id IS NOT NULL)
+      OR decision_kind = 'postponed'
+      OR (decision_kind = 'rescheduled' AND replacement_schedule_revision_id IS NOT NULL)
     )
 );
 
@@ -163,7 +164,6 @@ CREATE TABLE eogp.event_notification_campaigns (
       REFERENCES eogp.organization_memberships(organization_id, id),
     FOREIGN KEY (organization_id, created_by_membership_id)
       REFERENCES eogp.organization_memberships(organization_id, id),
-    CHECK ((status IN ('confirmed','queued','sending','completed','partial','failed')) = (confirmed_at IS NOT NULL)),
     CHECK ((confirmed_at IS NULL) = (confirmed_by_membership_id IS NULL))
 );
 
