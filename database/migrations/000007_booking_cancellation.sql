@@ -55,6 +55,7 @@ CREATE TABLE eogp.booking_cancellation_requests (
     requested_at timestamptz NOT NULL DEFAULT clock_timestamp(),
     resolved_at timestamptz,
     UNIQUE (organization_id, id),
+    UNIQUE (organization_id, booking_id, id),
     FOREIGN KEY (organization_id, booking_id) REFERENCES eogp.booking_records(organization_id, id),
     FOREIGN KEY (organization_id, booking_id, requester_contact_id)
       REFERENCES eogp.booking_party_contacts(organization_id, booking_id, id),
@@ -88,8 +89,8 @@ CREATE TABLE eogp.booking_cancellation_decisions (
     reason text NOT NULL,
     decided_at timestamptz NOT NULL DEFAULT clock_timestamp(),
     UNIQUE (organization_id, id),
-    FOREIGN KEY (organization_id, cancellation_request_id)
-      REFERENCES eogp.booking_cancellation_requests(organization_id, id),
+    FOREIGN KEY (organization_id, booking_id, cancellation_request_id)
+      REFERENCES eogp.booking_cancellation_requests(organization_id, booking_id, id),
     FOREIGN KEY (organization_id, actor_membership_id)
       REFERENCES eogp.organization_memberships(organization_id, id)
 );
