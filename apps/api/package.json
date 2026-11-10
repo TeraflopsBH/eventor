@@ -1,0 +1,22 @@
+{
+  "name": "@eventor/api",
+  "version": "0.3.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "generate:openapi": "openapi-typescript ../../docs/api/openapi.v0.3.yaml -o src/generated/openapi.d.ts",
+    "typecheck": "npm run generate:openapi && tsc --noEmit -p tsconfig.json",
+    "build": "npm run generate:openapi && tsc -p tsconfig.json",
+    "test": "npm run build && node --test dist/test/*.test.js"
+  },
+  "dependencies": {
+    "fastify": "5.12.8",
+    "pg": "8.23.1"
+  },
+  "devDependencies": {
+    "@types/node": "22.15.30",
+    "@types/pg": "8.15.5",
+    "openapi-typescript": "7.13.0",
+    "typescript": "5.9.3"
+  }
+}
