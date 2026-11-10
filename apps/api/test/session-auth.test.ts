@@ -117,8 +117,8 @@ test("staff login stores only hashed opaque session/CSRF tokens and authenticate
   assert.equal(mock.csrfHash?.length, 64);
 
   const cookies = [
-    \`\${STAFF_SESSION_COOKIE}=\${created.sessionToken}\`,
-    \`\${STAFF_CSRF_COOKIE}=\${created.csrfToken}\`,
+    `${STAFF_SESSION_COOKIE}=${created.sessionToken}`,
+    `${STAFF_CSRF_COOKIE}=${created.csrfToken}`,
   ].join("; ");
   const authenticated = await auth.authenticateStaff(request({ cookie: cookies }));
   assert.deepEqual(authenticated, created.principal);
