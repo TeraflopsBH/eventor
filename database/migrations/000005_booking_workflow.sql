@@ -214,6 +214,7 @@ CREATE TABLE eogp.booking_party_contacts (
     is_primary boolean NOT NULL DEFAULT false,
     created_at timestamptz NOT NULL DEFAULT clock_timestamp(),
     UNIQUE (organization_id, id),
+    UNIQUE (organization_id, booking_id, id),
     FOREIGN KEY (organization_id, booking_id) REFERENCES eogp.booking_records(organization_id, id),
     CHECK (email IS NOT NULL OR phone IS NOT NULL OR display_name <> '')
 );
