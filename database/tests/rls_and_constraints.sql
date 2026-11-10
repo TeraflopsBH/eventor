@@ -327,11 +327,18 @@ DO $test$
 DECLARE
   visible_orgs integer;
   visible_venues integer;
+  visible_profiles integer;
 BEGIN
   SELECT count(*) INTO visible_orgs FROM eogp.organizations;
   SELECT count(*) INTO visible_venues FROM eogp.venues;
-  IF visible_orgs <> 1 OR visible_venues <> 1 THEN
-    RAISE EXCEPTION 'tenant RLS failed: visible orgs %, venues %', visible_orgs, visible_venues;
+  SELECT count(*) INTO visible_profiles FROM eogp.organization_member_profiles;
+  IF visible_orgs <> 1 OR visible_venues <> 1 OR visible_profiles <> 1 THEN
+    RAISE EXCEPTION 'tenant RLS/profile view failed: orgs %, venues %, profiles %', visible_orgs, visible_venues, visible_profiles;
+  END IF;
+  IF has_table_privilege(current_user, 'eogp.users', 'SELECT')
+     OR has_column_privilege(current_user, 'eogp.users', 'password_hash', 'SELECT')
+     OR has_table_privilege(current_user, 'eogp.users', 'INSERT') THEN
+    RAISE EXCEPTION 'general runtime role has direct access to global user identities';
   END IF;
   BEGIN
     INSERT INTO eogp.venue_buildings (organization_id, venue_id, code, name)
@@ -363,6 +370,135 @@ BEGIN
   EXCEPTION WHEN foreign_key_violation THEN
     NULL;
   END;
+END;
+$test$;
+COMMIT;
+
+-- Create an unrelated tenant that must not see the A-to-B collaboration grant.
+BEGIN;
+SELECT set_config('app.organization_id', '10000000-0000-0000-0000-00000000000c', true);
+INSERT INTO eogp.organizations (id, slug, name)
+VALUES ('10000000-0000-0000-0000-00000000000c', 'ci-tenant-c', 'CI Tenant C');
+INSERT INTO eogp.users (id, email, display_name)
+VALUES ('20000000-0000-0000-0000-00000000000c', 'ci-extended-c@example.invalid', 'CI C');
+INSERT INTO eogp.organization_memberships (id, organization_id, user_id, status, joined_at)
+VALUES ('30000000-0000-0000-0000-00000000000c',
+        '10000000-0000-0000-0000-00000000000c',
+        '20000000-0000-0000-0000-00000000000c', 'active', clock_timestamp());
+COMMIT;
+
+-- Provider A proposes a venue-scoped grant to organizer B.
+BEGIN;
+SELECT set_config('app.organization_id', '10000000-0000-0000-0000-00000000000a', true);
+INSERT INTO eogp.collaboration_grants
+ (id, organization_id, grantee_organization_id, scope_kind, scope_venue_id,
+  purpose, projection, allowed_actions, status, valid_from, valid_until, proposed_by_membership_id)
+VALUES
+ ('61000000-0000-4000-8000-00000000000a',
+  '10000000-0000-0000-0000-00000000000a',
+  '10000000-0000-0000-0000-00000000000b',
+  'venue','40000000-0000-0000-0000-00000000000a',
+  'CI venue snapshot collaboration','{"venueSummary":true}'::jsonb,
+  ARRAY['venue.snapshot.read']::text[],'proposed',
+  clock_timestamp() - interval '1 minute',
+  clock_timestamp() + interval '1 day',
+  '30000000-0000-0000-0000-00000000000a');
+COMMIT;
+
+-- Only the named grantee tenant can see and accept the proposal, and the actor
+-- must be an active membership of that grantee organization.
+BEGIN;
+SELECT set_config('app.organization_id', '10000000-0000-0000-0000-00000000000b', true);
+DO $test$
+DECLARE
+  visible_grants integer;
+BEGIN
+  SELECT count(*) INTO visible_grants
+    FROM eogp.collaboration_grants
+   WHERE id = '61000000-0000-4000-8000-00000000000a';
+  IF visible_grants <> 1 THEN
+    RAISE EXCEPTION 'grantee cannot see the proposed collaboration grant';
+  END IF;
+  BEGIN
+    PERFORM eogp.accept_collaboration_grant(
+      '61000000-0000-4000-8000-00000000000a',
+      '30000000-0000-0000-0000-00000000000a');
+    RAISE EXCEPTION 'expected non-grantee membership rejection';
+  EXCEPTION WHEN SQLSTATE '42501' THEN
+    NULL;
+  END;
+END;
+$test$;
+SELECT eogp.accept_collaboration_grant(
+  '61000000-0000-4000-8000-00000000000a',
+  '30000000-0000-0000-0000-00000000000b');
+-- Idempotent acceptance by the same actor must not write a second audit event.
+SELECT eogp.accept_collaboration_grant(
+  '61000000-0000-4000-8000-00000000000a',
+  '30000000-0000-0000-0000-00000000000b');
+DO $test$
+DECLARE
+  accepted_audits integer;
+BEGIN
+  SELECT count(*) INTO accepted_audits
+    FROM eogp.audit_events
+   WHERE organization_id = '10000000-0000-0000-0000-00000000000b'
+     AND action = 'collaboration.grant.accepted'
+     AND aggregate_id = '61000000-0000-4000-8000-00000000000a';
+  IF accepted_audits <> 1 THEN
+    RAISE EXCEPTION 'grant acceptance audit should be emitted exactly once; got %', accepted_audits;
+  END IF;
+  BEGIN
+    PERFORM eogp.revoke_collaboration_grant(
+      '61000000-0000-4000-8000-00000000000a',
+      '30000000-0000-0000-0000-00000000000b',
+      'not authorized by grantor');
+    RAISE EXCEPTION 'expected grantee-side grantor revocation rejection';
+  EXCEPTION WHEN SQLSTATE 'P0002' THEN
+    NULL;
+  END;
+END;
+$test$;
+COMMIT;
+
+-- A third tenant must not see the grant. Grantor A can revoke it; grantee B
+-- retains access to the historical grant row but it is no longer active.
+BEGIN;
+SELECT set_config('app.organization_id', '10000000-0000-0000-0000-00000000000c', true);
+DO $test$
+DECLARE
+  visible_grants integer;
+BEGIN
+  SELECT count(*) INTO visible_grants
+    FROM eogp.collaboration_grants
+   WHERE id = '61000000-0000-4000-8000-00000000000a';
+  IF visible_grants <> 0 THEN
+    RAISE EXCEPTION 'unrelated tenant can observe a collaboration grant';
+  END IF;
+END;
+$test$;
+COMMIT;
+
+BEGIN;
+SELECT set_config('app.organization_id', '10000000-0000-0000-0000-00000000000a', true);
+SELECT eogp.revoke_collaboration_grant(
+  '61000000-0000-4000-8000-00000000000a',
+  '30000000-0000-0000-0000-00000000000a',
+  'CI grant lifecycle revocation');
+COMMIT;
+
+BEGIN;
+SELECT set_config('app.organization_id', '10000000-0000-0000-0000-00000000000b', true);
+DO $test$
+DECLARE
+  grant_status text;
+BEGIN
+  SELECT status INTO grant_status
+    FROM eogp.collaboration_grants
+   WHERE id = '61000000-0000-4000-8000-00000000000a';
+  IF grant_status <> 'revoked' THEN
+    RAISE EXCEPTION 'grantee should retain the revoked historical grant, got %', grant_status;
+  END IF;
 END;
 $test$;
 COMMIT;
