@@ -108,18 +108,18 @@ function isToken(value: string | undefined): value is string {
 }
 
 function sessionCookie(token: string, maxAge: number): string {
-  return \`\${STAFF_SESSION_COOKIE}=\${encodeURIComponent(token)}; Path=/; Max-Age=\${maxAge}; Secure; HttpOnly; SameSite=Strict\`;
+  return `${STAFF_SESSION_COOKIE}=${encodeURIComponent(token)}; Path=/; Max-Age=${maxAge}; Secure; HttpOnly; SameSite=Strict`;
 }
 
 function csrfCookie(token: string, maxAge: number): string {
-  return \`\${STAFF_CSRF_COOKIE}=\${encodeURIComponent(token)}; Path=/; Max-Age=\${maxAge}; Secure; SameSite=Strict\`;
+  return `${STAFF_CSRF_COOKIE}=${encodeURIComponent(token)}; Path=/; Max-Age=${maxAge}; Secure; SameSite=Strict`;
 }
 
 export function clearStaffSessionCookies(): string[] {
   const expired = "Path=/; Max-Age=0; Expires=Thu, 01 Jan 1970 00:00:00 GMT; Secure; SameSite=Strict";
   return [
-    \`\${STAFF_SESSION_COOKIE}=; \${expired}; HttpOnly\`,
-    \`\${STAFF_CSRF_COOKIE}=; \${expired}\`,
+    `${STAFF_SESSION_COOKIE}=; ${expired}; HttpOnly`,
+    `${STAFF_CSRF_COOKIE}=; ${expired}`,
   ];
 }
 
@@ -181,7 +181,7 @@ export class PostgresStaffSessionAuth {
 
     const tokenHash = sha256(token);
     const lookup = await this.authPool.query<SessionLookupRow>(
-      \`SELECT
+      `SELECT
          session.id AS session_id,
          session.user_id,
          session.organization_id,
@@ -202,7 +202,7 @@ export class PostgresStaffSessionAuth {
          AND account.status = 'active'
          AND membership.status = 'active'
          AND organization.status = 'active'
-       LIMIT 1\`,
+       LIMIT 1`,
       [tokenHash],
     );
     const row = lookup.rows[0];
@@ -210,10 +210,10 @@ export class PostgresStaffSessionAuth {
 
     // Throttle last_seen writes while still retaining useful session activity.
     await this.authPool.query(
-      \`UPDATE eogp.user_sessions
+      `UPDATE eogp.user_sessions
           SET last_seen_at = clock_timestamp()
         WHERE id = $1
-          AND last_seen_at < clock_timestamp() - interval '5 minutes'\`,
+          AND last_seen_at < clock_timestamp() - interval '5 minutes'`,
       [row.session_id],
     );
 
@@ -241,14 +241,14 @@ export class PostgresStaffSessionAuth {
     }
 
     const expected = await this.authPool.query<QueryResultRow & { csrf_token_sha256: string }>(
-      \`SELECT csrf_token_sha256
+      `SELECT csrf_token_sha256
          FROM eogp.user_sessions
         WHERE id = $1
           AND user_id = $2
           AND organization_id = $3
           AND membership_id = $4
           AND revoked_at IS NULL
-          AND expires_at > clock_timestamp()\`,
+          AND expires_at > clock_timestamp()`,
       [principal.sessionId, principal.userId, principal.organizationId, principal.membershipId],
     );
     const hash = expected.rows[0]?.csrf_token_sha256;
@@ -274,12 +274,12 @@ export class PostgresStaffSessionAuth {
     );
 
     const blocked = await this.authPool.query<QueryResultRow & { blocked: boolean }>(
-      \`SELECT coalesce(
+      `SELECT coalesce(
          (SELECT blocked_until > clock_timestamp()
             FROM eogp.auth_login_attempts
            WHERE email_fingerprint = $1 AND source_fingerprint = $2),
          false
-       ) AS blocked\`,
+       ) AS blocked`,
       [emailFingerprint, sourceFingerprint],
     );
     if (blocked.rows[0]?.blocked) {
@@ -287,7 +287,7 @@ export class PostgresStaffSessionAuth {
     }
 
     const identity = await this.authPool.query<AuthIdentityRow>(
-      \`SELECT
+      `SELECT
          account.id AS user_id,
          account.password_hash,
          account.status AS user_status,
@@ -302,7 +302,7 @@ export class PostgresStaffSessionAuth {
          ON organization.id = membership.organization_id
        WHERE lower(account.email) = $1
          AND organization.slug = $2
-       LIMIT 1\`,
+       LIMIT 1`,
       [email, organizationSlug],
     );
     const row = identity.rows[0];
@@ -332,22 +332,22 @@ export class PostgresStaffSessionAuth {
     }
 
     await this.authPool.query(
-      \`UPDATE eogp.auth_login_attempts
+      `UPDATE eogp.auth_login_attempts
           SET failed_attempts = 0,
               blocked_until = NULL,
               window_started_at = clock_timestamp(),
               updated_at = clock_timestamp()
-        WHERE email_fingerprint = $1 AND source_fingerprint = $2\`,
+        WHERE email_fingerprint = $1 AND source_fingerprint = $2`,
       [emailFingerprint, sourceFingerprint],
     );
 
     if (row.password_hash && argon2.needsRehash(row.password_hash)) {
       const upgraded = await argon2.hash(input.password, { type: argon2.argon2id });
       await this.authPool.query(
-        \`UPDATE eogp.users
+        `UPDATE eogp.users
             SET password_hash = $2,
                 updated_at = clock_timestamp()
-          WHERE id = $1 AND status = 'active'\`,
+          WHERE id = $1 AND status = 'active'`,
         [row.user_id, upgraded],
       );
     }
@@ -362,12 +362,12 @@ export class PostgresStaffSessionAuth {
       : null;
 
     const created = await this.authPool.query<QueryResultRow & { id: string }>(
-      \`INSERT INTO eogp.user_sessions (
+      `INSERT INTO eogp.user_sessions (
          user_id, organization_id, membership_id,
          session_token_sha256, csrf_token_sha256, expires_at,
          source_fingerprint, user_agent_fingerprint
        ) VALUES ($1,$2,$3,$4,$5,$6,$7,$8)
-       RETURNING id\`,
+       RETURNING id`,
       [
         row.user_id,
         row.organization_id,
@@ -385,10 +385,10 @@ export class PostgresStaffSessionAuth {
     }
 
     await this.authPool.query(
-      \`UPDATE eogp.users
+      `UPDATE eogp.users
           SET last_authenticated_at = clock_timestamp(),
               updated_at = clock_timestamp()
-        WHERE id = $1\`,
+        WHERE id = $1`,
       [row.user_id],
     );
 
@@ -408,20 +408,20 @@ export class PostgresStaffSessionAuth {
   async revokeStaffSession(principal: StaffPrincipal): Promise<void> {
     if (!principal.sessionId) return;
     await this.authPool.query(
-      \`UPDATE eogp.user_sessions
+      `UPDATE eogp.user_sessions
           SET revoked_at = clock_timestamp()
         WHERE id = $1
           AND user_id = $2
           AND organization_id = $3
           AND membership_id = $4
-          AND revoked_at IS NULL\`,
+          AND revoked_at IS NULL`,
       [principal.sessionId, principal.userId, principal.organizationId, principal.membershipId],
     );
   }
 
   async getCurrentPrincipal(principal: StaffPrincipal): Promise<Record<string, unknown>> {
     const memberships = await this.authPool.query<MembershipRow>(
-      \`SELECT
+      `SELECT
          membership.id AS membership_id,
          organization.id AS organization_id,
          organization.slug AS organization_slug,
@@ -432,7 +432,7 @@ export class PostgresStaffSessionAuth {
        WHERE membership.user_id = $1
          AND membership.status = 'active'
          AND organization.status = 'active'
-       ORDER BY organization.name, organization.id\`,
+       ORDER BY organization.name, organization.id`,
       [principal.userId],
     );
     return {
@@ -455,7 +455,7 @@ export class PostgresStaffSessionAuth {
     sourceFingerprint: string,
   ): Promise<void> {
     await this.authPool.query(
-      \`INSERT INTO eogp.auth_login_attempts (
+      `INSERT INTO eogp.auth_login_attempts (
          email_fingerprint, source_fingerprint,
          window_started_at, failed_attempts, updated_at
        ) VALUES ($1,$2,clock_timestamp(),1,clock_timestamp())
@@ -485,7 +485,7 @@ export class PostgresStaffSessionAuth {
              THEN clock_timestamp() + make_interval(secs => $5)
            ELSE NULL
          END,
-         updated_at = clock_timestamp()\`,
+         updated_at = clock_timestamp()`,
       [
         emailFingerprint,
         sourceFingerprint,
