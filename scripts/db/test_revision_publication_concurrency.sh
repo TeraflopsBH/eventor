@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 set -Eeuo pipefail
 
-: "\${DATABASE_URL_RUNTIME:?Set DATABASE_URL_RUNTIME to the eventor_runtime PostgreSQL connection string}"
+: "${DATABASE_URL_RUNTIME:?Set DATABASE_URL_RUNTIME to the eventor_runtime PostgreSQL connection string}"
 command -v psql >/dev/null 2>&1 || { echo "psql is required" >&2; exit 127; }
 
 ORG="10000000-0000-0000-0000-00000000000a"
