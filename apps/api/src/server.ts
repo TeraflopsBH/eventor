@@ -1,4 +1,4 @@
-import Fastify, { type FastifyInstance, type FastifyRequest } from "fastify";
+import Fastify, { type FastifyInstance, type FastifyReply, type FastifyRequest } from "fastify";
 import { createCipheriv, createHash, randomBytes } from "node:crypto";
 import type { Pool, PoolClient, QueryResultRow } from "pg";
 import type { paths } from "./generated/openapi.js";
@@ -277,7 +277,7 @@ export function buildApi(dependencies: ApiDependencies): FastifyInstance {
 
   const withCommand = async (
     request: FastifyRequest,
-    reply: { code: (status: number) => { send: (body: unknown) => unknown } },
+    reply: FastifyReply,
     operationId: string,
     body: unknown,
     command: Command,
