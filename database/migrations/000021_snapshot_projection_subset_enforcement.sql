@@ -1,3 +1,139 @@
+-- Source rows remain provider-owned. RLS grants a recipient visibility
+-- only over the exact source revision while the corresponding use grant and
+-- share remain live.
+CREATE FUNCTION eogp.has_active_venue_snapshot_share(
+  p_source_organization_id uuid,
+  p_source_revision_id uuid
+) RETURNS boolean
+LANGUAGE sql
+STABLE
+SECURITY DEFINER
+SET search_path = pg_catalog, eogp
+AS $function$
+  SELECT EXISTS (
+    SELECT 1
+      FROM eogp.venue_snapshot_shares AS share
+      JOIN eogp.collaboration_grants AS collab
+        ON collab.organization_id = share.organization_id
+       AND collab.grantee_organization_id = share.event_owner_organization_id
+       AND collab.id = share.collaboration_grant_id
+     WHERE share.organization_id = p_source_organization_id
+       AND share.venue_space_revision_id = p_source_revision_id
+       AND share.event_owner_organization_id = eogp.current_organization_id()
+       AND share.status = 'active'
+       AND (share.expires_at IS NULL OR share.expires_at > clock_timestamp())
+       AND collab.status = 'active'
+       AND collab.valid_from <= clock_timestamp()
+       AND (collab.valid_until IS NULL OR collab.valid_until > clock_timestamp())
+       AND collab.allowed_actions @> ARRAY['venue.snapshot.use']::text[]
+  );
+$function$;
+
+REVOKE ALL ON FUNCTION eogp.has_active_venue_snapshot_share(uuid,uuid) FROM PUBLIC;
+GRANT EXECUTE ON FUNCTION eogp.has_active_venue_snapshot_share(uuid,uuid)
+  TO eventor_owner, eventor_runtime;
+
+-- The policies are additive to tenant_isolation and expose only the exact
+-- shared source rows. The copied event-owned snapshot remains independently
+-- available after revocation; source master rows do not.
+CREATE POLICY venue_space_revisions_active_share_read
+  ON eogp.venue_space_revisions
+  FOR SELECT TO eventor_owner, eventor_runtime
+  USING (
+    organization_id <> eogp.current_organization_id()
+    AND eogp.has_active_venue_snapshot_share(organization_id, id)
+  );
+
+CREATE POLICY venue_spaces_active_share_read
+  ON eogp.venue_spaces
+  FOR SELECT TO eventor_owner, eventor_runtime
+  USING (
+    organization_id <> eogp.current_organization_id()
+    AND EXISTS (
+      SELECT 1
+        FROM eogp.venue_space_revisions AS revision
+       WHERE revision.organization_id = venue_spaces.organization_id
+         AND revision.venue_space_id = venue_spaces.id
+         AND eogp.has_active_venue_snapshot_share(
+               revision.organization_id, revision.id
+             )
+    )
+  );
+
+CREATE POLICY spatial_layers_active_share_read
+  ON eogp.spatial_layers
+  FOR SELECT TO eventor_owner, eventor_runtime
+  USING (
+    organization_id <> eogp.current_organization_id()
+    AND EXISTS (
+      SELECT 1
+        FROM eogp.venue_snapshot_shares AS share
+       WHERE share.organization_id = spatial_layers.organization_id
+         AND share.venue_space_revision_id = spatial_layers.venue_space_revision_id
+         AND share.event_owner_organization_id = eogp.current_organization_id()
+         AND share.status = 'active'
+         AND (share.expires_at IS NULL OR share.expires_at > clock_timestamp())
+         AND share.approved_layers @> jsonb_build_array(spatial_layers.id::text)
+         AND eogp.has_active_venue_snapshot_share(
+               share.organization_id, share.venue_space_revision_id
+             )
+    )
+  );
+
+CREATE POLICY spatial_objects_active_share_read
+  ON eogp.spatial_objects
+  FOR SELECT TO eventor_owner, eventor_runtime
+  USING (
+    organization_id <> eogp.current_organization_id()
+    AND EXISTS (
+      SELECT 1
+        FROM eogp.spatial_layers AS layer
+       WHERE layer.organization_id = spatial_objects.organization_id
+         AND layer.id = spatial_objects.layer_id
+         AND eogp.has_active_venue_snapshot_share(
+               layer.organization_id, layer.venue_space_revision_id
+             )
+    )
+  );
+
+CREATE POLICY resource_pools_active_share_read
+  ON eogp.resource_pools
+  FOR SELECT TO eventor_owner, eventor_runtime
+  USING (
+    organization_id <> eogp.current_organization_id()
+    AND EXISTS (
+      SELECT 1
+        FROM eogp.venue_snapshot_shares AS share
+       WHERE share.organization_id = resource_pools.organization_id
+         AND share.event_owner_organization_id = eogp.current_organization_id()
+         AND share.status = 'active'
+         AND (share.expires_at IS NULL OR share.expires_at > clock_timestamp())
+         AND share.approved_resources @> jsonb_build_array(resource_pools.id::text)
+         AND eogp.has_active_venue_snapshot_share(
+               share.organization_id, share.venue_space_revision_id
+             )
+    )
+  );
+
+CREATE POLICY resource_units_active_share_read
+  ON eogp.resource_units
+  FOR SELECT TO eventor_owner, eventor_runtime
+  USING (
+    organization_id <> eogp.current_organization_id()
+    AND EXISTS (
+      SELECT 1
+        FROM eogp.venue_snapshot_shares AS share
+       WHERE share.organization_id = resource_units.organization_id
+         AND share.event_owner_organization_id = eogp.current_organization_id()
+         AND share.status = 'active'
+         AND (share.expires_at IS NULL OR share.expires_at > clock_timestamp())
+         AND share.approved_resources @> jsonb_build_array(resource_units.id::text)
+         AND eogp.has_active_venue_snapshot_share(
+               share.organization_id, share.venue_space_revision_id
+             )
+    )
+  );
+
 -- Enforce provider-approved venue snapshot projections at the database boundary.
 -- Approved layer/resource arrays contain UUID strings matching the OpenAPI
 -- approvedLayerIds / approvedResourceIds request fields.
@@ -88,11 +224,12 @@ SECURITY DEFINER
 SET search_path = pg_catalog, eogp
 AS $function$
 DECLARE
+  v_source_organization_id uuid;
   v_revision_id uuid;
   v_approved_layers jsonb;
 BEGIN
-  SELECT snapshot.source_space_revision_id, share.approved_layers
-    INTO v_revision_id, v_approved_layers
+  SELECT snapshot.source_organization_id, snapshot.source_space_revision_id, share.approved_layers
+    INTO v_source_organization_id, v_revision_id, v_approved_layers
     FROM eogp.event_venue_snapshots AS snapshot
     JOIN eogp.venue_snapshot_shares AS share
       ON share.organization_id = snapshot.share_owner_organization_id
@@ -109,7 +246,7 @@ BEGIN
      OR NOT EXISTS (
        SELECT 1
          FROM eogp.spatial_layers AS source_layer
-        WHERE source_layer.organization_id = NEW.organization_id
+        WHERE source_layer.organization_id = v_source_organization_id
           AND source_layer.venue_space_revision_id = v_revision_id
           AND source_layer.id = NEW.source_layer_id
      ) THEN
@@ -132,11 +269,12 @@ SECURITY DEFINER
 SET search_path = pg_catalog, eogp
 AS $function$
 DECLARE
+  v_source_organization_id uuid;
   v_revision_id uuid;
   v_approved_layers jsonb;
 BEGIN
-  SELECT snapshot.source_space_revision_id, share.approved_layers
-    INTO v_revision_id, v_approved_layers
+  SELECT snapshot.source_organization_id, snapshot.source_space_revision_id, share.approved_layers
+    INTO v_source_organization_id, v_revision_id, v_approved_layers
     FROM eogp.event_venue_snapshots AS snapshot
     JOIN eogp.venue_snapshot_shares AS share
       ON share.organization_id = snapshot.share_owner_organization_id
@@ -155,7 +293,7 @@ BEGIN
          JOIN eogp.spatial_layers AS source_layer
            ON source_layer.organization_id = source_object.organization_id
           AND source_layer.id = source_object.layer_id
-        WHERE source_object.organization_id = NEW.organization_id
+        WHERE source_object.organization_id = v_source_organization_id
           AND source_object.id = NEW.source_object_id
           AND source_layer.venue_space_revision_id = v_revision_id
           AND v_approved_layers @> jsonb_build_array(source_layer.id::text)
@@ -179,12 +317,13 @@ SECURITY DEFINER
 SET search_path = pg_catalog, eogp
 AS $function$
 DECLARE
+  v_source_organization_id uuid;
   v_venue_id uuid;
   v_approved_resources jsonb;
   v_source_resource_id uuid;
 BEGIN
-  SELECT share.approved_resources, space.venue_id
-    INTO v_approved_resources, v_venue_id
+  SELECT snapshot.source_organization_id, share.approved_resources, space.venue_id
+    INTO v_source_organization_id, v_approved_resources, v_venue_id
     FROM eogp.event_venue_snapshots AS snapshot
     JOIN eogp.venue_snapshot_shares AS share
       ON share.organization_id = snapshot.share_owner_organization_id
@@ -210,7 +349,7 @@ BEGIN
        EXISTS (
          SELECT 1
            FROM eogp.resource_pools AS pool
-          WHERE pool.organization_id = NEW.organization_id
+          WHERE pool.organization_id = v_source_organization_id
             AND pool.id = v_source_resource_id
             AND pool.venue_id = v_venue_id
        )
@@ -220,7 +359,7 @@ BEGIN
            JOIN eogp.resource_pools AS pool
              ON pool.organization_id = unit.organization_id
             AND pool.id = unit.resource_pool_id
-          WHERE unit.organization_id = NEW.organization_id
+          WHERE unit.organization_id = v_source_organization_id
             AND unit.id = v_source_resource_id
             AND pool.venue_id = v_venue_id
        )
