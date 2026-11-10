@@ -10,7 +10,7 @@ This matrix tracks executable PostgreSQL integration coverage and remaining gaps
 - [x] User actor with active membership in owning organization accepted.
 - [ ] User with no membership in owning organization rejected.
 - [ ] Member without operation permission rejected by API authorization.
-- [ ] Cross-organization delegated action succeeds only with active, matching grant and task scope.
+- [x] Cross-organization delegated task projection/status command succeeds only with an active grant naming the exact task ID and a local `task.perform` role permission; its audit row records the performer in the event owner’s tenant.
 - [ ] Expired grant blocks new access without erasing historical records.
 - [x] Revoked grant blocks new booking links, event snapshots, session bindings and snapshot child additions without deleting historical records.
 
@@ -25,6 +25,7 @@ This matrix tracks executable PostgreSQL integration coverage and remaining gaps
 - [x] Proposal, first grant revision and audit event are written atomically.
 - [x] Only an active member of the grantee organization can accept a grant.
 - [x] Repeated acceptance by the same actor is idempotent and does not duplicate the audit record.
+- [x] Booking-event link ending/revocation and venue snapshot share revocation/expiry require an active local membership plus reason code and write one lifecycle audit record.
 - [x] Grantee cannot invoke the grantor-side revocation command.
 - [x] Grantor can revoke; grantee retains historical visibility while the grant is marked revoked.
 - [x] Revoked grant blocks new venue snapshot copies, booking-event links, session bindings and new snapshot child rows.
@@ -32,6 +33,7 @@ This matrix tracks executable PostgreSQL integration coverage and remaining gaps
 - [x] Provider-approved layer/resource IDs must belong to the exact source revision/venue; duplicates and foreign IDs are rejected.
 - [x] Copied snapshot layers must match approved source layers; copied objects must belong to an approved layer; copied resources must match approved pool/unit IDs.
 - [x] Recipient RLS exposes only approved source rows while the share and grant are active.
+- [ ] A read-only `venue.snapshot.read` grant can SELECT the approved source projection but cannot create/use an event snapshot.
 - [x] Revocation hides provider-owned source rows from the recipient but retains its already-copied event-owned snapshot.
 
 ## Venue hierarchy
@@ -55,6 +57,8 @@ This matrix tracks executable PostgreSQL integration coverage and remaining gaps
 ## Space reservations
 - [x] Adjacent half-open intervals (10:00–11:00 and 11:00–12:00) both succeed.
 - [x] Identical/overlapping intervals for the same room cannot both be active.
+- [x] A released space hold cannot be revived; a new hold cannot be inserted with an already-expired deadline.
+- [x] Runtime and worker roles cannot UPDATE/DELETE space-time block rows directly; lifecycle changes use controlled commands.
 - [ ] Overlap is rejected even when one claim originated as a temporary hold and the other as a booking reservation.
 - [ ] Released/cancelled/expired interval no longer blocks a new reservation.
 - [ ] Hold extension that creates a conflict is rejected atomically.
@@ -70,6 +74,9 @@ This matrix tracks executable PostgreSQL integration coverage and remaining gaps
 - [ ] Same discrete unit cannot be reserved for overlapping time.
 - [ ] Different units in a pool can be reserved concurrently when capacity allows.
 - [x] Pooled capacity is never exceeded under concurrent requests.
+- [x] A booking resource line’s peak simultaneous quantity cannot be exceeded across separate pools.
+- [x] Pooled and individually tracked reservations share one aggregate pool-capacity invariant.
+- [x] Pooled reservation idempotency compares the booking resource line as part of the payload.
 - [ ] Disjoint sub-interval reservations that both intersect a long requested interval are evaluated by peak simultaneous quantity, not incorrectly summed across the entire interval.
 - [x] Adjacent half-open pool intervals do not count as simultaneous.
 - [ ] Expired holds do not permanently consume capacity.
@@ -82,6 +89,7 @@ This matrix tracks executable PostgreSQL integration coverage and remaining gaps
 - [ ] Invitation revisions reject UPDATE/DELETE in a dedicated regression test.
 - [x] Issued offer terms reject mutation; only one terminal offer decision transition is permitted.
 - [x] Booking-event link grant provenance is written to audit history and substantive link fields cannot be rewritten.
+- [x] Booking-event link and venue snapshot share lifecycle transitions are one-way and auditable.
 
 ## Optional modules and responsibility
 - [ ] New event has no guest/invitation/RSVP/check-in/prerequisite/cockpit modules unless explicitly enabled by its event preset or configuration.
@@ -89,7 +97,8 @@ This matrix tracks executable PostgreSQL integration coverage and remaining gaps
 - [ ] Module-specific routes return a safe disabled/not-enabled error when capability is off.
 - [ ] RSVP does not depend on check-in or seating.
 - [ ] Check-in does not require accepted RSVP.
-- [ ] Each assigned task has accountable/performed party and scoped visibility.
+- [x] Delegated task projection/status operations expose only an allowlisted task view and require a task-specific cross-organization grant plus local role permission.
+- [ ] Each assigned task has accountable/performed party and scoped visibility for event-owner management and every optional task projection.
 - [ ] Venue provider cannot read organizer guest/RSVP data through booking or task links unless a narrowly scoped grant authorizes the exact projection.
 
 ## Execution requirements
