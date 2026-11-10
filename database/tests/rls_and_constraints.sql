@@ -35,6 +35,63 @@ VALUES ('70000000-0000-0000-0000-00000000000a','10000000-0000-0000-0000-00000000
         '40000000-0000-0000-0000-00000000000a','50000000-0000-0000-0000-00000000000a',
         '60000000-0000-0000-0000-00000000000a','ROOM-A','Room A','room',100);
 
+-- Version-pinned catalogue membership must pair each option with its own revision.
+INSERT INTO eogp.config_catalogues (id, organization_id, scope_kind, code, name)
+VALUES
+ ('31000000-0000-4000-8000-00000000000a','10000000-0000-0000-0000-00000000000a','organization','CI-CATALOGUE-A','CI Catalogue A'),
+ ('31000000-0000-4000-8000-00000000000b','10000000-0000-0000-0000-00000000000a','organization','CI-CATALOGUE-B','CI Catalogue B');
+INSERT INTO eogp.config_catalogue_revisions (id, organization_id, catalogue_id, revision_number)
+VALUES
+ ('32000000-0000-4000-8000-00000000000a','10000000-0000-0000-0000-00000000000a','31000000-0000-4000-8000-00000000000a',1);
+INSERT INTO eogp.config_catalogue_options (id, organization_id, catalogue_id, stable_code)
+VALUES
+ ('33000000-0000-4000-8000-00000000000a','10000000-0000-0000-0000-00000000000a','31000000-0000-4000-8000-00000000000a','OPTION-A1'),
+ ('33000000-0000-4000-8000-00000000000b','10000000-0000-0000-0000-00000000000a','31000000-0000-4000-8000-00000000000a','OPTION-A2'),
+ ('33000000-0000-4000-8000-00000000000c','10000000-0000-0000-0000-00000000000a','31000000-0000-4000-8000-00000000000b','OPTION-B1');
+INSERT INTO eogp.config_catalogue_option_revisions
+ (id, organization_id, catalogue_id, option_id, revision_number, label, value, state)
+VALUES
+ ('34000000-0000-4000-8000-00000000000a','10000000-0000-0000-0000-00000000000a','31000000-0000-4000-8000-00000000000a','33000000-0000-4000-8000-00000000000a',1,'Option A1','"a1"'::jsonb,'published'),
+ ('34000000-0000-4000-8000-00000000000b','10000000-0000-0000-0000-00000000000a','31000000-0000-4000-8000-00000000000a','33000000-0000-4000-8000-00000000000b',1,'Option A2','"a2"'::jsonb,'published'),
+ ('34000000-0000-4000-8000-00000000000c','10000000-0000-0000-0000-00000000000a','31000000-0000-4000-8000-00000000000b','33000000-0000-4000-8000-00000000000c',1,'Option B1','"b1"'::jsonb,'published');
+INSERT INTO eogp.config_catalogue_revision_options
+ (organization_id, catalogue_id, catalogue_revision_id, option_id, option_revision_id)
+VALUES
+ ('10000000-0000-0000-0000-00000000000a','31000000-0000-4000-8000-00000000000a','32000000-0000-4000-8000-00000000000a','33000000-0000-4000-8000-00000000000a','34000000-0000-4000-8000-00000000000a');
+
+DO $test$
+BEGIN
+  BEGIN
+    INSERT INTO eogp.config_catalogue_revision_options
+     (organization_id, catalogue_id, catalogue_revision_id, option_id, option_revision_id)
+    VALUES
+     ('10000000-0000-0000-0000-00000000000a','31000000-0000-4000-8000-00000000000a','32000000-0000-4000-8000-00000000000a','33000000-0000-4000-8000-00000000000a','34000000-0000-4000-8000-00000000000b');
+    RAISE EXCEPTION 'expected option/revision identity mismatch rejection';
+  EXCEPTION WHEN foreign_key_violation THEN
+    NULL;
+  END;
+  BEGIN
+    INSERT INTO eogp.config_catalogue_revision_options
+     (organization_id, catalogue_id, catalogue_revision_id, option_id, option_revision_id)
+    VALUES
+     ('10000000-0000-0000-0000-00000000000a','31000000-0000-4000-8000-00000000000a','32000000-0000-4000-8000-00000000000a','33000000-0000-4000-8000-00000000000c','34000000-0000-4000-8000-00000000000c');
+    RAISE EXCEPTION 'expected cross-catalogue option rejection';
+  EXCEPTION WHEN foreign_key_violation THEN
+    NULL;
+  END;
+END;
+$test$;
+
+-- Person merge targets are valid within the same tenant.
+INSERT INTO eogp.persons (id, organization_id, first_name, last_name, created_by_membership_id)
+VALUES
+ ('51000000-0000-4000-8000-00000000000a','10000000-0000-0000-0000-00000000000a','Merge','Target','30000000-0000-0000-0000-00000000000a'),
+ ('51000000-0000-4000-8000-00000000000b','10000000-0000-0000-0000-00000000000a','Merge','Source','30000000-0000-0000-0000-00000000000a');
+UPDATE eogp.persons
+   SET status = 'merged', merged_into_person_id = '51000000-0000-4000-8000-00000000000a'
+ WHERE organization_id = '10000000-0000-0000-0000-00000000000a'
+   AND id = '51000000-0000-4000-8000-00000000000b';
+
 -- A level must belong to the selected building.
 DO $test$
 BEGIN
@@ -261,6 +318,9 @@ VALUES ('30000000-0000-0000-0000-00000000000b',
 INSERT INTO eogp.venues (id, organization_id, code, name)
 VALUES ('40000000-0000-0000-0000-00000000000b',
         '10000000-0000-0000-0000-00000000000b', 'CI-VENUE-B', 'CI Venue B');
+INSERT INTO eogp.persons (id, organization_id, first_name, last_name, created_by_membership_id)
+VALUES ('52000000-0000-4000-8000-00000000000b','10000000-0000-0000-0000-00000000000b',
+        'Tenant B','Person','30000000-0000-0000-0000-00000000000b');
 SELECT set_config('app.organization_id', '10000000-0000-0000-0000-00000000000a', true);
 
 DO $test$
@@ -279,6 +339,27 @@ BEGIN
             '40000000-0000-0000-0000-00000000000b',
             'CROSS-TENANT','Should fail');
     RAISE EXCEPTION 'expected cross-tenant venue FK rejection';
+  EXCEPTION WHEN foreign_key_violation THEN
+    NULL;
+  END;
+  BEGIN
+    INSERT INTO eogp.persons
+      (id, organization_id, first_name, last_name, merged_into_person_id, status, created_by_membership_id)
+    VALUES
+      ('52000000-0000-4000-8000-00000000000a','10000000-0000-0000-0000-00000000000a',
+       'Cross','Tenant target','52000000-0000-4000-8000-00000000000b','merged',
+       '30000000-0000-0000-0000-00000000000a');
+    RAISE EXCEPTION 'expected cross-tenant person merge target rejection';
+  EXCEPTION WHEN foreign_key_violation THEN
+    NULL;
+  END;
+  BEGIN
+    INSERT INTO eogp.persons
+      (id, organization_id, first_name, last_name, created_by_membership_id)
+    VALUES
+      ('53000000-0000-4000-8000-00000000000a','10000000-0000-0000-0000-00000000000a',
+       'Wrong','Membership','30000000-0000-0000-0000-00000000000b');
+    RAISE EXCEPTION 'expected cross-tenant creator membership rejection';
   EXCEPTION WHEN foreign_key_violation THEN
     NULL;
   END;
