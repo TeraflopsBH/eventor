@@ -173,6 +173,13 @@ If the extension cannot be installed in the target PostgreSQL environment, an al
 
 Do not create a confirmed booking if only some of its required spaces/time blocks were reserved.
 
+
+### 7.5 Typed reservation origin references
+
+The unified occupancy row must not reintroduce an unchecked polymorphic `source_type + source_id` pair. Use typed nullable origin columns (for example, `booking_draft_revision_id`, `booking_id` and `maintenance_window_id`) with organization-scoped foreign keys and a CHECK that exactly one supported origin is selected. If the implementation instead introduces a reservation-subject supertype, that supertype must itself contain typed FK targets and enforce the same exactly-one invariant.
+
+Keep the original draft/offer provenance separately where needed; the current occupancy owner is not a substitute for the immutable booking revision or approval snapshot. The chosen origin model must support a hold transitioning to a confirmed booking without creating a gap in occupancy protection.
+
 ## 8. Equipment/personnel and count-based resources
 
 The current `booking_resource_lines` correctly captures requested, approved and delivered quantities/values, but a commercial line is not itself a schedule reservation.
@@ -202,6 +209,13 @@ Test with concurrent transactions, not only sequential fixtures. For highly cont
 ### 8.3 Personnel scheduling
 
 Personnel can be represented as discrete units or skill/capacity pools depending on the operation. Availability, working-hour limits, role qualifications and breaks are separate constraints; they must not be inferred from the presence of a commercial personnel line.
+
+
+### 8.4 Correct pooled-capacity overlap calculation
+
+The capacity check must evaluate the maximum simultaneous quantity over the requested interval, not simply sum every reservation whose interval intersects it. Two existing reservations may each intersect a long requested interval while not overlapping one another; summing both for the entire interval can falsely reject a valid request.
+
+After locking the pool row, collect the interval boundaries of the requested reservation and all active overlapping reservations, partition the requested interval into adjacent half-open segments, and verify that the sum of active quantities plus the requested quantity never exceeds pool capacity in any segment. Define how zero-duration boundaries are handled consistently with the half-open `[starts_at, ends_at)` convention. Execute the capacity read and insert/update in the same transaction after acquiring the serialization lock; use a stable pool lock order for multi-pool commands.
 
 ## 9. Event module defaults and configuration
 
