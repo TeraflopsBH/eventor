@@ -18,6 +18,8 @@ This matrix tracks executable PostgreSQL integration coverage and remaining gaps
 - [x] General runtime cannot SELECT, INSERT or update global user identity/password-hash rows directly.
 - [x] Authentication role can resolve users and their organization memberships but cannot read venue/booking/event business data or mutate memberships.
 - [x] Tenant-filtered member-profile view exposes only the active organization’s membership/profile projection.
+- [x] Database-backed staff sessions store only SHA-256 hashes of opaque session/CSRF tokens, bind to one user/organization/membership tuple, expire and revoke server-side, and are hidden from runtime/worker roles.
+- [x] Authentication-role CI checks cover session/rate-limit table privileges; API tests cover Argon2id login, origin allow-list, CSRF double-submit, active membership lookup and revocation.
 
 ## Cross-organization grant and RLS lifecycle
 - [x] Grantor and grantee can see their own shared grant row; unrelated tenant cannot.
@@ -100,7 +102,9 @@ This matrix tracks executable PostgreSQL integration coverage and remaining gaps
 - [x] Approval/rejection and execution are separate permission-gated commands; execution records the decision, status history, session outcomes, audit event and transactional notification outbox atomically.
 - [x] Cancellation, postponement and rescheduling commands enforce the event decision/status mapping; stale revisions, missing event scope and cross-tenant actors are rejected.
 - [x] Runtime API route tests cover fail-closed staff authentication and CSRF/origin checks, private-reason encryption, Idempotency-Key replay/conflict and custom-audience input validation.
-- [ ] Notification outbox consumer, audience-resolution/campaign-preparation worker and actual delivery provider integration.
+- [x] Worker-only tenant-scoped outbox processing prepares a fixed, reviewable campaign preview from accepted/tentative, active-invitee, previously-invited or custom audience rules; verified permitted contact snapshots remain encrypted and exclusions are retained.
+- [x] Worker processing is idempotent, locks outbox rows with SKIP LOCKED, retries with bounded backoff and dead-letters after the configured attempt ceiling; worker tests prove no delivery attempts are created during preparation.
+- [ ] Organizer campaign confirmation/review endpoint and actual email/SMS delivery-provider adapter, callback handling and delivery retries.
 
 ## Append-only and issued business history
 - [x] Runtime role lacks UPDATE/DELETE privileges on append-only history tables.
