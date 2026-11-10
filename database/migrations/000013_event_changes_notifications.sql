@@ -6,7 +6,7 @@ CREATE TABLE eogp.event_change_requests (
     change_kind text NOT NULL CHECK (change_kind IN ('cancel','postpone','reschedule')),
     expected_event_revision integer NOT NULL CHECK (expected_event_revision > 0),
     reason_code text NOT NULL,
-    reason_internal text,
+    reason_internal_ciphertext bytea,
     public_message text,
     replacement_schedule_revision_id uuid,
     status text NOT NULL DEFAULT 'submitted'
