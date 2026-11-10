@@ -7,7 +7,9 @@
     "generate:openapi": "openapi-typescript ../../docs/api/openapi.v0.3.yaml -o src/generated/openapi.d.ts",
     "typecheck": "npm run generate:openapi && tsc --noEmit -p tsconfig.json",
     "build": "npm run generate:openapi && tsc -p tsconfig.json",
-    "test": "npm run build && node --test dist/test/*.test.js"
+    "test": "npm run build && node --test dist/test/*.test.js",
+    "start": "node dist/main.js",
+    "start:worker": "node dist/worker-main.js"
   },
   "dependencies": {
     "fastify": "5.12.8",
