@@ -74,6 +74,7 @@ jobs:
       MIGRATOR_URL: postgresql://eventor_migrator:eventor_ci_migrator_password@127.0.0.1:5432/eventor
       RUNTIME_URL: postgresql://eventor_runtime:eventor_ci_runtime_password@127.0.0.1:5432/eventor
       AUTH_URL: postgresql://eventor_auth:eventor_ci_auth_password@127.0.0.1:5432/eventor
+      WORKER_URL: postgresql://eventor_worker:eventor_ci_worker_password@127.0.0.1:5432/eventor
       DATABASE_URL: postgresql://eventor_migrator:eventor_ci_migrator_password@127.0.0.1:5432/eventor
     steps:
       - name: Check out repository
@@ -146,6 +147,12 @@ jobs:
 
       - name: Verify event change commands, scoped permissions and replacement schedules
         run: psql "$MIGRATOR_URL" -X -v ON_ERROR_STOP=1 -f tests/database/event_change_command_runtime_smoke.sql
+
+      - name: Prepare event notification worker fixture
+        run: psql "$MIGRATOR_URL" -X -v ON_ERROR_STOP=1 -f tests/database/event_notification_worker_fixture.sql
+
+      - name: Verify tenant-safe notification campaign preparation as worker
+        run: psql "$WORKER_URL" -X -v ON_ERROR_STOP=1 -f tests/database/event_notification_worker_smoke.sql
 
       - name: Verify PR review remediation regressions
         run: psql "$MIGRATOR_URL" -X -v ON_ERROR_STOP=1 -f tests/database/review_regressions.sql
