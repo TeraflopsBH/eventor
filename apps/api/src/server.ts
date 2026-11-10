@@ -2,26 +2,37 @@ import Fastify, { type FastifyInstance, type FastifyReply, type FastifyRequest }
 import { createCipheriv, createHash, createHmac, randomBytes } from "node:crypto";
 import type { Pool, PoolClient, QueryResultRow } from "pg";
 import type { paths } from "./generated/openapi.js";
+import {
+  clearStaffSessionCookies,
+  STAFF_CSRF_COOKIE,
+  STAFF_SESSION_COOKIE,
+  SessionAuthError,
+  type CreatedStaffSession,
+  type StaffPrincipal,
+} from "./session-auth.js";
 
 type JsonRequestBody<Path extends keyof paths, Method extends keyof paths[Path]> =
   paths[Path][Method] extends { requestBody: { content: { "application/json": infer Body } } }
     ? Body : never;
+type SessionCreateBody = JsonRequestBody<"/auth/session", "post">;
 type ReservationReleaseBody = JsonRequestBody<"/bookings/{bookingId}/reservations/release", "post">;
 type EventChangeBody = JsonRequestBody<"/events/{eventId}/change-requests", "post">;
 type EventChangeDecisionBody = JsonRequestBody<"/event-change-requests/{requestId}/approve", "post">;
 type EventChangeExecutionBody = JsonRequestBody<"/event-change-requests/{requestId}/execute", "post">;
 
-export interface StaffPrincipal {
-  readonly userId: string;
-  readonly organizationId: string;
-  readonly membershipId: string;
-}
 export type StaffAuthenticator = (request: FastifyRequest) => Promise<StaffPrincipal | null>;
 export type MutationOriginVerifier = (request: FastifyRequest, principal: StaffPrincipal) => Promise<boolean>;
 export interface ApiDependencies {
   readonly pool: Pool;
   readonly authenticateStaff: StaffAuthenticator;
   readonly verifyMutationOrigin: MutationOriginVerifier;
+  readonly verifyLoginOrigin?: (request: FastifyRequest) => boolean;
+  readonly createStaffSession?: (
+    request: FastifyRequest,
+    body: SessionCreateBody,
+  ) => Promise<CreatedStaffSession>;
+  readonly revokeStaffSession?: (principal: StaffPrincipal) => Promise<void>;
+  readonly getCurrentPrincipal?: (principal: StaffPrincipal) => Promise<Record<string, unknown>>;
   readonly privateFieldEncryptionKey?: Buffer;
 }
 
@@ -260,22 +271,35 @@ export function buildApi(dependencies: ApiDependencies): FastifyInstance {
   const server = Fastify({ logger: false, bodyLimit: 64 * 1024 });
   server.decorateRequest("staffPrincipal", null);
 
-  // The host must provide verification of its signed staff session and CSRF/
-  // origin policy. This module intentionally does not trust identity headers.
+  // Login is the only unauthenticated staff route and still requires an exact
+  // allow-listed Origin. All other routes derive identity from the opaque DB
+  // session cookie; state-changing requests additionally require CSRF validation.
   server.addHook("onRequest", async (request, reply) => {
+    const pathname = request.url.split("?", 1)[0];
+    if (request.method === "POST" && pathname === "/auth/session") {
+      if (!dependencies.verifyLoginOrigin || !dependencies.verifyLoginOrigin(request)) {
+        return reply.code(403).send(safeProblem(request.id, 403, "ORIGIN_REJECTED", "The request origin could not be verified."));
+      }
+      request.staffPrincipal = null;
+      return;
+    }
+
     const principal = await dependencies.authenticateStaff(request);
     if (!principalIsValid(principal)) {
       return reply.code(401).send(safeProblem(request.id, 401, "UNAUTHENTICATED", "Authentication is required."));
     }
     request.staffPrincipal = principal;
-    const validOrigin = await dependencies.verifyMutationOrigin(request, principal);
-    if (!validOrigin) {
-      return reply.code(403).send(safeProblem(request.id, 403, "CSRF_ORIGIN_REJECTED", "The request origin could not be verified."));
+
+    if (["POST", "PUT", "PATCH", "DELETE"].includes(request.method)) {
+      const validOrigin = await dependencies.verifyMutationOrigin(request, principal);
+      if (!validOrigin) {
+        return reply.code(403).send(safeProblem(request.id, 403, "CSRF_ORIGIN_REJECTED", "The request origin or CSRF token could not be verified."));
+      }
     }
   });
 
   server.setErrorHandler((error, request, reply) => {
-    if (error instanceof ApiError) {
+    if (error instanceof ApiError || error instanceof SessionAuthError) {
       return reply.code(error.status).send(safeProblem(request.id, error.status, error.code, error.message));
     }
     if (typeof error === "object" && error !== null && "validation" in error && Boolean((error as { validation?: unknown }).validation)) {
@@ -301,6 +325,66 @@ export function buildApi(dependencies: ApiDependencies): FastifyInstance {
     const response = await runIdempotentCommand(dependencies, principal, operationId, key, body, command);
     return reply.code(response.status).send(response.body);
   };
+
+  server.post<{ Body: SessionCreateBody }>(
+    "/auth/session",
+    {
+      schema: {
+        body: {
+          type: "object",
+          required: ["email", "password", "organizationSlug"],
+          properties: {
+            email: { type: "string", format: "email", maxLength: 320 },
+            password: { type: "string", minLength: 12, maxLength: 1024 },
+            organizationSlug: { type: "string", minLength: 2, maxLength: 80 },
+          },
+          additionalProperties: false,
+        },
+      },
+    },
+    async (request, reply) => {
+      if (!dependencies.createStaffSession) {
+        throw new ApiError(503, "AUTHENTICATION_NOT_CONFIGURED", "Staff authentication is not configured.");
+      }
+      const created = await dependencies.createStaffSession(request, request.body);
+      const maxAge = Math.max(1, Math.floor((created.expiresAt.getTime() - Date.now()) / 1000));
+      reply.header("set-cookie", [
+        `${STAFF_SESSION_COOKIE}=${encodeURIComponent(created.sessionToken)}; Path=/; Max-Age=${maxAge}; Secure; HttpOnly; SameSite=Strict`,
+        `${STAFF_CSRF_COOKIE}=${encodeURIComponent(created.csrfToken)}; Path=/; Max-Age=${maxAge}; Secure; SameSite=Strict`,
+      ]);
+      return reply.code(200).send({
+        data: {
+          userId: created.principal.userId,
+          organizationId: created.principal.organizationId,
+          membershipId: created.principal.membershipId,
+          csrfToken: created.csrfToken,
+          expiresAt: created.expiresAt.toISOString(),
+        },
+      });
+    },
+  );
+
+  server.delete("/auth/session", async (request, reply) => {
+    const principal = request.staffPrincipal!;
+    if (!dependencies.revokeStaffSession) {
+      throw new ApiError(503, "AUTHENTICATION_NOT_CONFIGURED", "Staff session revocation is not configured.");
+    }
+    await dependencies.revokeStaffSession(principal);
+    reply.header("set-cookie", clearStaffSessionCookies());
+    return reply.code(204).send();
+  });
+
+  server.get("/me", async (request, reply) => {
+    const principal = request.staffPrincipal!;
+    const data = dependencies.getCurrentPrincipal
+      ? await dependencies.getCurrentPrincipal(principal)
+      : {
+          userId: principal.userId,
+          organizationId: principal.organizationId,
+          membershipId: principal.membershipId,
+        };
+    return reply.code(200).send({ data });
+  });
 
   server.post<{ Params: { bookingId: string }; Body: ReservationReleaseBody }>(
     "/bookings/:bookingId/reservations/release",
