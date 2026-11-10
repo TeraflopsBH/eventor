@@ -7,7 +7,7 @@
 
 ## Successor implementation draft
 
-- [Ordered PostgreSQL 18 migrations](../../database/migrations/) — 20 forward-only files covering tenancy, venue inventory, booking, reservations, cancellation, events, collaboration, RSVP, event disruption, attendance and RLS.
+- [Ordered PostgreSQL 18 migrations](../../database/migrations/) — 21 forward-only files covering tenancy, venue inventory, booking, reservations, cancellation, events, collaboration, RSVP, event disruption, attendance, RLS, identity isolation, collaboration grant scope, source projection enforcement and published-revision immutability.
 - [Role bootstrap](../../scripts/db/bootstrap-roles.sql) and [checksum migration runner](../../scripts/db/migrate.sh). The dedicated `eventor_auth` role is separate from `eventor_runtime`; normal tenant code reads member profiles through an RLS-filtered view and cannot select global password hashes. Collaboration grant proposals use a narrowly scoped security-definer command because runtime table writes are revoked.
 - [Original migration smoke tests](../../tests/database/) and [additional RLS/constraint tests](../../database/tests/rls_and_constraints.sql).
 - [Independent-connection capacity test](../../scripts/db/test_resource_concurrency.sh) and [additional concurrency runner](../../scripts/db/test-concurrency.sh).
