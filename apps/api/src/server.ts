@@ -273,7 +273,7 @@ export function buildApi(dependencies: ApiDependencies): FastifyInstance {
     if (error instanceof ApiError) {
       return reply.code(error.status).send(safeProblem(request.id, error.status, error.code, error.message));
     }
-    if ("validation" in error && error.validation) {
+    if (typeof error === "object" && error !== null && "validation" in error && Boolean((error as { validation?: unknown }).validation)) {
       return reply.code(400).send(safeProblem(request.id, 400, "INVALID_REQUEST", "The request does not match the API contract."));
     }
     request.log.error({ err: error }, "Unhandled API error");
