@@ -11,7 +11,8 @@ DECLARE
   v_rows integer;
 BEGIN
   UPDATE eogp.booking_records
-     SET status = 'cancelled'
+     SET status = 'cancelled',
+         cancelled_at = clock_timestamp()
    WHERE organization_id = '11111111-1111-4111-8111-111111111111'
      AND id = '73000000-0000-4000-8000-000000000001'
      AND status = 'confirmed';
