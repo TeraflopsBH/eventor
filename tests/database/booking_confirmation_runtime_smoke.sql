@@ -1,6 +1,7 @@
 \set ON_ERROR_STOP on
 BEGIN;
 SELECT set_config('app.organization_id','11111111-1111-4111-8111-111111111111',true);
+SELECT eogp.current_organization_id() AS runtime_rls_tenant_context;
 
 DO $test$
 DECLARE
@@ -20,8 +21,8 @@ BEGIN
      AND status = 'held'
      AND idempotency_key = 'ci-confirm-space-hold-01';
   IF v_resource_holds <> 2 OR v_space_holds <> 1 THEN
-    RAISE EXCEPTION 'runtime cannot see confirmation fixtures: resource holds %, space holds %',
-      v_resource_holds, v_space_holds;
+    RAISE EXCEPTION 'runtime cannot see confirmation fixtures: tenant context %, resource holds %, space holds %',
+      eogp.current_organization_id(), v_resource_holds, v_space_holds;
   END IF;
 END;
 $test$;
