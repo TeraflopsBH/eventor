@@ -5,15 +5,18 @@ SELECT set_config('app.organization_id','22222222-2222-4222-8222-222222222222',t
 DO $test$
 DECLARE
   v_projection jsonb;
-  v_count integer;
-  v_private_evidence jsonb;
+  v_unexpected_id uuid;
 BEGIN
-  SELECT count(id) INTO v_count
-    FROM eogp.event_responsibility_assignments
-   WHERE id = '67000000-0000-4000-8000-000000000001';
-  IF v_count <> 1 THEN
-    RAISE EXCEPTION 'performing organization cannot see its exact delegated task';
-  END IF;
+  -- Runtime cannot inspect any assignment column directly. Access goes through
+  -- the function, which validates the actual membership argument.
+  BEGIN
+    SELECT id INTO v_unexpected_id
+      FROM eogp.event_responsibility_assignments
+     WHERE id = '67000000-0000-4000-8000-000000000001';
+    RAISE EXCEPTION 'runtime directly read the delegated task table';
+  EXCEPTION WHEN insufficient_privilege THEN
+    NULL;
+  END;
 
   v_projection := eogp.get_assigned_task_projection(
     '67000000-0000-4000-8000-000000000001',
@@ -35,33 +38,22 @@ BEGIN
     NULL;
   END;
 
-  BEGIN
-    SELECT evidence_reference INTO v_private_evidence
-      FROM eogp.event_responsibility_assignments
-     WHERE id = '67000000-0000-4000-8000-000000000001';
-    RAISE EXCEPTION 'performer directly read private task evidence metadata';
-  EXCEPTION WHEN insufficient_privilege THEN
-    NULL;
-  END;
-END;
-$test$;
+  v_projection := eogp.update_assigned_task_status(
+    '67000000-0000-4000-8000-000000000001',
+    'bbbbbbbb-2222-4222-8222-bbbbbbbbbbbb',
+    'in_progress',
+    'ci_started',
+    '{"workOrder":"CI-001"}'::jsonb
+  );
+  IF v_projection ->> 'status' <> 'in_progress' THEN
+    RAISE EXCEPTION 'delegated task status command did not return the updated status';
+  END IF;
 
-SELECT eogp.update_assigned_task_status(
-  '67000000-0000-4000-8000-000000000001',
-  'bbbbbbbb-2222-4222-8222-bbbbbbbbbbbb',
-  'in_progress',
-  'ci_started',
-  '{"workOrder":"CI-001"}'::jsonb
-);
-
-DO $test$
-DECLARE
-  v_status text;
-BEGIN
-  SELECT status INTO v_status
-    FROM eogp.event_responsibility_assignments
-   WHERE id = '67000000-0000-4000-8000-000000000001';
-  IF v_status <> 'in_progress' THEN
+  v_projection := eogp.get_assigned_task_projection(
+    '67000000-0000-4000-8000-000000000001',
+    'bbbbbbbb-2222-4222-8222-bbbbbbbbbbbb'
+  );
+  IF v_projection ->> 'status' <> 'in_progress' THEN
     RAISE EXCEPTION 'delegated task status command did not persist the status';
   END IF;
 
@@ -79,4 +71,5 @@ BEGIN
   END;
 END;
 $test$;
+
 COMMIT;
