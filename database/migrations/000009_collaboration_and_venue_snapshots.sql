@@ -104,7 +104,8 @@ CREATE TABLE eogp.event_venue_snapshots (
     FOREIGN KEY (share_owner_organization_id, organization_id, event_id, snapshot_share_id, source_space_revision_id, source_content_sha256)
       REFERENCES eogp.venue_snapshot_shares(organization_id, event_owner_organization_id, event_id, id, venue_space_revision_id, source_content_sha256),
     FOREIGN KEY (source_organization_id, source_space_revision_id)
-      REFERENCES eogp.venue_space_revisions(organization_id, id)
+      REFERENCES eogp.venue_space_revisions(organization_id, id),
+    CHECK (source_organization_id = share_owner_organization_id)
 );
 
 CREATE TABLE eogp.event_venue_snapshot_layers (
