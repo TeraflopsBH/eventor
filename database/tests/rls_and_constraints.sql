@@ -293,6 +293,20 @@ INSERT INTO eogp.booking_records (id, organization_id, booking_code, source_offe
 VALUES ('f0000000-0000-0000-0000-00000000000a','10000000-0000-0000-0000-00000000000a',
         'CI-EXTERNAL-CANCEL','e0000000-0000-0000-0000-00000000000a');
 
+-- The confirmed booking snapshot is the immutable source of the cancellation
+-- policy that governs later cancellation effects (NULL means no policy applied).
+INSERT INTO eogp.booking_confirmed_snapshots
+ (organization_id, booking_id, offer_revision_id, cancellation_policy_revision_id,
+  customer_terms_snapshot, price_snapshot, confirmed_by_membership_id, snapshot_sha256)
+VALUES
+ ('10000000-0000-0000-0000-00000000000a',
+  'f0000000-0000-0000-0000-00000000000a',
+  'e0000000-0000-0000-0000-00000000000a',
+  NULL,
+  '{}'::jsonb, '{}'::jsonb,
+  '30000000-0000-0000-0000-00000000000a',
+  repeat('f',64));
+
 INSERT INTO eogp.booking_party_contacts
  (id, organization_id, booking_id, party_role, display_name_ciphertext, email_hash, email_ciphertext, authorized_actions)
 VALUES
