@@ -2061,9 +2061,8 @@ components:
       additionalProperties: false
     VenueCreate:
       type: object
-      required: [organizationId, code, name, timezone]
+      required: [code, name, timezone]
       properties:
-        organizationId: { type: string, format: uuid }
         code: { type: string, minLength: 2, maxLength: 80 }
         name: { type: string, minLength: 2, maxLength: 250 }
         timezone: { type: string, default: Europe/Sarajevo }
