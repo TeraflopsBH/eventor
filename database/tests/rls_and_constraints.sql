@@ -307,6 +307,23 @@ VALUES
   '30000000-0000-0000-0000-00000000000a',
   repeat('f',64));
 
+-- A different policy revision exists in the same tenant but is not pinned to
+-- this booking. Cancellation effects must not silently substitute it.
+INSERT INTO eogp.cancellation_policies (id, organization_id, code, name)
+VALUES
+ ('a4000000-0000-0000-0000-00000000000a',
+  '10000000-0000-0000-0000-00000000000a','CI-OTHER-POLICY','CI Other Policy');
+
+INSERT INTO eogp.cancellation_policy_revisions
+ (id, organization_id, cancellation_policy_id, revision_number, customer_mode,
+  approval_rules, commercial_rules, notice_rules, public_terms, state, published_at)
+VALUES
+ ('a5000000-0000-0000-0000-00000000000a',
+  '10000000-0000-0000-0000-00000000000a',
+  'a4000000-0000-0000-0000-00000000000a',
+  1,'approval_required','{}'::jsonb,'{}'::jsonb,'{}'::jsonb,
+  'CI policy terms','published',clock_timestamp());
+
 INSERT INTO eogp.booking_party_contacts
  (id, organization_id, booking_id, party_role, display_name_ciphertext, email_hash, email_ciphertext, authorized_actions)
 VALUES
@@ -344,6 +361,27 @@ VALUES
  ('10000000-0000-0000-0000-00000000000a','f0000000-0000-0000-0000-00000000000a',
   'a3000000-0000-0000-0000-00000000000a','{}'::jsonb,
   NULL,'a2000000-0000-0000-0000-00000000000a','external_capability');
+
+DO $test$
+BEGIN
+  BEGIN
+    INSERT INTO eogp.booking_cancellation_effects
+      (organization_id, booking_id, cancellation_request_id, policy_revision_id,
+       commercial_consequence_snapshot, executed_by_membership_id,
+       executed_by_external_capability_id, executed_by_kind)
+    VALUES
+      ('10000000-0000-0000-0000-00000000000a',
+       'f0000000-0000-0000-0000-00000000000a',
+       'a3000000-0000-0000-0000-00000000000a',
+       'a5000000-0000-0000-0000-00000000000a',
+       '{}'::jsonb, NULL,
+       'a2000000-0000-0000-0000-00000000000a','external_capability');
+    RAISE EXCEPTION 'cancellation effect accepted an unpinned policy revision';
+  EXCEPTION WHEN SQLSTATE '23514' THEN
+    NULL;
+  END;
+END;
+$test$;
 
 INSERT INTO eogp.booking_status_history
  (organization_id, booking_id, previous_status, new_status, actor_membership_id,
