@@ -33,6 +33,38 @@ INSERT INTO eogp.venues (id, organization_id, code, name, timezone_name)
 VALUES ('20000000-0000-4000-8000-000000000001','22222222-2222-4222-8222-222222222222','VENUE-C','Venue C','Europe/Sarajevo');
 SELECT set_config('app.organization_id','11111111-1111-4111-8111-111111111111',true);
 
+-- A grantee can accept the provider's proposed grant through the audited
+-- command without receiving direct UPDATE privileges on provider-owned grants.
+INSERT INTO eogp.collaboration_grants (
+  id, organization_id, grantee_organization_id, scope_kind, scope_venue_id,
+  purpose, projection, allowed_actions, proposed_by_membership_id
+) VALUES (
+  '60000000-0000-4000-8000-000000000001',
+  '11111111-1111-4111-8111-111111111111',
+  '22222222-2222-4222-8222-222222222222',
+  'venue','10000000-0000-4000-8000-000000000001',
+  'CI shared venue plan', '{"venueSummary":true}'::jsonb,
+  ARRAY['venue.snapshot.read'], 'aaaaaaaa-1111-4111-8111-aaaaaaaaaaaa'
+);
+SELECT set_config('app.organization_id','22222222-2222-4222-8222-222222222222',true);
+SELECT eogp.accept_collaboration_grant(
+  '60000000-0000-4000-8000-000000000001',
+  'bbbbbbbb-2222-4222-8222-bbbbbbbbbbbb'
+);
+DO $test$
+BEGIN
+  IF NOT EXISTS (
+    SELECT 1 FROM eogp.collaboration_grants
+     WHERE id = '60000000-0000-4000-8000-000000000001'
+       AND status = 'active'
+       AND accepted_by_membership_id = 'bbbbbbbb-2222-4222-8222-bbbbbbbbbbbb'
+  ) THEN
+    RAISE EXCEPTION 'collaboration grant acceptance was not committed';
+  END IF;
+END
+$test$;
+SELECT set_config('app.organization_id','11111111-1111-4111-8111-111111111111',true);
+
 INSERT INTO eogp.venue_buildings (id, organization_id, venue_id, code, name)
 VALUES
   ('11000000-0000-4000-8000-000000000001','11111111-1111-4111-8111-111111111111','10000000-0000-4000-8000-000000000001','BLD-A','Building A'),
