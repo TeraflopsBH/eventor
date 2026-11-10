@@ -646,6 +646,22 @@ VALUES
   '64100000-0000-4000-8000-00000000000a',
   'zone','CI-ZONE','{"x":0,"y":0,"width":10,"height":10}'::jsonb);
 
+INSERT INTO eogp.spatial_layers
+ (id, organization_id, venue_space_revision_id, code, label, layer_kind)
+VALUES
+ ('64100000-0000-4000-8000-00000000000b',
+  '10000000-0000-0000-0000-00000000000a',
+  '64000000-0000-4000-8000-00000000000a',
+  'CI-PRIVATE','CI Private Layer','security');
+
+INSERT INTO eogp.spatial_objects
+ (id, organization_id, layer_id, object_kind, stable_code, geometry)
+VALUES
+ ('64200000-0000-4000-8000-00000000000b',
+  '10000000-0000-0000-0000-00000000000a',
+  '64100000-0000-4000-8000-00000000000b',
+  'zone','CI-PRIVATE-ZONE','{"x":50,"y":0,"width":10,"height":10}'::jsonb);
+
 INSERT INTO eogp.floor_plan_assets
  (id, organization_id, venue_space_revision_id, storage_key, media_type, content_sha256, byte_length)
 VALUES
@@ -718,6 +734,31 @@ BEGIN
 END;
 $test$;
 
+-- A provider approval cannot name a layer outside the source revision.
+DO $test$
+BEGIN
+  BEGIN
+    INSERT INTO eogp.venue_snapshot_shares
+     (id, organization_id, venue_space_revision_id, event_owner_organization_id,
+      event_id, collaboration_grant_id, approved_layers, approved_resources,
+      source_content_sha256, expires_at, approved_by_membership_id)
+    VALUES
+     ('63000000-0000-4000-8000-00000000000c',
+      '10000000-0000-0000-0000-00000000000a',
+      '64000000-0000-4000-8000-00000000000a',
+      '10000000-0000-0000-0000-00000000000b',
+      '62000000-0000-4000-8000-00000000000a',
+      '61000000-0000-4000-8000-00000000000a',
+      '["64100000-0000-4000-8000-00000000000c"]'::jsonb,
+      '[]'::jsonb, repeat('d',64), clock_timestamp() + interval '23 hours',
+      '30000000-0000-0000-0000-00000000000a');
+    RAISE EXCEPTION 'provider share unexpectedly accepted a layer outside the source revision';
+  EXCEPTION WHEN SQLSTATE '22023' THEN
+    NULL;
+  END;
+END;
+$test$;
+
 -- The venue-scoped grant authorizes this exact published revision for this event.
 INSERT INTO eogp.venue_snapshot_shares
  (id, organization_id, venue_space_revision_id, event_owner_organization_id,
@@ -730,7 +771,9 @@ VALUES
   '10000000-0000-0000-0000-00000000000b',
   '62000000-0000-4000-8000-00000000000a',
   '61000000-0000-4000-8000-00000000000a',
-  '[]'::jsonb, '[]'::jsonb, repeat('d',64),
+  '["64100000-0000-4000-8000-00000000000a"]'::jsonb,
+  '["a0000000-0000-0000-0000-00000000000a"]'::jsonb,
+  repeat('d',64),
   clock_timestamp() + interval '23 hours',
   '30000000-0000-0000-0000-00000000000a');
 COMMIT;
@@ -840,21 +883,23 @@ VALUES
   'zone','30000000-0000-0000-0000-00000000000b');
 
 INSERT INTO eogp.event_venue_snapshot_layers
- (id, organization_id, event_id, snapshot_id, layer_code, layer_snapshot)
+ (id, organization_id, event_id, snapshot_id, source_layer_id, layer_code, layer_snapshot)
 VALUES
  ('65100000-0000-4000-8000-00000000000a',
   '10000000-0000-0000-0000-00000000000b',
   '62000000-0000-4000-8000-00000000000a',
   '65000000-0000-4000-8000-00000000000a',
+  '64100000-0000-4000-8000-00000000000a',
   'CI-LAYER','{"kind":"zones"}'::jsonb);
 
 INSERT INTO eogp.event_venue_snapshot_objects
- (id, organization_id, snapshot_id, snapshot_layer_id, object_kind, object_snapshot)
+ (id, organization_id, snapshot_id, snapshot_layer_id, source_object_id, object_kind, object_snapshot)
 VALUES
  ('65200000-0000-4000-8000-00000000000a',
   '10000000-0000-0000-0000-00000000000b',
   '65000000-0000-4000-8000-00000000000a',
   '65100000-0000-4000-8000-00000000000a',
+  '64200000-0000-4000-8000-00000000000a',
   'zone','{"code":"CI-ZONE"}'::jsonb);
 
 INSERT INTO eogp.event_venue_snapshot_resources
@@ -866,6 +911,55 @@ VALUES
   '65000000-0000-4000-8000-00000000000a',
   'a0000000-0000-0000-0000-00000000000a',
   '{"kind":"pool","label":"CI Resource"}'::jsonb);
+
+DO $test$
+BEGIN
+  BEGIN
+    INSERT INTO eogp.event_venue_snapshot_layers
+     (id, organization_id, event_id, snapshot_id, source_layer_id, layer_code, layer_snapshot)
+    VALUES
+     ('65100000-0000-4000-8000-00000000000b',
+      '10000000-0000-0000-0000-00000000000b',
+      '62000000-0000-4000-8000-00000000000a',
+      '65000000-0000-4000-8000-00000000000a',
+      '64100000-0000-4000-8000-00000000000b',
+      'PRIVATE','{"kind":"security"}'::jsonb);
+    RAISE EXCEPTION 'unapproved private layer unexpectedly entered event snapshot';
+  EXCEPTION WHEN SQLSTATE '42501' THEN
+    NULL;
+  END;
+
+  BEGIN
+    INSERT INTO eogp.event_venue_snapshot_objects
+     (id, organization_id, snapshot_id, snapshot_layer_id, source_object_id, object_kind, object_snapshot)
+    VALUES
+     ('65200000-0000-4000-8000-00000000000b',
+      '10000000-0000-0000-0000-00000000000b',
+      '65000000-0000-4000-8000-00000000000a',
+      '65100000-0000-4000-8000-00000000000a',
+      '64200000-0000-4000-8000-00000000000b',
+      'zone','{"code":"CI-PRIVATE-ZONE"}'::jsonb);
+    RAISE EXCEPTION 'object from an unapproved layer unexpectedly entered event snapshot';
+  EXCEPTION WHEN SQLSTATE '42501' THEN
+    NULL;
+  END;
+
+  BEGIN
+    INSERT INTO eogp.event_venue_snapshot_resources
+     (id, organization_id, event_id, snapshot_id, source_resource_pool_id, resource_snapshot)
+    VALUES
+     ('65300000-0000-4000-8000-00000000000b',
+      '10000000-0000-0000-0000-00000000000b',
+      '62000000-0000-4000-8000-00000000000a',
+      '65000000-0000-4000-8000-00000000000a',
+      'a0000000-0000-0000-0000-00000000000b',
+      '{"kind":"pool","label":"Unapproved"}'::jsonb);
+    RAISE EXCEPTION 'unapproved resource pool unexpectedly entered event snapshot';
+  EXCEPTION WHEN SQLSTATE '42501' THEN
+    NULL;
+  END;
+END;
+$test$;
 COMMIT;
 
 -- A third tenant must not see the grant. Grantor A can revoke it; grantee B
