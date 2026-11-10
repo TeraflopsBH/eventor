@@ -12,6 +12,8 @@ This package now contains the first deployable command API bootstrap and a separ
 - `POST /event-change-requests/{requestId}/approve`
 - `POST /event-change-requests/{requestId}/reject`
 - `POST /event-change-requests/{requestId}/execute`
+- `GET /event-notification-campaigns/{campaignId}/review` — permission-gated review of the recipient snapshot, channel/exclusion totals and pinned template; contact values are never returned.
+- `POST /event-notification-campaigns/{campaignId}/confirm` — event-scoped send permission, audit attribution and idempotency; confirms the fixed snapshot but deliberately does not queue delivery.
 
 The command handlers call permission-gated PostgreSQL functions rather than performing ad-hoc table writes.
 
@@ -65,11 +67,11 @@ The organizer's event-change command writes a transactional outbox event. The wo
 3. Resolves the audience from the selected rule (accepted/tentative, active invitees, previously invited or explicit custom participation IDs).
 4. Copies only verified, permitted email/phone contact snapshots from the organizer's contact registry. The stored contact ciphertext is copied as ciphertext; the worker does not decrypt it or log addresses.
 5. Records exclusions where no verified, permitted contact exists.
-6. Creates a `previewed` event notification campaign with a published purpose-matched template and the recipient count. The organizer must review/confirm the campaign through a future campaign-confirmation endpoint before any provider delivery is queued.
+6. Creates a `previewed` event notification campaign with a published purpose-matched template and the recipient count. The organizer can review the campaign through the staff API and explicitly confirm it with the event-scoped notification-send permission. Confirmation validates the current event decision, recipient-count consistency and active published template, then records the confirming membership in audit history. It does not queue delivery.
 
 Worker processing is transactional, row-locked with `SKIP LOCKED`, idempotent at the outbox/campaign level, and retryable with bounded exponential backoff. After 12 failed attempts, the event is dead-lettered for operator review.
 
-**The worker does not send email or SMS.** No delivery attempts are created and no campaign is marked as sent or delivered. A delivery-provider adapter and the campaign-confirmation/retry routes remain separate work. A failed or delayed message never rolls back the event cancellation/postponement.
+**The worker does not send email or SMS.** No delivery attempts are created and no campaign is marked as sent or delivered. A delivery-provider adapter, callback processing and failure/retry management remain separate work. A failed or delayed message never rolls back the event cancellation/postponement.
 
 ## OpenAPI types and tests
 
@@ -86,6 +88,6 @@ npm test
 ## Remaining integration work
 
 - Connect the staff frontend to login, CSRF token handling, `/me` and the implemented command routes.
-- Implement campaign review/confirmation and the actual delivery-provider adapter; provider callbacks must update per-recipient attempts without rewriting RSVP/attendance history or the event decision.
+- Implement the actual delivery-provider adapter, provider callbacks and failure/retry management; provider callbacks must update per-recipient attempts without rewriting RSVP/attendance history or the event decision.
 - Implement the rest of the OpenAPI operations.
 - Complete production secret provisioning, database TLS/network policy, proxy configuration, backups/recovery, monitoring and operational runbooks.
