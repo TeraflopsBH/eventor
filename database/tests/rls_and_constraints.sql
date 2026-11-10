@@ -477,6 +477,149 @@ END;
 $test$;
 COMMIT;
 
+-- A separate booking-scoped grant may link only the exact booking in its scope.
+BEGIN;
+SELECT set_config('app.organization_id', '10000000-0000-0000-0000-00000000000a', true);
+SELECT eogp.propose_collaboration_grant(
+  '61000000-0000-4000-8000-00000000000b',
+  '10000000-0000-0000-0000-00000000000b',
+  'booking',
+  NULL,
+  NULL,
+  'f0000000-0000-0000-0000-00000000000a',
+  'CI booking-event link',
+  '{"bookingSummary":true}'::jsonb,
+  ARRAY['booking.event.link']::text[],
+  clock_timestamp() - interval '1 minute',
+  clock_timestamp() + interval '1 day',
+  '30000000-0000-0000-0000-00000000000a'
+);
+COMMIT;
+
+BEGIN;
+SELECT set_config('app.organization_id', '10000000-0000-0000-0000-00000000000b', true);
+SELECT eogp.accept_collaboration_grant(
+  '61000000-0000-4000-8000-00000000000b',
+  '30000000-0000-0000-0000-00000000000b'
+);
+INSERT INTO eogp.events (id, organization_id, event_code, title, created_by_membership_id)
+VALUES
+ ('62000000-0000-4000-8000-00000000000a',
+  '10000000-0000-0000-0000-00000000000b',
+  'CI-SHARED-EVENT','CI Shared Event','30000000-0000-0000-0000-00000000000b');
+COMMIT;
+
+BEGIN;
+SELECT set_config('app.organization_id', '10000000-0000-0000-0000-00000000000a', true);
+INSERT INTO eogp.venue_space_revisions
+ (id, organization_id, venue_space_id, revision_number, geometry, semantic_snapshot, content_sha256, published_at, created_by_membership_id)
+VALUES
+ ('64000000-0000-4000-8000-00000000000a',
+  '10000000-0000-0000-0000-00000000000a',
+  '70000000-0000-0000-0000-00000000000a',
+  1, '{}'::jsonb, '{"label":"CI published revision"}'::jsonb,
+  repeat('d',64), clock_timestamp(),
+  '30000000-0000-0000-0000-00000000000a');
+
+-- The booking-scoped grant must not authorize a venue plan share.
+DO $test$
+BEGIN
+  BEGIN
+    INSERT INTO eogp.venue_snapshot_shares
+     (id, organization_id, venue_space_revision_id, event_owner_organization_id,
+      event_id, collaboration_grant_id, approved_layers, approved_resources,
+      source_content_sha256, expires_at, approved_by_membership_id)
+    VALUES
+     ('63000000-0000-4000-8000-00000000000b',
+      '10000000-0000-0000-0000-00000000000a',
+      '64000000-0000-4000-8000-00000000000a',
+      '10000000-0000-0000-0000-00000000000b',
+      '62000000-0000-4000-8000-00000000000a',
+      '61000000-0000-4000-8000-00000000000b',
+      '[]'::jsonb, '[]'::jsonb, repeat('d',64),
+      clock_timestamp() + interval '1 day',
+      '30000000-0000-0000-0000-00000000000a');
+    RAISE EXCEPTION 'booking-scoped grant unexpectedly authorized a venue snapshot share';
+  EXCEPTION WHEN SQLSTATE '42501' THEN
+    NULL;
+  END;
+END;
+$test$;
+
+-- The venue-scoped grant authorizes this exact published revision for this event.
+INSERT INTO eogp.venue_snapshot_shares
+ (id, organization_id, venue_space_revision_id, event_owner_organization_id,
+  event_id, collaboration_grant_id, approved_layers, approved_resources,
+  source_content_sha256, expires_at, approved_by_membership_id)
+VALUES
+ ('63000000-0000-4000-8000-00000000000a',
+  '10000000-0000-0000-0000-00000000000a',
+  '64000000-0000-4000-8000-00000000000a',
+  '10000000-0000-0000-0000-00000000000b',
+  '62000000-0000-4000-8000-00000000000a',
+  '61000000-0000-4000-8000-00000000000a',
+  '[]'::jsonb, '[]'::jsonb, repeat('d',64),
+  clock_timestamp() + interval '1 day',
+  '30000000-0000-0000-0000-00000000000a');
+COMMIT;
+
+-- Event owner B can copy the approved, still-live share into its own immutable
+-- snapshot, but a venue-scope grant cannot be substituted for a booking link.
+BEGIN;
+SELECT set_config('app.organization_id', '10000000-0000-0000-0000-00000000000b', true);
+INSERT INTO eogp.event_venue_snapshots
+ (id, organization_id, event_id, share_owner_organization_id, snapshot_share_id,
+  source_organization_id, source_space_revision_id, source_content_sha256,
+  snapshot_content, created_by_membership_id)
+VALUES
+ ('65000000-0000-4000-8000-00000000000a',
+  '10000000-0000-0000-0000-00000000000b',
+  '62000000-0000-4000-8000-00000000000a',
+  '10000000-0000-0000-0000-00000000000a',
+  '63000000-0000-4000-8000-00000000000a',
+  '10000000-0000-0000-0000-00000000000a',
+  '64000000-0000-4000-8000-00000000000a',
+  repeat('d',64), '{"layers":[],"resources":[]}'::jsonb,
+  '30000000-0000-0000-0000-00000000000b');
+
+DO $test$
+BEGIN
+  BEGIN
+    INSERT INTO eogp.booking_event_links
+     (id, organization_id, booking_owner_organization_id, booking_id,
+      event_id, grant_owner_organization_id, collaboration_grant_id,
+      created_by_membership_id)
+    VALUES
+     ('66000000-0000-4000-8000-00000000000b',
+      '10000000-0000-0000-0000-00000000000b',
+      '10000000-0000-0000-0000-00000000000a',
+      'f0000000-0000-0000-0000-00000000000a',
+      '62000000-0000-4000-8000-00000000000a',
+      '10000000-0000-0000-0000-00000000000a',
+      '61000000-0000-4000-8000-00000000000a',
+      '30000000-0000-0000-0000-00000000000b');
+    RAISE EXCEPTION 'venue-scoped grant unexpectedly authorized a booking-event link';
+  EXCEPTION WHEN SQLSTATE '42501' THEN
+    NULL;
+  END;
+END;
+$test$;
+
+INSERT INTO eogp.booking_event_links
+ (id, organization_id, booking_owner_organization_id, booking_id,
+  event_id, grant_owner_organization_id, collaboration_grant_id,
+  created_by_membership_id)
+VALUES
+ ('66000000-0000-4000-8000-00000000000a',
+  '10000000-0000-0000-0000-00000000000b',
+  '10000000-0000-0000-0000-00000000000a',
+  'f0000000-0000-0000-0000-00000000000a',
+  '62000000-0000-4000-8000-00000000000a',
+  '10000000-0000-0000-0000-00000000000a',
+  '61000000-0000-4000-8000-00000000000b',
+  '30000000-0000-0000-0000-00000000000b');
+COMMIT;
+
 -- A third tenant must not see the grant. Grantor A can revoke it; grantee B
 -- retains access to the historical grant row but it is no longer active.
 BEGIN;
@@ -501,6 +644,10 @@ SELECT eogp.revoke_collaboration_grant(
   '61000000-0000-4000-8000-00000000000a',
   '30000000-0000-0000-0000-00000000000a',
   'CI grant lifecycle revocation');
+SELECT eogp.revoke_collaboration_grant(
+  '61000000-0000-4000-8000-00000000000b',
+  '30000000-0000-0000-0000-00000000000a',
+  'CI booking link grant revocation');
 COMMIT;
 
 BEGIN;
@@ -515,6 +662,51 @@ BEGIN
   IF grant_status <> 'revoked' THEN
     RAISE EXCEPTION 'grantee should retain the revoked historical grant, got %', grant_status;
   END IF;
+  SELECT status INTO grant_status
+    FROM eogp.collaboration_grants
+   WHERE id = '61000000-0000-4000-8000-00000000000b';
+  IF grant_status <> 'revoked' THEN
+    RAISE EXCEPTION 'booking link grant should be revoked, got %', grant_status;
+  END IF;
+
+  BEGIN
+    INSERT INTO eogp.event_venue_snapshots
+     (id, organization_id, event_id, share_owner_organization_id, snapshot_share_id,
+      source_organization_id, source_space_revision_id, source_content_sha256,
+      snapshot_content, created_by_membership_id)
+    VALUES
+     ('65000000-0000-4000-8000-00000000000b',
+      '10000000-0000-0000-0000-00000000000b',
+      '62000000-0000-4000-8000-00000000000a',
+      '10000000-0000-0000-0000-00000000000a',
+      '63000000-0000-4000-8000-00000000000a',
+      '10000000-0000-0000-0000-00000000000a',
+      '64000000-0000-4000-8000-00000000000a',
+      repeat('d',64), '{"layers":[],"resources":[]}'::jsonb,
+      '30000000-0000-0000-0000-00000000000b');
+    RAISE EXCEPTION 'revoked collaboration grant unexpectedly permitted a new snapshot';
+  EXCEPTION WHEN SQLSTATE '42501' THEN
+    NULL;
+  END;
+
+  BEGIN
+    INSERT INTO eogp.booking_event_links
+     (id, organization_id, booking_owner_organization_id, booking_id,
+      event_id, grant_owner_organization_id, collaboration_grant_id,
+      created_by_membership_id)
+    VALUES
+     ('66000000-0000-4000-8000-00000000000c',
+      '10000000-0000-0000-0000-00000000000b',
+      '10000000-0000-0000-0000-00000000000a',
+      'f0000000-0000-0000-0000-00000000000a',
+      '62000000-0000-4000-8000-00000000000a',
+      '10000000-0000-0000-0000-00000000000a',
+      '61000000-0000-4000-8000-00000000000b',
+      '30000000-0000-0000-0000-00000000000b');
+    RAISE EXCEPTION 'revoked collaboration grant unexpectedly permitted a new booking link';
+  EXCEPTION WHEN SQLSTATE '42501' THEN
+    NULL;
+  END;
 END;
 $test$;
 COMMIT;
