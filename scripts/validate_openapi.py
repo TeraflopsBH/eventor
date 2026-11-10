@@ -174,18 +174,39 @@ def main() -> int:
                 schemes.update(requirement.keys())
 
             # Public intake and explicit capability routes must not inherit staff login.
-            if route.startswith("/public/") or route == "/auth/session":
+            if route.startswith("/public/") or (route == "/auth/session" and method.lower() == "post"):
                 if operation.get("security") != []:
                     fail(f"{method.upper()} {route}: public route must explicitly declare security: []")
-            if route.startswith("/external/booking-actions/") or route.startswith("/external/booking-offers/"):
-                if schemes != {"BookingActionCapability"}:
-                    fail(f"{method.upper()} {route}: must use only BookingActionCapability")
+
+            if route.startswith("/external/booking-actions/"):
+                expected = (
+                    {"BookingActionBootstrap"}
+                    if route == "/external/booking-actions/resolve"
+                    else {"BookingActionCapability"}
+                )
+                if schemes != expected:
+                    fail(f"{method.upper()} {route}: expected only {sorted(expected)}")
+            if route == "/booking-offers/{offerId}/accept" and schemes != {"BookingActionCapability"}:
+                fail(f"{method.upper()} {route}: must use only BookingActionCapability")
+
             if route.startswith("/guest/invitation/"):
-                if schemes != {"GuestInvitationCapability"}:
-                    fail(f"{method.upper()} {route}: must use only GuestInvitationCapability")
+                expected = (
+                    {"GuestInvitationBootstrap"}
+                    if route == "/guest/invitation/resolve"
+                    else {"GuestInvitationCapability"}
+                )
+                if schemes != expected:
+                    fail(f"{method.upper()} {route}: expected only {sorted(expected)}")
+
             if route.startswith("/guest-portal/"):
-                if schemes != {"GuestPortalCapability"}:
-                    fail(f"{method.upper()} {route}: must use only GuestPortalCapability")
+                expected = (
+                    {"GuestPortalBootstrap"}
+                    if route == "/guest-portal/access/resolve"
+                    else {"GuestPortalCapability"}
+                )
+                if schemes != expected:
+                    fail(f"{method.upper()} {route}: expected only {sorted(expected)}")
+
             if (route.startswith("/guest/") or route.startswith("/guest-portal/")) and "StaffSession" in schemes:
                 fail(f"{method.upper()} {route}: guest route must not accept staff session as authority")
 
@@ -194,8 +215,11 @@ def main() -> int:
     expected_schemes = {
         "StaffSession",
         "GuestInvitationCapability",
+        "GuestInvitationBootstrap",
         "GuestPortalCapability",
+        "GuestPortalBootstrap",
         "BookingActionCapability",
+        "BookingActionBootstrap",
     }
     missing_schemes = expected_schemes - set(security_schemes)
     if missing_schemes:
