@@ -1,6 +1,6 @@
 # Project state
 
-**Status:** accepted product/domain design baseline; initial PostgreSQL migration and OpenAPI v0.3 implementation draft in PR #26; initial PostgreSQL 18.6 and OpenAPI CI validation passing; deeper review and production-readiness checks remain open  
+**Status:** accepted product/domain design baseline; 20-migration PostgreSQL 18 implementation draft and OpenAPI v0.3 contract in draft PR #26; current PostgreSQL 18.6 and OpenAPI CI passing; deeper security, upgrade/recovery and production-readiness reviews remain open  
 **Last updated:** 2026-11-10  
 **Implementation status:** database migrations and API contract exist in draft PR #26; no application route code or production database deployment has been established.
 
@@ -109,7 +109,7 @@ Eventor is a reusable, self-hosted platform that can operate as a venue booking/
 
 ## Operating model
 
-See [Operating Model](OPERATING_MODEL.md) and [ADR 0004](decisions/0004-optional-event-operations-scope.md). This is a new accepted product requirement and must be reflected in the next successor implementation design and schema/API revision; historical Blueprint v1.2 and Implementation Design v0.2 files remain unchanged snapshots.
+See [Operating Model](OPERATING_MODEL.md) and [ADR 0004](decisions/0004-optional-event-operations-scope.md). This accepted product requirement is reflected in the successor v0.3 designs and implementation draft; historical Blueprint v1.2 and Implementation Design v0.2 files remain unchanged snapshots.
 
 ## Cancellation and event disruption
 
@@ -121,11 +121,11 @@ The accepted successor logical model and API design derive from ADRs 0004–0006
 
 ## Executable schema and API contract draft
 
-The branch [feat/postgresql18-migrations-openapi-v0.3](https://github.com/TeraflopsBH/eventor/tree/feat/postgresql18-migrations-openapi-v0.3), in [draft PR #26](https://github.com/TeraflopsBH/eventor/pull/26), contains 16 ordered PostgreSQL 18 migrations, least-privilege role bootstrap, a checksum-verified migration runner, database integrity/RLS tests, pooled-capacity concurrency tests and the canonical OpenAPI 3.1.1 contract at `docs/api/openapi.v0.3.yaml` (106 paths / 123 operations).
+The branch [feat/postgresql18-migrations-openapi-v0.3](https://github.com/TeraflopsBH/eventor/tree/feat/postgresql18-migrations-openapi-v0.3), in [draft PR #26](https://github.com/TeraflopsBH/eventor/pull/26), contains 20 ordered PostgreSQL 18 migrations, least-privilege role bootstrap, a checksum-verified migration runner, database integrity/RLS tests, pooled-capacity concurrency tests and the canonical OpenAPI 3.1.1 contract at `docs/api/openapi.v0.3.yaml` (106 paths / 123 operations).
 
-The latest PR-triggered workflow run on head `42eeec1f2a18dcd6c638d8eff627d5d99e7a4bfc` is [run #42825572146](https://github.com/TeraflopsBH/eventor/actions/runs/42825572146); both jobs succeeded. The OpenAPI job passed the Eventor structural/security validator, pinned OpenAPI validator and Redocly lint. The PostgreSQL 18.6 job applied all 16 migrations to a fresh CI database and passed migration/integrity smoke tests, runtime-role tenant RLS isolation, independent-connection pooled-capacity concurrency checks, venue hierarchy and half-open interval checks, external self-service cancellation actor attribution, and migration-ledger reporting.
+The latest PR-triggered workflow run on head `ce9fd3d7e4889b713f36e1d93d1b40c3e0c609f2` is [run #42837964380](https://github.com/TeraflopsBH/eventor/actions/runs/42837964380); both jobs succeeded. The matching push run [#42837950688](https://github.com/TeraflopsBH/eventor/actions/runs/42837950688) also succeeded. The OpenAPI job passed the Eventor structural/security validator, pinned OpenAPI validator and Redocly lint. The PostgreSQL 18.6 job applied all 20 migrations to a fresh CI database and passed integrity/RLS/concurrency tests, split-authentication-role privileges, cross-organization grant proposal/acceptance/revocation, grant-scoped booking links and venue snapshots, session/snapshot-content use checks, published-revision immutability, append-only protections and migration-ledger reporting.
 
-A static candidate-key/FK-target audit covered 120 declared tables without unresolved targets; this is a structural scan, not a substitute for database/runtime validation. No production database has been migrated, and no application API routes have been implemented. PR #26 remains a draft pending review.
+A static candidate-key/FK-target audit covered 120 declared tables without unresolved targets; this is a structural scan, not a substitute for database/runtime validation. No production database has been migrated, and no application API routes have been implemented. The 20-migration draft separates global identity access into `eventor_auth`, removes global password-hash access from `eventor_runtime`, adds audited collaboration grant proposal/acceptance/revocation commands, enforces active grant scope at booking-link/snapshot/session-use points, and freezes published revisions and revision children. These are CI-validated against a fresh PostgreSQL 18.6 database, not yet approved for production. PR #26 remains a draft pending review.
 
 ## Database schema review and remaining validation
 
