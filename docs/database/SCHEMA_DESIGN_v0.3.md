@@ -258,7 +258,8 @@ Use ordered immutable files, each transaction-scoped, with `SET LOCAL search_pat
 | 000009 | Booking cancellation | pinned policy, cancellation request/decision/effect/follow-up, provider-owned booking disruption notice; no cross-tenant event FK |
 | 000010 | Event foundation | event, schedule revisions, sessions and event capability revisions |
 | 000011 | Collaboration and snapshots | grants, grant revisions, provider share, event-owned snapshot and booking/event links; add event-side references to provider disruption notices only through scoped collaboration projections |
-| 000012 | Responsibility and disruption handling | event responsibility assignments, task-party scopes, event disruption acknowledgements/resolutions with grant checks and no unvalidated cross-tenant FK |\n| 000013 | Guest registry and participation | persons, contacts, event participation, groups, custom fields and tenant-safe self-references |
+| 000012 | Responsibility and disruption handling | event responsibility assignments, task-party scopes, event disruption acknowledgements/resolutions with grant checks and no unvalidated cross-tenant FK |
+| 000013 | Guest registry and participation | persons, contacts, event participation, groups, custom fields and tenant-safe self-references |
 | 000014 | Invitations and RSVP | invitations, token hashes, delivery, policies and append-only responses |
 | 000015 | Event decisions and communications | change requests, approval decisions, effective cancellation/postponement decisions, campaigns, recipient snapshots, templates and notification attempts |
 | 000016 | Spatial allocation and attendance | event allocation, admission credentials, check-in and attendance, all capability-gated |
