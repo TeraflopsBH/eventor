@@ -11,7 +11,8 @@ This matrix tracks executable PostgreSQL integration coverage and remaining gaps
 - [ ] User with no membership in owning organization rejected.
 - [ ] Member without operation permission rejected by API authorization.
 - [ ] Cross-organization delegated action succeeds only with active, matching grant and task scope.
-- [ ] Expired/revoked grant blocks new access without erasing historical records.
+- [ ] Expired grant blocks new access without erasing historical records.
+- [x] Revoked grant blocks new booking links, event snapshots, session bindings and snapshot child additions without deleting historical records.
 
 ## Global identity and authentication boundary
 - [x] General runtime cannot SELECT, INSERT or update global user identity/password-hash rows directly.
@@ -26,11 +27,12 @@ This matrix tracks executable PostgreSQL integration coverage and remaining gaps
 - [x] Repeated acceptance by the same actor is idempotent and does not duplicate the audit record.
 - [x] Grantee cannot invoke the grantor-side revocation command.
 - [x] Grantor can revoke; grantee retains historical visibility while the grant is marked revoked.
-- [ ] Revoked/expired grant blocks all new snapshot shares and protected delegated actions.
-- [ ] Venue snapshot share is constrained to the approved grant scope, projection and validity window.
+- [x] Revoked grant blocks new venue snapshot copies, booking-event links, session bindings and new snapshot child rows.
+- [x] Venue snapshot share is constrained to grant scope, validity window and exact published source revision/content hash.
+- [ ] Exact layer/resource projection subset is independently enforced against the provider-approved projection (the application must not add unapproved source objects).
 
 ## Venue hierarchy
-- [ ] Valid organization → venue → building → level → space accepted.
+- [x] Valid organization → venue → building → level → space accepted.
 - [ ] Space pointing to a building from a different venue rejected.
 - [x] Space pointing to a level from another building rejected.
 - [x] Space with a level but no building rejected.
@@ -41,7 +43,11 @@ This matrix tracks executable PostgreSQL integration coverage and remaining gaps
 - [x] Option revision belonging to another stable option rejected.
 - [x] Option from a different catalogue revision rejected.
 - [ ] Retired option remains historically readable but cannot be newly selected where policy forbids it.
-- [ ] Published form/catalogue revision cannot be mutated through runtime permissions.
+- [x] Published catalogue and option revisions reject UPDATE/DELETE.
+- [x] Published catalogue membership rejects new child rows.
+- [x] Published form revisions and form-to-catalogue bindings reject mutation.
+- [x] Published venue-space revisions and spatial layer/object children reject mutation or late additions.
+- [ ] Published price-list, cancellation-policy, RSVP-policy, notification-template and event-capability revisions have dedicated mutation regression cases.
 
 ## Space reservations
 - [x] Adjacent half-open intervals (10:00–11:00 and 11:00–12:00) both succeed.
@@ -66,9 +72,13 @@ This matrix tracks executable PostgreSQL integration coverage and remaining gaps
 - [ ] Expired holds do not permanently consume capacity.
 - [ ] Resource line request/approval/delivery values remain separate from actual reservation records.
 
-## Append-only history
+## Append-only and issued business history
 - [x] Runtime role lacks UPDATE/DELETE privileges on append-only history tables.
 - [x] Table triggers also reject UPDATE/DELETE when executed by the table owner.
+- [x] Booking draft revisions reject UPDATE/DELETE.
+- [ ] Invitation revisions reject UPDATE/DELETE in a dedicated regression test.
+- [x] Issued offer terms reject mutation; only one terminal offer decision transition is permitted.
+- [x] Booking-event link grant provenance is written to audit history and substantive link fields cannot be rewritten.
 
 ## Optional modules and responsibility
 - [ ] New event has no guest/invitation/RSVP/check-in/prerequisite/cockpit modules unless explicitly enabled by its event preset or configuration.
