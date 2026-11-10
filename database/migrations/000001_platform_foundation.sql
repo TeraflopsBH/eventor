@@ -58,6 +58,8 @@ CREATE TABLE eogp.service_principals (
 );
 
 
+CREATE EXTENSION IF NOT EXISTS btree_gist WITH SCHEMA eogp;
+
 CREATE FUNCTION eogp.current_organization_id()
 RETURNS uuid
 LANGUAGE sql
@@ -70,15 +72,6 @@ $function$;
 
 COMMENT ON FUNCTION eogp.current_organization_id() IS
   'Returns transaction-local tenant context. The API must set it only after authorizing the active membership; it is not a replacement for application authorization.';
-
-CREATE TABLE eogp.schema_migrations (
-    version text PRIMARY KEY,
-    filename text NOT NULL UNIQUE,
-    checksum_sha256 text NOT NULL CHECK (checksum_sha256 ~ '^[0-9a-f]{64}$'),
-    execution_ms bigint NOT NULL CHECK (execution_ms >= 0),
-    applied_at timestamptz NOT NULL DEFAULT clock_timestamp(),
-    applied_by text NOT NULL
-);
 
 CREATE TABLE eogp.audit_events (
     id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
