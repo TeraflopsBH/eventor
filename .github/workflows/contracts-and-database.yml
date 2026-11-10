@@ -130,6 +130,12 @@ jobs:
       - name: Verify PR review remediation regressions
         run: psql "$MIGRATOR_URL" -X -v ON_ERROR_STOP=1 -f tests/database/review_regressions.sql
 
+      - name: Verify delegated task projection and status command as runtime
+        run: psql "$RUNTIME_URL" -X -v ON_ERROR_STOP=1 -f tests/database/delegated_task_runtime_smoke.sql
+
+      - name: Verify delegated task audit attribution in event-owner tenant
+        run: psql "$MIGRATOR_URL" -X -v ON_ERROR_STOP=1 -f tests/database/delegated_task_audit_smoke.sql
+
       - name: Verify isolated authentication database role
         run: psql "$AUTH_URL" -X -v ON_ERROR_STOP=1 -f tests/database/auth_role_smoke.sql
 
