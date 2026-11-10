@@ -91,7 +91,11 @@ BEGIN
   IF p_change_kind IS NULL OR p_change_kind NOT IN ('cancel','postpone','reschedule')
      OR p_expected_event_revision IS NULL OR p_expected_event_revision < 1
      OR p_reason_code IS NULL OR length(btrim(p_reason_code)) < 2
-     OR length(p_reason_code) > 100 THEN
+     OR length(p_reason_code) > 100
+     OR (p_reason_internal_ciphertext IS NOT NULL AND (
+           octet_length(p_reason_internal_ciphertext) < 31
+           OR substring(p_reason_internal_ciphertext FROM 1 FOR 3) <> decode('455631','hex')
+         )) THEN
     RAISE EXCEPTION 'invalid event change request' USING ERRCODE = '22023';
   END IF;
 
