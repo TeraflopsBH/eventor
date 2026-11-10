@@ -20,6 +20,8 @@ This matrix tracks executable PostgreSQL integration coverage and remaining gaps
 
 ## Cross-organization grant and RLS lifecycle
 - [x] Grantor and grantee can see their own shared grant row; unrelated tenant cannot.
+- [x] Only an active member of the grantor organization can propose a grant.
+- [x] Proposal, first grant revision and audit event are written atomically.
 - [x] Only an active member of the grantee organization can accept a grant.
 - [x] Repeated acceptance by the same actor is idempotent and does not duplicate the audit record.
 - [x] Grantee cannot invoke the grantor-side revocation command.
