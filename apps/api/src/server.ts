@@ -1,5 +1,5 @@
 import Fastify, { type FastifyInstance, type FastifyReply, type FastifyRequest } from "fastify";
-import { createCipheriv, createHash, randomBytes } from "node:crypto";
+import { createCipheriv, createHash, createHmac, randomBytes } from "node:crypto";
 import type { Pool, PoolClient, QueryResultRow } from "pg";
 import type { paths } from "./generated/openapi.js";
 
@@ -132,8 +132,13 @@ function stableJson(value: unknown): string {
   return "{" + Object.keys(record).sort().map((key) =>
     JSON.stringify(key) + ":" + stableJson(record[key])).join(",") + "}";
 }
-function requestHash(value: unknown): string {
-  return createHash("sha256").update(stableJson(value)).digest("hex");
+function requestHash(value: unknown, key?: Buffer): string {
+  const canonical = stableJson(value);
+  // Keyed hashing avoids a dictionary attack on low-entropy private reason text
+  // stored only indirectly in the idempotency row.
+  return key && key.length === 32
+    ? createHmac("sha256", key).update(canonical).digest("hex")
+    : createHash("sha256").update(canonical).digest("hex");
 }
 function encryptPrivateText(value: string, key: Buffer | undefined): Buffer {
   if (!key || key.length !== 32) {
@@ -178,7 +183,7 @@ async function runIdempotentCommand(
   command: Command,
 ): Promise<CommandResponse> {
   const client = await dependencies.pool.connect();
-  const hash = requestHash(requestBody);
+  const hash = requestHash(requestBody, dependencies.privateFieldEncryptionKey);
   try {
     await client.query("BEGIN");
     // The tenant comes only from the trusted session principal, never request data.
