@@ -104,6 +104,25 @@ GRANT SELECT, INSERT ON
   eogp.event_notification_exclusions
 TO eventor_worker;
 
+DO $preflight$
+BEGIN
+  IF EXISTS (
+    SELECT 1
+      FROM eogp.event_notification_campaigns
+     GROUP BY organization_id, event_decision_id, purpose
+    HAVING count(*) > 1
+  ) THEN
+    RAISE EXCEPTION
+      '000031 requires review of duplicate notification campaigns for an event decision and purpose'
+      USING ERRCODE = '23505',
+            HINT = 'Resolve duplicate campaign ownership and recipient snapshots before retrying the migration.';
+  END IF;
+END;
+$preflight$;
+
+CREATE UNIQUE INDEX event_notification_campaign_decision_purpose_uq
+  ON eogp.event_notification_campaigns (organization_id, event_decision_id, purpose);
+
 CREATE FUNCTION eogp.process_event_notification_outbox(
   p_batch_size integer DEFAULT 20
 ) RETURNS jsonb
