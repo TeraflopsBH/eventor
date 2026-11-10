@@ -8,7 +8,7 @@ DECLARE
   v_count integer;
   v_private_evidence jsonb;
 BEGIN
-  SELECT count(*) INTO v_count
+  SELECT count(id) INTO v_count
     FROM eogp.event_responsibility_assignments
    WHERE id = '67000000-0000-4000-8000-000000000001';
   IF v_count <> 1 THEN
