@@ -63,12 +63,26 @@ DECLARE
   v_denied boolean := false;
   v_stale boolean := false;
 BEGIN
+  BEGIN
+    PERFORM eogp.submit_event_change_request(
+      '22222222-2222-4222-8222-222222222222',
+      '93000000-0000-4000-8000-000000000001',
+      'bbbbbbbb-2222-4222-8222-bbbbbbbbbbbb',
+      'cancel',1,'bad_ciphertext',
+      convert_to('not-encrypted','UTF8'),
+      NULL,NULL
+    );
+    RAISE EXCEPTION 'event command accepted plaintext private reason material';
+  EXCEPTION WHEN SQLSTATE '22023' THEN
+    NULL;
+  END;
+
   v_cancel_request := (eogp.submit_event_change_request(
     '22222222-2222-4222-8222-222222222222',
     '93000000-0000-4000-8000-000000000001',
     'bbbbbbbb-2222-4222-8222-bbbbbbbbbbbb',
     'cancel',1,'venue_unavailable',
-    decode('455631010203','hex'),
+    decode('455631' || repeat('00',28),'hex'),
     'The event has been cancelled.',
     NULL
   ) ->> 'changeRequestId')::uuid;
