@@ -88,7 +88,7 @@ BEGIN
     RAISE EXCEPTION 'organization context mismatch' USING ERRCODE = '42501';
   END IF;
 
-  IF p_change_kind NOT IN ('cancel','postpone','reschedule')
+  IF p_change_kind IS NULL OR p_change_kind NOT IN ('cancel','postpone','reschedule')
      OR p_expected_event_revision IS NULL OR p_expected_event_revision < 1
      OR p_reason_code IS NULL OR length(btrim(p_reason_code)) < 2
      OR length(p_reason_code) > 100 THEN
@@ -245,7 +245,7 @@ BEGIN
   IF eogp.current_organization_id() IS DISTINCT FROM p_organization_id THEN
     RAISE EXCEPTION 'organization context mismatch' USING ERRCODE = '42501';
   END IF;
-  IF p_decision NOT IN ('approved','rejected')
+  IF p_decision IS NULL OR p_decision NOT IN ('approved','rejected')
      OR p_reason IS NULL OR length(btrim(p_reason)) < 3
      OR length(p_reason) > 2000 THEN
     RAISE EXCEPTION 'invalid event change decision' USING ERRCODE = '22023';
@@ -356,7 +356,7 @@ BEGIN
          AND (array_position(p_custom_participation_ids,NULL::uuid) IS NOT NULL
               OR (cardinality(p_custom_participation_ids) > 0
                   AND cardinality(p_custom_participation_ids) <>
-                      (SELECT count(DISTINCT item_id) FROM unnest(p_custom_participation_ids) item_id)))) THEN
+                      (SELECT count(DISTINCT requested.participation_id) FROM unnest(p_custom_participation_ids) AS requested(participation_id))))) THEN
     RAISE EXCEPTION 'invalid event execution parameters' USING ERRCODE = '22023';
   END IF;
 
@@ -557,7 +557,7 @@ BEGIN
     'status',CASE v_request.change_kind
       WHEN 'cancel' THEN 'cancelled'
       WHEN 'postpone' THEN 'postponed'
-      ELSE 'scheduled'
+      WHEN 'reschedule' THEN CASE WHEN v_previous_status = 'active' THEN 'active' ELSE 'scheduled' END
     END,
     'currentRevision',p_expected_event_revision + 1,
     'notificationRequested',p_send_notifications,
