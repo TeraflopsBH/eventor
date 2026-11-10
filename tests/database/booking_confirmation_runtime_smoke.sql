@@ -8,6 +8,15 @@ SELECT schemaname, tablename, policyname, permissive, roles, cmd, qual, with_che
  WHERE schemaname = 'eogp'
    AND tablename IN ('resource_reservations','venue_space_time_blocks')
  ORDER BY tablename, policyname;
+SELECT rolname, rolsuper, rolbypassrls
+  FROM pg_roles
+ WHERE rolname IN ('eventor_owner','eventor_runtime');
+SELECT c.relname, c.relrowsecurity, c.relforcerowsecurity,
+       pg_get_userbyid(c.relowner) AS table_owner,
+       has_table_privilege(current_user, c.oid, 'SELECT') AS can_select
+  FROM pg_class AS c
+ WHERE c.oid IN ('eogp.resource_reservations'::regclass,
+                 'eogp.venue_space_time_blocks'::regclass);
 
 DO $test$
 DECLARE
