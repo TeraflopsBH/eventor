@@ -30,18 +30,9 @@ CREATE POLICY organization_self_access ON eogp.organizations
   USING (id = eogp.current_organization_id())
   WITH CHECK (id = eogp.current_organization_id());
 
-ALTER TABLE eogp.users ENABLE ROW LEVEL SECURITY;
-ALTER TABLE eogp.users FORCE ROW LEVEL SECURITY;
-CREATE POLICY user_visible_to_current_tenant ON eogp.users
-  USING (
-    EXISTS (
-      SELECT 1
-        FROM eogp.organization_memberships m
-       WHERE m.organization_id = eogp.current_organization_id()
-         AND m.user_id = users.id
-         AND m.status = 'active'
-    )
-  );
+-- Users are global authentication identities, not tenant-owned rows. The API must
+-- query them through the authentication service and scope profile projections separately.
+ALTER TABLE eogp.users DISABLE ROW LEVEL SECURITY;
 
 -- A grant is visible to both parties, but business authorization still decides who may accept/revoke it.
 DROP POLICY tenant_isolation ON eogp.collaboration_grants;
@@ -110,11 +101,13 @@ END;
 $block$;
 
 REVOKE ALL ON SCHEMA eogp FROM PUBLIC;
+REVOKE ALL ON ALL TABLES IN SCHEMA eogp FROM PUBLIC;
 GRANT USAGE ON SCHEMA eogp TO eventor_runtime, eventor_worker;
 GRANT SELECT, INSERT, UPDATE, DELETE ON ALL TABLES IN SCHEMA eogp TO eventor_runtime;
 GRANT USAGE, SELECT ON ALL SEQUENCES IN SCHEMA eogp TO eventor_runtime;
 
 GRANT SELECT ON eogp.permissions TO eventor_runtime, eventor_worker;
+REVOKE INSERT, UPDATE, DELETE ON eogp.permissions, eogp.schema_migrations FROM eventor_runtime, eventor_worker;
 GRANT SELECT, UPDATE ON eogp.outbox_events, eogp.background_jobs TO eventor_worker;
 GRANT SELECT, INSERT, UPDATE ON eogp.invitation_deliveries TO eventor_worker;
 GRANT SELECT, INSERT, UPDATE ON eogp.event_notification_recipients TO eventor_worker;
