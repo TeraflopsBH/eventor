@@ -88,6 +88,43 @@ BEGIN
 END;
 $test$;
 
+-- Individually tracked units and pooled reservations share one capacity
+-- invariant. A pool of ten cannot have ten pooled units plus a discrete unit
+-- at the same time.
+INSERT INTO eogp.resource_units
+  (id, organization_id, resource_pool_id, unit_code, status)
+VALUES
+  ('42000000-0000-4000-8000-000000000003',
+   '11111111-1111-4111-8111-111111111111',
+   '41000000-0000-4000-8000-000000000003',
+   'CI-MIXED-UNIT-01','available');
+
+SELECT eogp.reserve_pooled_resource(
+  '11111111-1111-4111-8111-111111111111',
+  '41000000-0000-4000-8000-000000000003',
+  '51000000-0000-4000-8000-000000000001',NULL,NULL,
+  '2027-01-07 10:00+00','2027-01-07 11:00+00',10,
+  '2027-01-06 15:00+00','ci-mixed-mode-pool-001'
+);
+
+DO $test$
+BEGIN
+  BEGIN
+    PERFORM eogp.reserve_resource_unit(
+      '11111111-1111-4111-8111-111111111111',
+      '42000000-0000-4000-8000-000000000003',
+      '51000000-0000-4000-8000-000000000001',
+      NULL,NULL,NULL,
+      '2027-01-07 10:00+00','2027-01-07 11:00+00',
+      '2027-01-06 15:00+00','ci-mixed-mode-unit-001'
+    );
+    RAISE EXCEPTION 'mixed pooled/discrete reservations exceeded pool capacity';
+  EXCEPTION WHEN exclusion_violation THEN
+    NULL;
+  END;
+END;
+$test$;
+
 -- Same idempotency key + same resource payload is idempotent. Changing only
 -- the booking_resource_line_id must be rejected, not treated as a replay.
 DO $test$
