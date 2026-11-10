@@ -172,6 +172,8 @@ Event creation does not occur as a side effect of booking confirmation. Disabled
 
 Grant acceptance does not grant every member broad access; the actor's membership and role in the grantee organization must also permit the operation. Snapshot routes never mutate provider master geometry.
 
+For `createVenueSnapshotShare`, `approvedLayerIds` must identify spatial layers belonging to the exact `venueSpaceRevisionId`. `approvedResourceIds` may identify resource pools or discrete units belonging to that revision's venue. The database rejects duplicate/foreign identifiers. When the organizer copies the share, each snapshot layer must refer to an approved source layer, every source object must belong to one of those approved layers, and every copied resource must be in the approved resource list. The source revision, its approved layer/object rows and approved resource rows are visible through narrowly filtered RLS only while the share and `venue.snapshot.use` grant remain active. Revocation hides provider master rows from the recipient and blocks new bindings/copies, while the organizer's already-copied event-owned snapshot remains historical data.
+
 ### 4.7 Guest registry, invitations, RSVP and attendance
 
 | Method / path | Operation ID | Security |
