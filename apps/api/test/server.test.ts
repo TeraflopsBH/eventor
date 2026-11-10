@@ -213,6 +213,24 @@ test("event reschedule without a replacement schedule is rejected before databas
   assert.equal(mock.changeCalls, 0);
 });
 
+test("postponement without a replacement schedule is rejected before database access", async (t) => {
+  const mock = makePool();
+  const app = makeApi(mock.pool);
+  t.after(async () => app.close());
+  const response = await app.inject({
+    method: "POST",
+    url: "/events/90000000-0000-4000-8000-000000000001/change-requests",
+    headers: { "idempotency-key": "event-postpone-0001" },
+    payload: {
+      changeKind: "postpone",
+      expectedEventRevision: 1,
+      reasonCode: "venue_disruption",
+    },
+  });
+  assert.equal(response.statusCode, 422);
+  assert.equal(mock.changeCalls, 0);
+});
+
 test("custom notification audience requires explicit participation IDs", async (t) => {
   const mock = makePool();
   const app = makeApi(mock.pool);
