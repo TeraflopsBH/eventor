@@ -392,7 +392,7 @@ SELECT eogp.propose_collaboration_grant(
   NULL,
   'CI venue snapshot collaboration',
   '{"venueSummary":true}'::jsonb,
-  ARRAY['venue.snapshot.share','venue.snapshot.read']::text[],
+  ARRAY['venue.snapshot.use','venue.snapshot.read']::text[],
   clock_timestamp() - interval '1 minute',
   clock_timestamp() + interval '1 day',
   '30000000-0000-0000-0000-00000000000a'
@@ -618,6 +618,54 @@ VALUES
   '10000000-0000-0000-0000-00000000000a',
   '61000000-0000-4000-8000-00000000000b',
   '30000000-0000-0000-0000-00000000000b');
+
+INSERT INTO eogp.event_sessions
+ (id, organization_id, event_id, code, title, starts_at, ends_at, status)
+VALUES
+ ('62100000-0000-4000-8000-00000000000a',
+  '10000000-0000-0000-0000-00000000000b',
+  '62000000-0000-4000-8000-00000000000a',
+  'CI-SESSION','CI Session','2031-06-01 10:00:00+00',
+  '2031-06-01 12:00:00+00','planned');
+
+INSERT INTO eogp.event_session_spaces
+ (id, organization_id, event_id, session_id, event_venue_snapshot_id,
+  allocation_mode, created_by_membership_id)
+VALUES
+ ('62200000-0000-4000-8000-00000000000a',
+  '10000000-0000-0000-0000-00000000000b',
+  '62000000-0000-4000-8000-00000000000a',
+  '62100000-0000-4000-8000-00000000000a',
+  '65000000-0000-4000-8000-00000000000a',
+  'zone','30000000-0000-0000-0000-00000000000b');
+
+INSERT INTO eogp.event_venue_snapshot_layers
+ (id, organization_id, event_id, snapshot_id, layer_code, layer_snapshot)
+VALUES
+ ('65100000-0000-4000-8000-00000000000a',
+  '10000000-0000-0000-0000-00000000000b',
+  '62000000-0000-4000-8000-00000000000a',
+  '65000000-0000-4000-8000-00000000000a',
+  'CI-LAYER','{"kind":"zones"}'::jsonb);
+
+INSERT INTO eogp.event_venue_snapshot_objects
+ (id, organization_id, snapshot_id, snapshot_layer_id, object_kind, object_snapshot)
+VALUES
+ ('65200000-0000-4000-8000-00000000000a',
+  '10000000-0000-0000-0000-00000000000b',
+  '65000000-0000-4000-8000-00000000000a',
+  '65100000-0000-4000-8000-00000000000a',
+  'zone','{"code":"CI-ZONE"}'::jsonb);
+
+INSERT INTO eogp.event_venue_snapshot_resources
+ (id, organization_id, event_id, snapshot_id, source_resource_pool_id, resource_snapshot)
+VALUES
+ ('65300000-0000-4000-8000-00000000000a',
+  '10000000-0000-0000-0000-00000000000b',
+  '62000000-0000-4000-8000-00000000000a',
+  '65000000-0000-4000-8000-00000000000a',
+  'a0000000-0000-0000-0000-00000000000a',
+  '{"kind":"pool","label":"CI Resource"}'::jsonb);
 COMMIT;
 
 -- A third tenant must not see the grant. Grantor A can revoke it; grantee B
@@ -704,6 +752,36 @@ BEGIN
       '61000000-0000-4000-8000-00000000000b',
       '30000000-0000-0000-0000-00000000000b');
     RAISE EXCEPTION 'revoked collaboration grant unexpectedly permitted a new booking link';
+  EXCEPTION WHEN SQLSTATE '42501' THEN
+    NULL;
+  END;
+
+  BEGIN
+    INSERT INTO eogp.event_session_spaces
+     (id, organization_id, event_id, session_id, event_venue_snapshot_id,
+      allocation_mode, created_by_membership_id)
+    VALUES
+     ('62200000-0000-4000-8000-00000000000b',
+      '10000000-0000-0000-0000-00000000000b',
+      '62000000-0000-4000-8000-00000000000a',
+      '62100000-0000-4000-8000-00000000000a',
+      '65000000-0000-4000-8000-00000000000a',
+      'zone','30000000-0000-0000-0000-00000000000b');
+    RAISE EXCEPTION 'revoked collaboration grant unexpectedly permitted a new session-space binding';
+  EXCEPTION WHEN SQLSTATE '42501' THEN
+    NULL;
+  END;
+
+  BEGIN
+    INSERT INTO eogp.event_venue_snapshot_layers
+     (id, organization_id, event_id, snapshot_id, layer_code, layer_snapshot)
+    VALUES
+     ('65100000-0000-4000-8000-00000000000b',
+      '10000000-0000-0000-0000-00000000000b',
+      '62000000-0000-4000-8000-00000000000a',
+      '65000000-0000-4000-8000-00000000000a',
+      'LATE-LAYER','{"kind":"late"}'::jsonb);
+    RAISE EXCEPTION 'revoked collaboration grant unexpectedly permitted a new snapshot layer';
   EXCEPTION WHEN SQLSTATE '42501' THEN
     NULL;
   END;
