@@ -4,17 +4,17 @@ import { PostgresStaffSessionAuth } from "./session-auth.js";
 
 function required(name: string): string {
   const value = process.env[name]?.trim();
-  if (!value) throw new Error(\`Missing required environment variable: \${name}\`);
+  if (!value) throw new Error(`Missing required environment variable: ${name}`);
   return value;
 }
 
 function requiredKey(name: string): Buffer {
   const encoded = required(name);
   if (!/^(?:[A-Za-z0-9+/]{4})*(?:[A-Za-z0-9+/]{2}==|[A-Za-z0-9+/]{3}=)?$/.test(encoded)) {
-    throw new Error(\`\${name} must be base64-encoded.\`);
+    throw new Error(`${name} must be base64-encoded.`);
   }
   const key = Buffer.from(encoded, "base64");
-  if (key.length !== 32) throw new Error(\`\${name} must decode to exactly 32 bytes.\`);
+  if (key.length !== 32) throw new Error(`${name} must decode to exactly 32 bytes.`);
   return key;
 }
 
@@ -23,7 +23,7 @@ function positiveInteger(name: string, fallback: number, max: number): number {
   if (!raw) return fallback;
   const value = Number(raw);
   if (!Number.isInteger(value) || value < 1 || value > max) {
-    throw new Error(\`\${name} must be an integer between 1 and \${max}.\`);
+    throw new Error(`${name} must be an integer between 1 and ${max}.`);
   }
   return value;
 }
