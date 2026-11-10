@@ -14,9 +14,10 @@ CREATE TABLE eogp.external_action_capabilities (
     use_count integer NOT NULL DEFAULT 0 CHECK (use_count >= 0),
     created_by_membership_id uuid,
     UNIQUE (organization_id, id),
+    UNIQUE (organization_id, booking_id, id),
     FOREIGN KEY (organization_id, booking_id) REFERENCES eogp.booking_records(organization_id, id),
     FOREIGN KEY (organization_id, offer_revision_id) REFERENCES eogp.booking_offer_revisions(organization_id, id),
-    FOREIGN KEY (organization_id, booking_contact_id) REFERENCES eogp.booking_party_contacts(organization_id, id),
+    FOREIGN KEY (organization_id, booking_id, booking_contact_id) REFERENCES eogp.booking_party_contacts(organization_id, booking_id, id),
     FOREIGN KEY (organization_id, created_by_membership_id)
       REFERENCES eogp.organization_memberships(organization_id, id),
     CHECK (expires_at > issued_at),
@@ -55,12 +56,12 @@ CREATE TABLE eogp.booking_cancellation_requests (
     resolved_at timestamptz,
     UNIQUE (organization_id, id),
     FOREIGN KEY (organization_id, booking_id) REFERENCES eogp.booking_records(organization_id, id),
-    FOREIGN KEY (organization_id, requester_contact_id)
+    FOREIGN KEY (organization_id, booking_id, requester_contact_id)
       REFERENCES eogp.booking_party_contacts(organization_id, id),
     FOREIGN KEY (organization_id, requester_membership_id)
       REFERENCES eogp.organization_memberships(organization_id, id),
-    FOREIGN KEY (organization_id, external_capability_id)
-      REFERENCES eogp.external_action_capabilities(organization_id, id),
+    FOREIGN KEY (organization_id, booking_id, external_capability_id)
+      REFERENCES eogp.external_action_capabilities(organization_id, booking_id, id),
     CHECK (
       (requester_kind = 'external_contact'
        AND requester_contact_id IS NOT NULL
