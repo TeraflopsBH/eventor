@@ -4050,8 +4050,8 @@ components:
         venueSpaceRevisionId: { type: string, format: uuid }
         collaborationGrantId: { type: string, format: uuid }
         sourceContentSha256: { type: string, pattern: '^[0-9a-f]{64}$' }
-        approvedLayerIds: { type: array, items: { type: string, format: uuid } }
-        approvedResourceIds: { type: array, items: { type: string, format: uuid } }
+        approvedLayerIds: { type: array, uniqueItems: true, description: "Spatial layer IDs belonging to the exact published venue-space revision. Only these layers and their source objects may be copied.", items: { type: string, format: uuid } }
+        approvedResourceIds: { type: array, uniqueItems: true, description: "Resource-pool or discrete-unit IDs belonging to the venue containing the selected source revision.", items: { type: string, format: uuid } }
         expiresAt: { type: string, format: date-time }
     EventVenueSnapshotCreateRequest:
       type: object
