@@ -90,6 +90,8 @@ CREATE TABLE eogp.event_allocation_locks (
     UNIQUE (organization_id, id),
     FOREIGN KEY (organization_id, event_id, session_id)
       REFERENCES eogp.event_sessions(organization_id, event_id, id),
+    FOREIGN KEY (organization_id, event_id, session_id)
+      REFERENCES eogp.event_sessions(organization_id, event_id, id),
     FOREIGN KEY (organization_id, event_id, participation_id)
       REFERENCES eogp.event_participations(organization_id, event_id, id),
     FOREIGN KEY (organization_id, locked_by_membership_id)
