@@ -1,0 +1,316 @@
+-- Enforce collaboration scope at the point where a grant is used.
+-- A valid grant for one booking/space must not authorize another aggregate.
+
+ALTER TABLE eogp.booking_event_links
+  ADD COLUMN created_by_membership_id uuid NOT NULL,
+  ADD CONSTRAINT booking_event_links_creator_membership_fk
+    FOREIGN KEY (organization_id, created_by_membership_id)
+    REFERENCES eogp.organization_memberships(organization_id, id);
+
+ALTER TABLE eogp.event_venue_snapshots
+  ADD COLUMN created_by_membership_id uuid NOT NULL,
+  ADD CONSTRAINT event_venue_snapshots_creator_membership_fk
+    FOREIGN KEY (organization_id, created_by_membership_id)
+    REFERENCES eogp.organization_memberships(organization_id, id);
+
+-- The organizer may read the explicitly approved share record. The provider
+-- remains its sole writer and the sole owner of source venue geometry.
+DROP POLICY tenant_isolation ON eogp.venue_snapshot_shares;
+CREATE POLICY venue_snapshot_share_parties ON eogp.venue_snapshot_shares
+  USING (
+    organization_id = eogp.current_organization_id()
+    OR event_owner_organization_id = eogp.current_organization_id()
+  )
+  WITH CHECK (organization_id = eogp.current_organization_id());
+
+CREATE FUNCTION eogp.enforce_booking_event_link_grant()
+RETURNS trigger
+LANGUAGE plpgsql
+SECURITY DEFINER
+SET search_path = pg_catalog, eogp
+AS $function$
+DECLARE
+  v_organization_id uuid := eogp.current_organization_id();
+  v_member_status text;
+  v_grant_status text;
+  v_scope_kind text;
+  v_scope_booking_id uuid;
+  v_valid_from timestamptz;
+  v_valid_until timestamptz;
+  v_allowed_actions text[];
+BEGIN
+  IF v_organization_id IS NULL OR NEW.organization_id <> v_organization_id THEN
+    RAISE EXCEPTION 'event-owner tenant context is required for a booking-event link'
+      USING ERRCODE = '42501';
+  END IF;
+
+  IF TG_OP = 'INSERT' AND NEW.status <> 'active' THEN
+    RAISE EXCEPTION 'new booking-event links must start active'
+      USING ERRCODE = '23514';
+  END IF;
+
+  IF NEW.status <> 'active' THEN
+    RETURN NEW;
+  END IF;
+
+  SELECT status INTO v_member_status
+    FROM eogp.organization_memberships
+   WHERE organization_id = v_organization_id
+     AND id = NEW.created_by_membership_id
+   FOR SHARE;
+  IF NOT FOUND OR v_member_status <> 'active' THEN
+    RAISE EXCEPTION 'active event-owner membership is required to create a booking-event link'
+      USING ERRCODE = '42501';
+  END IF;
+
+  IF NEW.organization_id = NEW.booking_owner_organization_id THEN
+    IF NEW.collaboration_grant_id IS NOT NULL
+       OR NEW.grant_owner_organization_id IS NOT NULL THEN
+      RAISE EXCEPTION 'same-tenant booking-event links must not carry a collaboration grant'
+        USING ERRCODE = '23514';
+    END IF;
+    RETURN NEW;
+  END IF;
+
+  SELECT status, scope_kind, scope_booking_id, valid_from, valid_until, allowed_actions
+    INTO v_grant_status, v_scope_kind, v_scope_booking_id,
+         v_valid_from, v_valid_until, v_allowed_actions
+    FROM eogp.collaboration_grants
+   WHERE organization_id = NEW.booking_owner_organization_id
+     AND grantee_organization_id = NEW.organization_id
+     AND id = NEW.collaboration_grant_id
+   FOR UPDATE;
+
+  IF NOT FOUND
+     OR v_grant_status <> 'active'
+     OR v_valid_from > clock_timestamp()
+     OR (v_valid_until IS NOT NULL AND v_valid_until <= clock_timestamp())
+     OR v_scope_kind <> 'booking'
+     OR v_scope_booking_id IS DISTINCT FROM NEW.booking_id
+     OR NOT (v_allowed_actions @> ARRAY['booking.event.link']::text[]) THEN
+    RAISE EXCEPTION 'an active booking-scoped booking.event.link grant is required'
+      USING ERRCODE = '42501';
+  END IF;
+
+  RETURN NEW;
+END;
+$function$;
+
+CREATE TRIGGER booking_event_links_grant_guard
+  BEFORE INSERT OR UPDATE ON eogp.booking_event_links
+  FOR EACH ROW EXECUTE FUNCTION eogp.enforce_booking_event_link_grant();
+
+CREATE FUNCTION eogp.enforce_venue_snapshot_share_grant()
+RETURNS trigger
+LANGUAGE plpgsql
+SECURITY DEFINER
+SET search_path = pg_catalog, eogp
+AS $function$
+DECLARE
+  v_member_status text;
+  v_grant_status text;
+  v_scope_kind text;
+  v_scope_venue_id uuid;
+  v_scope_space_id uuid;
+  v_valid_from timestamptz;
+  v_valid_until timestamptz;
+  v_allowed_actions text[];
+  v_revision_space_id uuid;
+  v_revision_hash text;
+  v_revision_published_at timestamptz;
+  v_venue_id uuid;
+BEGIN
+  IF TG_OP = 'UPDATE' THEN
+    IF OLD.status <> 'active'
+       OR NEW.status NOT IN ('revoked','expired')
+       OR (to_jsonb(NEW) - 'status') IS DISTINCT FROM (to_jsonb(OLD) - 'status') THEN
+      RAISE EXCEPTION 'venue snapshot shares are immutable except for one-way revocation/expiry'
+        USING ERRCODE = '55000';
+    END IF;
+    RETURN NEW;
+  END IF;
+
+  IF NEW.status <> 'active'
+     OR jsonb_typeof(NEW.approved_layers) <> 'array'
+     OR jsonb_typeof(NEW.approved_resources) <> 'array' THEN
+    RAISE EXCEPTION 'new venue snapshot shares must be active with array projections'
+      USING ERRCODE = '22023';
+  END IF;
+
+  SELECT status, scope_kind, scope_venue_id, scope_space_id,
+         valid_from, valid_until, allowed_actions
+    INTO v_grant_status, v_scope_kind, v_scope_venue_id, v_scope_space_id,
+         v_valid_from, v_valid_until, v_allowed_actions
+    FROM eogp.collaboration_grants
+   WHERE organization_id = NEW.organization_id
+     AND grantee_organization_id = NEW.event_owner_organization_id
+     AND id = NEW.collaboration_grant_id
+   FOR UPDATE;
+
+  IF NOT FOUND
+     OR v_grant_status <> 'active'
+     OR NEW.approved_at < v_valid_from
+     OR (v_valid_until IS NOT NULL AND NEW.approved_at >= v_valid_until)
+     OR NOT (v_allowed_actions @> ARRAY['venue.snapshot.share']::text[]) THEN
+    RAISE EXCEPTION 'an active grant with venue.snapshot.share is required'
+      USING ERRCODE = '42501';
+  END IF;
+
+  SELECT status INTO v_member_status
+    FROM eogp.organization_memberships
+   WHERE organization_id = NEW.organization_id
+     AND id = NEW.approved_by_membership_id
+   FOR SHARE;
+  IF NOT FOUND OR v_member_status <> 'active' THEN
+    RAISE EXCEPTION 'active venue-provider membership is required to approve a snapshot share'
+      USING ERRCODE = '42501';
+  END IF;
+
+  SELECT revision.venue_space_id, revision.content_sha256,
+         revision.published_at, space.venue_id
+    INTO v_revision_space_id, v_revision_hash,
+         v_revision_published_at, v_venue_id
+    FROM eogp.venue_space_revisions AS revision
+    JOIN eogp.venue_spaces AS space
+      ON space.organization_id = revision.organization_id
+     AND space.id = revision.venue_space_id
+   WHERE revision.organization_id = NEW.organization_id
+     AND revision.id = NEW.venue_space_revision_id
+   FOR SHARE OF revision, space;
+
+  IF NOT FOUND
+     OR v_revision_published_at IS NULL
+     OR v_revision_hash <> NEW.source_content_sha256 THEN
+    RAISE EXCEPTION 'snapshot share must reference the exact published source revision and hash'
+      USING ERRCODE = '23514';
+  END IF;
+
+  IF NOT (
+    (v_scope_kind = 'venue' AND v_scope_venue_id = v_venue_id)
+    OR
+    (v_scope_kind = 'space' AND v_scope_space_id = v_revision_space_id)
+  ) THEN
+    RAISE EXCEPTION 'collaboration grant scope does not cover the requested venue-space revision'
+      USING ERRCODE = '42501';
+  END IF;
+
+  IF v_valid_until IS NOT NULL
+     AND (NEW.expires_at IS NULL OR NEW.expires_at > v_valid_until) THEN
+    RAISE EXCEPTION 'snapshot share cannot outlive its collaboration grant'
+      USING ERRCODE = '22023';
+  END IF;
+
+  IF NEW.expires_at IS NOT NULL AND NEW.expires_at <= NEW.approved_at THEN
+    RAISE EXCEPTION 'snapshot share expiry must follow approval'
+      USING ERRCODE = '22023';
+  END IF;
+
+  INSERT INTO eogp.audit_events (
+    organization_id, actor_organization_id, actor_membership_id, actor_kind,
+    authorization_grant_owner_organization_id, authorization_grant_id,
+    action, aggregate_type, aggregate_id, safe_metadata
+  ) VALUES (
+    NEW.organization_id, NEW.organization_id, NEW.approved_by_membership_id, 'membership',
+    NEW.organization_id, NEW.collaboration_grant_id,
+    'venue.snapshot.shared', 'venue_snapshot_share', NEW.id,
+    jsonb_build_object(
+      'eventOwnerOrganizationId', NEW.event_owner_organization_id,
+      'eventId', NEW.event_id,
+      'venueSpaceRevisionId', NEW.venue_space_revision_id,
+      'sourceContentSha256', NEW.source_content_sha256
+    )
+  );
+
+  RETURN NEW;
+END;
+$function$;
+
+CREATE TRIGGER venue_snapshot_shares_grant_guard
+  BEFORE INSERT OR UPDATE ON eogp.venue_snapshot_shares
+  FOR EACH ROW EXECUTE FUNCTION eogp.enforce_venue_snapshot_share_grant();
+
+CREATE FUNCTION eogp.enforce_event_venue_snapshot_grant()
+RETURNS trigger
+LANGUAGE plpgsql
+SECURITY DEFINER
+SET search_path = pg_catalog, eogp
+AS $function$
+DECLARE
+  v_share_status text;
+  v_share_expires_at timestamptz;
+  v_grant_status text;
+  v_grant_valid_from timestamptz;
+  v_grant_valid_until timestamptz;
+  v_grant_actions text[];
+  v_actor_status text;
+  v_grant_owner_organization_id uuid;
+  v_grant_id uuid;
+BEGIN
+  SELECT share.status, share.expires_at,
+         grant.status, grant.valid_from, grant.valid_until, grant.allowed_actions,
+         share.organization_id, share.collaboration_grant_id
+    INTO v_share_status, v_share_expires_at,
+         v_grant_status, v_grant_valid_from, v_grant_valid_until, v_grant_actions,
+         v_grant_owner_organization_id, v_grant_id
+    FROM eogp.venue_snapshot_shares AS share
+    JOIN eogp.collaboration_grants AS grant
+      ON grant.organization_id = share.organization_id
+     AND grant.grantee_organization_id = share.event_owner_organization_id
+     AND grant.id = share.collaboration_grant_id
+   WHERE share.organization_id = NEW.share_owner_organization_id
+     AND share.event_owner_organization_id = NEW.organization_id
+     AND share.event_id = NEW.event_id
+     AND share.id = NEW.snapshot_share_id
+   FOR UPDATE OF share, grant;
+
+  IF NOT FOUND
+     OR v_share_status <> 'active'
+     OR (v_share_expires_at IS NOT NULL AND v_share_expires_at <= clock_timestamp())
+     OR v_grant_status <> 'active'
+     OR v_grant_valid_from > clock_timestamp()
+     OR (v_grant_valid_until IS NOT NULL AND v_grant_valid_until <= clock_timestamp())
+     OR NOT (v_grant_actions @> ARRAY['venue.snapshot.share']::text[]) THEN
+    RAISE EXCEPTION 'new event venue snapshots require an active, unexpired approved share and grant'
+      USING ERRCODE = '42501';
+  END IF;
+
+  SELECT status INTO v_actor_status
+    FROM eogp.organization_memberships
+   WHERE organization_id = NEW.organization_id
+     AND id = NEW.created_by_membership_id
+   FOR SHARE;
+  IF NOT FOUND OR v_actor_status <> 'active' THEN
+    RAISE EXCEPTION 'active event-owner membership is required to copy a venue snapshot'
+      USING ERRCODE = '42501';
+  END IF;
+
+  INSERT INTO eogp.audit_events (
+    organization_id, actor_organization_id, actor_membership_id, actor_kind,
+    authorization_grant_owner_organization_id, authorization_grant_id,
+    action, aggregate_type, aggregate_id, safe_metadata
+  ) VALUES (
+    NEW.organization_id, NEW.organization_id, NEW.created_by_membership_id, 'membership',
+    v_grant_owner_organization_id, v_grant_id,
+    'venue.snapshot.copied', 'event_venue_snapshot', NEW.id,
+    jsonb_build_object(
+      'shareId', NEW.snapshot_share_id,
+      'sourceSpaceRevisionId', NEW.source_space_revision_id,
+      'sourceContentSha256', NEW.source_content_sha256
+    )
+  );
+
+  RETURN NEW;
+END;
+$function$;
+
+CREATE TRIGGER event_venue_snapshots_grant_guard
+  BEFORE INSERT ON eogp.event_venue_snapshots
+  FOR EACH ROW EXECUTE FUNCTION eogp.enforce_event_venue_snapshot_grant();
+
+REVOKE ALL ON FUNCTION eogp.enforce_booking_event_link_grant() FROM PUBLIC;
+REVOKE ALL ON FUNCTION eogp.enforce_venue_snapshot_share_grant() FROM PUBLIC;
+REVOKE ALL ON FUNCTION eogp.enforce_event_venue_snapshot_grant() FROM PUBLIC;
+GRANT EXECUTE ON FUNCTION eogp.enforce_booking_event_link_grant(),
+  eogp.enforce_venue_snapshot_share_grant(),
+  eogp.enforce_event_venue_snapshot_grant()
+  TO eventor_runtime, eventor_worker;
