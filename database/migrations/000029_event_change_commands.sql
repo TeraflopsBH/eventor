@@ -134,12 +134,12 @@ BEGIN
       USING ERRCODE = '55000';
   END IF;
 
-  IF p_change_kind = 'reschedule' THEN
+  IF p_change_kind IN ('postpone','reschedule') THEN
     IF jsonb_typeof(p_replacement_schedule) IS DISTINCT FROM 'object'
        OR nullif(p_replacement_schedule ->> 'startsAt','') IS NULL
        OR nullif(p_replacement_schedule ->> 'endsAt','') IS NULL
        OR nullif(btrim(p_replacement_schedule ->> 'timezone'),'') IS NULL THEN
-      RAISE EXCEPTION 'reschedule requires startsAt, endsAt and timezone'
+      RAISE EXCEPTION 'postpone/reschedule requires startsAt, endsAt and timezone'
         USING ERRCODE = '22023';
     END IF;
 
@@ -188,7 +188,7 @@ BEGIN
     )
     RETURNING id INTO v_replacement_schedule_id;
   ELSIF p_replacement_schedule IS NOT NULL THEN
-    RAISE EXCEPTION 'replacementSchedule is allowed only for a reschedule request'
+    RAISE EXCEPTION 'replacementSchedule is allowed only for postpone or reschedule requests'
       USING ERRCODE = '22023';
   END IF;
 
