@@ -1,6 +1,6 @@
 # Project state
 
-**Status:** accepted product/domain design baseline; 21-migration PostgreSQL 18 implementation draft and OpenAPI v0.3 contract in draft PR #26; current PostgreSQL 18.6 and OpenAPI CI passing; deeper security, upgrade/recovery and production-readiness reviews remain open  
+**Status:** accepted product/domain design baseline; 29-migration PostgreSQL 18 implementation across draft PRs #26/#27; canonical OpenAPI v0.3 contract and first Fastify command module implemented on PR #27; PostgreSQL 18.6, OpenAPI and API-route CI validation in progress; authentication/session integration, notification workers and production-readiness reviews remain open  
 **Last updated:** 2026-11-10  
 **Implementation status:** database migrations and API contract exist in draft PR #26; no application route code or production database deployment has been established.
 
@@ -117,15 +117,15 @@ The accepted v0.3 design covers customer/organizer-initiated booking cancellatio
 
 ## Successor database and API baseline
 
-The accepted successor logical model and API design derive from ADRs 0004–0006, the RSVP/invitation and cancellation designs, and the venue-first MVP/role model. The database integrity baseline was merged in PR #24 and the aligned logical schema/API design in PR #25. The executable migration and OpenAPI implementation draft is PR #26; it remains unmerged and requires review.
+The accepted successor logical model and API design derive from ADRs 0004–0006, the RSVP/invitation and cancellation designs, and the venue-first MVP/role model. The database integrity baseline was merged in PR #24 and the aligned logical schema/API design in PR #25. The executable migration and OpenAPI baseline is PR #26; the separate remediation branch in PR #27 adds migrations 000022–000029 for reviewed integrity findings and the first API command implementation. Both remain draft/unmerged and require review.
 
 ## Executable schema and API contract draft
 
-The branch [feat/postgresql18-migrations-openapi-v0.3](https://github.com/TeraflopsBH/eventor/tree/feat/postgresql18-migrations-openapi-v0.3), in [draft PR #26](https://github.com/TeraflopsBH/eventor/pull/26), contains 21 ordered PostgreSQL 18 migrations, least-privilege role bootstrap, a checksum-verified migration runner, database integrity/RLS tests, pooled-capacity concurrency tests and the canonical OpenAPI 3.1.1 contract at `docs/api/openapi.v0.3.yaml` (106 paths / 123 operations).
+The base branch [feat/postgresql18-migrations-openapi-v0.3](https://github.com/TeraflopsBH/eventor/tree/feat/postgresql18-migrations-openapi-v0.3), in [draft PR #26](https://github.com/TeraflopsBH/eventor/pull/26), contains the initial 21 ordered PostgreSQL 18 migrations, least-privilege role bootstrap, checksum-verified migration runner, database integrity/RLS tests, pooled-capacity concurrency tests and canonical OpenAPI 3.1.1 contract at `docs/api/openapi.v0.3.yaml` (106 paths / 123 operations). The separate [draft remediation PR #27](https://github.com/TeraflopsBH/eventor/pull/27) adds migrations 000022–000029 and a first Fastify API module.
 
 The latest complete CI run on PR head `a86c2922817fbd1c3abe2b2e0af5cee4b8cef865` is [run #42850865186](https://github.com/TeraflopsBH/eventor/actions/runs/42850865186); PostgreSQL 18.6 and OpenAPI jobs both succeeded. The PostgreSQL 18.6 job applied all 21 migrations to a fresh CI database and passed integrity/RLS/concurrency tests, split-authentication-role privileges, collaboration grant proposal/acceptance/revocation, grant-scoped booking links, approved layer/object/resource projections, narrowly filtered source-data RLS, post-revocation source hiding with retained event-owned snapshots, session/snapshot-content use checks, published-revision immutability, append-only protections and migration-ledger reporting.
 
-A static candidate-key/FK-target audit covered 120 declared tables without unresolved targets; this is a structural scan, not a substitute for database/runtime validation. No production database has been migrated, and no application API routes have been implemented. The 21-migration draft separates global identity access into `eventor_auth`, removes global password-hash access from `eventor_runtime`, adds audited collaboration grant proposal/acceptance/revocation commands, enforces active grant scope at booking-link/snapshot/session-use points, restricts source-data RLS to the provider-approved layer/resource projection, and freezes published revisions and revision children. These are CI-validated against a fresh PostgreSQL 18.6 database, not yet approved for production. PR #26 remains a draft pending review.
+A static candidate-key/FK-target audit covered 120 declared tables without unresolved targets; this is a structural scan, not a substitute for database/runtime validation. No production database has been migrated. PR #27 now contains the first tested Fastify command-route module for selected reservation release and organizer event-change lifecycle; it remains an integration module requiring the host's verified session/CSRF adapters rather than a complete deployable application. The 21-migration draft separates global identity access into `eventor_auth`, removes global password-hash access from `eventor_runtime`, adds audited collaboration grant proposal/acceptance/revocation commands, enforces active grant scope at booking-link/snapshot/session-use points, restricts source-data RLS to the provider-approved layer/resource projection, and freezes published revisions and revision children. These are CI-validated against a fresh PostgreSQL 18.6 database, not yet approved for production. PR #26 remains a draft pending review.
 
 ## Database schema review and remaining validation
 
@@ -139,7 +139,7 @@ The accepted initial scope and acceptance scenarios are in [MVP Scope v0.1](prod
 
 ## API contract review
 
-The imported OpenAPI v0.2 contract passed YAML parsing and local structural checks (36 paths, 46 operations, unique operation IDs, 172 resolved local references); that historical check was not a full OpenAPI semantic validation. The canonical v0.3 contract is [`docs/api/openapi.v0.3.yaml`](api/openapi.v0.3.yaml) and is validated in CI by the strict Eventor structural/security validator, the pinned OpenAPI 3.1.1 validator and Redocly lint. It currently contains 106 paths and 123 operations. API route implementation, generated TypeScript client verification and route-level request/response contract tests remain open under Issues #3 and #17.
+The imported OpenAPI v0.2 contract passed YAML parsing and local structural checks (36 paths, 46 operations, unique operation IDs, 172 resolved local references); that historical check was not a full OpenAPI semantic validation. The canonical v0.3 contract is [`docs/api/openapi.v0.3.yaml`](api/openapi.v0.3.yaml) and is validated in CI by the strict Eventor structural/security validator, the pinned OpenAPI 3.1.1 validator and Redocly lint. It currently contains 106 paths and 123 operations. The first API command routes, OpenAPI TypeScript declaration generation and route tests are implemented on PR #27. The host application's staff authentication/session store, remaining OpenAPI operations, broader route-level authorization tests and UI consumption of generated types remain open under Issues #3 and #17.
 
 ## Imported design artifacts and reconciliation
 
@@ -157,9 +157,9 @@ The separate v0.2 booking SQL addendum duplicates all 22 booking/configuration t
 
 1. Complete a deeper review of the v0.3 DDL, RLS policies, actor attribution, cross-organization access boundaries and full constraint-test matrix.
 2. Add migration-upgrade and backup/restore validation; current CI proves fresh-database installation, not recovery readiness.
-3. Add API route implementations, generated TypeScript client verification and route-level request/response contract tests.
-4. Begin the application foundation and first venue-booking vertical slice only after the database/API contract review is accepted: staff authentication and organization context, public booking inquiry, staff draft, offer/approval and explicit reservation confirmation.
-5. Confirm GHB-specific venue inventory, capacities, pricing, cancellation terms, approval thresholds and operating policies before seeding production configuration.
+3. Integrate the API module with the actual staff session store and CSRF/origin middleware; expand route-level coverage across remaining OpenAPI operations and consume generated types from the staff client.
+4. Implement the outbox consumer, notification audience resolution/campaign preparation and delivery provider; the current event execution command queues a dispatch request but does not send guest messages.
+5. Begin the remaining application foundation and venue-booking vertical slice only after database/API review; confirm GHB-specific inventory, capacities, pricing, cancellation terms, approval thresholds and operating policies before production seeding.
 
 ## Open questions / validation gates
 
