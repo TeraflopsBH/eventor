@@ -308,9 +308,12 @@ BEGIN
   END IF;
 
   IF v_event_status = 'cancelled' THEN
-    IF TG_TABLE_NAME = 'invitation_deliveries'
-       AND NEW.status NOT IN ('queued','sending') THEN
-      RETURN NEW;
+    IF TG_TABLE_NAME = 'invitation_deliveries' THEN
+      -- Cancellation may update existing delivery history to suppressed; it
+      -- must not create or retry queued/sending deliveries.
+      IF NEW.status NOT IN ('queued','sending') THEN
+        RETURN NEW;
+      END IF;
     END IF;
     RAISE EXCEPTION 'guest invitation and RSVP activity is disabled for a cancelled event'
       USING ERRCODE = '55000';
@@ -339,14 +342,16 @@ BEGIN
   END IF;
 
   IF v_required_schedule_id IS NOT NULL
-     AND v_invitation_schedule_id IS DISTINCT FROM v_required_schedule_id
-     AND (
-       TG_TABLE_NAME IN ('invitation_revisions','invitation_links')
-       OR (TG_TABLE_NAME = 'invitation_deliveries' AND NEW.status IN ('queued','sending'))
-       OR TG_TABLE_NAME = 'rsvp_responses'
-     ) THEN
-    RAISE EXCEPTION 'guest activity must use the current replacement schedule revision'
-      USING ERRCODE = '55000';
+     AND v_invitation_schedule_id IS DISTINCT FROM v_required_schedule_id THEN
+    IF TG_TABLE_NAME IN ('invitation_revisions','invitation_links','rsvp_responses') THEN
+      RAISE EXCEPTION 'guest activity must use the current replacement schedule revision'
+        USING ERRCODE = '55000';
+    ELSIF TG_TABLE_NAME = 'invitation_deliveries' THEN
+      IF NEW.status IN ('queued','sending') THEN
+        RAISE EXCEPTION 'guest activity must use the current replacement schedule revision'
+          USING ERRCODE = '55000';
+      END IF;
+    END IF;
   END IF;
 
   IF TG_TABLE_NAME = 'rsvp_responses'
