@@ -46,6 +46,13 @@ BEGIN
      OR NOT has_function_privilege('eventor_worker','eogp.expire_resource_holds(uuid)','EXECUTE') THEN
     RAISE EXCEPTION 'resource-hold expiry function privilege boundary is incorrect';
   END IF;
+
+  IF has_table_privilege('eventor_runtime','eogp.venue_space_time_blocks','UPDATE')
+     OR has_table_privilege('eventor_runtime','eogp.venue_space_time_blocks','DELETE')
+     OR has_table_privilege('eventor_worker','eogp.venue_space_time_blocks','UPDATE')
+     OR has_table_privilege('eventor_worker','eogp.venue_space_time_blocks','DELETE') THEN
+    RAISE EXCEPTION 'runtime/worker may still mutate or delete space reservation rows directly';
+  END IF;
 END;
 $test$;
 
