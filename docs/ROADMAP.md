@@ -17,7 +17,8 @@ This roadmap is provisional. Scope and acceptance criteria must be finalized aft
 - [ ] Accept database integrity and resource reservation constraints (Issue #13 / PR #24).
 - [x] Produce an initial ordered PostgreSQL 18 migration draft and checksum runner (implementation PR pending CI).
 - [x] Produce OpenAPI 3.1.1 v0.3 YAML from the route/security design (implementation PR pending validator).
-- [x] Add initial PostgreSQL integration/concurrency/RLS tests and pinned OpenAPI validation workflow (not yet executed successfully in CI).
+- [x] Add PostgreSQL integration/concurrency/RLS tests and pinned OpenAPI validation to the unified CI workflow.
+- [ ] Fix and pass the unified CI workflow end-to-end on PostgreSQL 18.6 and the canonical OpenAPI contract.
 - [ ] Review/fix CI failures and complete runtime migration/security/contract validation before accepting the DDL.
 - [ ] Close Issues #2, #3, #13 and #17 only after their runtime/CI acceptance criteria pass.
 
