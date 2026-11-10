@@ -29,7 +29,10 @@ This matrix tracks executable PostgreSQL integration coverage and remaining gaps
 - [x] Grantor can revoke; grantee retains historical visibility while the grant is marked revoked.
 - [x] Revoked grant blocks new venue snapshot copies, booking-event links, session bindings and new snapshot child rows.
 - [x] Venue snapshot share is constrained to grant scope, validity window and exact published source revision/content hash.
-- [ ] Exact layer/resource projection subset is independently enforced against the provider-approved projection (the application must not add unapproved source objects).
+- [x] Provider-approved layer/resource IDs must belong to the exact source revision/venue; duplicates and foreign IDs are rejected.
+- [x] Copied snapshot layers must match approved source layers; copied objects must belong to an approved layer; copied resources must match approved pool/unit IDs.
+- [x] Recipient RLS exposes only approved source rows while the share and grant are active.
+- [x] Revocation hides provider-owned source rows from the recipient but retains its already-copied event-owned snapshot.
 
 ## Venue hierarchy
 - [x] Valid organization → venue → building → level → space accepted.
