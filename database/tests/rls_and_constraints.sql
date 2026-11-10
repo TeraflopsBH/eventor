@@ -930,7 +930,7 @@ BEGIN
     FROM eogp.resource_pools
    WHERE organization_id = '10000000-0000-0000-0000-00000000000a';
 
-  IF source_revisions <> 1 OR source_spaces <> 1
+  IF source_revisions <> 2 OR source_spaces <> 1
      OR source_layers <> 2 OR source_objects <> 2 OR source_pools <> 1 THEN
     RAISE EXCEPTION
       'recipient source projection is too broad or incomplete: revisions %, spaces %, layers %, objects %, pools %',
