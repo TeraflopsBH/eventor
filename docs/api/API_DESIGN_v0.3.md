@@ -117,8 +117,12 @@ Availability is advisory until a hold/confirmation transaction commits. The data
 
 | Method / path | Operation ID | Security |
 |---|---|---|
-| POST `/external/booking-actions/cancellation-requests` | `submitExternalBookingCancellationRequest` | External booking action capability |
-| GET `/external/booking-actions/cancellation-requests/{requestId}` | `getExternalBookingCancellationRequest` | Same capability bound to booking |
+| POST `/bookings/{bookingId}/external-action-capabilities` | `issueExternalBookingActionCapability` | Staff session; issues a purpose-bound capability to an explicitly authorised booking contact |
+| POST `/external/booking-actions/resolve` | `resolveExternalBookingAction` | Public capability exchange; token supplied in request body/header, never query string |
+| GET `/external/booking-actions/me` | `getExternalBookingActionContext` | External booking capability; minimal booking/contact/action projection |
+| POST `/external/booking-actions/cancellation-requests` | `submitExternalBookingCancellationRequest` | External booking capability |
+| GET `/external/booking-actions/cancellation-requests/{requestId}` | `getExternalBookingCancellationRequest` | Same capability, bound to the same booking |
+| POST `/bookings/{bookingId}/external-action-capabilities/{capabilityId}/revoke` | `revokeExternalBookingActionCapability` | Staff session |
 | POST `/bookings/{bookingId}/cancellation-requests` | `submitBookingCancellationRequest` | Staff session |
 | GET `/bookings/{bookingId}/cancellation-requests` | `listBookingCancellationRequests` | Staff session |
 | POST `/booking-cancellation-requests/{requestId}/approve` | `approveBookingCancellationRequest` | Staff session + approval permission |
@@ -129,8 +133,12 @@ Availability is advisory until a hold/confirmation transaction commits. The data
 | POST `/bookings/{bookingId}/cancellation-execution` | `executeBookingCancellation` | Staff session + execute permission |
 | GET `/bookings/{bookingId}/cancellation-history` | `getBookingCancellationHistory` | Staff session |
 | GET `/bookings/{bookingId}/disruption-notices` | `listBookingDisruptionNotices` | Staff session / scoped event collaborator |
+| GET `/organizations/{organizationId}/cancellation-policies` | `listCancellationPolicies` | Staff session + configuration read |
+| POST `/organizations/{organizationId}/cancellation-policies` | `createCancellationPolicy` | Staff session + configuration manage |
+| POST `/cancellation-policies/{policyId}/revisions` | `createCancellationPolicyRevision` | Staff session + configuration manage |
+| POST `/cancellation-policy-revisions/{revisionId}/publish` | `publishCancellationPolicyRevision` | Staff session + configuration publish |
 
-Do not expose an unscoped public route with a caller-supplied booking ID. Resolve booking identity from the external capability. Approval, effective cancellation, resource release and commercial effects are distinct steps. A booking cancellation never automatically cancels the linked event.
+Do not expose an unscoped public route with a caller-supplied booking ID. The resolution exchange binds the external capability to one booking and action set. Approval, effective cancellation, resource release and commercial effects are distinct steps. Revocation invalidates the capability immediately. A booking cancellation never automatically cancels the linked event.
 
 ### 4.5 Events, optional capabilities and responsibility
 
@@ -190,19 +198,19 @@ Guest operations return the caller's own safe projection only. When an event is 
 
 | Method / path | Operation ID | Purpose |
 |---|---|---|
-| POST `/events/{eventId}/cancellation-preview` | `previewEventCancellation` | Impact, linked bookings, sessions, task and audience counts |
-| POST `/events/{eventId}/cancellation-requests` | `initiateEventCancellation` | Start organizer-owned decision workflow |
-| POST `/event-cancellation-requests/{requestId}/approve` | `approveEventCancellation` | Approval where policy requires |
-| POST `/event-cancellation-requests/{requestId}/execute` | `executeEventCancellation` | Commit event decision and suppression/outbox effects |
-| POST `/events/{eventId}/postponements` | `postponeEvent` | Postpone without deleting prior schedule |
-| POST `/events/{eventId}/schedule-revisions` | `createEventScheduleRevision` | Publish replacement schedule |
-| POST `/events/{eventId}/cancellation-campaign-previews` | `previewCancellationCampaign` | Resolve audience and counts |
-| POST `/events/{eventId}/cancellation-campaigns` | `createCancellationCampaign` | Confirm fixed recipient snapshot |
-| GET `/cancellation-campaigns/{campaignId}` | `getCancellationCampaign` | Campaign projection and aggregate delivery counts |
-| GET `/cancellation-campaigns/{campaignId}/recipients` | `listCancellationCampaignRecipients` | Restricted recipient-level view |
-| POST `/cancellation-campaigns/{campaignId}/retry-failures` | `retryFailedCancellationDeliveries` | Retry eligible failed attempts idempotently |
+| POST `/events/{eventId}/cancellation-preview` | `previewEventCancellation` | Impact, linked bookings, sessions, tasks and candidate audience counts |
+| POST `/events/{eventId}/change-requests` | `createEventChangeRequest` | Create cancellation, postponement or reschedule request with expected event revision |
+| POST `/event-change-requests/{requestId}/approve` | `approveEventChangeRequest` | Approval under event-owner policy |
+| POST `/event-change-requests/{requestId}/reject` | `rejectEventChangeRequest` | Reject/return with reason; event state is unchanged |
+| POST `/event-change-requests/{requestId}/execute` | `executeEventChangeRequest` | Commit effective decision, schedule/capability suppression and outbox effects |
+| POST `/events/{eventId}/schedule-revisions` | `createEventScheduleRevision` | Publish replacement schedule only through the authorized change process |
+| POST `/events/{eventId}/notification-campaign-previews` | `previewEventNotificationCampaign` | Resolve cancellation/postponement/schedule-update/reconfirmation audience and counts |
+| POST `/events/{eventId}/notification-campaigns` | `createEventNotificationCampaign` | Confirm fixed recipient snapshot |
+| GET `/event-notification-campaigns/{campaignId}` | `getEventNotificationCampaign` | Campaign projection and aggregate delivery counts |
+| GET `/event-notification-campaigns/{campaignId}/recipients` | `listEventNotificationCampaignRecipients` | Restricted recipient-level view |
+| POST `/event-notification-campaigns/{campaignId}/retry-failures` | `retryFailedEventNotificationDeliveries` | Retry eligible failed attempts idempotently |
 
-Campaign purpose is explicit (cancellation, postponement, schedule update or RSVP reconfirmation). Audience choices are accepted/tentative, all active invitees, all previously invited recipients or permitted custom selection. The default may be all active invitees, but the server must return an explicit preview explaining who qualifies. Recipient membership and a minimum necessary encrypted contact snapshot are frozen when the campaign is confirmed; retries never recalculate it. Cancellation/postponement state commits independently of provider delivery.
+A campaign has an explicit purpose: event cancellation, postponement, schedule update or RSVP reconfirmation. Audience choices are accepted/tentative, all active invitees, all previously invited recipients or permitted custom selection. The default may be all active invitees, but the server must return an explicit preview explaining who qualifies. Recipient membership and a minimum necessary encrypted contact snapshot are frozen when the campaign is confirmed; retries never recalculate it. Event cancellation/postponement commits independently of provider delivery.
 
 ### 4.9 Spatial allocation, prerequisites, cockpit and jobs
 
@@ -249,7 +257,7 @@ Publish a new schedule revision; never rewrite the old one. A material date/time
 
 ## 7. Contract validation and generation
 
-The final OpenAPI 3.1.1 YAML must include explicit security-scheme definitions for staff cookie, guest invitation capability and external booking action capability. The route inventory must map each command above to concrete operations. The final YAML must:
+The final OpenAPI 3.1.1 YAML must include explicit security schemes: `staffSessionCookie` for staff; `guestInvitationCapability` for a guest's own invitation; and `externalBookingActionCapability` for a booking contact's limited action session. Raw bearer secrets are exchanged through a non-mutating POST resolve operation, never placed in query strings, and are redacted from logs. The route inventory must map each command above to concrete operations. The final YAML must:
 1. Use globally unique operation IDs and explicit response schemas for every operation.
 2. Resolve all local references and path parameters.
 3. Define security requirements per route; test the public allow-list.
