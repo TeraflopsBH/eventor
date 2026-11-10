@@ -14,9 +14,9 @@ This matrix tracks executable PostgreSQL integration coverage and remaining gaps
 - [ ] Expired/revoked grant blocks new access without erasing historical records.
 
 ## Global identity and authentication boundary
-- [ ] General runtime cannot SELECT, INSERT or update global user identity/password-hash rows directly.
-- [ ] Authentication role can resolve users and their organization memberships but cannot read venue/booking/event business data or mutate memberships.
-- [ ] Tenant-filtered member-profile view exposes only the active organization’s membership/profile projection.
+- [x] General runtime cannot SELECT, INSERT or update global user identity/password-hash rows directly.
+- [x] Authentication role can resolve users and their organization memberships but cannot read venue/booking/event business data or mutate memberships.
+- [x] Tenant-filtered member-profile view exposes only the active organization’s membership/profile projection.
 
 ## Cross-organization grant and RLS lifecycle
 - [x] Grantor and grantee can see their own shared grant row; unrelated tenant cannot.
@@ -65,8 +65,8 @@ This matrix tracks executable PostgreSQL integration coverage and remaining gaps
 - [ ] Resource line request/approval/delivery values remain separate from actual reservation records.
 
 ## Append-only history
-- [ ] Runtime role lacks UPDATE/DELETE privileges on append-only history tables.
-- [ ] Table triggers also reject UPDATE/DELETE when executed by the table owner.
+- [x] Runtime role lacks UPDATE/DELETE privileges on append-only history tables.
+- [x] Table triggers also reject UPDATE/DELETE when executed by the table owner.
 
 ## Optional modules and responsibility
 - [ ] New event has no guest/invitation/RSVP/check-in/prerequisite/cockpit modules unless explicitly enabled by its event preset or configuration.
