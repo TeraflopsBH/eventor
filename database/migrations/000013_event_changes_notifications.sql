@@ -178,9 +178,6 @@ CREATE TABLE eogp.event_notification_recipients (
     channel text NOT NULL CHECK (channel IN ('email','sms','other')),
     destination_ciphertext bytea NOT NULL,
     destination_hash text NOT NULL,
-    status text NOT NULL DEFAULT 'pending'
-      CHECK (status IN ('pending','queued','sent','delivered','failed','suppressed','excluded')),
-    suppression_reason text,
     created_at timestamptz NOT NULL DEFAULT clock_timestamp(),
     UNIQUE (organization_id, id),
     UNIQUE (organization_id, campaign_id, id),
@@ -193,8 +190,32 @@ CREATE TABLE eogp.event_notification_recipients (
     CHECK (participation_id IS NOT NULL OR invitation_id IS NOT NULL),
     CHECK (invitation_id IS NULL OR participation_id IS NOT NULL)
 );
-CREATE INDEX event_notification_recipients_pending_idx
-  ON eogp.event_notification_recipients (organization_id, campaign_id, status);
+CREATE INDEX event_notification_recipients_campaign_idx
+  ON eogp.event_notification_recipients (organization_id, campaign_id, created_at);
+
+CREATE TABLE eogp.event_notification_exclusions (
+    id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+    organization_id uuid NOT NULL,
+    event_id uuid NOT NULL,
+    campaign_id uuid NOT NULL,
+    participation_id uuid,
+    invitation_id uuid,
+    exclusion_reason text NOT NULL,
+    actor_membership_id uuid NOT NULL,
+    created_at timestamptz NOT NULL DEFAULT clock_timestamp(),
+    UNIQUE (organization_id, id),
+    FOREIGN KEY (organization_id, event_id, campaign_id)
+      REFERENCES eogp.event_notification_campaigns(organization_id, event_id, id),
+    FOREIGN KEY (organization_id, event_id, participation_id)
+      REFERENCES eogp.event_participations(organization_id, event_id, id),
+    FOREIGN KEY (organization_id, event_id, invitation_id)
+      REFERENCES eogp.invitations(organization_id, event_id, id),
+    FOREIGN KEY (organization_id, actor_membership_id)
+      REFERENCES eogp.organization_memberships(organization_id, id),
+    CHECK (participation_id IS NOT NULL OR invitation_id IS NOT NULL)
+);
+CREATE INDEX event_notification_exclusions_campaign_idx
+  ON eogp.event_notification_exclusions (organization_id, campaign_id, created_at);
 
 CREATE TABLE eogp.event_notification_delivery_attempts (
     id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
