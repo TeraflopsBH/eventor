@@ -1401,7 +1401,7 @@ paths:
                 properties:
                   shareId: { $ref: '#/components/schemas/Uuid' }
                   sourceRevisionId: { $ref: '#/components/schemas/Uuid' }
-                  contentSha256: { type: string, pattern: '^[0-9a-f]{64}
+                  contentSha256: { type: string, pattern: '^[0-9a-f]{64}$' }
 
   /organizations/{organizationId}/venues:
     get:
