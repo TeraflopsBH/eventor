@@ -576,4 +576,4 @@ REVOKE ALL ON FUNCTION eogp.execute_event_change_request(uuid,uuid,uuid,integer,
 GRANT EXECUTE ON FUNCTION eogp.submit_event_change_request(uuid,uuid,uuid,text,integer,text,bytea,text,jsonb),
   eogp.decide_event_change_request(uuid,uuid,uuid,text,text),
   eogp.execute_event_change_request(uuid,uuid,uuid,integer,text,boolean,uuid[])
-  TO eventor_runtime, eventor_worker;
+  TO eventor_runtime;
