@@ -508,7 +508,7 @@ BEGIN
        AND grant_row.valid_from <= statement_timestamp()
        AND (grant_row.valid_until IS NULL OR grant_row.valid_until > statement_timestamp())
        AND grant_row.allowed_actions @> ARRAY['event.task.perform']::text[]
-       AND grant_row.projection -> 'taskIds' @> jsonb_build_array(v_assignment.id::text)
+       AND (grant_row.projection -> 'taskIds') @> jsonb_build_array(v_assignment.id::text)
   ) THEN
     RAISE EXCEPTION 'active task-specific event.task.perform grant is required'
       USING ERRCODE = '42501';
@@ -593,19 +593,18 @@ BEGIN
       USING ERRCODE = '22023';
   END IF;
 
-  IF NOT EXISTS (
-    SELECT 1
-      FROM eogp.collaboration_grants AS grant_row
-     WHERE grant_row.organization_id = v_assignment.grant_owner_organization_id
-       AND grant_row.grantee_organization_id = v_assignment.performing_organization_id
-       AND grant_row.id = v_assignment.collaboration_grant_id
-       AND grant_row.status = 'active'
-       AND grant_row.valid_from <= statement_timestamp()
-       AND (grant_row.valid_until IS NULL OR grant_row.valid_until > statement_timestamp())
-       AND grant_row.allowed_actions @> ARRAY['event.task.perform']::text[]
-       AND grant_row.projection -> 'taskIds' @> jsonb_build_array(v_assignment.id::text)
-     FOR SHARE
-  ) THEN
+  PERFORM 1
+    FROM eogp.collaboration_grants AS grant_row
+   WHERE grant_row.organization_id = v_assignment.grant_owner_organization_id
+     AND grant_row.grantee_organization_id = v_assignment.performing_organization_id
+     AND grant_row.id = v_assignment.collaboration_grant_id
+     AND grant_row.status = 'active'
+     AND grant_row.valid_from <= statement_timestamp()
+     AND (grant_row.valid_until IS NULL OR grant_row.valid_until > statement_timestamp())
+     AND grant_row.allowed_actions @> ARRAY['event.task.perform']::text[]
+     AND (grant_row.projection -> 'taskIds') @> jsonb_build_array(v_assignment.id::text)
+   FOR SHARE;
+  IF NOT FOUND THEN
     RAISE EXCEPTION 'active task-specific event.task.perform grant is required'
       USING ERRCODE = '42501';
   END IF;
@@ -703,7 +702,7 @@ CREATE POLICY event_responsibility_performer_select
          AND grant_row.valid_from <= statement_timestamp()
          AND (grant_row.valid_until IS NULL OR grant_row.valid_until > statement_timestamp())
          AND grant_row.allowed_actions @> ARRAY['event.task.perform']::text[]
-         AND grant_row.projection -> 'taskIds' @> jsonb_build_array(event_responsibility_assignments.id::text)
+         AND (grant_row.projection -> 'taskIds') @> jsonb_build_array(event_responsibility_assignments.id::text)
     )
     AND EXISTS (
       SELECT 1
@@ -741,7 +740,7 @@ CREATE POLICY event_responsibility_performer_update
          AND grant_row.valid_from <= statement_timestamp()
          AND (grant_row.valid_until IS NULL OR grant_row.valid_until > statement_timestamp())
          AND grant_row.allowed_actions @> ARRAY['event.task.perform']::text[]
-         AND grant_row.projection -> 'taskIds' @> jsonb_build_array(event_responsibility_assignments.id::text)
+         AND (grant_row.projection -> 'taskIds') @> jsonb_build_array(event_responsibility_assignments.id::text)
     )
     AND EXISTS (
       SELECT 1
