@@ -537,7 +537,7 @@ BEGIN
       '62000000-0000-4000-8000-00000000000a',
       '61000000-0000-4000-8000-00000000000b',
       '[]'::jsonb, '[]'::jsonb, repeat('d',64),
-      clock_timestamp() + interval '1 day',
+      clock_timestamp() + interval '23 hours',
       '30000000-0000-0000-0000-00000000000a');
     RAISE EXCEPTION 'booking-scoped grant unexpectedly authorized a venue snapshot share';
   EXCEPTION WHEN SQLSTATE '42501' THEN
