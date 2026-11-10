@@ -17,17 +17,27 @@ Check-in PWA ────┘                 │              │
 
 All database access is server-side. The API is authoritative for validation, workflow transitions, permissions and audit records.
 
+## Operating scope and module activation
+
+A deployment may be used by a venue provider, an event organizer, or a hybrid operator. Organization configuration establishes a default profile; an individual booking/event can override it. Profiles are defaults, not product tiers. A venue booking remains valid without an operational event record. Full event operations are explicitly activated only when needed.
+
+Distinguish venue provider, booking customer/requester, contracting party, event organizer and operational operator. These roles may differ. Module/task responsibility is assigned explicitly to an accountable party and performing parties; scoped collaboration is granted deliberately and never inferred from a booking relationship. The venue provider retains its own facility/resource and contracted service responsibilities; Eventor does not transfer legal duties.
+
+Modules such as guest participation, invitations/RSVP, seating, guest portal, check-in, external prerequisites and event-day cockpit are independently optional. Module dependencies are narrow and explicit. For example, venue booking does not depend on guest registry or RSVP. Public and staff projections collect and expose only information needed for the enabled scope.
+
+See [Operating Model](OPERATING_MODEL.md) and [ADR 0004](decisions/0004-optional-event-operations-scope.md).
+
 ## Logical modules
 
 - Identity, authentication, sessions and authorization.
 - Organization, venue and event management.
 - Configuration registry: forms, catalogues, services, equipment, prices, workflow and branding revisions.
-- Booking inquiry, draft, offer, approval and confirmed booking.
-- Guest registry, event participation, invitations and RSVP.
-- Venue/spatial inventory, floor plans, allocations and seating.
-- Guest portal, QR credential issuance and check-in.
-- Event prerequisites and external coordination.
-- Operations cockpit, notifications, audit and reporting.
+- Booking inquiry, draft, offer, approval and confirmed booking (independent of operational-event conversion).
+- Optional guest registry, event participation, invitations and RSVP.
+- Venue/spatial inventory and venue-side floor plans/resources; optional event allocation and seating.
+- Optional guest portal, QR credential issuance and check-in.
+- Optional event prerequisites and external coordination.
+- Optional event operations cockpit, notifications, audit and reporting.
 - Import/export, document generation and background jobs.
 
 ## Frontends
