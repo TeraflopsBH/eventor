@@ -12,7 +12,7 @@ DECLARE
 BEGIN
   v_result := eogp.confirm_booking_reservations(
     '11111111-1111-4111-8111-111111111111',
-    '51000000-0000-4000-8000-000000000001',
+    '51000000-0000-4000-8000-000000000002',
     '73000000-0000-4000-8000-000000000001',
     'aaaaaaaa-1111-4111-8111-aaaaaaaaaaaa',
     'ci_booking_confirmed'
@@ -27,7 +27,7 @@ BEGIN
   SELECT count(*) INTO v_old_hold_count
     FROM eogp.resource_reservations
    WHERE organization_id = '11111111-1111-4111-8111-111111111111'
-     AND booking_draft_revision_id = '51000000-0000-4000-8000-000000000001'
+     AND booking_draft_revision_id = '51000000-0000-4000-8000-000000000002'
      AND id IN (
        '43000000-0000-4000-8000-000000000001',
        (SELECT id FROM eogp.resource_reservations
@@ -67,7 +67,7 @@ BEGIN
   -- A retry must be harmless and must not emit a second audit event.
   v_result := eogp.confirm_booking_reservations(
     '11111111-1111-4111-8111-111111111111',
-    '51000000-0000-4000-8000-000000000001',
+    '51000000-0000-4000-8000-000000000002',
     '73000000-0000-4000-8000-000000000001',
     'aaaaaaaa-1111-4111-8111-aaaaaaaaaaaa',
     'ci_booking_confirmed'
@@ -93,7 +93,7 @@ BEGIN
   BEGIN
     PERFORM eogp.confirm_booking_reservations(
       '11111111-1111-4111-8111-111111111111',
-      '51000000-0000-4000-8000-000000000001',
+      '51000000-0000-4000-8000-000000000002',
       '73000000-0000-4000-8000-000000000001',
       'bbbbbbbb-2222-4222-8222-bbbbbbbbbbbb',
       'ci_wrong_actor'
