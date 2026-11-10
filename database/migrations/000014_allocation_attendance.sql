@@ -185,6 +185,8 @@ CREATE TABLE eogp.attendance_records (
     corrects_attendance_record_id uuid,
     UNIQUE (organization_id, id),
     UNIQUE (organization_id, event_id, session_id, participation_id, id),
+    FOREIGN KEY (organization_id, event_id, session_id)
+      REFERENCES eogp.event_sessions(organization_id, event_id, id),
     FOREIGN KEY (organization_id, event_id, participation_id)
       REFERENCES eogp.event_participations(organization_id, event_id, id),
     FOREIGN KEY (organization_id, event_id, session_id, checkin_attempt_id)
