@@ -115,6 +115,10 @@ See [Operating Model](OPERATING_MODEL.md) and [ADR 0004](decisions/0004-optional
 
 The proposed v0.3 design covers customer/organizer-initiated booking cancellation, venue-provider-initiated booking cancellation, organizer-owned event cancellation/postponement, guest notification campaigns and cross-organization disruption handling. Booking and event outcomes remain independent; invitation, RSVP and attendance history is preserved. The design is tracked in [Issue #21](https://github.com/TeraflopsBH/eventor/issues/21) and documented in [Cancellation and Event Disruption Design v0.3](implementation-design/v0.3/CANCELLATION_AND_EVENT_DISRUPTION_DESIGN_v0.3.md). The workflow proposal is documented; successor schema/API implementation and GHB-specific policy validation remain open.
 
+## Successor schema contract baseline
+
+The successor relational model and v0.3 API are being produced from accepted ADRs 0004–0006, the RSVP/invitation and cancellation designs, and the accepted venue-first MVP/role model. The database integrity proposal is in PR #19; the logical schema/API successor design follows it in PR #23. Executable migrations and OpenAPI YAML remain separate deliverables and are not yet validated.
+
 ## Database schema review
 
 An initial structural review of the v0.2 PostgreSQL schema is recorded in [Database Review v0.2](database/DATABASE_REVIEW_v0.2.md). It found a connected 86-table structure but also important cross-organization ownership, tenant integrity, availability-concurrency and optional-module gaps. The migration approach is documented in [Migration Conventions](database/MIGRATION_CONVENTIONS.md). PostgreSQL parser/runtime testing remains outstanding because no PostgreSQL server/client or parser is available in the current working environment. Issue #2 remains open; blockers are tracked in Issues #12 and #13. RSVP migration/API implementation is tracked in Issue #10.

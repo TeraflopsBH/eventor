@@ -1,8 +1,8 @@
 # PostgreSQL migration conventions
 
-**Status:** proposed baseline for implementation; requires confirmation against the selected PostgreSQL major version.
+**Status:** accepted implementation baseline; target PostgreSQL major version: 18. Reconfirm the exact supported minor release when CI and deployment images are pinned.
 
-These conventions apply once the logical schema has been reconciled. The imported v0.2 SQL remains a reference and must not be placed directly into production as-is. See [Database Review v0.2](DATABASE_REVIEW_v0.2.md).
+These conventions apply to successor migrations. PostgreSQL 18 is the minimum target major for the first implementation baseline; use the latest supported PostgreSQL 18 minor release in CI and deployment, and do not target PostgreSQL 19 until it is a final supported release. The design uses the trusted `btree_gist` extension for GiST equality/range exclusion constraints; the extension package must be installed in the target environment and its availability tested before migrations. The imported v0.2 SQL remains a reference and must not be placed directly into production as-is. See [Database Review v0.2](DATABASE_REVIEW_v0.2.md).
 
 ## 1. Migration files and history
 
