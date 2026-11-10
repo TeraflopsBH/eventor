@@ -56,6 +56,7 @@ DO $commands$
 DECLARE
   v_cancel_request uuid;
   v_postpone_request uuid;
+  v_postpone_schedule uuid;
   v_reschedule_request uuid;
   v_result jsonb;
   v_replacement uuid;
@@ -132,6 +133,11 @@ BEGIN
     NULL,'The event will be postponed.',
     '{"startsAt":"2099-02-11T08:00:00Z","endsAt":"2099-02-11T17:00:00Z","timezone":"Europe/Sarajevo","materialChange":true,"reconfirmationPolicy":"accepted_tentative"}'::jsonb
   ) ->> 'changeRequestId')::uuid;
+  SELECT replacement_schedule_revision_id INTO v_postpone_schedule
+    FROM eogp.event_change_requests WHERE id = v_postpone_request;
+  IF v_postpone_schedule IS NULL THEN
+    RAISE EXCEPTION 'postponement request did not create a replacement schedule';
+  END IF;
   PERFORM eogp.decide_event_change_request(
     '22222222-2222-4222-8222-222222222222',
     v_postpone_request,
