@@ -1,9 +1,9 @@
 #!/usr/bin/env bash
 set -Eeuo pipefail
 
-: "\${DATABASE_URL:?Set DATABASE_URL to a PostgreSQL 18 database connection string}"
-ROOT_DIR="$(cd "$(dirname "\${BASH_SOURCE[0]}")/../.." && pwd)"
-MIGRATIONS_DIR="\${MIGRATIONS_DIR:-$ROOT_DIR/database/migrations}"
+: "${DATABASE_URL:?Set DATABASE_URL to a PostgreSQL 18 database connection string}"
+ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
+MIGRATIONS_DIR="${MIGRATIONS_DIR:-$ROOT_DIR/database/migrations}"
 
 command -v psql >/dev/null 2>&1 || { echo "psql is required" >&2; exit 127; }
 command -v sha256sum >/dev/null 2>&1 || { echo "sha256sum is required" >&2; exit 127; }
@@ -27,11 +27,11 @@ SQL
 
 shopt -s nullglob
 files=("$MIGRATIONS_DIR"/[0-9][0-9][0-9][0-9][0-9][0-9]_*.sql)
-(("\${#files[@]}" > 0)) || { echo "No migration files found in $MIGRATIONS_DIR" >&2; exit 1; }
+(("${#files[@]}" > 0)) || { echo "No migration files found in $MIGRATIONS_DIR" >&2; exit 1; }
 
-for file in "\${files[@]}"; do
+for file in "${files[@]}"; do
   filename="$(basename "$file")"
-  version="\${filename%%_*}"
+  version="${filename%%_*}"
   [[ "$version" =~ ^[0-9]{6}$ ]] || { echo "Invalid migration filename: $filename" >&2; exit 1; }
   checksum="$(sha256sum "$file" | awk '{print $1}')"
 
