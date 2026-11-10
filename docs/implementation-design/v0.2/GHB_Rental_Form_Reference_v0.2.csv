@@ -1,5 +1,4 @@
-<PARSED TEXT FOR SHEET: 1 / 1 TABS
-TAB NAME: GHB_Rental_Form_Reference_v0.2.csv>index,field_key,captured_label,control_type,captured_options_semicolon_delimited,html_required_property,initial_dom_visibility,source_and_validation_note
+field_key,captured_label,control_type,captured_options_semicolon_delimited,html_required_property,initial_dom_visibility,source_and_validation_note
 0,dropdown-contact,Vrsta upita,select-one,Generalna pitanja; Kako do kataloga; Najava grupne posjete muzeju; Upit za iznajmljivanje sale,False,visible in initial DOM,Shared Contact Form 7 inquiry-type selector; not a rental-only field.
 1,organizator,Organizator / Naziv ustanove,text,,False,visible in initial DOM,Captured from live GHB page/browser DOM on 2026-11-10; verify with GHB before use.
 2,kontakt-osoba,Kontakt osoba,text,,False,visible in initial DOM,Captured from live GHB page/browser DOM on 2026-11-10; verify with GHB before use.
