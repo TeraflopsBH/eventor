@@ -334,11 +334,11 @@ export function buildApi(dependencies: ApiDependencies): FastifyInstance {
     { schema: { params: eventParams, headers: idempotencyHeaders, body: eventChangeBody } },
     async (request, reply) => {
       const body = request.body;
-      if (body.changeKind === "reschedule" && !body.replacementSchedule) {
-        throw new ApiError(422, "REPLACEMENT_SCHEDULE_REQUIRED", "A reschedule requires a replacement schedule.");
+      if ((body.changeKind === "postpone" || body.changeKind === "reschedule") && !body.replacementSchedule) {
+        throw new ApiError(422, "REPLACEMENT_SCHEDULE_REQUIRED", "A postponement or reschedule requires a replacement schedule.");
       }
-      if (body.changeKind !== "reschedule" && body.replacementSchedule) {
-        throw new ApiError(422, "UNEXPECTED_REPLACEMENT_SCHEDULE", "A replacement schedule is accepted only for rescheduling.");
+      if (body.changeKind !== "postpone" && body.changeKind !== "reschedule" && body.replacementSchedule) {
+        throw new ApiError(422, "UNEXPECTED_REPLACEMENT_SCHEDULE", "A replacement schedule is accepted only for postponement or rescheduling.");
       }
       const encryptedReason = body.reasonInternal
         ? encryptPrivateText(body.reasonInternal, dependencies.privateFieldEncryptionKey) : null;
