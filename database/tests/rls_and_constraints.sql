@@ -113,6 +113,96 @@ INSERT INTO eogp.booking_draft_revisions (id, organization_id, draft_id, revisio
 VALUES ('c0000000-0000-0000-0000-00000000000a','10000000-0000-0000-0000-00000000000a',
         'b0000000-0000-0000-0000-00000000000a',1,'{}'::jsonb,'30000000-0000-0000-0000-00000000000a');
 
+-- External self-service cancellation must preserve the external capability actor,
+-- rather than attributing the business transition to an invented staff user.
+INSERT INTO eogp.booking_offers (id, organization_id, draft_id, status)
+VALUES ('d0000000-0000-0000-0000-00000000000a',
+        '10000000-0000-0000-0000-00000000000a',
+        'b0000000-0000-0000-0000-00000000000a','accepted');
+
+INSERT INTO eogp.booking_offer_revisions
+ (id, organization_id, offer_id, revision_number, draft_revision_id, terms_snapshot, currency, subtotal, tax_amount, total_amount, state, issued_at, accepted_at)
+VALUES
+ ('e0000000-0000-0000-0000-00000000000a','10000000-0000-0000-0000-00000000000a',
+  'd0000000-0000-0000-0000-00000000000a',1,'c0000000-0000-0000-0000-00000000000a',
+  '{}'::jsonb,'BAM',0,0,0,'accepted',clock_timestamp(),clock_timestamp());
+
+INSERT INTO eogp.booking_records (id, organization_id, booking_code, source_offer_revision_id)
+VALUES ('f0000000-0000-0000-0000-00000000000a','10000000-0000-0000-0000-00000000000a',
+        'CI-EXTERNAL-CANCEL','e0000000-0000-0000-0000-00000000000a');
+
+INSERT INTO eogp.booking_party_contacts
+ (id, organization_id, booking_id, party_role, display_name_ciphertext, email_hash, email_ciphertext, authorized_actions)
+VALUES
+ ('a1000000-0000-0000-0000-00000000000a','10000000-0000-0000-0000-00000000000a',
+  'f0000000-0000-0000-0000-00000000000a','authorized_booking_contact',
+  decode('010203','hex'),repeat('b',64),decode('aabbcc','hex'),
+  ARRAY['booking.cancellation.request']);
+
+INSERT INTO eogp.external_action_capabilities
+ (id, organization_id, booking_id, booking_contact_id, action_code, token_sha256, expires_at, created_by_membership_id)
+VALUES
+ ('a2000000-0000-0000-0000-00000000000a','10000000-0000-0000-0000-00000000000a',
+  'f0000000-0000-0000-0000-00000000000a','a1000000-0000-0000-0000-00000000000a',
+  'booking_cancellation_request',repeat('c',64),clock_timestamp()+interval '1 day',
+  '30000000-0000-0000-0000-00000000000a');
+
+INSERT INTO eogp.booking_cancellation_requests
+ (id, organization_id, booking_id, requester_kind, requester_contact_id, external_capability_id,
+  reason_code, status, resolved_at)
+VALUES
+ ('a3000000-0000-0000-0000-00000000000a','10000000-0000-0000-0000-00000000000a',
+  'f0000000-0000-0000-0000-00000000000a','external_contact',
+  'a1000000-0000-0000-0000-00000000000a','a2000000-0000-0000-0000-00000000000a',
+  'customer_withdrawal','effective',clock_timestamp());
+
+UPDATE eogp.booking_records
+   SET status = 'cancelled', cancelled_at = clock_timestamp(), revision_number = revision_number + 1
+ WHERE organization_id = '10000000-0000-0000-0000-00000000000a'
+   AND id = 'f0000000-0000-0000-0000-00000000000a';
+
+INSERT INTO eogp.booking_cancellation_effects
+ (organization_id, booking_id, cancellation_request_id, commercial_consequence_snapshot,
+  executed_by_membership_id, executed_by_external_capability_id, executed_by_kind)
+VALUES
+ ('10000000-0000-0000-0000-00000000000a','f0000000-0000-0000-0000-00000000000a',
+  'a3000000-0000-0000-0000-00000000000a','{}'::jsonb,
+  NULL,'a2000000-0000-0000-0000-00000000000a','external_capability');
+
+INSERT INTO eogp.booking_status_history
+ (organization_id, booking_id, previous_status, new_status, actor_membership_id,
+  actor_external_capability_id, actor_kind, reason_code)
+VALUES
+ ('10000000-0000-0000-0000-00000000000a','f0000000-0000-0000-0000-00000000000a',
+  'confirmed','cancelled',NULL,'a2000000-0000-0000-0000-00000000000a',
+  'external_capability','customer_withdrawal');
+
+DO $test$
+BEGIN
+  IF NOT EXISTS (
+    SELECT 1 FROM eogp.booking_cancellation_effects
+     WHERE organization_id = '10000000-0000-0000-0000-00000000000a'
+       AND booking_id = 'f0000000-0000-0000-0000-00000000000a'
+       AND executed_by_kind = 'external_capability'
+       AND executed_by_external_capability_id = 'a2000000-0000-0000-0000-00000000000a'
+       AND executed_by_membership_id IS NULL
+  ) THEN
+    RAISE EXCEPTION 'external cancellation actor attribution was not persisted';
+  END IF;
+  IF NOT EXISTS (
+    SELECT 1 FROM eogp.booking_status_history
+     WHERE organization_id = '10000000-0000-0000-0000-00000000000a'
+       AND booking_id = 'f0000000-0000-0000-0000-00000000000a'
+       AND actor_kind = 'external_capability'
+       AND actor_external_capability_id = 'a2000000-0000-0000-0000-00000000000a'
+       AND actor_membership_id IS NULL
+  ) THEN
+    RAISE EXCEPTION 'external status-change actor attribution was not persisted';
+  END IF;
+END;
+$test$;
+
+
 -- The first hold is idempotent; an adjacent hold is allowed; peak simultaneous
 -- quantity above capacity is rejected.
 DO $test$
