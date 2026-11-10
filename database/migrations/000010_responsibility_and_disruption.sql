@@ -33,8 +33,8 @@ CREATE TABLE eogp.event_responsibility_assignments (
     FOREIGN KEY (performing_organization_id) REFERENCES eogp.organizations(id),
     FOREIGN KEY (performing_organization_id, performing_membership_id)
       REFERENCES eogp.organization_memberships(organization_id, id),
-    FOREIGN KEY (grant_owner_organization_id, collaboration_grant_id)
-      REFERENCES eogp.collaboration_grants(organization_id, id),
+    FOREIGN KEY (grant_owner_organization_id, performing_organization_id, collaboration_grant_id)
+      REFERENCES eogp.collaboration_grants(organization_id, grantee_organization_id, id),
     FOREIGN KEY (approver_organization_id, approver_membership_id)
       REFERENCES eogp.organization_memberships(organization_id, id),
     FOREIGN KEY (organization_id, created_by_membership_id)
@@ -76,8 +76,8 @@ CREATE TABLE eogp.event_disruption_resolutions (
     created_at timestamptz NOT NULL DEFAULT clock_timestamp(),
     UNIQUE (organization_id, id),
     FOREIGN KEY (organization_id, event_id) REFERENCES eogp.events(organization_id, id),
-    FOREIGN KEY (grant_owner_organization_id, collaboration_grant_id)
-      REFERENCES eogp.collaboration_grants(organization_id, id),
+    FOREIGN KEY (grant_owner_organization_id, organization_id, collaboration_grant_id)
+      REFERENCES eogp.collaboration_grants(organization_id, grantee_organization_id, id),
     FOREIGN KEY (organization_id, acknowledged_by_membership_id)
       REFERENCES eogp.organization_memberships(organization_id, id),
     FOREIGN KEY (organization_id, resolved_by_membership_id)
