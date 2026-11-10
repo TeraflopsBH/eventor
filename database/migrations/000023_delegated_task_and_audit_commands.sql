@@ -1,5 +1,4 @@
 -- Scoped task execution and audited lifecycle transitions for delegated links/shares.
-BEGIN;
 
 -- Permission checked by the booking reservation release command.
 INSERT INTO eogp.permissions (code, description, scope_kind, is_sensitive)
@@ -793,4 +792,3 @@ REVOKE ALL ON FUNCTION eogp.release_booking_reservations(uuid,uuid,uuid,text) FR
 GRANT EXECUTE ON FUNCTION eogp.release_booking_reservations(uuid,uuid,uuid,text)
   TO eventor_runtime;
 
-COMMIT;
