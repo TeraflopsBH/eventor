@@ -1,6 +1,8 @@
 -- Separate global authentication from tenant-scoped application queries.
 -- The general runtime role must never be able to read password hashes.
 
+GRANT USAGE ON SCHEMA eogp TO eventor_auth;
+
 CREATE POLICY organization_membership_auth_lookup
   ON eogp.organization_memberships
   FOR SELECT TO eventor_auth
@@ -53,7 +55,5 @@ GRANT SELECT (
   id, slug, name, operating_profile, status, default_timezone, created_at, updated_at
 ) ON eogp.organizations TO eventor_auth;
 
-COMMENT ON ROLE eventor_auth IS
-  'Dedicated credential-verification and global membership-discovery role; no venue, booking, guest or event business-table access.';
 COMMENT ON VIEW eogp.organization_member_profiles IS
   'Tenant-filtered member profile projection. Uses forced RLS on organization_memberships; does not expose email or password hash.';
