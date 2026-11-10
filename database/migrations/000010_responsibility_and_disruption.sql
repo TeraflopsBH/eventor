@@ -74,7 +74,7 @@ CREATE TABLE eogp.event_disruption_resolutions (
     acknowledged_at timestamptz,
     resolved_by_membership_id uuid,
     resolved_at timestamptz,
-    resolution_notes text,
+    resolution_notes_ciphertext bytea,
     created_at timestamptz NOT NULL DEFAULT clock_timestamp(),
     UNIQUE (organization_id, id),
     FOREIGN KEY (organization_id, event_id) REFERENCES eogp.events(organization_id, id),
