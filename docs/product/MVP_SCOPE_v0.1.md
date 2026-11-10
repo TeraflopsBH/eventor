@@ -50,7 +50,8 @@ This is the first production-capable GHB workflow.
 - Configurable offer, internal approval and organizer-acceptance steps.
 - Explicit authorized confirmation with atomic space/resource reservation.
 - Manual booking creation without a public inquiry.
-- Cancellation, withdrawal, expiry, rescheduling and controlled amendment/change order.
+- Customer/authorised organizer cancellation requests and venue-provider-initiated cancellation, with configurable review/approval, effective cancellation, commercial consequence recording and atomic resource release.
+- Withdrawal, expiry, postponement/rescheduling and controlled amendment/change order remain distinct outcomes. Cancellation does not automatically create an operational event or cancel a linked organizer-owned event.
 - Requested, approved and delivered resource/service values remain distinct.
 
 **Commercial configuration**
@@ -146,11 +147,14 @@ Collect additional information only when needed for a configured venue service o
 6. Confirmation atomically reserves all required spaces and resources. A conflict commits none of the booking/reservation changes.
 7. Setup, rehearsal, event and teardown can occupy separately scheduled time blocks.
 8. Venue staff fulfill only the venue-side tasks assigned to them; every important state change is auditable.
-9. Booking can be cancelled, amended or rescheduled without overwriting the original confirmed snapshot.
-10. The complete booking flow succeeds with no operational-event, event-guest, invitation, RSVP, allocation, credential or check-in records.
-11. The booking's organizer/customer does not automatically receive a user account or tenant membership.
-12. If an organizer later uses Eventor, a separate operational event can be explicitly linked through a scoped collaboration grant and immutable venue-space snapshot.
-13. Guest, invitation, RSVP and organizer-only prerequisite data remain inaccessible to the venue provider unless a narrowly scoped task grant explicitly permits a required projection.
+9. An authorised external booking contact can request cancellation without tenant membership; the request remains pending until any required venue approval is recorded.
+10. The venue provider can initiate cancellation when it cannot provide a confirmed space/service, using configured authority and emergency-review rules.
+11. Effective booking cancellation releases future reservations exactly once, records any policy-based commercial consequence and notifies configured booking contacts without overwriting the original confirmed snapshot.
+12. A booking cancellation does not automatically cancel a linked operational event or expose its guest data.
+13. The complete booking flow succeeds with no operational-event, event-guest, invitation, RSVP, allocation, credential or check-in records.
+14. The booking's organizer/customer does not automatically receive a user account or tenant membership.
+15. If an organizer later uses Eventor, a separate operational event can be explicitly linked through a scoped collaboration grant and immutable venue-space snapshot.
+16. Guest, invitation, RSVP and organizer-only prerequisite data remain inaccessible to the venue provider unless a narrowly scoped task grant explicitly permits a required projection.
 
 ## 5. GHB validation gates
 
@@ -161,6 +165,8 @@ Before Release 1 is configured for production, GHB must confirm:
 - Current price list, taxes, discounts and weekend/holiday rules.
 - Current opening/service hours, setup/rehearsal/teardown constraints and booking lead times.
 - Who can prepare offers, approve discounts and confirm bookings.
+- Who may submit booking cancellation requests, who at GHB may initiate venue-side cancellation, who approves/executes it, and which emergency exceptions apply.
+- Confirmed cancellation notice periods, fees, deposits/credits/refunds and required customer notifications; do not enforce unconfirmed rules.
 - Which information the venue legitimately needs from the organizer and how long it should be retained.
 - Public form labels, options, mandatory fields and conditional behavior.
 - Email sender/domain, reverse proxy/public hostname and data-retention policy.
@@ -172,7 +178,7 @@ Do not seed unconfirmed historical prices, capacities or protocols as enforced p
 1. Resolve accepted organization ownership, collaboration and database integrity designs (ADR 0006; Issues #12/#13).
 2. Produce the first executable PostgreSQL migrations and validate them against a supported PostgreSQL version (Issue #2).
 3. Complete OpenAPI v0.3 contract coverage and validation (Issues #3/#17).
-4. Agree Release-1 role/permission matrix and approval authority.
+4. Agree Release-1 role/permission matrix and approval authority, including booking cancellation authority ([Issue #21](https://github.com/TeraflopsBH/eventor/issues/21)).
 5. Build foundation: auth, organization membership, configuration, audit, API contracts and test harness.
 6. Build booking/resource workflows in vertical slices.
 7. Run a GHB pilot using synthetic/demo data, then perform approved production onboarding.
