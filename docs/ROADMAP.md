@@ -26,7 +26,7 @@ This roadmap tracks the accepted Eventor product direction and implementation ga
 
 - [ ] Monorepo workspace and build tooling.
 - [ ] Fastify API skeleton, configuration and health/readiness endpoints.
-- [ ] PostgreSQL migrations, connection management and transaction conventions (initial 17-file migration draft and green PostgreSQL 18.6 CI are in draft PR #26; deployment is not started).
+- [ ] PostgreSQL migrations, connection management and transaction conventions (initial 18-file migration draft and green PostgreSQL 18.6 CI are in draft PR #26; deployment is not started).
 - [ ] Shared contracts, validation and error model.
 - [ ] Authentication, sessions, authorization and audit foundation.
 - [ ] Organization, venue and event tenancy model.
