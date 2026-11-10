@@ -31,8 +31,11 @@ This roadmap is provisional. Scope and acceptance criteria must be finalized aft
 - [ ] Explicit booking confirmation and resource reservation.
 - [ ] Resource inventory, pricing and separately scheduled rehearsals.
 - [ ] Notifications and booking audit trail.
+- [ ] Customer/organizer cancellation requests, venue-initiated cancellation, approval policy, commercial consequence snapshot and atomic resource release ([Issue #21](https://github.com/TeraflopsBH/eventor/issues/21)).
 
 ## Phase 3 — Guest registry, invitations and RSVP
+
+Cancellation/postponement behavior is proposed in `docs/implementation-design/v0.3/CANCELLATION_AND_EVENT_DISRUPTION_DESIGN_v0.3.md`; design review and contract alignment are tracked in [Issue #21](https://github.com/TeraflopsBH/eventor/issues/21).
 
 The domain design is documented in `docs/implementation-design/v0.3/RSVP_AND_INVITATION_DESIGN_v0.3.md`; schema/API implementation is tracked in [Issue #10](https://github.com/TeraflopsBH/eventor/issues/10).
 
@@ -42,6 +45,7 @@ The domain design is documented in `docs/implementation-design/v0.3/RSVP_AND_INV
 - [ ] Guest self-service RSVP and response-change rules.
 - [ ] Staff-recorded RSVP with source/operator/time/notes.
 - [ ] Guest portal and privacy-safe personal view.
+- [ ] Event cancellation/postponement, RSVP reconfirmation, notification audiences and tracked cancellation campaigns ([Issue #21](https://github.com/TeraflopsBH/eventor/issues/21)).
 
 ## Phase 4 — Venue spatial model and seating
 

@@ -1,6 +1,6 @@
 # Eventor user roles and permission model — v0.1
 
-**Status:** proposed role catalogue for MVP review  
+**Status:** accepted baseline role and permission model; organization-specific assignments and thresholds remain subject to validation  
 **Date:** 2026-11-10  
 **Related:** [MVP Scope v0.1](MVP_SCOPE_v0.1.md), ADR 0004 and ADR 0006
 

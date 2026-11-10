@@ -111,15 +111,19 @@ Eventor is a reusable, self-hosted platform that can operate as a venue booking/
 
 See [Operating Model](OPERATING_MODEL.md) and [ADR 0004](decisions/0004-optional-event-operations-scope.md). This is a new accepted product requirement and must be reflected in the next successor implementation design and schema/API revision; historical Blueprint v1.2 and Implementation Design v0.2 files remain unchanged snapshots.
 
+## Cancellation and event disruption
+
+The proposed v0.3 design covers customer/organizer-initiated booking cancellation, venue-provider-initiated booking cancellation, organizer-owned event cancellation/postponement, guest notification campaigns and cross-organization disruption handling. Booking and event outcomes remain independent; invitation, RSVP and attendance history is preserved. The design is tracked in [Issue #21](https://github.com/TeraflopsBH/eventor/issues/21) and documented in [Cancellation and Event Disruption Design v0.3](implementation-design/v0.3/CANCELLATION_AND_EVENT_DISRUPTION_DESIGN_v0.3.md). The workflow proposal is documented; successor schema/API implementation and GHB-specific policy validation remain open.
+
 ## Database schema review
 
 An initial structural review of the v0.2 PostgreSQL schema is recorded in [Database Review v0.2](database/DATABASE_REVIEW_v0.2.md). It found a connected 86-table structure but also important cross-organization ownership, tenant integrity, availability-concurrency and optional-module gaps. The migration approach is documented in [Migration Conventions](database/MIGRATION_CONVENTIONS.md). PostgreSQL parser/runtime testing remains outstanding because no PostgreSQL server/client or parser is available in the current working environment. Issue #2 remains open; blockers are tracked in Issues #12 and #13. RSVP migration/API implementation is tracked in Issue #10.
 
-## Proposed MVP boundary
+## Accepted MVP boundary
 
 The recommended first production release is **venue booking and venue operations** for the GHB reference deployment, with GHB acting as venue provider by default. It is complete without an operational event or guest-level records. Guest registry, invitations/RSVP, seating, guest portal, admission/check-in, organizer prerequisites and full event cockpit are later optional capabilities; an organization/event can activate them when it is responsible for those tasks.
 
-The proposed scope and acceptance scenarios are in [MVP Scope v0.1](product/MVP_SCOPE_v0.1.md); the role catalogue is in [User Roles and Permissions v0.1](product/USER_ROLES_AND_PERMISSIONS_v0.1.md). Both are proposed for review. GHB capacities, service inventory, prices, approval limits and operational policy must be confirmed before production configuration.
+The accepted initial scope and acceptance scenarios are in [MVP Scope v0.1](product/MVP_SCOPE_v0.1.md); the baseline role and permission model is in [User Roles and Permissions v0.1](product/USER_ROLES_AND_PERMISSIONS_v0.1.md). Organization-specific assignments, approval thresholds and GHB capacities, service inventory, prices and operating policies still require validation before production configuration.
 
 ## API contract review
 
@@ -144,7 +148,7 @@ The OpenAPI YAML has been parsed and its 36 paths / 46 operations / unique opera
 1. Specify the complete invitation/RSVP lifecycle, including staff-recorded responses ([Issue #6](https://github.com/TeraflopsBH/eventor/issues/6)).
 2. Review and validate the consolidated SQL schema; establish versioned PostgreSQL migrations ([Issue #2](https://github.com/TeraflopsBH/eventor/issues/2)).
 3. Run full OpenAPI validation and align contracts with the finalized domain model ([Issue #3](https://github.com/TeraflopsBH/eventor/issues/3)).
-4. Agree MVP scope, roles and acceptance criteria ([Issue #4](https://github.com/TeraflopsBH/eventor/issues/4)).
+4. Carry the accepted MVP boundary and role baseline into the successor schema/API contracts and implementation planning ([PR #20](https://github.com/TeraflopsBH/eventor/pull/20)).
 5. Establish CI and repository protection settings ([Issue #5](https://github.com/TeraflopsBH/eventor/issues/5)).
 6. Start application implementation only after the foundation contracts are coherent.
 
