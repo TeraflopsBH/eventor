@@ -110,6 +110,10 @@ Eventor is a reusable, self-hosted platform that can operate as a venue booking/
 
 See [Operating Model](OPERATING_MODEL.md) and [ADR 0004](decisions/0004-optional-event-operations-scope.md). This is a new accepted product requirement and must be reflected in the next successor implementation design and schema/API revision; historical Blueprint v1.2 and Implementation Design v0.2 files remain unchanged snapshots.
 
+## Database schema review
+
+An initial structural review of the v0.2 PostgreSQL schema is recorded in [Database Review v0.2](database/DATABASE_REVIEW_v0.2.md). It found a connected 86-table structure but also important cross-organization ownership, tenant integrity, availability-concurrency and optional-module gaps. The migration approach is documented in [Migration Conventions](database/MIGRATION_CONVENTIONS.md). PostgreSQL parser/runtime testing remains outstanding because no PostgreSQL server/client or parser is available in the current working environment. Issue #2 remains open; blockers are tracked in Issues #12 and #13. RSVP migration/API implementation is tracked in Issue #10.
+
 ## Imported design artifacts and reconciliation
 
 The working design sources are now in the repository:
