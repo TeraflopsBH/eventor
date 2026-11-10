@@ -143,6 +143,8 @@ Examples:
 
 If a third-party operator does not use Eventor, the assignment may name an external party and track confirmation without granting an account.
 
+For organization-to-organization task execution, the assignment remains owned by the event organization. The performing organization accesses it only through a task projection/status command: the active collaboration grant must include `event.task.perform` and list the exact assignment UUID in `projection.taskIds`; the performing member must separately hold the local `task.perform` role permission. The projection is allowlisted and does not expose guest/RSVP records. Status changes are audited in the event owner's tenant with the performing organization, member, grant and reason preserved. Direct cross-tenant table mutation is not an access path.
+
 ## 5. Information-sharing rules
 
 ### 5.1 Default deny
