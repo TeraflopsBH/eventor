@@ -76,9 +76,12 @@ COMMENT ON FUNCTION eogp.current_organization_id() IS
 CREATE TABLE eogp.audit_events (
     id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
     organization_id uuid NOT NULL REFERENCES eogp.organizations(id),
+    actor_organization_id uuid,
     actor_membership_id uuid,
     actor_service_principal_id uuid,
     actor_external_capability_id uuid,
+    authorization_grant_owner_organization_id uuid,
+    authorization_grant_id uuid,
     actor_kind text NOT NULL CHECK (actor_kind IN ('membership','service_principal','external_capability')),
     action text NOT NULL,
     aggregate_type text NOT NULL,
@@ -90,15 +93,16 @@ CREATE TABLE eogp.audit_events (
     occurred_at timestamptz NOT NULL DEFAULT clock_timestamp(),
     UNIQUE (organization_id, id),
     CHECK (
-      (actor_kind = 'membership' AND actor_membership_id IS NOT NULL AND actor_service_principal_id IS NULL AND actor_external_capability_id IS NULL)
+      (actor_kind = 'membership' AND actor_organization_id IS NOT NULL AND actor_membership_id IS NOT NULL AND actor_service_principal_id IS NULL AND actor_external_capability_id IS NULL)
       OR
-      (actor_kind = 'service_principal' AND actor_membership_id IS NULL AND actor_service_principal_id IS NOT NULL AND actor_external_capability_id IS NULL)
+      (actor_kind = 'service_principal' AND actor_organization_id IS NOT NULL AND actor_membership_id IS NULL AND actor_service_principal_id IS NOT NULL AND actor_external_capability_id IS NULL)
       OR
-      (actor_kind = 'external_capability' AND actor_membership_id IS NULL AND actor_service_principal_id IS NULL AND actor_external_capability_id IS NOT NULL)
+      (actor_kind = 'external_capability' AND actor_organization_id IS NULL AND actor_membership_id IS NULL AND actor_service_principal_id IS NULL AND actor_external_capability_id IS NOT NULL)
     ),
-    FOREIGN KEY (organization_id, actor_membership_id)
+    CHECK ((authorization_grant_id IS NULL) = (authorization_grant_owner_organization_id IS NULL)),
+    FOREIGN KEY (actor_organization_id, actor_membership_id)
       REFERENCES eogp.organization_memberships(organization_id, id),
-    FOREIGN KEY (organization_id, actor_service_principal_id)
+    FOREIGN KEY (actor_organization_id, actor_service_principal_id)
       REFERENCES eogp.service_principals(organization_id, id)
 );
 CREATE INDEX audit_events_aggregate_idx
