@@ -34,6 +34,27 @@ BEGIN
      OR NOT has_column_privilege(current_user, 'eogp.users', 'email', 'SELECT') THEN
     RAISE EXCEPTION 'authentication role lacks required credential lookup/password-update privileges';
   END IF;
+
+  IF NOT has_table_privilege(current_user, 'eogp.user_sessions', 'SELECT')
+     OR NOT has_table_privilege(current_user, 'eogp.user_sessions', 'INSERT')
+     OR NOT has_table_privilege(current_user, 'eogp.user_sessions', 'UPDATE')
+     OR has_table_privilege(current_user, 'eogp.user_sessions', 'DELETE')
+     OR has_table_privilege('eventor_runtime', 'eogp.user_sessions', 'SELECT')
+     OR has_table_privilege('eventor_worker', 'eogp.user_sessions', 'SELECT') THEN
+    RAISE EXCEPTION 'session table privileges are not restricted to the authentication service';
+  END IF;
+
+  IF NOT has_table_privilege(current_user, 'eogp.auth_login_attempts', 'SELECT')
+     OR NOT has_table_privilege(current_user, 'eogp.auth_login_attempts', 'INSERT')
+     OR NOT has_table_privilege(current_user, 'eogp.auth_login_attempts', 'UPDATE')
+     OR has_table_privilege(current_user, 'eogp.auth_login_attempts', 'DELETE') THEN
+    RAISE EXCEPTION 'authentication rate-limit table privileges are incorrect';
+  END IF;
+
+  IF current_setting('app.organization_id', true) IS NOT NULL
+     AND current_setting('app.organization_id', true) <> '' THEN
+    RAISE EXCEPTION 'authentication smoke test must not rely on tenant GUC context';
+  END IF;
 END;
 $test$;
 
