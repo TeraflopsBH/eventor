@@ -41,3 +41,7 @@ GHB-specific capacities, room inventory, current prices, discounts and operating
 ## Excluded source material
 
 The source GHB mosque workbook, its rendered worksheet image and the plan-observation CSV are deliberately excluded from this repository import pending venue-owner review. The spatial observations are provisional and must not be used to publish geometry or seating capacity without approval. DOCX/PDF render copies are also omitted; the editable Markdown sources are retained here.
+
+## Successor design addenda
+
+The invitation/RSVP lifecycle is extended in [Implementation Design v0.3](../v0.3/RSVP_AND_INVITATION_DESIGN_v0.3.md). The v0.2 artifacts remain unchanged historical snapshots; use successor revisions for future schema/API changes.
