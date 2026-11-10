@@ -1,6 +1,6 @@
 # ADR 0006: Keep venue and event data separately owned with explicit collaboration
 
-- **Status:** Proposed — awaiting product-owner confirmation
+- **Status:** Accepted
 - **Date:** 2026-11-10
 - **Related:** ADR 0004, [Issue #12](https://github.com/TeraflopsBH/eventor/issues/12)
 - **Design proposal:** [Cross-Organization Collaboration v0.3](../implementation-design/v0.3/CROSS_ORGANIZATION_COLLABORATION_DESIGN_v0.3.md)
@@ -29,4 +29,4 @@ A common real-world case is GHB owning a venue and booking record while an indep
 - Event sessions and allocations must reference event-owned shared venue snapshots/resources.
 - RLS and authorization must remain tenant-isolated; collaboration uses explicit scoped projections.
 - Historical venue snapshots and operational records remain auditable after grant expiry/revocation; new access is blocked.
-- This proposal must be confirmed before schema implementation; it is not accepted architecture yet.
+- The product owner accepted this model on 2026-11-10. Schema/API implementation remains subject to review and tests, but the ownership and collaboration approach is the accepted architecture.
