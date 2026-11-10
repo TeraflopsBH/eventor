@@ -227,15 +227,14 @@ BEGIN
 
   INSERT INTO eogp.audit_events (
     organization_id, actor_organization_id, actor_membership_id, actor_kind,
-    authorization_grant_owner_organization_id, authorization_grant_id,
     action, aggregate_type, aggregate_id, safe_metadata
   ) VALUES (
     NEW.organization_id, NEW.organization_id, NEW.approved_by_membership_id, 'membership',
-    NEW.organization_id, NEW.collaboration_grant_id,
     'venue.snapshot.shared', 'venue_snapshot_share', NEW.id,
     jsonb_build_object(
       'eventOwnerOrganizationId', NEW.event_owner_organization_id,
       'eventId', NEW.event_id,
+      'collaborationGrantId', NEW.collaboration_grant_id,
       'venueSpaceRevisionId', NEW.venue_space_revision_id,
       'sourceContentSha256', NEW.source_content_sha256
     )
