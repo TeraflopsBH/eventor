@@ -31,9 +31,9 @@ This matrix tracks executable PostgreSQL integration coverage and remaining gaps
 - [x] Revoked grant blocks new venue snapshot copies, booking-event links, session bindings and new snapshot child rows.
 - [x] Venue snapshot share is constrained to grant scope, validity window and exact published source revision/content hash.
 - [x] Provider-approved layer/resource IDs must belong to the exact source revision/venue; duplicates and foreign IDs are rejected.
-- [x] Copied snapshot layers must match approved source layers; copied objects must belong to an approved layer; copied resources must match approved pool/unit IDs.
+- [x] Copied snapshot layers must match approved source layers; each copied object must map to the exact copied layer for its source object's layer; copied resources must match approved pool/unit IDs.
 - [x] Recipient RLS exposes only approved source rows while the share and grant are active.
-- [ ] A read-only `venue.snapshot.read` grant can SELECT the approved source projection but cannot create/use an event snapshot.
+- [x] A read-only `venue.snapshot.read` grant can SELECT its approved source revision but cannot create/use an event snapshot.
 - [x] Revocation hides provider-owned source rows from the recipient but retains its already-copied event-owned snapshot.
 
 ## Venue hierarchy
