@@ -23,6 +23,7 @@ DECLARE
   v_link_audit_count integer;
   v_share_audit_count integer;
 BEGIN
+  PERFORM set_config('app.organization_id','10000000-0000-0000-0000-00000000000b',true);
   SELECT count(*) INTO v_link_audit_count
     FROM eogp.audit_events
    WHERE organization_id = '10000000-0000-0000-0000-00000000000b'
@@ -35,6 +36,7 @@ BEGIN
      AND authorization_grant_id = '61000000-0000-4000-8000-00000000000b'
      AND reason_code = 'ci_review_revoked';
 
+  PERFORM set_config('app.organization_id','10000000-0000-0000-0000-00000000000a',true);
   SELECT count(*) INTO v_share_audit_count
     FROM eogp.audit_events
    WHERE organization_id = '10000000-0000-0000-0000-00000000000a'
