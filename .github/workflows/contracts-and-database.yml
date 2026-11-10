@@ -25,10 +25,13 @@ jobs:
           python-version: "3.12"
 
       - name: Install validator dependencies
-        run: python -m pip install --disable-pip-version-check PyYAML==6.0.3
+        run: python -m pip install --disable-pip-version-check -r requirements-dev.txt
 
       - name: Run Eventor contract checks
-        run: python scripts/validate_openapi.py
+        run: python scripts/validate_openapi.py docs/api/openapi.v0.3.yaml
+
+      - name: Validate with pinned OpenAPI 3.1 validator
+        run: python -m openapi_spec_validator docs/api/openapi.v0.3.yaml
 
       - name: Set up Node.js
         uses: actions/setup-node@v4
@@ -73,10 +76,12 @@ jobs:
 
       - name: Bootstrap least-privilege roles
         run: |
+          psql "$ADMIN_URL" -X -v ON_ERROR_STOP=1 \
+            -c "CREATE DATABASE eventor OWNER postgres;"
           psql "$ADMIN_URL" -X -v ON_ERROR_STOP=1 -v database_name=eventor \
             -f scripts/db/bootstrap-roles.sql
           psql "$ADMIN_URL" -X -v ON_ERROR_STOP=1 \
-            -c "CREATE DATABASE eventor OWNER eventor_owner;"
+            -c "ALTER DATABASE eventor OWNER TO eventor_owner;"
           psql "$ADMIN_URL" -X -v ON_ERROR_STOP=1 \
             -c "ALTER ROLE eventor_migrator WITH PASSWORD 'eventor_ci_migrator_password';"
           psql "$ADMIN_URL" -X -v ON_ERROR_STOP=1 \
@@ -108,6 +113,11 @@ jobs:
 
       - name: Verify pooled capacity with independent concurrent connections
         run: scripts/db/test_resource_concurrency.sh
+
+      - name: Run extended tenant, hierarchy and interval smoke tests
+        env:
+          DATABASE_URL_RUNTIME: postgresql://eventor_runtime:eventor_ci_runtime_password@127.0.0.1:5432/eventor
+        run: bash scripts/db/test-migrations.sh
 
       - name: Report migration ledger
         run: |
