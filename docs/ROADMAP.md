@@ -33,6 +33,8 @@ This roadmap is provisional. Scope and acceptance criteria must be finalized aft
 
 ## Phase 3 — Guest registry, invitations and RSVP
 
+The domain design is documented in `docs/implementation-design/v0.3/RSVP_AND_INVITATION_DESIGN_v0.3.md`; schema/API implementation is tracked in [Issue #10](https://github.com/TeraflopsBH/eventor/issues/10).
+
 - [ ] Persistent guest registry and event participation.
 - [ ] Imports, duplicate detection and supervised merge.
 - [ ] Invitation batches, secure links and delivery tracking.
