@@ -144,7 +144,7 @@ jobs:
       - name: Verify event cancellation and postponement after invitation delivery
         run: psql "$MIGRATOR_URL" -X -v ON_ERROR_STOP=1 -f tests/database/event_cancellation_postponement_smoke.sql
 
-      - name: Verify permission-gated event change command lifecycle
+      - name: Verify event change commands, scoped permissions and replacement schedules
         run: psql "$MIGRATOR_URL" -X -v ON_ERROR_STOP=1 -f tests/database/event_change_command_runtime_smoke.sql
 
       - name: Verify PR review remediation regressions
