@@ -1,46 +1,77 @@
-# Eventor API module
+# Eventor API and notification worker
 
-This package implements the first Fastify command routes for the v0.3 API contract. It is a route module, not a deployable service by itself: no staff login/session store, database provisioning, worker process or production deployment has been introduced.
+This package now contains the first deployable command API bootstrap and a separate event-notification campaign-preparation worker. It remains an application foundation, not the complete staff product or delivery system.
 
-## Commands implemented
+## API commands
 
+- `POST /auth/session` — Argon2id staff login bound to an active organization membership.
+- `DELETE /auth/session` — revoke the current database-backed session.
+- `GET /me` — return the current principal and active organization memberships.
 - `POST /bookings/{bookingId}/reservations/release`
 - `POST /events/{eventId}/change-requests`
 - `POST /event-change-requests/{requestId}/approve`
 - `POST /event-change-requests/{requestId}/reject`
 - `POST /event-change-requests/{requestId}/execute`
 
-The handlers call permission-gated PostgreSQL functions. They do not directly update event, reservation or audit tables.
+The command handlers call permission-gated PostgreSQL functions rather than performing ad-hoc table writes.
 
-## Host integration boundary
+## Database roles and credentials
 
-The host application must provide:
+The API uses two independent pools:
 
-- A `pg.Pool` connected as `eventor_runtime`.
-- `authenticateStaff`, which validates a signed server-side session, resolves the selected active membership and returns its user, organization and membership UUIDs. It must not derive these values from request headers or request bodies.
-- `verifyMutationOrigin`, which verifies the cookie-authenticated mutation's CSRF token and trusted origin.
-- A 32-byte AES-256 key when the API accepts `reasonInternal`. The Node adapter encrypts this value before storing it in the migration's `bytea` field. The versioned ciphertext envelope is `EV1 | 12-byte nonce | 16-byte GCM tag | ciphertext`; the database command also rejects non-EV1 or undersized envelopes.
+- `eventor_runtime` for tenant-scoped application commands.
+- `eventor_auth` for global identity lookup, password-hash verification, login throttling and opaque session storage. This role cannot read venue/business tables and does not have `BYPASSRLS`.
 
-Example composition (the authentication/session implementation is intentionally supplied by the host):
+The notification worker connects separately as `eventor_worker`. Do not run API or worker processes with the migration/owner credentials.
 
-```ts
-const api = buildApi({
-  pool,
-  authenticateStaff: staffSessionAuthenticator,
-  verifyMutationOrigin: csrfAndOriginVerifier,
-  privateFieldEncryptionKey: Buffer.from(process.env.EVENTOR_FIELD_ENCRYPTION_KEY!, "base64"),
-});
+## Staff session security
+
+- Passwords are verified as Argon2id PHC hashes. New hashes use the library defaults; successful logins rehash when the configured parameters are outdated.
+- The session cookie is a random 256-bit opaque token named `__Host-eventor_session`, marked `Secure`, `HttpOnly`, `SameSite=Strict` and `Path=/`. Only its SHA-256 hash is stored in PostgreSQL.
+- A separate random CSRF token is held in a readable `__Host-eventor_csrf` cookie and returned to the same-origin client at login. State-changing requests must send the matching `X-CSRF-Token` header. The server checks the allow-listed `Origin` and validates the CSRF token hash against the active session.
+- Sessions are bound to a specific user, organization and active membership. Revocation, user disablement, membership suspension/revocation and organization suspension are checked on authentication.
+- Login failures are throttled in PostgreSQL using HMAC fingerprints of the normalized email and request source. Configure a dedicated 32-byte fingerprint key.
+- Do not put secrets in logs. Configure exact origins; wildcards are rejected.
+
+When behind a reverse proxy, configure `EVENTOR_TRUST_PROXY_CIDRS` with only the proxy addresses/CIDRs you control. Without that setting Fastify uses the direct peer IP for login throttling. Do not trust arbitrary forwarded headers.
+
+## Environment
+
+Copy `.env.example` into your deployment's secret/configuration system and supply real values. The checked-in example contains placeholders only.
+
+Both database connection URLs should use TLS with certificate and hostname verification in production (for example, PostgreSQL `sslmode=verify-full` with a trusted CA). Configure database passwords outside this repository.
+
+Start the API after building:
+
+```sh
+npm install
+npm run build
+npm start
 ```
 
-Fail closed when no validated session or trusted mutation origin exists. The active membership and scoped permission are checked again by the database command, after the trusted organization context has been set transaction-locally.
+Start the notification worker as a separate process:
 
-## Idempotency and transactions
+```sh
+npm run build
+npm run start:worker
+```
 
-Every mutating endpoint requires `Idempotency-Key`. The API stores a canonical JSON SHA-256 request hash and the completed response in `eogp.idempotency_records` in the same transaction as the command. Same-key/same-payload retries replay the stored response; same-key/different-payload requests return 409. The tenant setting is transaction-local and comes only from the validated session principal.
+## Notification outbox behavior
 
-SQLSTATEs are mapped to the API's safe error envelope. Raw database messages and private field values are not returned to clients.
+The organizer's event-change command writes a transactional outbox event. The worker:
 
-## Generated contract types and tests
+1. Discovers only tenant IDs for the `event.change.notification_requested` topic.
+2. Sets transaction-local tenant context before reading that tenant's outbox or event data.
+3. Resolves the audience from the selected rule (accepted/tentative, active invitees, previously invited or explicit custom participation IDs).
+4. Copies only verified, permitted email/phone contact snapshots from the organizer's contact registry. The stored contact ciphertext is copied as ciphertext; the worker does not decrypt it or log addresses.
+5. Records exclusions where no verified, permitted contact exists.
+6. Creates a `previewed` event notification campaign with a published purpose-matched template and the recipient count. The organizer must review/confirm the campaign through a future campaign-confirmation endpoint before any provider delivery is queued.
+
+Worker processing is transactional, row-locked with `SKIP LOCKED`, idempotent at the outbox/campaign level, and retryable with bounded exponential backoff. After 12 failed attempts, the event is dead-lettered for operator review.
+
+**The worker does not send email or SMS.** No delivery attempts are created and no campaign is marked as sent or delivered. A delivery-provider adapter and the campaign-confirmation/retry routes remain separate work. A failed or delayed message never rolls back the event cancellation/postponement.
+
+## OpenAPI types and tests
 
 From this directory:
 
@@ -50,8 +81,11 @@ npm run typecheck
 npm test
 ```
 
-`npm run generate:openapi` generates the TypeScript declarations in `src/generated/openapi.d.ts` from the canonical `docs/api/openapi.v0.3.yaml`. Build and tests regenerate the declarations before compilation. The generated declaration is a build artifact and is not hand-maintained.
+`npm run generate:openapi` generates TypeScript declarations from `docs/api/openapi.v0.3.yaml`. CI regenerates these before strict compilation and route tests.
 
-## Deliberate remaining boundary
+## Remaining integration work
 
-Executing an event change may insert a transactional outbox record with topic `event.change.notification_requested`. This means dispatch was requested and durably queued; it does **not** mean a guest campaign was created or a message was delivered. The audience-resolution/campaign preparation and delivery worker remain separate implementation work. Provider-side booking disruption notices also remain separate from organizer-owned event decisions.
+- Connect the staff frontend to login, CSRF token handling, `/me` and the implemented command routes.
+- Implement campaign review/confirmation and the actual delivery-provider adapter; provider callbacks must update per-recipient attempts without rewriting RSVP/attendance history or the event decision.
+- Implement the rest of the OpenAPI operations.
+- Complete production secret provisioning, database TLS/network policy, proxy configuration, backups/recovery, monitoring and operational runbooks.
