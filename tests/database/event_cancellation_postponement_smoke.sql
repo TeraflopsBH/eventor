@@ -519,11 +519,11 @@ VALUES
 INSERT INTO eogp.event_notification_campaigns
   (id, organization_id, event_id, event_decision_id, purpose, audience_kind,
    status, template_revision_id, audience_rules_snapshot, created_by_organization_id,
-   created_by_membership_id)
+   created_by_membership_id, recipient_count)
 VALUES
-  ('92000000-0000-4000-8000-000000000002','22222222-2222-4222-8222-222222222222','90000000-0000-4000-8000-000000000002','91600000-0000-4000-8000-000000000002','event_postponement','accepted_tentative','draft','91400000-0000-4000-8000-000000000002',
+  ('92000000-0000-4000-8000-000000000002','22222222-2222-4222-8222-222222222222','90000000-0000-4000-8000-000000000002','91600000-0000-4000-8000-000000000002','event_postponement','accepted_tentative','previewed','91400000-0000-4000-8000-000000000002',
    '{"audience":"accepted_tentative","basedOnScheduleRevisionId":"90100000-0000-4000-8000-000000000002","snapshotSemantics":"fixed_at_confirmation"}'::jsonb,
-   '22222222-2222-4222-8222-222222222222','bbbbbbbb-2222-4222-8222-bbbbbbbbbbbb');
+   '22222222-2222-4222-8222-222222222222','bbbbbbbb-2222-4222-8222-bbbbbbbbbbbb',2);
 
 INSERT INTO eogp.event_notification_recipients
   (id, organization_id, event_id, campaign_id, participation_id, invitation_id,
@@ -533,8 +533,7 @@ VALUES
   ('92100000-0000-4000-8000-000000000012','22222222-2222-4222-8222-222222222222','90000000-0000-4000-8000-000000000002','92000000-0000-4000-8000-000000000002','90400000-0000-4000-8000-000000000012','90700000-0000-4000-8000-000000000012','latest_response_tentative','email',decode('32','hex'),repeat('4',64));
 
 UPDATE eogp.event_notification_campaigns
-   SET status = 'queued',
-       recipient_count = 2,
+   SET status = 'confirmed',
        confirmed_by_organization_id = '22222222-2222-4222-8222-222222222222',
        confirmed_by_membership_id = 'bbbbbbbb-2222-4222-8222-bbbbbbbbbbbb',
        confirmed_at = clock_timestamp()
