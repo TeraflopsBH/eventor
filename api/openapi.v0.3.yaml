@@ -1980,6 +1980,1147 @@ components:
         application/problem+json:
           schema: { $ref: '#/components/schemas/Problem' }
   schemas:
+    PersonCreate:
+      type: object
+      required: [firstName, lastName]
+      properties:
+        firstName: { type: string, minLength: 1, maxLength: 150 }
+        lastName: { type: string, minLength: 1, maxLength: 150 }
+        displayName: { type: string, maxLength: 250 }
+        preferredName: { type: string, maxLength: 150 }
+        contactPoints:
+          type: array
+          items:
+            type: object
+            required: [kind, value]
+            properties:
+              kind: { type: string, enum: [email, phone, postal, other] }
+              value: { type: string, writeOnly: true, maxLength: 2000 }
+              primary: { type: boolean }
+              consent: { type: string, enum: [unknown, permitted, restricted, withdrawn] }
+            additionalProperties: false
+      additionalProperties: false
+    PersonPatch:
+      type: object
+      properties:
+        firstName: { type: string, minLength: 1, maxLength: 150 }
+        lastName: { type: string, minLength: 1, maxLength: 150 }
+        displayName: { type: string, maxLength: 250 }
+        preferredName: { type: string, maxLength: 150 }
+        contactPoints:
+          type: array
+          items: { type: object, additionalProperties: true }
+      additionalProperties: false
+    Person:
+      type: object
+      required: [id, firstName, lastName, status]
+      properties:
+        id: { type: string, format: uuid }
+        firstName: { type: string }
+        lastName: { type: string }
+        displayName: { type: string }
+        preferredName: { type: string }
+        status: { type: string, enum: [active, merged, archived] }
+        contactPoints:
+          type: array
+          items:
+            type: object
+            properties:
+              id: { type: string, format: uuid }
+              kind: { type: string, enum: [email, phone, postal, other] }
+              maskedValue: { type: string }
+              consent: { type: string }
+            additionalProperties: false
+      additionalProperties: false
+    PersonResponse:
+      type: object
+      required: [data, meta]
+      properties:
+        data: { $ref: '#/components/schemas/Person' }
+        meta: { $ref: '#/components/schemas/Meta' }
+    PersonListResponse:
+      type: object
+      required: [data, page, meta]
+      properties:
+        data:
+          type: array
+          items: { $ref: '#/components/schemas/Person' }
+        page: { $ref: '#/components/schemas/Page' }
+        meta: { $ref: '#/components/schemas/Meta' }
+    GuestImportBatchResponse:
+      type: object
+      required: [id, state, sourceFilename, rowCount]
+      properties:
+        id: { type: string, format: uuid }
+        state: { type: string, enum: [uploaded, previewing, ready, committed, failed, cancelled] }
+        sourceFilename: { type: string }
+        rowCount: { type: integer, minimum: 0 }
+        validRowCount: { type: integer, minimum: 0 }
+        invalidRowCount: { type: integer, minimum: 0 }
+        duplicateCandidates: { type: integer, minimum: 0 }
+      additionalProperties: false
+    VenueCreate:
+      type: object
+      required: [organizationId, code, name, timezone]
+      properties:
+        organizationId: { type: string, format: uuid }
+        code: { type: string, minLength: 2, maxLength: 80 }
+        name: { type: string, minLength: 2, maxLength: 250 }
+        timezone: { type: string, default: Europe/Sarajevo }
+        address: { type: object, additionalProperties: true }
+      additionalProperties: false
+    Venue:
+      type: object
+      required: [id, code, name, timezone, status]
+      properties:
+        id: { type: string, format: uuid }
+        code: { type: string }
+        name: { type: string }
+        timezone: { type: string }
+        status: { type: string, enum: [active, inactive, archived] }
+        address: { type: object, additionalProperties: true }
+        spaces: { type: array, items: { type: object, additionalProperties: true } }
+      additionalProperties: true
+    VenueResponse:
+      type: object
+      required: [data, meta]
+      properties:
+        data: { $ref: '#/components/schemas/Venue' }
+        meta: { $ref: '#/components/schemas/Meta' }
+    VenueListResponse:
+      type: object
+      required: [data, meta]
+      properties:
+        data:
+          type: array
+          items: { $ref: '#/components/schemas/Venue' }
+        meta: { $ref: '#/components/schemas/Meta' }
+    SpatialObjectCreate:
+      type: object
+      required: [objectKind, geometry]
+      properties:
+        objectKind: { type: string, maxLength: 80 }
+        stableCode: { type: string, maxLength: 120 }
+        geometry: { type: object, additionalProperties: true }
+        attributes: { type: object, additionalProperties: true }
+      additionalProperties: false
+    SpatialObject:
+      type: object
+      required: [id, objectKind, geometry]
+      properties:
+        id: { type: string, format: uuid }
+        objectKind: { type: string }
+        stableCode: { type: string }
+        geometry: { type: object, additionalProperties: true }
+        attributes: { type: object, additionalProperties: true }
+      additionalProperties: false
+    SpatialObjectResponse:
+      type: object
+      required: [data, meta]
+      properties:
+        data: { $ref: '#/components/schemas/SpatialObject' }
+        meta: { $ref: '#/components/schemas/Meta' }
+    SpatialObjectListResponse:
+      type: object
+      required: [data, meta]
+      properties:
+        data:
+          type: array
+          items: { $ref: '#/components/schemas/SpatialObject' }
+        meta: { $ref: '#/components/schemas/Meta' }
+    AllocationRunCreate:
+      type: object
+      required: [allocationRevisionId, inputRevision]
+      properties:
+        allocationRevisionId: { type: string, format: uuid }
+        inputRevision: { type: integer, minimum: 1 }
+        solverOptions: { type: object, additionalProperties: true }
+      additionalProperties: false
+    AllocationRunResponse:
+      type: object
+      required: [id, status, inputSha256]
+      properties:
+        id: { type: string, format: uuid }
+        status: { type: string, enum: [queued, running, succeeded, infeasible, failed, cancelled] }
+        inputSha256: { type: string, pattern: '^[0-9a-f]{64}      type: object
+      required: [type, title, status, code, requestId]
+      properties:
+        type: { type: string, format: uri-reference }
+        title: { type: string }
+        status: { type: integer, minimum: 400, maximum: 599 }
+        detail: { type: string }
+        instance: { type: string, format: uri-reference }
+        code: { type: string }
+        requestId: { type: string }
+        fieldErrors:
+          type: array
+          items:
+            type: object
+            required: [field, code, message]
+            properties:
+              field: { type: string }
+              code: { type: string }
+              message: { type: string }
+      additionalProperties: false
+    Meta:
+      type: object
+      properties:
+        requestId: { type: string }
+        revision: { type: integer, minimum: 1 }
+        createdAt: { type: string, format: date-time }
+      additionalProperties: false
+    Page:
+      type: object
+      required: [limit]
+      properties:
+        limit: { type: integer, minimum: 1, maximum: 100 }
+        nextCursor: { type: string }
+      additionalProperties: false
+    Principal:
+      type: object
+      required: [userId, displayName, memberships]
+      properties:
+        userId: { type: string, format: uuid }
+        displayName: { type: string }
+        memberships:
+          type: array
+          items:
+            type: object
+            required: [organizationId, membershipId, organizationName, status]
+            properties:
+              organizationId: { type: string, format: uuid }
+              membershipId: { type: string, format: uuid }
+              organizationName: { type: string }
+              status: { type: string, enum: [active, invited, suspended, revoked] }
+              permissionSummary:
+                type: array
+                items: { type: string }
+      additionalProperties: false
+    PrincipalResponse:
+      type: object
+      required: [data, meta]
+      properties:
+        data: { $ref: '#/components/schemas/Principal' }
+        meta: { $ref: '#/components/schemas/Meta' }
+    PublishedBookingFormResponse:
+      type: object
+      required: [formCode, revision, locale, fields]
+      properties:
+        formCode: { type: string }
+        revision: { type: integer, minimum: 1 }
+        locale: { type: string }
+        fields:
+          type: array
+          items:
+            type: object
+            required: [code, label, type, required]
+            properties:
+              code: { type: string }
+              label: { type: string }
+              type: { type: string, enum: [text, textarea, email, phone, date, time, datetime, number, select, multiselect, checkbox, file] }
+              required: { type: boolean }
+              options:
+                type: array
+                items:
+                  type: object
+                  required: [id, label]
+                  properties:
+                    id: { type: string, format: uuid }
+                    label: { type: string }
+              helpText: { type: string }
+      additionalProperties: false
+    BookingInquiryCreate:
+      type: object
+      required: [formRevision, requester, values]
+      properties:
+        formRevision: { type: integer, minimum: 1 }
+        requester:
+          type: object
+          required: [name]
+          properties:
+            name: { type: string, minLength: 2, maxLength: 200 }
+            email: { type: string, format: email }
+            phone: { type: string, maxLength: 80 }
+            organization: { type: string, maxLength: 200 }
+          additionalProperties: false
+        values:
+          type: object
+          description: Field-code keyed answers validated against the pinned published form revision.
+          additionalProperties: true
+        requestedStart: { type: string, format: date-time }
+        requestedEnd: { type: string, format: date-time }
+        timezone: { type: string, default: Europe/Sarajevo }
+        attachments:
+          type: array
+          maxItems: 10
+          items:
+            type: object
+            required: [uploadId]
+            properties:
+              uploadId: { type: string, format: uuid }
+      additionalProperties: false
+    BookingInquiryReceipt:
+      type: object
+      required: [reference, receivedAt]
+      properties:
+        reference: { type: string }
+        receivedAt: { type: string, format: date-time }
+        message: { type: string }
+      additionalProperties: false
+    BookingInquiry:
+      type: object
+      required: [id, reference, status, submittedAt, requester]
+      properties:
+        id: { type: string, format: uuid }
+        reference: { type: string }
+        status: { type: string, enum: [received, under_review, converted, declined, withdrawn, spam] }
+        submittedAt: { type: string, format: date-time }
+        requester: { type: object, additionalProperties: true }
+        submittedValues: { type: object, additionalProperties: true }
+        annotations:
+          type: array
+          items: { type: object, additionalProperties: true }
+      additionalProperties: true
+    BookingInquiryResponse:
+      type: object
+      required: [data, meta]
+      properties:
+        data: { $ref: '#/components/schemas/BookingInquiry' }
+        meta: { $ref: '#/components/schemas/Meta' }
+    BookingInquiryListResponse:
+      type: object
+      required: [data, page, meta]
+      properties:
+        data:
+          type: array
+          items: { $ref: '#/components/schemas/BookingInquiry' }
+        page: { $ref: '#/components/schemas/Page' }
+        meta: { $ref: '#/components/schemas/Meta' }
+    BookingDraftRevisionCreate:
+      type: object
+      required: [values]
+      properties:
+        values: { type: object, additionalProperties: true }
+        sourceFormRevisionId: { type: string, format: uuid }
+        requestedStart: { type: string, format: date-time }
+        requestedEnd: { type: string, format: date-time }
+        timezone: { type: string, default: Europe/Sarajevo }
+        changeReason: { type: string, maxLength: 2000 }
+        spaceBlocks:
+          type: array
+          items:
+            type: object
+            required: [venueSpaceId, blockKind, startsAt, endsAt]
+            properties:
+              venueSpaceId: { type: string, format: uuid }
+              blockKind: { type: string, enum: [setup, rehearsal, event_use, teardown, buffer] }
+              startsAt: { type: string, format: date-time }
+              endsAt: { type: string, format: date-time }
+              requestedCapacity: { type: integer, minimum: 0 }
+      additionalProperties: false
+    BookingDraft:
+      type: object
+      required: [id, status, currentRevisionNumber]
+      properties:
+        id: { type: string, format: uuid }
+        status: { type: string, enum: [draft, offered, confirmed, abandoned] }
+        currentRevisionNumber: { type: integer, minimum: 0 }
+        sourceInquiryId: { type: string, format: uuid }
+      additionalProperties: false
+    BookingDraftResponse:
+      type: object
+      required: [data, meta]
+      properties:
+        data: { $ref: '#/components/schemas/BookingDraft' }
+        meta: { $ref: '#/components/schemas/Meta' }
+    BookingOfferCreate:
+      type: object
+      required: [currency, taxBasis, validUntil]
+      properties:
+        priceListRevisionId: { type: string, format: uuid }
+        cancellationPolicyRevisionId: { type: string, format: uuid }
+        currency: { type: string, pattern: '^[A-Z]{3}$' }
+        taxBasis: { type: string, enum: [inclusive, exclusive, not_applicable, to_be_confirmed] }
+        validUntil: { type: string, format: date-time }
+        lineItems:
+          type: array
+          items:
+            type: object
+            required: [code, label, quantity, unitAmount]
+            properties:
+              code: { type: string }
+              label: { type: string }
+              quantity: { type: number, minimum: 0 }
+              unitAmount: { type: number, minimum: 0 }
+              taxCode: { type: string }
+        internalReason: { type: string, maxLength: 2000 }
+      additionalProperties: false
+    BookingOffer:
+      type: object
+      required: [id, status, revisionNumber, currency, totalAmount]
+      properties:
+        id: { type: string, format: uuid }
+        status: { type: string, enum: [prepared, issued, accepted, rejected, expired, withdrawn, superseded] }
+        revisionNumber: { type: integer, minimum: 1 }
+        currency: { type: string }
+        subtotal: { type: number, minimum: 0 }
+        taxAmount: { type: number, minimum: 0 }
+        totalAmount: { type: number, minimum: 0 }
+        validUntil: { type: string, format: date-time }
+        termsSnapshot: { type: object, additionalProperties: true }
+      additionalProperties: true
+    BookingOfferResponse:
+      type: object
+      required: [data, meta]
+      properties:
+        data: { $ref: '#/components/schemas/BookingOffer' }
+        meta: { $ref: '#/components/schemas/Meta' }
+    Booking:
+      type: object
+      required: [id, bookingCode, status, confirmedAt, revision]
+      properties:
+        id: { type: string, format: uuid }
+        bookingCode: { type: string }
+        status: { type: string, enum: [confirmed, completed, cancelled, closed] }
+        confirmedAt: { type: string, format: date-time }
+        cancelledAt: { type: string, format: date-time }
+        revision: { type: integer, minimum: 1 }
+        reservationSummary:
+          type: array
+          items: { type: object, additionalProperties: true }
+        commercialSummary: { type: object, additionalProperties: true }
+        eventLinkSummary: { type: object, additionalProperties: true }
+      additionalProperties: true
+    BookingResponse:
+      type: object
+      required: [data, meta]
+      properties:
+        data: { $ref: '#/components/schemas/Booking' }
+        meta: { $ref: '#/components/schemas/Meta' }
+    BookingListResponse:
+      type: object
+      required: [data, page, meta]
+      properties:
+        data:
+          type: array
+          items: { $ref: '#/components/schemas/Booking' }
+        page: { $ref: '#/components/schemas/Page' }
+        meta: { $ref: '#/components/schemas/Meta' }
+    SpaceAvailabilityRequest:
+      type: object
+      required: [spaceBlocks]
+      properties:
+        spaceBlocks:
+          type: array
+          minItems: 1
+          items:
+            type: object
+            required: [venueSpaceId, startsAt, endsAt]
+            properties:
+              venueSpaceId: { type: string, format: uuid }
+              startsAt: { type: string, format: date-time }
+              endsAt: { type: string, format: date-time }
+              blockKind: { type: string, enum: [setup, rehearsal, event_use, teardown, buffer] }
+        excludeBookingId: { type: string, format: uuid }
+      additionalProperties: false
+    ResourceAvailabilityRequest:
+      type: object
+      required: [reservations]
+      properties:
+        reservations:
+          type: array
+          minItems: 1
+          items:
+            type: object
+            required: [resourcePoolId, startsAt, endsAt, quantity]
+            properties:
+              resourcePoolId: { type: string, format: uuid }
+              startsAt: { type: string, format: date-time }
+              endsAt: { type: string, format: date-time }
+              quantity: { type: integer, minimum: 1 }
+      additionalProperties: false
+    AvailabilityResponse:
+      type: object
+      required: [available, conflicts]
+      properties:
+        available: { type: boolean }
+        conflicts:
+          type: array
+          items:
+            type: object
+            required: [kind, startsAt, endsAt]
+            properties:
+              kind: { type: string, enum: [space, discrete_unit, pooled_capacity, maintenance] }
+              startsAt: { type: string, format: date-time }
+              endsAt: { type: string, format: date-time }
+              safeReference: { type: string }
+      additionalProperties: false
+    BookingCancellationRequestCreate:
+      type: object
+      required: [reasonCode]
+      properties:
+        reasonCode: { type: string, minLength: 1, maxLength: 80 }
+        explanation: { type: string, maxLength: 4000 }
+        requestedEffectiveAt: { type: string, format: date-time }
+      additionalProperties: false
+    BookingCancellationRequest:
+      type: object
+      required: [id, bookingId, status, reasonCode, requestedAt]
+      properties:
+        id: { type: string, format: uuid }
+        bookingId: { type: string, format: uuid }
+        status: { type: string, enum: [submitted, under_review, approved, rejected, withdrawn, expired, effective] }
+        reasonCode: { type: string }
+        requestedAt: { type: string, format: date-time }
+        resolvedAt: { type: string, format: date-time }
+        safeDecisionSummary: { type: string }
+      additionalProperties: false
+    BookingCancellationRequestResponse:
+      type: object
+      required: [data, meta]
+      properties:
+        data: { $ref: '#/components/schemas/BookingCancellationRequest' }
+        meta: { $ref: '#/components/schemas/Meta' }
+    DecisionRequest:
+      type: object
+      required: [reason]
+      properties:
+        reason: { type: string, minLength: 3, maxLength: 2000 }
+      additionalProperties: false
+    VenueCancellationInitiate:
+      type: object
+      required: [reasonCode, publicSummary]
+      properties:
+        reasonCode: { type: string, minLength: 1, maxLength: 80 }
+        publicSummary: { type: string, minLength: 5, maxLength: 2000 }
+        operationalSummary: { type: string, maxLength: 4000 }
+        emergencyOverride: { type: boolean, default: false }
+      additionalProperties: false
+    BookingCancellationPreviewResponse:
+      type: object
+      required: [bookingId, policyRevision, approvalRequired, affectedReservationCount, commercialSummary]
+      properties:
+        bookingId: { type: string, format: uuid }
+        policyRevision: { type: string, format: uuid }
+        approvalRequired: { type: boolean }
+        affectedReservationCount: { type: integer, minimum: 0 }
+        commercialSummary: { type: object, additionalProperties: true }
+        previewRevision: { type: integer, minimum: 1 }
+      additionalProperties: false
+    EventCreate:
+      type: object
+      required: [eventCode, title, timezone]
+      properties:
+        eventCode: { type: string, minLength: 2, maxLength: 80 }
+        title: { type: string, minLength: 2, maxLength: 250 }
+        descriptionInternal: { type: string, maxLength: 10000 }
+        timezone: { type: string, default: Europe/Sarajevo }
+        startsAt: { type: string, format: date-time }
+        endsAt: { type: string, format: date-time }
+        capabilityDefaults:
+          type: object
+          description: Explicit opt-in only; omitted capabilities are disabled.
+          properties:
+            guestRegistry: { type: boolean, default: false }
+            invitationsRsvp: { type: boolean, default: false }
+            seating: { type: boolean, default: false }
+            guestPortal: { type: boolean, default: false }
+            checkin: { type: boolean, default: false }
+            prerequisites: { type: boolean, default: false }
+            operationsCockpit: { type: boolean, default: false }
+          additionalProperties: false
+      additionalProperties: false
+    Event:
+      type: object
+      required: [id, eventCode, title, status, timezone, revision]
+      properties:
+        id: { type: string, format: uuid }
+        eventCode: { type: string }
+        title: { type: string }
+        status: { type: string, enum: [draft, planned, scheduled, active, completed, cancelled, postponed, archived] }
+        timezone: { type: string }
+        revision: { type: integer, minimum: 1 }
+        currentSchedule: { type: object, additionalProperties: true }
+        capabilitySummary: { type: object, additionalProperties: true }
+      additionalProperties: true
+    EventResponse:
+      type: object
+      required: [data, meta]
+      properties:
+        data: { $ref: '#/components/schemas/Event' }
+        meta: { $ref: '#/components/schemas/Meta' }
+    EventCapabilitiesUpdate:
+      type: object
+      required: [capabilities]
+      properties:
+        capabilities:
+          type: object
+          properties:
+            guestRegistry: { type: boolean, default: false }
+            invitationsRsvp: { type: boolean, default: false }
+            seating: { type: boolean, default: false }
+            guestPortal: { type: boolean, default: false }
+            checkin: { type: boolean, default: false }
+            prerequisites: { type: boolean, default: false }
+            operationsCockpit: { type: boolean, default: false }
+          additionalProperties: false
+        reason: { type: string, maxLength: 2000 }
+      additionalProperties: false
+    EventCapabilitiesResponse:
+      type: object
+      required: [revision, capabilities]
+      properties:
+        revision: { type: integer, minimum: 1 }
+        capabilities: { $ref: '#/components/schemas/EventCapabilitiesUpdate/properties/capabilities' }
+        dependencies: { type: array, items: { type: object, additionalProperties: true } }
+    ResponsibilityAssignmentCreate:
+      type: object
+      required: [taskCode, taskLabel, accountableParty, performingParty]
+      properties:
+        taskCode: { type: string, maxLength: 80 }
+        taskLabel: { type: string, maxLength: 250 }
+        accountableParty: { $ref: '#/components/schemas/PartyAssignment' }
+        performingParty: { $ref: '#/components/schemas/PartyAssignment' }
+        approverMembershipId: { type: string, format: uuid }
+        collaborationGrantId: { type: string, format: uuid }
+        permittedProjection: { type: object, additionalProperties: true }
+        dueAt: { type: string, format: date-time }
+      additionalProperties: false
+    PartyAssignment:
+      type: object
+      required: [kind]
+      properties:
+        kind: { type: string, enum: [event_owner, organization, external_party] }
+        organizationId: { type: string, format: uuid }
+        membershipId: { type: string, format: uuid }
+        externalPartyLabel: { type: string, maxLength: 250 }
+      additionalProperties: false
+    Responsibility:
+      type: object
+      required: [id, taskCode, status]
+      properties:
+        id: { type: string, format: uuid }
+        taskCode: { type: string }
+        taskLabel: { type: string }
+        status: { type: string, enum: [not_started, in_progress, blocked, completed, cancelled, waived] }
+        accountableParty: { $ref: '#/components/schemas/PartyAssignment' }
+        performingParty: { $ref: '#/components/schemas/PartyAssignment' }
+        dueAt: { type: string, format: date-time }
+      additionalProperties: true
+    ResponsibilityResponse:
+      type: object
+      required: [data, meta]
+      properties:
+        data: { $ref: '#/components/schemas/Responsibility' }
+        meta: { $ref: '#/components/schemas/Meta' }
+    ResponsibilityListResponse:
+      type: object
+      required: [data, meta]
+      properties:
+        data:
+          type: array
+          items: { $ref: '#/components/schemas/Responsibility' }
+        meta: { $ref: '#/components/schemas/Meta' }
+    CollaborationGrantCreate:
+      type: object
+      required: [granteeOrganizationId, scope, purpose, allowedActions, projection]
+      properties:
+        granteeOrganizationId: { type: string, format: uuid }
+        scope:
+          type: object
+          required: [kind, id]
+          properties:
+            kind: { type: string, enum: [venue, space, booking] }
+            id: { type: string, format: uuid }
+          additionalProperties: false
+        purpose: { type: string, minLength: 5, maxLength: 500 }
+        allowedActions:
+          type: array
+          minItems: 1
+          uniqueItems: true
+          items: { type: string }
+        projection: { type: object, additionalProperties: true }
+        validUntil: { type: string, format: date-time }
+      additionalProperties: false
+    CollaborationGrant:
+      type: object
+      required: [id, grantorOrganizationId, granteeOrganizationId, scope, status]
+      properties:
+        id: { type: string, format: uuid }
+        grantorOrganizationId: { type: string, format: uuid }
+        granteeOrganizationId: { type: string, format: uuid }
+        scope: { $ref: '#/components/schemas/CollaborationGrantCreate/properties/scope' }
+        purpose: { type: string }
+        allowedActions: { type: array, items: { type: string } }
+        status: { type: string, enum: [proposed, active, expired, revoked, declined] }
+        validFrom: { type: string, format: date-time }
+        validUntil: { type: string, format: date-time }
+      additionalProperties: false
+    CollaborationGrantResponse:
+      type: object
+      required: [data, meta]
+      properties:
+        data: { $ref: '#/components/schemas/CollaborationGrant' }
+        meta: { $ref: '#/components/schemas/Meta' }
+    CollaborationGrantListResponse:
+      type: object
+      required: [data, meta]
+      properties:
+        data:
+          type: array
+          items: { $ref: '#/components/schemas/CollaborationGrant' }
+        meta: { $ref: '#/components/schemas/Meta' }
+    VenueSnapshotShareCreate:
+      type: object
+      required: [eventOwnerOrganizationId, eventId, sourceSpaceRevisionId, collaborationGrantId, contentSha256]
+      properties:
+        eventOwnerOrganizationId: { type: string, format: uuid }
+        eventId: { type: string, format: uuid }
+        sourceSpaceRevisionId: { type: string, format: uuid }
+        collaborationGrantId: { type: string, format: uuid }
+        layerIds: { type: array, items: { type: string, format: uuid }, uniqueItems: true }
+        resourceIds: { type: array, items: { type: string, format: uuid }, uniqueItems: true }
+        contentSha256: { type: string, pattern: '^[0-9a-f]{64}$' }
+        expiresAt: { type: string, format: date-time }
+      additionalProperties: false
+    VenueSnapshotShareResponse:
+      type: object
+      required: [id, status, contentSha256]
+      properties:
+        id: { type: string, format: uuid }
+        status: { type: string, enum: [active, revoked, expired] }
+        contentSha256: { type: string }
+        approvedAt: { type: string, format: date-time }
+    EventVenueSnapshotResponse:
+      type: object
+      required: [id, eventId, sourceOrganizationId, sourceRevisionId, contentSha256]
+      properties:
+        id: { type: string, format: uuid }
+        eventId: { type: string, format: uuid }
+        sourceOrganizationId: { type: string, format: uuid }
+        sourceRevisionId: { type: string, format: uuid }
+        contentSha256: { type: string, pattern: '^[0-9a-f]{64}$' }
+        copiedAt: { type: string, format: date-time }
+    ParticipationCreate:
+      type: object
+      required: [personId]
+      properties:
+        personId: { type: string, format: uuid }
+        categoryCode: { type: string }
+        status: { type: string, enum: [eligible, waitlisted, ineligible], default: eligible }
+      additionalProperties: false
+    Participation:
+      type: object
+      required: [id, eventId, personId, status]
+      properties:
+        id: { type: string, format: uuid }
+        eventId: { type: string, format: uuid }
+        personId: { type: string, format: uuid }
+        categoryCode: { type: string }
+        status: { type: string, enum: [eligible, waitlisted, withdrawn, cancelled, ineligible] }
+        latestRsvp: { type: string, enum: [accepted, declined, tentative] }
+      additionalProperties: true
+    ParticipationResponse:
+      type: object
+      required: [data, meta]
+      properties:
+        data: { $ref: '#/components/schemas/Participation' }
+        meta: { $ref: '#/components/schemas/Meta' }
+    ParticipationListResponse:
+      type: object
+      required: [data, page, meta]
+      properties:
+        data:
+          type: array
+          items: { $ref: '#/components/schemas/Participation' }
+        page: { $ref: '#/components/schemas/Page' }
+        meta: { $ref: '#/components/schemas/Meta' }
+    InvitationBatchCreate:
+      type: object
+      required: [participationIds, rsvpPolicyRevisionId, templateRevisionId, locale]
+      properties:
+        participationIds:
+          type: array
+          minItems: 1
+          uniqueItems: true
+          items: { type: string, format: uuid }
+        rsvpPolicyRevisionId: { type: string, format: uuid }
+        templateRevisionId: { type: string, format: uuid }
+        locale: { type: string, default: bs-BA }
+        sendImmediately: { type: boolean, default: true }
+      additionalProperties: false
+    Invitation:
+      type: object
+      required: [id, eventId, participationId, status]
+      properties:
+        id: { type: string, format: uuid }
+        eventId: { type: string, format: uuid }
+        participationId: { type: string, format: uuid }
+        status: { type: string, enum: [draft, active, revoked, replaced, withdrawn, suppressed, expired] }
+        issuedAt: { type: string, format: date-time }
+        linkExpiresAt: { type: string, format: date-time }
+      additionalProperties: false
+    InvitationResponse:
+      type: object
+      required: [data, meta]
+      properties:
+        data: { $ref: '#/components/schemas/Invitation' }
+        meta: { $ref: '#/components/schemas/Meta' }
+    GuestInvitationContextResponse:
+      type: object
+      required: [event, invitation, rsvpPolicy]
+      properties:
+        event:
+          type: object
+          required: [title, status, schedule]
+          properties:
+            title: { type: string }
+            status: { type: string, enum: [scheduled, active, completed, cancelled, postponed] }
+            schedule: { type: object, additionalProperties: true }
+            publicVenueSummary: { type: object, additionalProperties: true }
+        invitation: { $ref: '#/components/schemas/Invitation' }
+        rsvpPolicy:
+          type: object
+          required: [deadline, allowedResponses, responseChangeAllowed]
+          properties:
+            deadline: { type: string, format: date-time }
+            allowedResponses:
+              type: array
+              items: { type: string, enum: [accepted, declined, tentative] }
+            responseChangeAllowed: { type: boolean }
+        myLatestResponse: { $ref: '#/components/schemas/RsvpResponse/properties/data' }
+      additionalProperties: false
+    GuestRsvpCreate:
+      type: object
+      required: [response]
+      properties:
+        response: { type: string, enum: [accepted, declined, tentative] }
+        responseForScheduleRevisionId: { type: string, format: uuid }
+      additionalProperties: false
+    StaffRsvpCreate:
+      type: object
+      required: [response, sourceChannel, receivedAt, respondentKind]
+      properties:
+        response: { type: string, enum: [accepted, declined, tentative] }
+        sourceChannel: { type: string, enum: [phone, in_person, email, written, representative, staff_entry, other] }
+        receivedAt: { type: string, format: date-time }
+        respondentKind: { type: string, enum: [guest, representative, staff] }
+        representativeLabel: { type: string, maxLength: 250 }
+        noteRestricted: { type: string, maxLength: 2000 }
+        correctionReason: { type: string, maxLength: 2000 }
+      additionalProperties: false
+    RsvpResponse:
+      type: object
+      required: [data, meta]
+      properties:
+        data:
+          type: object
+          required: [id, response, sourceChannel, receivedAt, recordedAt, scheduleRevisionId]
+          properties:
+            id: { type: string, format: uuid }
+            response: { type: string, enum: [accepted, declined, tentative] }
+            sourceChannel: { type: string }
+            receivedAt: { type: string, format: date-time }
+            recordedAt: { type: string, format: date-time }
+            scheduleRevisionId: { type: string, format: uuid }
+            correctionOfResponseId: { type: string, format: uuid }
+        meta: { $ref: '#/components/schemas/Meta' }
+      additionalProperties: false
+    EventCancellationRequestCreate:
+      type: object
+      required: [reasonCode, internalReason, publicMessage]
+      properties:
+        reasonCode: { type: string, maxLength: 80 }
+        internalReason: { type: string, maxLength: 4000 }
+        publicMessage: { type: string, maxLength: 4000 }
+        affectedSessionIds: { type: array, uniqueItems: true, items: { type: string, format: uuid } }
+      additionalProperties: false
+    EventChangeRequest:
+      type: object
+      required: [id, eventId, changeKind, status, expectedEventRevision]
+      properties:
+        id: { type: string, format: uuid }
+        eventId: { type: string, format: uuid }
+        changeKind: { type: string, enum: [cancel, postpone, reschedule] }
+        status: { type: string, enum: [submitted, under_review, approved, rejected, withdrawn, executed] }
+        expectedEventRevision: { type: integer, minimum: 1 }
+        reasonCode: { type: string }
+        submittedAt: { type: string, format: date-time }
+      additionalProperties: false
+    EventChangeRequestResponse:
+      type: object
+      required: [data, meta]
+      properties:
+        data: { $ref: '#/components/schemas/EventChangeRequest' }
+        meta: { $ref: '#/components/schemas/Meta' }
+    EventCancellationPreviewResponse:
+      type: object
+      required: [eventId, eventRevision, invitations, rsvpCounts, pendingMessages, linkedBookings]
+      properties:
+        eventId: { type: string, format: uuid }
+        eventRevision: { type: integer, minimum: 1 }
+        invitations:
+          type: object
+          properties:
+            issued: { type: integer, minimum: 0 }
+            active: { type: integer, minimum: 0 }
+            revoked: { type: integer, minimum: 0 }
+        rsvpCounts:
+          type: object
+          properties:
+            accepted: { type: integer, minimum: 0 }
+            tentative: { type: integer, minimum: 0 }
+            declined: { type: integer, minimum: 0 }
+            unanswered: { type: integer, minimum: 0 }
+        pendingMessages: { type: integer, minimum: 0 }
+        linkedBookings: { type: integer, minimum: 0 }
+        audienceCounts:
+          type: object
+          additionalProperties: { type: integer, minimum: 0 }
+        previewRevision: { type: integer, minimum: 1 }
+      additionalProperties: false
+    EventDecision:
+      type: object
+      required: [id, eventId, decisionKind, effectiveAt]
+      properties:
+        id: { type: string, format: uuid }
+        eventId: { type: string, format: uuid }
+        decisionKind: { type: string, enum: [cancelled, postponed, rescheduled] }
+        effectiveAt: { type: string, format: date-time }
+        replacementScheduleRevisionId: { type: string, format: uuid }
+        notificationCampaignId: { type: string, format: uuid }
+      additionalProperties: false
+    EventDecisionResponse:
+      type: object
+      required: [data, meta]
+      properties:
+        data: { $ref: '#/components/schemas/EventDecision' }
+        meta: { $ref: '#/components/schemas/Meta' }
+    PostponementCreate:
+      type: object
+      required: [reasonCode, internalReason]
+      properties:
+        reasonCode: { type: string, maxLength: 80 }
+        internalReason: { type: string, maxLength: 4000 }
+        publicMessage: { type: string, maxLength: 4000 }
+        replacementDateKnown: { type: boolean, default: false }
+        replacementStartsAt: { type: string, format: date-time }
+        replacementEndsAt: { type: string, format: date-time }
+      additionalProperties: false
+    ScheduleRevisionCreate:
+      type: object
+      required: [startsAt, endsAt, timezone, materialChange, reconfirmationPolicy]
+      properties:
+        startsAt: { type: string, format: date-time }
+        endsAt: { type: string, format: date-time }
+        timezone: { type: string }
+        venueSummary: { type: object, additionalProperties: true }
+        materialChange: { type: boolean }
+        reconfirmationPolicy: { type: string, enum: [none, accepted_tentative, all_active_invitees, all_invited] }
+      additionalProperties: false
+    EventScheduleRevisionResponse:
+      type: object
+      required: [id, eventId, revisionNumber, startsAt, endsAt, timezone]
+      properties:
+        id: { type: string, format: uuid }
+        eventId: { type: string, format: uuid }
+        revisionNumber: { type: integer, minimum: 1 }
+        startsAt: { type: string, format: date-time }
+        endsAt: { type: string, format: date-time }
+        timezone: { type: string }
+        materialChange: { type: boolean }
+        reconfirmationPolicy: { type: string }
+      additionalProperties: false
+    CancellationCampaignPreviewCreate:
+      type: object
+      required: [audienceKind]
+      properties:
+        audienceKind: { type: string, enum: [accepted_tentative, all_active_invitees, all_previously_invited, custom] }
+        excludedParticipationIds: { type: array, uniqueItems: true, items: { type: string, format: uuid } }
+        locale: { type: string, default: bs-BA }
+      additionalProperties: false
+    CancellationCampaignPreviewResponse:
+      type: object
+      required: [audienceKind, totalRecipients, countsByQualification, previewRevision]
+      properties:
+        audienceKind: { type: string }
+        totalRecipients: { type: integer, minimum: 0 }
+        countsByQualification: { type: object, additionalProperties: { type: integer, minimum: 0 } }
+        previewRevision: { type: integer, minimum: 1 }
+        exclusionsApplied: { type: integer, minimum: 0 }
+      additionalProperties: false
+    CancellationCampaignCreate:
+      type: object
+      required: [eventDecisionId, audienceKind, previewRevision, templateRevisionId]
+      properties:
+        eventDecisionId: { type: string, format: uuid }
+        audienceKind: { type: string, enum: [accepted_tentative, all_active_invitees, all_previously_invited, custom] }
+        previewRevision: { type: integer, minimum: 1 }
+        templateRevisionId: { type: string, format: uuid }
+        excludedParticipationIds: { type: array, uniqueItems: true, items: { type: string, format: uuid } }
+        customParticipationIds: { type: array, uniqueItems: true, items: { type: string, format: uuid } }
+      additionalProperties: false
+    NotificationCampaign:
+      type: object
+      required: [id, purpose, status, recipientCount]
+      properties:
+        id: { type: string, format: uuid }
+        purpose: { type: string, enum: [event_cancellation, event_postponement, schedule_update, rsvp_reconfirmation] }
+        status: { type: string, enum: [draft, previewed, confirmed, queued, sending, completed, partial, failed, cancelled] }
+        recipientCount: { type: integer, minimum: 0 }
+        deliverySummary:
+          type: object
+          properties:
+            delivered: { type: integer, minimum: 0 }
+            failed: { type: integer, minimum: 0 }
+            pending: { type: integer, minimum: 0 }
+      additionalProperties: true
+    NotificationCampaignResponse:
+      type: object
+      required: [data, meta]
+      properties:
+        data: { $ref: '#/components/schemas/NotificationCampaign' }
+        meta: { $ref: '#/components/schemas/Meta' }
+    CheckinResultResponse:
+      type: object
+      required: [outcome, message]
+      properties:
+        outcome: { type: string, enum: [accepted, duplicate, rejected, invalid, event_cancelled, capability_disabled] }
+        message: { type: string }
+        participationReference: { type: string }
+        checkedInAt: { type: string, format: date-time }
+      additionalProperties: false
+    Job:
+      type: object
+      required: [id, state, jobType, createdAt]
+      properties:
+        id: { type: string, format: uuid }
+        state: { type: string, enum: [queued, running, succeeded, failed, cancelled] }
+        jobType: { type: string }
+        createdAt: { type: string, format: date-time }
+        startedAt: { type: string, format: date-time }
+        finishedAt: { type: string, format: date-time }
+        safeResult: { type: object, additionalProperties: true }
+      additionalProperties: false
+    JobResponse:
+      type: object
+      required: [data, meta]
+      properties:
+        data: { $ref: '#/components/schemas/Job' }
+        meta: { $ref: '#/components/schemas/Meta' }
+ }
+        objectiveValue: { type: number }
+        diagnostics: { type: object, additionalProperties: true }
+        proposal: { type: object, additionalProperties: true }
+      additionalProperties: false
+    AllocationRevisionResponse:
+      type: object
+      required: [id, eventId, sessionId, revisionNumber, state]
+      properties:
+        id: { type: string, format: uuid }
+        eventId: { type: string, format: uuid }
+        sessionId: { type: string, format: uuid }
+        revisionNumber: { type: integer, minimum: 1 }
+        state: { type: string, enum: [draft, proposed, approved, published, superseded, withdrawn] }
+        assignments: { type: array, items: { type: object, additionalProperties: true } }
+      additionalProperties: false
+    GuestPortalContextResponse:
+      type: object
+      required: [eventTitle, participationReference]
+      properties:
+        eventTitle: { type: string }
+        eventStatus: { type: string }
+        participationReference: { type: string }
+        guestDisplayName: { type: string }
+        publicSchedule: { type: object, additionalProperties: true }
+        publicVenueSummary: { type: object, additionalProperties: true }
+      additionalProperties: false
+    GuestAllocationViewResponse:
+      type: object
+      required: [allocationState]
+      properties:
+        allocationState: { type: string, enum: [assigned, unassigned, unavailable] }
+        zoneLabel: { type: string }
+        seatLabel: { type: string }
+        sanitizedMap: { type: object, additionalProperties: true }
+      additionalProperties: false
+    CockpitResponse:
+      type: object
+      required: [eventId, eventStatus, generatedAt, counts]
+      properties:
+        eventId: { type: string, format: uuid }
+        eventStatus: { type: string }
+        generatedAt: { type: string, format: date-time }
+        counts: { type: object, additionalProperties: { type: integer, minimum: 0 } }
+        alerts: { type: array, items: { type: object, additionalProperties: true } }
+        tasks: { type: array, items: { type: object, additionalProperties: true } }
+      additionalProperties: false
+    PrerequisiteCreate:
+      type: object
+      required: [responsibilityAssignmentId, requirementCode, title]
+      properties:
+        responsibilityAssignmentId: { type: string, format: uuid }
+        requirementCode: { type: string, maxLength: 80 }
+        title: { type: string, maxLength: 250 }
+        externalAuthorityLabel: { type: string, maxLength: 250 }
+        dueAt: { type: string, format: date-time }
+        referenceSnapshot: { type: object, additionalProperties: true }
+      additionalProperties: false
+    Prerequisite:
+      type: object
+      required: [id, requirementCode, title, status]
+      properties:
+        id: { type: string, format: uuid }
+        requirementCode: { type: string }
+        title: { type: string }
+        status: { type: string, enum: [not_started, submitted, scheduled, completed, not_required, blocked, cancelled] }
+        dueAt: { type: string, format: date-time }
+      additionalProperties: true
+    PrerequisiteResponse:
+      type: object
+      required: [data, meta]
+      properties:
+        data: { $ref: '#/components/schemas/Prerequisite' }
+        meta: { $ref: '#/components/schemas/Meta' }
+    PrerequisiteListResponse:
+      type: object
+      required: [data, meta]
+      properties:
+        data:
+          type: array
+          items: { $ref: '#/components/schemas/Prerequisite' }
+        meta: { $ref: '#/components/schemas/Meta' }
+    CatalogueListResponse:
+      type: object
+      required: [data, meta]
+      properties:
+        data:
+          type: array
+          items:
+            type: object
+            required: [id, code, name, status]
+            properties:
+              id: { type: string, format: uuid }
+              code: { type: string }
+              name: { type: string }
+              status: { type: string, enum: [active, retired] }
+        meta: { $ref: '#/components/schemas/Meta' }
+    CatalogueOptionListResponse:
+      type: object
+      required: [catalogueRevisionId, options, meta]
+      properties:
+        catalogueRevisionId: { type: string, format: uuid }
+        options:
+          type: array
+          items:
+            type: object
+            required: [optionId, optionRevisionId, label]
+            properties:
+              optionId: { type: string, format: uuid }
+              optionRevisionId: { type: string, format: uuid }
+              label: { type: string }
+              value: {}
+        meta: { $ref: '#/components/schemas/Meta' }
     Problem:
       type: object
       required: [type, title, status, code, requestId]
