@@ -36,6 +36,7 @@ CREATE TABLE eogp.collaboration_grants (
     CHECK (valid_until IS NULL OR valid_until > valid_from),
     CHECK ((accepted_at IS NULL) = (accepted_by_membership_id IS NULL)),
     CHECK (status <> 'proposed' OR (accepted_at IS NULL AND accepted_by_membership_id IS NULL)),
+    CHECK (status NOT IN ('active','revoked','expired') OR (accepted_at IS NOT NULL AND accepted_by_membership_id IS NOT NULL)),
     CHECK ((status = 'revoked') = (revoked_at IS NOT NULL))
 );
 CREATE INDEX collaboration_grants_grantee_idx
@@ -170,7 +171,7 @@ CREATE TABLE eogp.booking_event_links (
       (organization_id = booking_owner_organization_id AND collaboration_grant_id IS NULL)
       OR (organization_id <> booking_owner_organization_id AND collaboration_grant_id IS NOT NULL)
     ),
-    CHECK ((collaboration_grant_id IS NULL) = (grant_owner_organization_id IS NULL)),
+    CHECK ((collaboration_grant_id IS NULL) = (grant_owner_organization_id IS NULL))
 );
 
 CREATE TABLE eogp.event_session_spaces (
