@@ -136,16 +136,21 @@ function requestHash(value: unknown, key?: Buffer): string {
   const canonical = stableJson(value);
   // Keyed hashing avoids a dictionary attack on low-entropy private reason text
   // stored only indirectly in the idempotency row.
-  return key && key.length === 32
-    ? createHmac("sha256", key).update(canonical).digest("hex")
-    : createHash("sha256").update(canonical).digest("hex");
+  if (!key || key.length !== 32) return createHash("sha256").update(canonical).digest("hex");
+  const idempotencyKey = createHmac("sha256", key)
+    .update("eventor:idempotency-fingerprint:v1")
+    .digest();
+  return createHmac("sha256", idempotencyKey).update(canonical).digest("hex");
 }
 function encryptPrivateText(value: string, key: Buffer | undefined): Buffer {
   if (!key || key.length !== 32) {
     throw new ApiError(503, "PRIVATE_FIELD_ENCRYPTION_UNAVAILABLE", "Private event-reason encryption is not configured.");
   }
   const iv = randomBytes(12);
-  const cipher = createCipheriv("aes-256-gcm", key, iv);
+  const encryptionKey = createHmac("sha256", key)
+    .update("eventor:private-reason-encryption:v1")
+    .digest();
+  const cipher = createCipheriv("aes-256-gcm", encryptionKey, iv);
   const encrypted = Buffer.concat([cipher.update(value, "utf8"), cipher.final()]);
   // Binary envelope: ASCII "EV1" + 12-byte nonce + 16-byte tag + ciphertext.
   return Buffer.concat([Buffer.from("EV1", "ascii"), iv, cipher.getAuthTag(), encrypted]);
