@@ -115,6 +115,10 @@ See [Operating Model](OPERATING_MODEL.md) and [ADR 0004](decisions/0004-optional
 
 An initial structural review of the v0.2 PostgreSQL schema is recorded in [Database Review v0.2](database/DATABASE_REVIEW_v0.2.md). It found a connected 86-table structure but also important cross-organization ownership, tenant integrity, availability-concurrency and optional-module gaps. The migration approach is documented in [Migration Conventions](database/MIGRATION_CONVENTIONS.md). PostgreSQL parser/runtime testing remains outstanding because no PostgreSQL server/client or parser is available in the current working environment. Issue #2 remains open; blockers are tracked in Issues #12 and #13. RSVP migration/API implementation is tracked in Issue #10.
 
+## API contract review
+
+The imported OpenAPI v0.2 contract passed YAML parsing and local structural checks (36 paths, 46 operations, unique operation IDs, 172 resolved local references, declared path parameters and response declarations). This is not a full OpenAPI semantic validation. The review and missing successor coverage are documented in [API Contract Review v0.2](api/API_CONTRACT_REVIEW_v0.2.md). API v0.3 coverage for RSVP, cross-organization collaboration, module capabilities, responsibility assignments and advanced reservations is tracked in Issue #17. Issue #3 remains open until a pinned full validator and contract tests run in CI.
+
 ## Imported design artifacts and reconciliation
 
 The working design sources are now in the repository:

@@ -30,7 +30,7 @@ The first reference deployment is planned for **Gazi Husrev-beg's Library (GHB),
 - Optimization: isolated C++ service using Google OR-Tools CP-SAT.
 - Deployment: self-hosted Linux; Docker is not a mandatory architectural dependency.
 
-See [Project state](docs/PROJECT_STATE.md), [Architecture](docs/ARCHITECTURE.md), [Roadmap](docs/ROADMAP.md), [Database review](docs/database/DATABASE_REVIEW_v0.2.md), [Migration conventions](docs/database/MIGRATION_CONVENTIONS.md), [Design reconciliation](docs/DESIGN_RECONCILIATION_v0.2.md), [Blueprint v1.2](docs/blueprint/v1.2/Event_Operations_Platform_Technical_Blueprint_v1.2.md), [Implementation Design v0.2](docs/implementation-design/v0.2/), and [Architecture decisions](docs/decisions/).
+See [Project state](docs/PROJECT_STATE.md), [Architecture](docs/ARCHITECTURE.md), [Roadmap](docs/ROADMAP.md), [API contract review](docs/api/API_CONTRACT_REVIEW_v0.2.md), [Database review](docs/database/DATABASE_REVIEW_v0.2.md), [Migration conventions](docs/database/MIGRATION_CONVENTIONS.md), [Design reconciliation](docs/DESIGN_RECONCILIATION_v0.2.md), [Blueprint v1.2](docs/blueprint/v1.2/Event_Operations_Platform_Technical_Blueprint_v1.2.md), [Implementation Design v0.2](docs/implementation-design/v0.2/), and [Architecture decisions](docs/decisions/).
 
 ## Repository layout
 
