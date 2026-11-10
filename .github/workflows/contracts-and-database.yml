@@ -127,6 +127,9 @@ jobs:
           DATABASE_URL_RUNTIME: postgresql://eventor_runtime:eventor_ci_runtime_password@127.0.0.1:5432/eventor
         run: bash scripts/db/test-migrations.sh
 
+      - name: Verify collaboration link/share transition audit
+        run: psql "$MIGRATOR_URL" -X -v ON_ERROR_STOP=1 -f tests/database/collaboration_lifecycle_audit_smoke.sql
+
       - name: Verify PR review remediation regressions
         run: psql "$MIGRATOR_URL" -X -v ON_ERROR_STOP=1 -f tests/database/review_regressions.sql
 
