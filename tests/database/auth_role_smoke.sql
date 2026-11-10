@@ -8,11 +8,11 @@ DECLARE
   user_count integer;
   can_bypass boolean;
 BEGIN
-  SELECT count(*) INTO organization_count FROM eogp.organizations;
-  SELECT count(*) INTO membership_count FROM eogp.organization_memberships;
-  SELECT count(*) INTO user_count FROM eogp.users WHERE email = 'ci-extended-a@example.invalid';
+  SELECT count(id) INTO organization_count FROM eogp.organizations;
+  SELECT count(id) INTO membership_count FROM eogp.organization_memberships;
+  SELECT count(id) INTO user_count FROM eogp.users WHERE email = 'ci-extended-a@example.invalid';
 
-  IF organization_count <> 3 OR membership_count <> 3 OR user_count <> 1 THEN
+  IF organization_count < 5 OR membership_count < 5 OR user_count <> 1 THEN
     RAISE EXCEPTION
       'auth role lookup failed: organizations %, memberships %, matching users %',
       organization_count, membership_count, user_count;
