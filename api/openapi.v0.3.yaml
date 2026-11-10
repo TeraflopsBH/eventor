@@ -1216,6 +1216,619 @@ paths:
               schema: { $ref: '#/components/schemas/JobResponse' }
         '403': { $ref: '#/components/responses/Forbidden' }
         '404': { $ref: '#/components/responses/NotFound' }
+  /organizations/{organizationId}/persons:
+    get:
+      tags: [Guest Registry]
+      operationId: listOrganizationPersons
+      parameters:
+        - $ref: '#/components/parameters/OrganizationId'
+        - $ref: '#/components/parameters/PageLimit'
+        - $ref: '#/components/parameters/PageCursor'
+      responses:
+        '200':
+          description: Permission-filtered persistent person registry.
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/PersonListResponse' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+    post:
+      tags: [Guest Registry]
+      operationId: createPerson
+      parameters:
+        - $ref: '#/components/parameters/OrganizationId'
+        - $ref: '#/components/parameters/IdempotencyKey'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/PersonCreate' }
+      responses:
+        '201':
+          description: Persistent person record created within the owning organization.
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/PersonResponse' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '409': { $ref: '#/components/responses/Conflict' }
+  /persons/{personId}:
+    get:
+      tags: [Guest Registry]
+      operationId: getPerson
+      parameters:
+        - name: personId
+          in: path
+          required: true
+          schema: { type: string, format: uuid }
+      responses:
+        '200':
+          description: Permission-filtered person and contact projection.
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/PersonResponse' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '404': { $ref: '#/components/responses/NotFound' }
+    patch:
+      tags: [Guest Registry]
+      operationId: updatePerson
+      parameters:
+        - name: personId
+          in: path
+          required: true
+          schema: { type: string, format: uuid }
+        - $ref: '#/components/parameters/IfMatch'
+      requestBody:
+        required: true
+        content:
+          application/merge-patch+json:
+            schema: { $ref: '#/components/schemas/PersonPatch' }
+      responses:
+        '200':
+          description: Updated person profile; sensitive fields remain permission projected.
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/PersonResponse' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '404': { $ref: '#/components/responses/NotFound' }
+        '412': { $ref: '#/components/responses/PreconditionFailed' }
+  /persons/{personId}/merge:
+    post:
+      tags: [Guest Registry]
+      operationId: mergePersons
+      parameters:
+        - name: personId
+          in: path
+          required: true
+          schema: { type: string, format: uuid }
+        - $ref: '#/components/parameters/IdempotencyKey'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              additionalProperties: false
+              required: [targetPersonId, reason]
+              properties:
+                targetPersonId: { type: string, format: uuid }
+                reason: { type: string, minLength: 3, maxLength: 2000 }
+      responses:
+        '200':
+          description: Duplicate person merged into the target within the same organization; history retained.
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/PersonResponse' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '409': { $ref: '#/components/responses/Conflict' }
+  /events/{eventId}/guest-imports:
+    post:
+      tags: [Guest Registry]
+      operationId: createGuestImport
+      parameters:
+        - $ref: '#/components/parameters/EventId'
+        - $ref: '#/components/parameters/IdempotencyKey'
+      requestBody:
+        required: true
+        content:
+          multipart/form-data:
+            schema:
+              type: object
+              required: [file]
+              properties:
+                file: { type: string, format: binary }
+                mapping: { type: string, description: JSON mapping from source columns to approved guest fields. }
+      responses:
+        '202':
+          description: Import accepted for asynchronous preview and duplicate detection.
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/JobResponse' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '413': { description: File exceeds configured upload limit. }
+  /imports/{batchId}:
+    get:
+      tags: [Guest Registry]
+      operationId: getGuestImportBatch
+      parameters:
+        - name: batchId
+          in: path
+          required: true
+          schema: { type: string, format: uuid }
+      responses:
+        '200':
+          description: Import preview, field validation and duplicate candidates.
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/GuestImportBatchResponse' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '404': { $ref: '#/components/responses/NotFound' }
+  /venues:
+    get:
+      tags: [Venue Resources]
+      operationId: listVenues
+      parameters:
+        - name: organizationId
+          in: query
+          required: true
+          schema: { type: string, format: uuid }
+      responses:
+        '200':
+          description: Venue and space registry visible to the current organization.
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/VenueListResponse' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+    post:
+      tags: [Venue Resources]
+      operationId: createVenue
+      parameters:
+        - $ref: '#/components/parameters/IdempotencyKey'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/VenueCreate' }
+      responses:
+        '201':
+          description: Venue created within the current organization.
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/VenueResponse' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+  /spaces/{spaceId}/source-artifacts:
+    post:
+      tags: [Venue Resources]
+      operationId: uploadSourcePlanArtifact
+      parameters:
+        - name: spaceId
+          in: path
+          required: true
+          schema: { type: string, format: uuid }
+        - $ref: '#/components/parameters/IdempotencyKey'
+      requestBody:
+        required: true
+        content:
+          multipart/form-data:
+            schema:
+              type: object
+              required: [file, sourceType]
+              properties:
+                file: { type: string, format: binary }
+                sourceType: { type: string, enum: [xlsx, pdf, image, svg, cad_export, other] }
+      responses:
+        '202':
+          description: Source artifact stored and import/rendering job queued.
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/JobResponse' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '413': { description: File exceeds configured upload limit. }
+  /space-revisions/{revisionId}/objects:
+    get:
+      tags: [Venue Resources]
+      operationId: listSpatialObjects
+      parameters:
+        - $ref: '#/components/parameters/RevisionId'
+      responses:
+        '200':
+          description: Spatial objects in an authorized venue-space revision.
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/SpatialObjectListResponse' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+    post:
+      tags: [Venue Resources]
+      operationId: createSpatialObject
+      parameters:
+        - $ref: '#/components/parameters/RevisionId'
+        - $ref: '#/components/parameters/IfMatch'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/SpatialObjectCreate' }
+      responses:
+        '201':
+          description: Spatial object added to a draft venue revision.
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/SpatialObjectResponse' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '409': { $ref: '#/components/responses/Conflict' }
+  /sessions/{sessionId}/allocation-runs:
+    post:
+      tags: [Events]
+      operationId: createAllocationRun
+      parameters:
+        - name: sessionId
+          in: path
+          required: true
+          schema: { type: string, format: uuid }
+        - $ref: '#/components/parameters/IdempotencyKey'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/AllocationRunCreate' }
+      responses:
+        '202':
+          description: Solver run queued against a pinned event-owned venue snapshot and allocation revision.
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/JobResponse' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '409': { $ref: '#/components/responses/Conflict' }
+  /allocation-runs/{runId}:
+    get:
+      tags: [Events]
+      operationId: getAllocationRun
+      parameters:
+        - name: runId
+          in: path
+          required: true
+          schema: { type: string, format: uuid }
+      responses:
+        '200':
+          description: Solver state, proposal, objective and diagnostics.
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/AllocationRunResponse' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '404': { $ref: '#/components/responses/NotFound' }
+  /allocation-runs/{runId}/commit:
+    post:
+      tags: [Events]
+      operationId: commitAllocationRun
+      parameters:
+        - name: runId
+          in: path
+          required: true
+          schema: { type: string, format: uuid }
+        - $ref: '#/components/parameters/IdempotencyKey'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              additionalProperties: false
+              required: [expectedRevision, acceptance]
+              properties:
+                expectedRevision: { type: integer, minimum: 1 }
+                acceptance: { type: string, enum: [all, selected] }
+                acceptedAssignmentIds: { type: array, items: { type: string, format: uuid }, uniqueItems: true }
+                changeReason: { type: string, maxLength: 1000 }
+      responses:
+        '201':
+          description: Selected solver proposal committed as a new allocation revision after server validation.
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/AllocationRevisionResponse' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '409': { $ref: '#/components/responses/Conflict' }
+        '422': { $ref: '#/components/responses/ValidationError' }
+  /allocation-revisions/{revisionId}/approve:
+    post:
+      tags: [Events]
+      operationId: approveAllocationRevision
+      parameters:
+        - $ref: '#/components/parameters/RevisionId'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              additionalProperties: false
+              required: [decision]
+              properties:
+                decision: { type: string, enum: [approved, rejected, returned_for_changes] }
+                comment: { type: string, maxLength: 2000 }
+      responses:
+        '200': { description: Allocation approval decision recorded. }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '409': { $ref: '#/components/responses/Conflict' }
+  /allocation-revisions/{revisionId}/publish:
+    post:
+      tags: [Events]
+      operationId: publishAllocationRevision
+      parameters:
+        - $ref: '#/components/parameters/RevisionId'
+        - $ref: '#/components/parameters/IdempotencyKey'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              additionalProperties: false
+              required: [audiences]
+              properties:
+                audiences:
+                  type: array
+                  minItems: 1
+                  uniqueItems: true
+                  items: { type: string, enum: [staff, guest, print, management] }
+      responses:
+        '202':
+          description: Authorized publication accepted; projections and documents refresh asynchronously.
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/JobResponse' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '409': { $ref: '#/components/responses/Conflict' }
+  /guest-portal/access/resolve:
+    post:
+      tags: [Invitations and RSVP]
+      operationId: resolveGuestPortalAccess
+      security:
+        - guestPortalCapability: []
+      responses:
+        '200':
+          description: Minimal personalized portal context; no general guest directory.
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/GuestPortalContextResponse' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '410': { $ref: '#/components/responses/Gone' }
+  /guest-portal/me/allocation:
+    get:
+      tags: [Invitations and RSVP]
+      operationId: getMyGuestAllocation
+      security:
+        - guestPortalCapability: []
+      responses:
+        '200':
+          description: Own allocation and sanitized guest-safe map projection only.
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/GuestAllocationViewResponse' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '410': { $ref: '#/components/responses/Gone' }
+  /events/{eventId}/cockpit:
+    get:
+      tags: [Events]
+      operationId: getEventCockpit
+      parameters:
+        - $ref: '#/components/parameters/EventId'
+      responses:
+        '200':
+          description: Role- and task-projected operations summary with data freshness.
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/CockpitResponse' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+  /events/{eventId}/prerequisites:
+    get:
+      tags: [Events]
+      operationId: listEventPrerequisites
+      parameters:
+        - $ref: '#/components/parameters/EventId'
+      responses:
+        '200':
+          description: External coordination/readiness items scoped to assigned responsibilities.
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/PrerequisiteListResponse' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+    post:
+      tags: [Events]
+      operationId: createEventPrerequisite
+      parameters:
+        - $ref: '#/components/parameters/EventId'
+        - $ref: '#/components/parameters/IdempotencyKey'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/PrerequisiteCreate' }
+      responses:
+        '201':
+          description: External prerequisite task created with explicit responsibility assignment.
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/PrerequisiteResponse' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '422': { $ref: '#/components/responses/ValidationError' }
+  /prerequisites/{prerequisiteId}/record-completion:
+    post:
+      tags: [Events]
+      operationId: recordPrerequisiteCompletion
+      parameters:
+        - name: prerequisiteId
+          in: path
+          required: true
+          schema: { type: string, format: uuid }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              additionalProperties: false
+              required: [confirmedAt, confirmationNote]
+              properties:
+                confirmedAt: { type: string, format: date-time }
+                confirmationNote: { type: string, minLength: 3, maxLength: 1000 }
+                reference: { type: string, maxLength: 200 }
+      responses:
+        '200': { description: Externally completed prerequisite recorded and audited. }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '409': { $ref: '#/components/responses/Conflict' }
+  /organizations/{organizationId}/config-catalogues:
+    get:
+      tags: [Venue Resources]
+      operationId: listConfigurationCatalogues
+      parameters:
+        - $ref: '#/components/parameters/OrganizationId'
+      responses:
+        '200':
+          description: Versioned configurable catalogues visible in the current organization.
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/CatalogueListResponse' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+  /config-catalogues/{catalogueId}/options:
+    get:
+      tags: [Venue Resources]
+      operationId: listCatalogueOptions
+      parameters:
+        - name: catalogueId
+          in: path
+          required: true
+          schema: { type: string, format: uuid }
+      responses:
+        '200':
+          description: Stable option identities and published localized option revisions.
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/CatalogueOptionListResponse' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+  /config-catalogue-revisions/{revisionId}/publish:
+    post:
+      tags: [Venue Resources]
+      operationId: publishCatalogueRevision
+      parameters:
+        - $ref: '#/components/parameters/RevisionId'
+        - $ref: '#/components/parameters/IdempotencyKey'
+      responses:
+        '200': { description: Catalogue revision published and immutable. }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '409': { $ref: '#/components/responses/Conflict' }
+  /booking-form-definitions/{formId}/revisions/{revisionId}/publish:
+    post:
+      tags: [Booking Public Intake]
+      operationId: publishBookingFormRevision
+      parameters:
+        - name: formId
+          in: path
+          required: true
+          schema: { type: string, format: uuid }
+        - $ref: '#/components/parameters/RevisionId'
+        - $ref: '#/components/parameters/IdempotencyKey'
+      responses:
+        '200': { description: Booking form revision published and immutable. }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '409': { $ref: '#/components/responses/Conflict' }
+  /invitations/{invitationId}/resend:
+    post:
+      tags: [Invitations and RSVP]
+      operationId: resendInvitation
+      parameters:
+        - name: invitationId
+          in: path
+          required: true
+          schema: { type: string, format: uuid }
+        - $ref: '#/components/parameters/IdempotencyKey'
+      responses:
+        '202':
+          description: New invitation delivery attempt queued without changing the guest's response.
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/JobResponse' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '409': { $ref: '#/components/responses/Conflict' }
+  /invitations/{invitationId}/reissue:
+    post:
+      tags: [Invitations and RSVP]
+      operationId: reissueInvitation
+      parameters:
+        - name: invitationId
+          in: path
+          required: true
+          schema: { type: string, format: uuid }
+        - $ref: '#/components/parameters/IdempotencyKey'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              additionalProperties: false
+              properties:
+                reason: { type: string, maxLength: 1000 }
+      responses:
+        '202':
+          description: New invitation revision and link issued; previous history retained.
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/JobResponse' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '409': { $ref: '#/components/responses/Conflict' }
+  /participations/{participationId}/rsvp-history:
+    get:
+      tags: [Invitations and RSVP]
+      operationId: getParticipationRsvpHistory
+      parameters:
+        - name: participationId
+          in: path
+          required: true
+          schema: { type: string, format: uuid }
+      responses:
+        '200':
+          description: Append-only RSVP history for authorized event staff.
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [data, meta]
+                properties:
+                  data:
+                    type: array
+                    items: { $ref: '#/components/schemas/RsvpResponse' }
+                  meta: { $ref: '#/components/schemas/Meta' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+  /rsvp-responses/{responseId}/corrections:
+    post:
+      tags: [Invitations and RSVP]
+      operationId: correctRsvpResponse
+      parameters:
+        - name: responseId
+          in: path
+          required: true
+          schema: { type: string, format: uuid }
+        - $ref: '#/components/parameters/IdempotencyKey'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              additionalProperties: false
+              required: [replacementResponse, correctionReason]
+              properties:
+                replacementResponse: { type: string, enum: [accepted, declined, tentative] }
+                correctionReason: { type: string, minLength: 3, maxLength: 2000 }
+                receivedAt: { type: string, format: date-time }
+      responses:
+        '201':
+          description: New append-only correction response created; original response remains unchanged.
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/RsvpResponse' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '409': { $ref: '#/components/responses/Conflict' }
+        '422': { $ref: '#/components/responses/ValidationError' }
+
 components:
   securitySchemes:
     staffSession:
@@ -1228,6 +1841,11 @@ components:
       in: header
       name: X-Invitation-Capability
       description: Opaque high-entropy capability limited to one invitation, guest and event; token hash only at rest.
+    guestPortalCapability:
+      type: apiKey
+      in: header
+      name: X-Guest-Portal-Capability
+      description: Separate purpose-bound personal portal capability; not an invitation link or admission credential.
     externalBookingCapability:
       type: apiKey
       in: header
@@ -2032,7 +2650,7 @@ components:
       additionalProperties: false
     RsvpResponse:
       type: object
-      required: [id, response, sourceChannel, receivedAt, recordedAt, scheduleRevisionId]
+      required: [data, meta]
       properties:
         data:
           type: object
