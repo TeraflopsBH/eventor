@@ -34,7 +34,8 @@ CREATE TABLE eogp.collaboration_grants (
     FOREIGN KEY (grantee_organization_id, accepted_by_membership_id)
       REFERENCES eogp.organization_memberships(organization_id, id),
     CHECK (valid_until IS NULL OR valid_until > valid_from),
-    CHECK ((status = 'active') = (accepted_at IS NOT NULL AND accepted_by_membership_id IS NOT NULL)),
+    CHECK ((accepted_at IS NULL) = (accepted_by_membership_id IS NULL)),
+    CHECK (status <> 'proposed' OR (accepted_at IS NULL AND accepted_by_membership_id IS NULL)),
     CHECK ((status = 'revoked') = (revoked_at IS NOT NULL))
 );
 CREATE INDEX collaboration_grants_grantee_idx
@@ -113,6 +114,7 @@ CREATE TABLE eogp.event_venue_snapshot_layers (
     layer_snapshot jsonb NOT NULL,
     UNIQUE (organization_id, id),
     UNIQUE (organization_id, snapshot_id, layer_code),
+    UNIQUE (organization_id, snapshot_id, id),
     FOREIGN KEY (organization_id, event_id, snapshot_id)
       REFERENCES eogp.event_venue_snapshots(organization_id, event_id, id)
 );
@@ -120,13 +122,15 @@ CREATE TABLE eogp.event_venue_snapshot_layers (
 CREATE TABLE eogp.event_venue_snapshot_objects (
     id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
     organization_id uuid NOT NULL,
+    snapshot_id uuid NOT NULL,
     snapshot_layer_id uuid NOT NULL,
     source_object_id uuid,
     object_kind text NOT NULL,
     object_snapshot jsonb NOT NULL,
     UNIQUE (organization_id, id),
-    FOREIGN KEY (organization_id, snapshot_layer_id)
-      REFERENCES eogp.event_venue_snapshot_layers(organization_id, id)
+    UNIQUE (organization_id, snapshot_id, id),
+    FOREIGN KEY (organization_id, snapshot_id, snapshot_layer_id)
+      REFERENCES eogp.event_venue_snapshot_layers(organization_id, snapshot_id, id)
 );
 
 CREATE TABLE eogp.event_venue_snapshot_resources (
@@ -162,9 +166,11 @@ CREATE TABLE eogp.booking_event_links (
       REFERENCES eogp.booking_records(organization_id, id),
     FOREIGN KEY (grant_owner_organization_id, collaboration_grant_id)
       REFERENCES eogp.collaboration_grants(organization_id, id),
-    CHECK (organization_id <> booking_owner_organization_id OR collaboration_grant_id IS NULL),
+    CHECK (
+      (organization_id = booking_owner_organization_id AND collaboration_grant_id IS NULL)
+      OR (organization_id <> booking_owner_organization_id AND collaboration_grant_id IS NOT NULL)
+    ),
     CHECK ((collaboration_grant_id IS NULL) = (grant_owner_organization_id IS NULL)),
-    CHECK (organization_id = (SELECT organization_id FROM eogp.events WHERE id = event_id))
 );
 
 CREATE TABLE eogp.event_session_spaces (
@@ -182,7 +188,7 @@ CREATE TABLE eogp.event_session_spaces (
       REFERENCES eogp.event_sessions(organization_id, event_id, id),
     FOREIGN KEY (organization_id, event_id, event_venue_snapshot_id)
       REFERENCES eogp.event_venue_snapshots(organization_id, event_id, id),
-    FOREIGN KEY (organization_id, snapshot_object_id)
-      REFERENCES eogp.event_venue_snapshot_objects(organization_id, id)
+    FOREIGN KEY (organization_id, event_venue_snapshot_id, snapshot_object_id)
+      REFERENCES eogp.event_venue_snapshot_objects(organization_id, snapshot_id, id)
 );
 
