@@ -133,6 +133,9 @@ jobs:
       - name: Verify collaboration link/share transition audit
         run: psql "$MIGRATOR_URL" -X -v ON_ERROR_STOP=1 -f tests/database/collaboration_lifecycle_audit_smoke.sql
 
+      - name: Verify event cancellation and postponement after invitation delivery
+        run: psql "$MIGRATOR_URL" -X -v ON_ERROR_STOP=1 -f tests/database/event_cancellation_postponement_smoke.sql
+
       - name: Verify PR review remediation regressions
         run: psql "$MIGRATOR_URL" -X -v ON_ERROR_STOP=1 -f tests/database/review_regressions.sql
 
