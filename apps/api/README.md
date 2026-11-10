@@ -19,7 +19,7 @@ The host application must provide:
 - A `pg.Pool` connected as `eventor_runtime`.
 - `authenticateStaff`, which validates a signed server-side session, resolves the selected active membership and returns its user, organization and membership UUIDs. It must not derive these values from request headers or request bodies.
 - `verifyMutationOrigin`, which verifies the cookie-authenticated mutation's CSRF token and trusted origin.
-- A 32-byte AES-256 key when the API accepts `reasonInternal`. The Node adapter encrypts this value before storing it in the migration's `bytea` field. The versioned ciphertext envelope is `EV1 | 12-byte nonce | 16-byte GCM tag | ciphertext`.
+- A 32-byte AES-256 key when the API accepts `reasonInternal`. The Node adapter encrypts this value before storing it in the migration's `bytea` field. The versioned ciphertext envelope is `EV1 | 12-byte nonce | 16-byte GCM tag | ciphertext`; the database command also rejects non-EV1 or undersized envelopes.
 
 Example composition (the authentication/session implementation is intentionally supplied by the host):
 
