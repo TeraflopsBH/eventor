@@ -292,14 +292,17 @@ BEGIN
   END IF;
 
   IF TG_TABLE_NAME = 'invitations' THEN
-    IF v_event_status = 'cancelled'
-       AND (
-         TG_OP = 'INSERT'
-         OR (NEW.status = 'active' AND OLD.status IS DISTINCT FROM NEW.status)
-         OR NEW.current_revision_number > OLD.current_revision_number
-       ) THEN
-      RAISE EXCEPTION 'new invitation activity is disabled for a cancelled event'
-        USING ERRCODE = '55000';
+    IF v_event_status = 'cancelled' THEN
+      IF TG_OP = 'INSERT' THEN
+        RAISE EXCEPTION 'new invitation activity is disabled for a cancelled event'
+          USING ERRCODE = '55000';
+      ELSIF NEW.status = 'active' AND OLD.status IS DISTINCT FROM NEW.status THEN
+        RAISE EXCEPTION 'an invitation cannot be activated for a cancelled event'
+          USING ERRCODE = '55000';
+      ELSIF NEW.current_revision_number > OLD.current_revision_number THEN
+        RAISE EXCEPTION 'an invitation revision cannot be advanced for a cancelled event'
+          USING ERRCODE = '55000';
+      END IF;
     END IF;
     RETURN NEW;
   END IF;
