@@ -32,6 +32,9 @@ VALUES
   'bbbbbbbb-2222-4222-8222-bbbbbbbbbbbb'),
  ('94200000-0000-4000-8000-000000000002',
   '22222222-2222-4222-8222-222222222222','Worker','NoConsent','Worker NoConsent',
+  'bbbbbbbb-2222-4222-8222-bbbbbbbbbbbb'),
+ ('94200000-0000-4000-8000-000000000003',
+  '22222222-2222-4222-8222-222222222222','Worker','PreviouslyInvited','Worker Previously Invited',
   'bbbbbbbb-2222-4222-8222-bbbbbbbbbbbb');
 
 INSERT INTO eogp.event_participations
@@ -46,6 +49,11 @@ VALUES
   '22222222-2222-4222-8222-222222222222',
   '94000000-0000-4000-8000-000000000001',
   '94200000-0000-4000-8000-000000000002','eligible',
+  'bbbbbbbb-2222-4222-8222-bbbbbbbbbbbb'),
+ ('94300000-0000-4000-8000-000000000003',
+  '22222222-2222-4222-8222-222222222222',
+  '94000000-0000-4000-8000-000000000001',
+  '94200000-0000-4000-8000-000000000003','eligible',
   'bbbbbbbb-2222-4222-8222-bbbbbbbbbbbb');
 
 INSERT INTO eogp.person_contact_points
@@ -59,7 +67,11 @@ VALUES
  ('94400000-0000-4000-8000-000000000002',
   '22222222-2222-4222-8222-222222222222',
   '94200000-0000-4000-8000-000000000002',
-  'email',repeat('b',64),decode('05060708','hex'),true,true,'restricted');
+  'email',repeat('b',64),decode('05060708','hex'),true,true,'restricted'),
+ ('94400000-0000-4000-8000-000000000003',
+  '22222222-2222-4222-8222-222222222222',
+  '94200000-0000-4000-8000-000000000003',
+  'email',repeat('c',64),decode('090a0b0c','hex'),true,true,'permitted');
 
 INSERT INTO eogp.invitations
   (id, organization_id, event_id, participation_id, status,
@@ -74,7 +86,17 @@ VALUES
   '22222222-2222-4222-8222-222222222222',
   '94000000-0000-4000-8000-000000000001',
   '94300000-0000-4000-8000-000000000002',
-  'active',1,clock_timestamp(),'bbbbbbbb-2222-4222-8222-bbbbbbbbbbbb');
+  'active',1,clock_timestamp(),'bbbbbbbb-2222-4222-8222-bbbbbbbbbbbb'),
+ ('94500000-0000-4000-8000-000000000003',
+  '22222222-2222-4222-8222-222222222222',
+  '94000000-0000-4000-8000-000000000001',
+  '94300000-0000-4000-8000-000000000003',
+  'replaced',1,clock_timestamp() - interval '1 day','bbbbbbbb-2222-4222-8222-bbbbbbbbbbbb'),
+ ('94500000-0000-4000-8000-000000000004',
+  '22222222-2222-4222-8222-222222222222',
+  '94000000-0000-4000-8000-000000000001',
+  '94300000-0000-4000-8000-000000000003',
+  'draft',0,NULL,'bbbbbbbb-2222-4222-8222-bbbbbbbbbbbb');
 
 INSERT INTO eogp.notification_templates
   (id, organization_id, code, purpose, status)
@@ -137,7 +159,7 @@ VALUES
     'eventDecisionId','94900000-0000-4000-8000-000000000001',
     'changeRequestId','94800000-0000-4000-8000-000000000001',
     'decisionKind','cancelled',
-    'audienceKind','all_active_invitees',
+    'audienceKind','all_previously_invited',
     'customParticipationIds','[]'::jsonb
   ),
   'ci-event-notification-worker-001');
