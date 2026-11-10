@@ -52,6 +52,7 @@ This matrix tracks executable PostgreSQL integration coverage and remaining gaps
 - [x] Published catalogue membership rejects new child rows.
 - [x] Published form revisions and form-to-catalogue bindings reject mutation.
 - [x] Published venue-space revisions and spatial layer/object children reject mutation or late additions.
+- [x] Concurrent revision publication and child insertion use independent connections; the insert waits on the parent lock and is rejected after publication commits.
 - [ ] Published price-list, cancellation-policy, RSVP-policy, notification-template and event-capability revisions have dedicated mutation regression cases.
 - [x] Cancellation effects reject an unpinned policy revision and preserve the explicit NULL/no-policy booking snapshot.
 
@@ -78,11 +79,12 @@ This matrix tracks executable PostgreSQL integration coverage and remaining gaps
 - [ ] Different units in a pool can be reserved concurrently when capacity allows.
 - [x] Pooled capacity is never exceeded under concurrent requests.
 - [x] A booking resource line’s peak simultaneous quantity cannot be exceeded across separate pools.
+- [x] Individually tracked unit reservations are included in the booking resource line quantity limit; a fifth overlapping unit is rejected when the requested quantity is four.
 - [x] Pooled and individually tracked reservations share one aggregate pool-capacity invariant.
 - [x] Pooled reservation idempotency compares the booking resource line as part of the payload.
 - [ ] Disjoint sub-interval reservations that both intersect a long requested interval are evaluated by peak simultaneous quantity, not incorrectly summed across the entire interval.
 - [x] Adjacent half-open pool intervals do not count as simultaneous.
-- [ ] Expired holds do not permanently consume capacity.
+- [x] Expired pooled and individually tracked holds are expired by the worker; pool capacity is reclaimed and the same discrete unit can be reserved again.
 - [ ] Resource line request/approval/delivery values remain separate from actual reservation records.
 
 ## Append-only and issued business history
