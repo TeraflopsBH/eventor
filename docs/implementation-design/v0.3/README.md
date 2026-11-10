@@ -19,3 +19,8 @@ This directory contains the successor design addendum for invitation and RSVP be
 ## Implementation handoff
 
 The next implementation work is tracked in [Issue #10](https://github.com/TeraflopsBH/eventor/issues/10). Do not alter the v0.2 SQL/OpenAPI snapshots to implement this design. The schema migration and OpenAPI contract must be issued as reviewed successor artifacts and validated against PostgreSQL/OpenAPI tooling.
+
+## Cross-organization collaboration proposal
+
+- [Cross-Organization Collaboration v0.3](CROSS_ORGANIZATION_COLLABORATION_DESIGN_v0.3.md) — proposed venue-provider/organizer ownership, booking-event links, scoped collaboration grants and immutable venue-plan snapshots.
+- [ADR 0006](../../decisions/0006-cross-organization-collaboration.md) — proposed decision, awaiting product-owner confirmation.
