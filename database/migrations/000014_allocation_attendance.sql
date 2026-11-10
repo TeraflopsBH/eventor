@@ -88,6 +88,8 @@ CREATE TABLE eogp.event_allocation_locks (
     created_at timestamptz NOT NULL DEFAULT clock_timestamp(),
     released_at timestamptz,
     UNIQUE (organization_id, id),
+    FOREIGN KEY (organization_id, event_id, session_id)
+      REFERENCES eogp.event_sessions(organization_id, event_id, id),
     FOREIGN KEY (organization_id, event_id, participation_id)
       REFERENCES eogp.event_participations(organization_id, event_id, id),
     FOREIGN KEY (organization_id, locked_by_membership_id)
@@ -112,6 +114,7 @@ CREATE TABLE eogp.admission_credentials (
     revoked_at timestamptz,
     issued_by_membership_id uuid,
     UNIQUE (organization_id, id),
+    UNIQUE (organization_id, event_id, id),
     FOREIGN KEY (organization_id, event_id, participation_id)
       REFERENCES eogp.event_participations(organization_id, event_id, id),
     FOREIGN KEY (organization_id, issued_by_membership_id)
@@ -159,8 +162,8 @@ CREATE TABLE eogp.checkin_attempts (
       REFERENCES eogp.event_sessions(organization_id, event_id, id),
     FOREIGN KEY (organization_id, event_id, station_id)
       REFERENCES eogp.checkin_stations(organization_id, event_id, id),
-    FOREIGN KEY (organization_id, admission_credential_id)
-      REFERENCES eogp.admission_credentials(organization_id, id),
+    FOREIGN KEY (organization_id, event_id, admission_credential_id)
+      REFERENCES eogp.admission_credentials(organization_id, event_id, id),
     FOREIGN KEY (organization_id, actor_membership_id)
       REFERENCES eogp.organization_memberships(organization_id, id)
 );
