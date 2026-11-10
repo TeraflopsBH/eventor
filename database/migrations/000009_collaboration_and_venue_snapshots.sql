@@ -43,6 +43,15 @@ CREATE TABLE eogp.collaboration_grants (
 CREATE INDEX collaboration_grants_grantee_idx
   ON eogp.collaboration_grants (grantee_organization_id, status, valid_from, valid_until);
 
+ALTER TABLE eogp.audit_events
+  ADD CONSTRAINT audit_events_actor_grant_fk
+  FOREIGN KEY (authorization_grant_owner_organization_id, actor_organization_id, authorization_grant_id)
+  REFERENCES eogp.collaboration_grants(organization_id, grantee_organization_id, id);
+
+ALTER TABLE eogp.audit_events
+  ADD CONSTRAINT audit_events_cross_org_actor_requires_grant
+  CHECK (actor_organization_id IS NULL OR actor_organization_id = organization_id OR authorization_grant_id IS NOT NULL);
+
 CREATE TABLE eogp.collaboration_grant_revisions (
     id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
     organization_id uuid NOT NULL,
