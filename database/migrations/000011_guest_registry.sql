@@ -237,6 +237,7 @@ CREATE TABLE eogp.guest_import_batches (
     created_at timestamptz NOT NULL DEFAULT clock_timestamp(),
     committed_at timestamptz,
     UNIQUE (organization_id, id),
+    UNIQUE (organization_id, event_id, id),
     FOREIGN KEY (organization_id, event_id) REFERENCES eogp.events(organization_id, id),
     FOREIGN KEY (organization_id, created_by_membership_id)
       REFERENCES eogp.organization_memberships(organization_id, id)
@@ -245,6 +246,7 @@ CREATE TABLE eogp.guest_import_batches (
 CREATE TABLE eogp.guest_import_rows (
     id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
     organization_id uuid NOT NULL,
+    event_id uuid NOT NULL,
     batch_id uuid NOT NULL,
     row_number integer NOT NULL CHECK (row_number > 0),
     source_values_ciphertext bytea NOT NULL,
@@ -254,7 +256,8 @@ CREATE TABLE eogp.guest_import_rows (
     committed_participation_id uuid,
     UNIQUE (organization_id, id),
     UNIQUE (organization_id, batch_id, row_number),
-    FOREIGN KEY (organization_id, batch_id) REFERENCES eogp.guest_import_batches(organization_id, id),
-    FOREIGN KEY (organization_id, committed_participation_id)
-      REFERENCES eogp.event_participations(organization_id, id)
+    FOREIGN KEY (organization_id, event_id, batch_id)
+      REFERENCES eogp.guest_import_batches(organization_id, event_id, id),
+    FOREIGN KEY (organization_id, event_id, committed_participation_id)
+      REFERENCES eogp.event_participations(organization_id, event_id, id)
 );
