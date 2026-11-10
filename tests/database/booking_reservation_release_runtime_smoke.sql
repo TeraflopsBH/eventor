@@ -83,8 +83,8 @@ BEGIN
     RAISE EXCEPTION 'release retry should return zero, got %', v_retry;
   END IF;
 
-  SELECT count(*), max(safe_metadata)
-    INTO v_audit_count, v_metadata
+  SELECT count(*)
+    INTO v_audit_count
     FROM eogp.audit_events
    WHERE organization_id = '11111111-1111-4111-8111-111111111111'
      AND action = 'booking.reservations.released'
@@ -92,6 +92,15 @@ BEGIN
      AND aggregate_id = '73000000-0000-4000-8000-000000000001'
      AND actor_membership_id = 'aaaaaaaa-1111-4111-8111-aaaaaaaaaaaa'
      AND reason_code = 'ci_partial_release';
+  SELECT safe_metadata INTO v_metadata
+    FROM eogp.audit_events
+   WHERE organization_id = '11111111-1111-4111-8111-111111111111'
+     AND action = 'booking.reservations.released'
+     AND aggregate_type = 'booking'
+     AND aggregate_id = '73000000-0000-4000-8000-000000000001'
+     AND actor_membership_id = 'aaaaaaaa-1111-4111-8111-aaaaaaaaaaaa'
+     AND reason_code = 'ci_partial_release'
+   LIMIT 1;
   IF v_audit_count <> 1 THEN
     RAISE EXCEPTION 'expected exactly one release audit for the partial operation, got %', v_audit_count;
   END IF;
