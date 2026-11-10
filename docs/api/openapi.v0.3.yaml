@@ -4154,6 +4154,15 @@ components:
             materialChange: { type: boolean, default: true }
             reconfirmationPolicy: { type: string, enum: [none, accepted_tentative, all_active_invitees, all_invited], default: accepted_tentative }
           additionalProperties: false
+      allOf:
+        - if:
+            properties: { changeKind: { enum: [postpone, reschedule] } }
+          then:
+            required: [replacementSchedule]
+        - if:
+            properties: { changeKind: { const: cancel } }
+          then:
+            not: { required: [replacementSchedule] }
     EventChangeDecisionRequest:
       type: object
       required: [reason]
