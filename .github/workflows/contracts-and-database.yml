@@ -156,6 +156,9 @@ jobs:
 
       - name: Verify organizer notification campaign review and confirmation as runtime
         run: psql "$RUNTIME_URL" -X -v ON_ERROR_STOP=1 -f tests/database/event_notification_campaign_confirmation_smoke.sql
+ 
+      - name: Verify confirmed campaign snapshot guards as owner
+        run: psql "$MIGRATOR_URL" -X -v ON_ERROR_STOP=1 -f tests/database/event_notification_campaign_snapshot_guard_smoke.sql
 
       - name: Verify PR review remediation regressions
         run: psql "$MIGRATOR_URL" -X -v ON_ERROR_STOP=1 -f tests/database/review_regressions.sql
