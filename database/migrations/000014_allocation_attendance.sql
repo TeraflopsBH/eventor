@@ -153,6 +153,7 @@ CREATE TABLE eogp.checkin_attempts (
     attempted_at timestamptz NOT NULL DEFAULT clock_timestamp(),
     safe_result jsonb NOT NULL DEFAULT '{}'::jsonb,
     UNIQUE (organization_id, id),
+    UNIQUE (organization_id, event_id, session_id, id),
     UNIQUE (organization_id, station_id, idempotency_key),
     FOREIGN KEY (organization_id, event_id, session_id)
       REFERENCES eogp.event_sessions(organization_id, event_id, id),
