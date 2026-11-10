@@ -1,23 +1,6 @@
 \set ON_ERROR_STOP on
 BEGIN;
 SELECT set_config('app.organization_id','11111111-1111-4111-8111-111111111111',true);
-SELECT eogp.current_organization_id() AS runtime_rls_tenant_context;
-SELECT current_user, session_user, current_setting('app.organization_id', true) AS app_organization_id;
-SELECT schemaname, tablename, policyname, permissive, roles, cmd, qual, with_check
-  FROM pg_policies
- WHERE schemaname = 'eogp'
-   AND tablename IN ('resource_reservations','venue_space_time_blocks')
- ORDER BY tablename, policyname;
-SELECT rolname, rolsuper, rolbypassrls
-  FROM pg_roles
- WHERE rolname IN ('eventor_owner','eventor_runtime');
-SELECT c.relname, c.relrowsecurity, c.relforcerowsecurity,
-       pg_get_userbyid(c.relowner) AS table_owner,
-       has_table_privilege(current_user, c.oid, 'SELECT') AS can_select
-  FROM pg_class AS c
- WHERE c.oid IN ('eogp.resource_reservations'::regclass,
-                 'eogp.venue_space_time_blocks'::regclass);
-
 DO $test$
 DECLARE
   v_resource_holds integer;
