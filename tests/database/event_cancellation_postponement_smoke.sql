@@ -204,12 +204,12 @@ INSERT INTO eogp.event_notification_campaigns
   (id, organization_id, event_id, event_decision_id, purpose, audience_kind,
    status, template_revision_id, audience_rules_snapshot, created_by_organization_id,
    created_by_membership_id, confirmed_by_organization_id, confirmed_by_membership_id,
-   confirmed_at)
+   confirmed_at, recipient_count)
 VALUES
   ('92000000-0000-4000-8000-000000000001','22222222-2222-4222-8222-222222222222','90000000-0000-4000-8000-000000000001','91600000-0000-4000-8000-000000000001','event_cancellation','all_active_invitees','queued','91400000-0000-4000-8000-000000000001',
    '{"audience":"all_active_invitees","resolvedAt":"cancellation-confirmation","includes":["accepted","tentative","declined","no_response"],"invitationStatus":["active"]}'::jsonb,
    '22222222-2222-4222-8222-222222222222','bbbbbbbb-2222-4222-8222-bbbbbbbbbbbb',
-   '22222222-2222-4222-8222-222222222222','bbbbbbbb-2222-4222-8222-bbbbbbbbbbbb',clock_timestamp());
+   '22222222-2222-4222-8222-222222222222','bbbbbbbb-2222-4222-8222-bbbbbbbbbbbb',clock_timestamp(),4);
 
 INSERT INTO eogp.event_notification_recipients
   (id, organization_id, event_id, campaign_id, participation_id, invitation_id,
