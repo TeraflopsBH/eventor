@@ -59,14 +59,14 @@ export async function processPendingEventChangeNotifications(
   // It learns tenant IDs only; event payload and business data are read after
   // setting transaction-local tenant context for each tenant below.
   const tenants = await pool.query<PendingTenantRow>(
-    \`SELECT DISTINCT organization_id
+    `SELECT DISTINCT organization_id
        FROM eogp.outbox_events
       WHERE topic = 'event.change.notification_requested'
         AND published_at IS NULL
         AND dead_lettered_at IS NULL
         AND available_at <= clock_timestamp()
       ORDER BY organization_id
-      LIMIT $1\`,
+      LIMIT $1`,
     [maxTenantsPerPoll],
   );
 
