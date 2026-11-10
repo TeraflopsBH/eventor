@@ -138,6 +138,7 @@ BEGIN
     IF p_idempotency_key IS NULL OR length(p_idempotency_key) < 8 THEN
         RAISE EXCEPTION 'a valid idempotency key is required' USING ERRCODE = '22023';
     END IF;
+    PERFORM pg_advisory_xact_lock(hashtextextended(p_organization_id::text || ':' || p_idempotency_key, 0));
     IF (p_booking_draft_revision_id IS NOT NULL AND (p_expires_at IS NULL OR p_expires_at <= clock_timestamp()))
        OR (p_booking_id IS NOT NULL AND p_expires_at IS NOT NULL) THEN
         RAISE EXCEPTION 'draft reservations require a future expiry; confirmed bookings must not expire' USING ERRCODE = '22023';
