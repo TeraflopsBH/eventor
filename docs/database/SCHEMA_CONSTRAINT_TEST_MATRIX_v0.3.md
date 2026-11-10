@@ -87,6 +87,15 @@ This matrix tracks executable PostgreSQL integration coverage and remaining gaps
 - [x] Expired pooled and individually tracked holds are expired by the worker; pool capacity is reclaimed and the same discrete unit can be reserved again.
 - [ ] Resource line request/approval/delivery values remain separate from actual reservation records.
 
+## Event cancellation, postponement and guest communications
+- [x] Cancellation after invitations were delivered preserves invitation records, RSVP answers (accepted/tentative/declined/pending), completed-session state and attendance history.
+- [x] Cancelling an event revokes outstanding invitation links, suppresses queued/failed invitation sends, preserves already delivered history, and rejects new invitation, link, delivery and RSVP activity.
+- [x] Cancellation notification audience snapshots include all active invitees, including declined and unanswered invitees; queued campaign recipient sets and audience rules are immutable.
+- [x] Postponement preserves original RSVP answers on the original schedule revision, retires old links/pending sends, and allows new invitation/RSVP activity only against the replacement schedule.
+- [x] Postponement reconfirmation audience snapshot selects accepted/tentative invitees and excludes declined/unanswered invitees.
+- [x] A provider booking-disruption notice alone does not cancel/postpone the organizer-owned event or create a guest-notification campaign; an explicit organizer decision is required.
+- [x] Event decision kind must match its executed change request; notification campaign purpose and published template must match the decision.
+
 ## Append-only and issued business history
 - [x] Runtime role lacks UPDATE/DELETE privileges on append-only history tables.
 - [x] Table triggers also reject UPDATE/DELETE when executed by the table owner.
