@@ -298,4 +298,121 @@ INSERT INTO eogp.event_responsibility_assignments (
   'aaaaaaaa-1111-4111-8111-aaaaaaaaaaaa'
 );
 
+
+-- A booking-confirmation fixture exercises the secured draft-hold conversion:
+-- one pooled reservation, one individually tracked unit and one space hold.
+INSERT INTO eogp.booking_offers (id, organization_id, draft_id, status)
+VALUES
+ ('71000000-0000-4000-8000-000000000001',
+  '11111111-1111-4111-8111-111111111111',
+  'b0000000-0000-4000-8000-000000000001','accepted');
+
+INSERT INTO eogp.booking_offer_revisions
+ (id, organization_id, offer_id, revision_number, draft_revision_id,
+  terms_snapshot, currency, subtotal, tax_amount, total_amount,
+  state, issued_at, accepted_at)
+VALUES
+ ('72000000-0000-4000-8000-000000000001',
+  '11111111-1111-4111-8111-111111111111',
+  '71000000-0000-4000-8000-000000000001',1,
+  '51000000-0000-4000-8000-000000000001',
+  '{}'::jsonb,'BAM',0,0,0,'accepted',
+  clock_timestamp() - interval '1 hour',clock_timestamp());
+
+INSERT INTO eogp.booking_records
+ (id, organization_id, booking_code, source_offer_revision_id)
+VALUES
+ ('73000000-0000-4000-8000-000000000001',
+  '11111111-1111-4111-8111-111111111111',
+  'CI-CONFIRM-RESERVATIONS',
+  '72000000-0000-4000-8000-000000000001');
+
+INSERT INTO eogp.booking_confirmed_snapshots
+ (organization_id, booking_id, offer_revision_id,
+  cancellation_policy_revision_id, customer_terms_snapshot,
+  price_snapshot, confirmed_by_membership_id, snapshot_sha256)
+VALUES
+ ('11111111-1111-4111-8111-111111111111',
+  '73000000-0000-4000-8000-000000000001',
+  '72000000-0000-4000-8000-000000000001',
+  NULL,'{}'::jsonb,'{}'::jsonb,
+  'aaaaaaaa-1111-4111-8111-aaaaaaaaaaaa',repeat('f',64));
+
+INSERT INTO eogp.booking_resource_lines
+ (id, organization_id, booking_id, resource_type_id, line_code,
+  label_snapshot, requested_quantity, approved_quantity)
+VALUES
+ ('74000000-0000-4000-8000-000000000001',
+  '11111111-1111-4111-8111-111111111111',
+  '73000000-0000-4000-8000-000000000001',
+  '40000000-0000-4000-8000-000000000001',
+  'CHAIR-LINE-IDEMPOTENCY','Confirmed chair line',4,4);
+
+INSERT INTO eogp.resource_units
+ (id, organization_id, resource_pool_id, unit_code, status)
+VALUES
+ ('42000000-0000-4000-8000-000000000004',
+  '11111111-1111-4111-8111-111111111111',
+  '41000000-0000-4000-8000-000000000003',
+  'CI-CONFIRM-UNIT-01','available');
+
+INSERT INTO eogp.resource_reservations
+ (id, organization_id, resource_pool_id, booking_draft_revision_id,
+  booking_resource_line_id, quantity, starts_at, ends_at, status,
+  expires_at, idempotency_key)
+VALUES
+ ('43000000-0000-4000-8000-000000000001',
+  '11111111-1111-4111-8111-111111111111',
+  '41000000-0000-4000-8000-000000000003',
+  '51000000-0000-4000-8000-000000000001',
+  '52000000-0000-4000-8000-000000000003',
+  2,'2027-02-02 10:00+00','2027-02-02 11:00+00','held',
+  clock_timestamp() + interval '1 day','ci-confirm-pooled-hold-01');
+
+SELECT eogp.reserve_resource_unit(
+  '11111111-1111-4111-8111-111111111111',
+  '42000000-0000-4000-8000-000000000004',
+  '51000000-0000-4000-8000-000000000001',
+  NULL,NULL,
+  '52000000-0000-4000-8000-000000000003',
+  '2027-02-03 10:00+00','2027-02-03 11:00+00',
+  clock_timestamp() + interval '1 day','ci-confirm-unit-hold-01');
+
+INSERT INTO eogp.venue_space_time_blocks
+ (id, organization_id, venue_space_id, booking_draft_revision_id,
+  reservation_kind, status, starts_at, ends_at, expires_at,
+  idempotency_key, actor_membership_id)
+VALUES
+ ('15000000-0000-4000-8000-000000000002',
+  '11111111-1111-4111-8111-111111111111',
+  '13000000-0000-4000-8000-000000000001',
+  '51000000-0000-4000-8000-000000000001',
+  'draft_hold','held','2027-02-04 10:00+00','2027-02-04 11:00+00',
+  clock_timestamp() + interval '1 day',
+  'ci-confirm-space-hold-01',
+  'aaaaaaaa-1111-4111-8111-aaaaaaaaaaaa');
+
+INSERT INTO eogp.roles
+ (id, organization_id, code, name, scope_kind)
+VALUES
+ ('76000000-0000-4000-8000-000000000001',
+  '11111111-1111-4111-8111-111111111111',
+  'CI-BOOKING-CONFIRMER','CI Booking Confirmer','organization');
+
+INSERT INTO eogp.role_permissions (organization_id, role_id, permission_code)
+VALUES
+ ('11111111-1111-4111-8111-111111111111',
+  '76000000-0000-4000-8000-000000000001','booking.confirm');
+
+INSERT INTO eogp.user_role_grants
+ (id, organization_id, membership_id, role_id, scope_kind,
+  granted_by_membership_id)
+VALUES
+ ('77000000-0000-4000-8000-000000000001',
+  '11111111-1111-4111-8111-111111111111',
+  'aaaaaaaa-1111-4111-8111-aaaaaaaaaaaa',
+  '76000000-0000-4000-8000-000000000001',
+  'organization',
+  'aaaaaaaa-1111-4111-8111-aaaaaaaaaaaa');
+
 COMMIT;
