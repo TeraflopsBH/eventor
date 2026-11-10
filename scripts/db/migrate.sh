@@ -1,15 +1,15 @@
 #!/usr/bin/env bash
 set -Eeuo pipefail
 
-: "${DATABASE_URL:?Set DATABASE_URL to a PostgreSQL 18 database connection string}"
-ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
-MIGRATIONS_DIR="${MIGRATIONS_DIR:-$ROOT_DIR/database/migrations}"
+: "\${DATABASE_URL:?Set DATABASE_URL to a PostgreSQL 18 database connection string}"
+ROOT_DIR="$(cd "$(dirname "\${BASH_SOURCE[0]}")/../.." && pwd)"
+MIGRATIONS_DIR="\${MIGRATIONS_DIR:-$ROOT_DIR/database/migrations}"
 
 command -v psql >/dev/null 2>&1 || { echo "psql is required" >&2; exit 127; }
 command -v sha256sum >/dev/null 2>&1 || { echo "sha256sum is required" >&2; exit 127; }
 
-# The ledger is bootstrap metadata, not a normal numbered migration. All numbered
-# migrations and their ledger entries are committed atomically in one transaction.
+# Bootstrap the immutable migration ledger. Numbered migrations are recorded
+# in the same transaction as their DDL.
 psql "$DATABASE_URL" -X -v ON_ERROR_STOP=1 <<'SQL'
 BEGIN;
 SET LOCAL ROLE eventor_owner;
@@ -27,16 +27,17 @@ SQL
 
 shopt -s nullglob
 files=("$MIGRATIONS_DIR"/[0-9][0-9][0-9][0-9][0-9][0-9]_*.sql)
-(("${#files[@]}" > 0)) || { echo "No migration files found in $MIGRATIONS_DIR" >&2; exit 1; }
+(("\${#files[@]}" > 0)) || { echo "No migration files found in $MIGRATIONS_DIR" >&2; exit 1; }
 
-for file in "${files[@]}"; do
+for file in "\${files[@]}"; do
   filename="$(basename "$file")"
-  version="${filename%%_*}"
+  version="\${filename%%_*}"
   [[ "$version" =~ ^[0-9]{6}$ ]] || { echo "Invalid migration filename: $filename" >&2; exit 1; }
   checksum="$(sha256sum "$file" | awk '{print $1}')"
 
-  existing="$(psql "$DATABASE_URL" -X -At -v ON_ERROR_STOP=1 -v version="$version" \
-    -c "SELECT checksum_sha256 FROM eogp.schema_migrations WHERE version = :'version'")"
+  # Read applied state with owner privileges (the migrator role is NOINHERIT).
+  existing="$(psql "$DATABASE_URL" -X -At -v ON_ERROR_STOP=1 \
+    -c "SET ROLE eventor_owner; SELECT checksum_sha256 FROM eogp.schema_migrations WHERE version = '$version'")"
 
   if [[ -n "$existing" ]]; then
     if [[ "$existing" != "$checksum" ]]; then
@@ -50,14 +51,14 @@ for file in "${files[@]}"; do
   tmp="$(mktemp)"
   trap 'rm -f "$tmp"' EXIT
   {
-    printf '%s\n' '\set ON_ERROR_STOP on'
     printf '%s\n' 'BEGIN;'
     printf '%s\n' 'SET LOCAL ROLE eventor_owner;'
     printf '%s\n' 'SET LOCAL search_path TO eogp, public;'
     printf '%s\n' 'SELECT pg_advisory_xact_lock(23104, 18001);'
-    printf '%s\n' 'SELECT clock_timestamp()::text AS migration_started_at \gset'
-    printf "\\\\i '%s'\\n" "$file"
-    printf "INSERT INTO eogp.schema_migrations (version, filename, checksum_sha256, execution_ms, applied_by) VALUES ('%s','%s','%s', GREATEST(0, floor(extract(epoch FROM clock_timestamp() - :'migration_started_at'::timestamptz) * 1000)::bigint), session_user);\\n" "$version" "$filename" "$checksum"
+    printf '%s\n' 'DO $migration_lock$ BEGIN IF EXISTS (SELECT 1 FROM eogp.schema_migrations WHERE version = '\'"$version"\'') THEN RAISE EXCEPTION '\''migration already applied by another runner'\'' USING ERRCODE = '\''40001'\''; END IF; END $migration_lock$;'
+    printf '%s\n' "SELECT clock_timestamp() AS migration_started_at \\gset"
+    cat "$file"
+    printf '%s\n' "INSERT INTO eogp.schema_migrations (version, filename, checksum_sha256, execution_ms, applied_by) VALUES ('$version','$filename','$checksum', GREATEST(0, floor(extract(epoch FROM clock_timestamp() - :'migration_started_at') * 1000)::bigint), session_user);"
     printf '%s\n' 'COMMIT;'
   } > "$tmp"
 
