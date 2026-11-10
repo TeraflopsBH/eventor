@@ -782,6 +782,42 @@ COMMIT;
 -- snapshot, but a venue-scope grant cannot be substituted for a booking link.
 BEGIN;
 SELECT set_config('app.organization_id', '10000000-0000-0000-0000-00000000000b', true);
+
+-- The organizer can read only the exact approved source layer/object/resource
+-- rows while the share and grant are live, not the provider's full inventory.
+DO $test$
+DECLARE
+  source_revisions integer;
+  source_spaces integer;
+  source_layers integer;
+  source_objects integer;
+  source_pools integer;
+BEGIN
+  SELECT count(*) INTO source_revisions
+    FROM eogp.venue_space_revisions
+   WHERE organization_id = '10000000-0000-0000-0000-00000000000a';
+  SELECT count(*) INTO source_spaces
+    FROM eogp.venue_spaces
+   WHERE organization_id = '10000000-0000-0000-0000-00000000000a';
+  SELECT count(*) INTO source_layers
+    FROM eogp.spatial_layers
+   WHERE organization_id = '10000000-0000-0000-0000-00000000000a';
+  SELECT count(*) INTO source_objects
+    FROM eogp.spatial_objects
+   WHERE organization_id = '10000000-0000-0000-0000-00000000000a';
+  SELECT count(*) INTO source_pools
+    FROM eogp.resource_pools
+   WHERE organization_id = '10000000-0000-0000-0000-00000000000a';
+
+  IF source_revisions <> 1 OR source_spaces <> 1
+     OR source_layers <> 1 OR source_objects <> 1 OR source_pools <> 1 THEN
+    RAISE EXCEPTION
+      'recipient source projection is too broad or incomplete: revisions %, spaces %, layers %, objects %, pools %',
+      source_revisions, source_spaces, source_layers, source_objects, source_pools;
+  END IF;
+END;
+$test$;
+
 INSERT INTO eogp.event_venue_snapshots
  (id, organization_id, event_id, share_owner_organization_id, snapshot_share_id,
   source_organization_id, source_space_revision_id, source_content_sha256,
@@ -997,6 +1033,11 @@ SELECT set_config('app.organization_id', '10000000-0000-0000-0000-00000000000b',
 DO $test$
 DECLARE
   grant_status text;
+  visible_source_layers integer;
+  visible_source_pools integer;
+  retained_snapshot_layers integer;
+  retained_snapshot_objects integer;
+  retained_snapshot_resources integer;
 BEGIN
   SELECT status INTO grant_status
     FROM eogp.collaboration_grants
@@ -1009,6 +1050,33 @@ BEGIN
    WHERE id = '61000000-0000-4000-8000-00000000000b';
   IF grant_status <> 'revoked' THEN
     RAISE EXCEPTION 'booking link grant should be revoked, got %', grant_status;
+  END IF;
+
+  SELECT count(*) INTO visible_source_layers
+    FROM eogp.spatial_layers
+   WHERE organization_id = '10000000-0000-0000-0000-00000000000a';
+  SELECT count(*) INTO visible_source_pools
+    FROM eogp.resource_pools
+   WHERE organization_id = '10000000-0000-0000-0000-00000000000a';
+  SELECT count(*) INTO retained_snapshot_layers
+    FROM eogp.event_venue_snapshot_layers
+   WHERE organization_id = '10000000-0000-0000-0000-00000000000b'
+     AND snapshot_id = '65000000-0000-4000-8000-00000000000a';
+  SELECT count(*) INTO retained_snapshot_objects
+    FROM eogp.event_venue_snapshot_objects
+   WHERE organization_id = '10000000-0000-0000-0000-00000000000b'
+     AND snapshot_id = '65000000-0000-4000-8000-00000000000a';
+  SELECT count(*) INTO retained_snapshot_resources
+    FROM eogp.event_venue_snapshot_resources
+   WHERE organization_id = '10000000-0000-0000-0000-00000000000b'
+     AND snapshot_id = '65000000-0000-4000-8000-00000000000a';
+
+  IF visible_source_layers <> 0 OR visible_source_pools <> 0 THEN
+    RAISE EXCEPTION 'revoked grant must hide provider source data from the recipient';
+  END IF;
+  IF retained_snapshot_layers <> 1 OR retained_snapshot_objects <> 1
+     OR retained_snapshot_resources <> 1 THEN
+    RAISE EXCEPTION 'revocation must retain the already-copied event-owned historical snapshot';
   END IF;
 
   BEGIN
