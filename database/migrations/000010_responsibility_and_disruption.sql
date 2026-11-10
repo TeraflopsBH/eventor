@@ -50,6 +50,7 @@ CREATE TABLE eogp.event_responsibility_assignments (
       OR (performing_party_kind = 'external_party' AND performing_organization_id IS NULL AND performing_membership_id IS NULL AND performing_external_party IS NOT NULL)
     ),
     CHECK ((collaboration_grant_id IS NULL) = (grant_owner_organization_id IS NULL)),
+    CHECK (performing_organization_id IS NULL OR performing_organization_id = organization_id OR collaboration_grant_id IS NOT NULL),
     CHECK ((approver_membership_id IS NULL) = (approver_organization_id IS NULL))
 );
 CREATE INDEX event_responsibilities_event_idx
