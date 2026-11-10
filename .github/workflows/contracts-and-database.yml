@@ -106,6 +106,9 @@ jobs:
       - name: Apply checksum-verified migrations
         run: bash scripts/db/migrate.sh
 
+      - name: Seed synthetic identities through authentication role
+        run: psql "$AUTH_URL" -X -v ON_ERROR_STOP=1 -f tests/database/seed_auth_test_users.sql
+
       - name: Run database integrity smoke tests
         run: psql "$MIGRATOR_URL" -X -v ON_ERROR_STOP=1 -f tests/database/migration_smoke.sql
 
