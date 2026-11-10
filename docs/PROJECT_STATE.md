@@ -123,6 +123,10 @@ The successor relational model and v0.3 API are being produced from accepted ADR
 
 The logical successor schema and API route/security design are documented in [SCHEMA_DESIGN_v0.3.md](database/SCHEMA_DESIGN_v0.3.md) and [API_DESIGN_v0.3.md](api/API_DESIGN_v0.3.md), respectively. They incorporate accepted operating scope, collaboration, RSVP and cancellation designs. The database integrity baseline is merged; ordered executable PostgreSQL 18 migrations and OpenAPI 3.1.1 YAML are the next deliverables. These are not yet runtime-validated.
 
+## Executable schema and API contract draft
+
+The implementation branch [feat/postgresql18-migrations-openapi-v0.3](https://github.com/TeraflopsBH/eventor/tree/feat/postgresql18-migrations-openapi-v0.3) now contains a first ordered PostgreSQL 18 migration draft (15 files), role bootstrap and checksum runner, tenant/constraint smoke tests, a concurrent pooled-capacity test, and the OpenAPI 3.1.1 v0.3 YAML (104 paths / 121 operations). CI is configured to run the pinned OpenAPI validator and apply migrations against PostgreSQL 18.6. A static FK-target audit across 120 declared tables found no unresolved target/candidate-key references; this is not a SQL parser or runtime execution result. The branch has not yet passed GitHub Actions, no PostgreSQL migration has been applied to a production database, and the app/API routes are not implemented.
+
 ## Database schema review
 
 An initial structural review of the v0.2 PostgreSQL schema is recorded in [Database Review v0.2](database/DATABASE_REVIEW_v0.2.md). It found a connected 86-table structure but also important cross-organization ownership, tenant integrity, availability-concurrency and optional-module gaps. The migration approach is documented in [Migration Conventions](database/MIGRATION_CONVENTIONS.md). PostgreSQL parser/runtime testing remains outstanding because no PostgreSQL server/client or parser is available in the current working environment. Issue #2 remains open; blockers are tracked in Issues #12 and #13. RSVP migration/API implementation is tracked in Issue #10.
