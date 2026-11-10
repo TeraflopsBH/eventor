@@ -43,7 +43,7 @@ paths:
       tags: ["Allocation"]
       operationId: approveAllocationRevision
       summary: "Approve or return an allocation revision"
-      security: [{ StaffSession: [] }]
+      security: [{ StaffSession: [], StaffCsrf: [] }]
       parameters:
         - $ref: '#/components/parameters/PAllocationRevisionId'
         - $ref: '#/components/parameters/IdempotencyKey'
@@ -73,7 +73,7 @@ paths:
       tags: ["Allocation"]
       operationId: publishAllocationRevision
       summary: "Publish approved allocation outputs"
-      security: [{ StaffSession: [] }]
+      security: [{ StaffSession: [], StaffCsrf: [] }]
       parameters:
         - $ref: '#/components/parameters/PAllocationRevisionId'
         - $ref: '#/components/parameters/IdempotencyKey'
@@ -127,7 +127,7 @@ paths:
       tags: ["Allocation"]
       operationId: commitAllocationRun
       summary: "Validate and commit a selected allocation proposal"
-      security: [{ StaffSession: [] }]
+      security: [{ StaffSession: [], StaffCsrf: [] }]
       parameters:
         - $ref: '#/components/parameters/PRunId'
         - $ref: '#/components/parameters/IdempotencyKey'
@@ -157,11 +157,9 @@ paths:
       tags: ["Authentication"]
       operationId: deleteStaffSession
       summary: "Revoke the current staff session"
-      security: [{ StaffSession: [] }]
-      parameters:
-        - $ref: '#/components/parameters/IdempotencyKey'
+      security: [{ StaffSession: [], StaffCsrf: [] }]
       responses:
-        '204': { description: Command completed; no response body. }
+        '204': { description: Command completed; session cookie revoked and cleared. }
         '400': { $ref: '#/components/responses/BadRequest' }
         '401': { $ref: '#/components/responses/Unauthorized' }
         '403': { $ref: '#/components/responses/Forbidden' }
@@ -177,8 +175,6 @@ paths:
       operationId: createStaffSession
       summary: "Authenticate a staff user"
       security: []
-      parameters:
-        - $ref: '#/components/parameters/IdempotencyKey'
       requestBody:
         required: true
         content:
@@ -205,7 +201,7 @@ paths:
       tags: ["Resource Availability"]
       operationId: checkResourceAvailability
       summary: "Check discrete or pooled resource availability"
-      security: [{ StaffSession: [] }]
+      security: [{ StaffSession: [], StaffCsrf: [] }]
       parameters:
         - $ref: '#/components/parameters/IdempotencyKey'
       requestBody:
@@ -234,7 +230,7 @@ paths:
       tags: ["Resource Availability"]
       operationId: checkSpaceAvailability
       summary: "Check space availability; result is advisory until reservation commits"
-      security: [{ StaffSession: [] }]
+      security: [{ StaffSession: [], StaffCsrf: [] }]
       parameters:
         - $ref: '#/components/parameters/IdempotencyKey'
       requestBody:
@@ -263,7 +259,7 @@ paths:
       tags: ["Booking Cancellation"]
       operationId: approveBookingCancellationRequest
       summary: "Approve a cancellation request"
-      security: [{ StaffSession: [] }]
+      security: [{ StaffSession: [], StaffCsrf: [] }]
       parameters:
         - $ref: '#/components/parameters/PRequestId'
         - $ref: '#/components/parameters/IdempotencyKey'
@@ -293,7 +289,7 @@ paths:
       tags: ["Booking Cancellation"]
       operationId: rejectBookingCancellationRequest
       summary: "Reject or return a cancellation request"
-      security: [{ StaffSession: [] }]
+      security: [{ StaffSession: [], StaffCsrf: [] }]
       parameters:
         - $ref: '#/components/parameters/PRequestId'
         - $ref: '#/components/parameters/IdempotencyKey'
@@ -323,7 +319,7 @@ paths:
       tags: ["Booking Cancellation"]
       operationId: withdrawBookingCancellationRequest
       summary: "Withdraw a pending request"
-      security: [{ StaffSession: [] }]
+      security: [{ StaffSession: [], StaffCsrf: [] }]
       parameters:
         - $ref: '#/components/parameters/PRequestId'
         - $ref: '#/components/parameters/IdempotencyKey'
@@ -353,7 +349,7 @@ paths:
       tags: ["Booking Administration"]
       operationId: confirmBooking
       summary: "Approve and confirm a booking with atomic resource reservation"
-      security: [{ StaffSession: [] }]
+      security: [{ StaffSession: [], StaffCsrf: [] }]
       parameters:
         - $ref: '#/components/parameters/PRevisionId'
         - $ref: '#/components/parameters/IdempotencyKey'
@@ -383,7 +379,7 @@ paths:
       tags: ["Booking Administration"]
       operationId: createBookingOffer
       summary: "Issue an immutable customer offer"
-      security: [{ StaffSession: [] }]
+      security: [{ StaffSession: [], StaffCsrf: [] }]
       parameters:
         - $ref: '#/components/parameters/PRevisionId'
         - $ref: '#/components/parameters/IdempotencyKey'
@@ -437,7 +433,7 @@ paths:
       tags: ["Booking Administration"]
       operationId: createBookingDraftRevision
       summary: "Create a new immutable booking draft revision"
-      security: [{ StaffSession: [] }]
+      security: [{ StaffSession: [], StaffCsrf: [] }]
       parameters:
         - $ref: '#/components/parameters/PDraftId'
         - $ref: '#/components/parameters/IdempotencyKey'
@@ -491,7 +487,7 @@ paths:
       tags: ["Booking Administration"]
       operationId: createBookingDraftFromInquiry
       summary: "Create a separate editable draft from an inquiry"
-      security: [{ StaffSession: [] }]
+      security: [{ StaffSession: [], StaffCsrf: [] }]
       parameters:
         - $ref: '#/components/parameters/PInquiryId'
         - $ref: '#/components/parameters/IdempotencyKey'
@@ -599,7 +595,7 @@ paths:
       tags: ["Booking Administration"]
       operationId: requestBookingAmendment
       summary: "Request an amendment with replacement availability validation"
-      security: [{ StaffSession: [] }]
+      security: [{ StaffSession: [], StaffCsrf: [] }]
       parameters:
         - $ref: '#/components/parameters/PBookingId'
         - $ref: '#/components/parameters/IdempotencyKey'
@@ -629,7 +625,7 @@ paths:
       tags: ["Booking Cancellation"]
       operationId: executeBookingCancellation
       summary: "Execute an approved effective booking cancellation"
-      security: [{ StaffSession: [] }]
+      security: [{ StaffSession: [], StaffCsrf: [] }]
       parameters:
         - $ref: '#/components/parameters/PBookingId'
         - $ref: '#/components/parameters/IdempotencyKey'
@@ -683,7 +679,7 @@ paths:
       tags: ["Booking Cancellation"]
       operationId: previewBookingCancellationEffects
       summary: "Preview policy consequences and reservation effects"
-      security: [{ StaffSession: [] }]
+      security: [{ StaffSession: [], StaffCsrf: [] }]
       parameters:
         - $ref: '#/components/parameters/PBookingId'
         - $ref: '#/components/parameters/IdempotencyKey'
@@ -736,7 +732,7 @@ paths:
       tags: ["Booking Cancellation"]
       operationId: submitBookingCancellationRequest
       summary: "Submit a staff-recorded booking cancellation request"
-      security: [{ StaffSession: [] }]
+      security: [{ StaffSession: [], StaffCsrf: [] }]
       parameters:
         - $ref: '#/components/parameters/PBookingId'
         - $ref: '#/components/parameters/IdempotencyKey'
@@ -790,7 +786,7 @@ paths:
       tags: ["Booking Cancellation"]
       operationId: issueExternalBookingActionCapability
       summary: "Issue a purpose-bound external action capability"
-      security: [{ StaffSession: [] }]
+      security: [{ StaffSession: [], StaffCsrf: [] }]
       parameters:
         - $ref: '#/components/parameters/PBookingId'
         - $ref: '#/components/parameters/IdempotencyKey'
@@ -820,7 +816,7 @@ paths:
       tags: ["Booking Cancellation"]
       operationId: revokeExternalBookingActionCapability
       summary: "Revoke an external booking action capability"
-      security: [{ StaffSession: [] }]
+      security: [{ StaffSession: [], StaffCsrf: [] }]
       parameters:
         - $ref: '#/components/parameters/PBookingId'
         - $ref: '#/components/parameters/PCapabilityId'
@@ -875,7 +871,7 @@ paths:
       tags: ["Resource Availability"]
       operationId: createBookingHold
       summary: "Create a temporary booking hold"
-      security: [{ StaffSession: [] }]
+      security: [{ StaffSession: [], StaffCsrf: [] }]
       parameters:
         - $ref: '#/components/parameters/PBookingId'
         - $ref: '#/components/parameters/IdempotencyKey'
@@ -929,7 +925,7 @@ paths:
       tags: ["Resource Availability"]
       operationId: releaseBookingReservations
       summary: "Release eligible booking reservations"
-      security: [{ StaffSession: [] }]
+      security: [{ StaffSession: [], StaffCsrf: [] }]
       parameters:
         - $ref: '#/components/parameters/PBookingId'
         - $ref: '#/components/parameters/IdempotencyKey'
@@ -959,7 +955,7 @@ paths:
       tags: ["Booking Cancellation"]
       operationId: initiateVenueBookingCancellation
       summary: "Initiate venue-side cancellation for a confirmed booking"
-      security: [{ StaffSession: [] }]
+      security: [{ StaffSession: [], StaffCsrf: [] }]
       parameters:
         - $ref: '#/components/parameters/PBookingId'
         - $ref: '#/components/parameters/IdempotencyKey'
@@ -989,7 +985,7 @@ paths:
       tags: ["Cancellation Policy"]
       operationId: createCancellationPolicyRevision
       summary: "Create an immutable cancellation policy revision"
-      security: [{ StaffSession: [] }]
+      security: [{ StaffSession: [], StaffCsrf: [] }]
       parameters:
         - $ref: '#/components/parameters/PPolicyId'
         - $ref: '#/components/parameters/IdempotencyKey'
@@ -1019,7 +1015,7 @@ paths:
       tags: ["Cancellation Policy"]
       operationId: publishCancellationPolicyRevision
       summary: "Publish a cancellation policy revision"
-      security: [{ StaffSession: [] }]
+      security: [{ StaffSession: [], StaffCsrf: [] }]
       parameters:
         - $ref: '#/components/parameters/PPolicyRevisionId'
         - $ref: '#/components/parameters/IdempotencyKey'
@@ -1085,7 +1081,7 @@ paths:
       tags: ["Check-in"]
       operationId: scanAdmissionCredential
       summary: "Validate an admission credential and record a check-in attempt"
-      security: [{ StaffSession: [] }]
+      security: [{ StaffSession: [], StaffCsrf: [] }]
       parameters:
         - $ref: '#/components/parameters/IdempotencyKey'
       requestBody:
@@ -1114,7 +1110,7 @@ paths:
       tags: ["Collaboration"]
       operationId: acceptCollaborationGrant
       summary: "Accept a grant as the grantee organization"
-      security: [{ StaffSession: [] }]
+      security: [{ StaffSession: [], StaffCsrf: [] }]
       parameters:
         - $ref: '#/components/parameters/PGrantId'
         - $ref: '#/components/parameters/IdempotencyKey'
@@ -1144,7 +1140,7 @@ paths:
       tags: ["Collaboration"]
       operationId: revokeCollaborationGrant
       summary: "Revoke future use of a grant"
-      security: [{ StaffSession: [] }]
+      security: [{ StaffSession: [], StaffCsrf: [] }]
       parameters:
         - $ref: '#/components/parameters/PGrantId'
         - $ref: '#/components/parameters/IdempotencyKey'
@@ -1174,7 +1170,7 @@ paths:
       tags: ["Event Cancellation"]
       operationId: approveEventChangeRequest
       summary: "Approve an event change request"
-      security: [{ StaffSession: [] }]
+      security: [{ StaffSession: [], StaffCsrf: [] }]
       parameters:
         - $ref: '#/components/parameters/PRequestId'
         - $ref: '#/components/parameters/IdempotencyKey'
@@ -1204,7 +1200,7 @@ paths:
       tags: ["Event Cancellation"]
       operationId: executeEventChangeRequest
       summary: "Execute an approved cancellation or postponement atomically"
-      security: [{ StaffSession: [] }]
+      security: [{ StaffSession: [], StaffCsrf: [] }]
       parameters:
         - $ref: '#/components/parameters/PRequestId'
         - $ref: '#/components/parameters/IdempotencyKey'
@@ -1234,7 +1230,7 @@ paths:
       tags: ["Event Cancellation"]
       operationId: rejectEventChangeRequest
       summary: "Reject or return an event change request"
-      security: [{ StaffSession: [] }]
+      security: [{ StaffSession: [], StaffCsrf: [] }]
       parameters:
         - $ref: '#/components/parameters/PRequestId'
         - $ref: '#/components/parameters/IdempotencyKey'
@@ -1264,7 +1260,7 @@ paths:
       tags: ["Event Disruption"]
       operationId: acknowledgeEventDisruption
       summary: "Acknowledge a venue disruption notice"
-      security: [{ StaffSession: [] }]
+      security: [{ StaffSession: [], StaffCsrf: [] }]
       parameters:
         - $ref: '#/components/parameters/PNoticeId'
         - $ref: '#/components/parameters/IdempotencyKey'
@@ -1294,7 +1290,7 @@ paths:
       tags: ["Event Disruption"]
       operationId: resolveEventDisruption
       summary: "Resolve a disruption by relocating, amending, postponing or cancelling"
-      security: [{ StaffSession: [] }]
+      security: [{ StaffSession: [], StaffCsrf: [] }]
       parameters:
         - $ref: '#/components/parameters/PNoticeId'
         - $ref: '#/components/parameters/IdempotencyKey'
@@ -1372,7 +1368,7 @@ paths:
       tags: ["Event Notifications"]
       operationId: retryFailedEventNotificationDeliveries
       summary: "Retry eligible failed deliveries against the fixed audience"
-      security: [{ StaffSession: [] }]
+      security: [{ StaffSession: [], StaffCsrf: [] }]
       parameters:
         - $ref: '#/components/parameters/PCampaignId'
         - $ref: '#/components/parameters/IdempotencyKey'
@@ -1402,7 +1398,7 @@ paths:
       tags: ["Event Responsibilities"]
       operationId: updateEventResponsibilityAssignment
       summary: "Update a scoped responsibility assignment"
-      security: [{ StaffSession: [] }]
+      security: [{ StaffSession: [], StaffCsrf: [] }]
       parameters:
         - $ref: '#/components/parameters/PAssignmentId'
         - $ref: '#/components/parameters/IdempotencyKey'
@@ -1504,7 +1500,7 @@ paths:
       tags: ["Events"]
       operationId: updateEvent
       summary: "Update event metadata using an expected revision"
-      security: [{ StaffSession: [] }]
+      security: [{ StaffSession: [], StaffCsrf: [] }]
       parameters:
         - $ref: '#/components/parameters/PEventId'
         - $ref: '#/components/parameters/IdempotencyKey'
@@ -1559,7 +1555,7 @@ paths:
       tags: ["Event Responsibilities"]
       operationId: linkBookingToEvent
       summary: "Link an external booking to this event under an explicit grant"
-      security: [{ StaffSession: [] }]
+      security: [{ StaffSession: [], StaffCsrf: [] }]
       parameters:
         - $ref: '#/components/parameters/PEventId'
         - $ref: '#/components/parameters/IdempotencyKey'
@@ -1589,7 +1585,7 @@ paths:
       tags: ["Event Cancellation"]
       operationId: previewEventCancellation
       summary: "Preview impact and candidate notification audiences"
-      security: [{ StaffSession: [] }]
+      security: [{ StaffSession: [], StaffCsrf: [] }]
       parameters:
         - $ref: '#/components/parameters/PEventId'
         - $ref: '#/components/parameters/IdempotencyKey'
@@ -1642,7 +1638,7 @@ paths:
       tags: ["Event Capabilities"]
       operationId: publishEventCapabilities
       summary: "Publish a versioned event capability set"
-      security: [{ StaffSession: [] }]
+      security: [{ StaffSession: [], StaffCsrf: [] }]
       parameters:
         - $ref: '#/components/parameters/PEventId'
         - $ref: '#/components/parameters/IdempotencyKey'
@@ -1672,7 +1668,7 @@ paths:
       tags: ["Event Cancellation"]
       operationId: createEventChangeRequest
       summary: "Initiate cancellation, postponement or reschedule"
-      security: [{ StaffSession: [] }]
+      security: [{ StaffSession: [], StaffCsrf: [] }]
       parameters:
         - $ref: '#/components/parameters/PEventId'
         - $ref: '#/components/parameters/IdempotencyKey'
@@ -1750,7 +1746,7 @@ paths:
       tags: ["Invitations and RSVP"]
       operationId: issueInvitations
       summary: "Issue invitations and enqueue delivery"
-      security: [{ StaffSession: [] }]
+      security: [{ StaffSession: [], StaffCsrf: [] }]
       parameters:
         - $ref: '#/components/parameters/PEventId'
         - $ref: '#/components/parameters/IdempotencyKey'
@@ -1780,7 +1776,7 @@ paths:
       tags: ["Event Notifications"]
       operationId: previewEventNotificationCampaign
       summary: "Preview eligible notification recipients and counts"
-      security: [{ StaffSession: [] }]
+      security: [{ StaffSession: [], StaffCsrf: [] }]
       parameters:
         - $ref: '#/components/parameters/PEventId'
         - $ref: '#/components/parameters/IdempotencyKey'
@@ -1810,7 +1806,7 @@ paths:
       tags: ["Event Notifications"]
       operationId: createEventNotificationCampaign
       summary: "Confirm an immutable audience snapshot and enqueue delivery"
-      security: [{ StaffSession: [] }]
+      security: [{ StaffSession: [], StaffCsrf: [] }]
       parameters:
         - $ref: '#/components/parameters/PEventId'
         - $ref: '#/components/parameters/IdempotencyKey'
@@ -1887,7 +1883,7 @@ paths:
       tags: ["Event Participation"]
       operationId: createEventParticipation
       summary: "Add a person to an event"
-      security: [{ StaffSession: [] }]
+      security: [{ StaffSession: [], StaffCsrf: [] }]
       parameters:
         - $ref: '#/components/parameters/PEventId'
         - $ref: '#/components/parameters/IdempotencyKey'
@@ -1912,7 +1908,7 @@ paths:
       tags: ["Invitations and RSVP"]
       operationId: recordStaffRsvp
       summary: "Record an answer received outside the invitation link"
-      security: [{ StaffSession: [] }]
+      security: [{ StaffSession: [], StaffCsrf: [] }]
       parameters:
         - $ref: '#/components/parameters/PEventId'
         - $ref: '#/components/parameters/PParticipationId'
@@ -1966,7 +1962,7 @@ paths:
       tags: ["Event Readiness"]
       operationId: createEventPrerequisite
       summary: "Create a prerequisite linked to a responsibility assignment"
-      security: [{ StaffSession: [] }]
+      security: [{ StaffSession: [], StaffCsrf: [] }]
       parameters:
         - $ref: '#/components/parameters/PEventId'
         - $ref: '#/components/parameters/IdempotencyKey'
@@ -2019,7 +2015,7 @@ paths:
       tags: ["Event Responsibilities"]
       operationId: createEventResponsibilityAssignment
       summary: "Assign an accountable and performing party"
-      security: [{ StaffSession: [] }]
+      security: [{ StaffSession: [], StaffCsrf: [] }]
       parameters:
         - $ref: '#/components/parameters/PEventId'
         - $ref: '#/components/parameters/IdempotencyKey'
@@ -2049,7 +2045,7 @@ paths:
       tags: ["Event Scheduling"]
       operationId: createEventScheduleRevision
       summary: "Create a replacement schedule through an authorized change process"
-      security: [{ StaffSession: [] }]
+      security: [{ StaffSession: [], StaffCsrf: [] }]
       parameters:
         - $ref: '#/components/parameters/PEventId'
         - $ref: '#/components/parameters/IdempotencyKey'
@@ -2079,7 +2075,7 @@ paths:
       tags: ["Venue Snapshot Sharing"]
       operationId: createEventVenueSnapshot
       summary: "Copy an approved venue share into an immutable event-owned snapshot"
-      security: [{ StaffSession: [] }]
+      security: [{ StaffSession: [], StaffCsrf: [] }]
       parameters:
         - $ref: '#/components/parameters/PEventId'
         - $ref: '#/components/parameters/IdempotencyKey'
@@ -2315,7 +2311,7 @@ paths:
       tags: ["Resource Availability"]
       operationId: extendBookingHold
       summary: "Extend a hold if the interval remains available"
-      security: [{ StaffSession: [] }]
+      security: [{ StaffSession: [], StaffCsrf: [] }]
       parameters:
         - $ref: '#/components/parameters/PHoldId'
         - $ref: '#/components/parameters/IdempotencyKey'
@@ -2345,7 +2341,7 @@ paths:
       tags: ["Resource Availability"]
       operationId: releaseBookingHold
       summary: "Release a temporary hold"
-      security: [{ StaffSession: [] }]
+      security: [{ StaffSession: [], StaffCsrf: [] }]
       parameters:
         - $ref: '#/components/parameters/PHoldId'
         - $ref: '#/components/parameters/IdempotencyKey'
@@ -2375,7 +2371,7 @@ paths:
       tags: ["Invitations and RSVP"]
       operationId: reissueInvitation
       summary: "Issue a new invitation link revision"
-      security: [{ StaffSession: [] }]
+      security: [{ StaffSession: [], StaffCsrf: [] }]
       parameters:
         - $ref: '#/components/parameters/PInvitationId'
         - $ref: '#/components/parameters/IdempotencyKey'
@@ -2405,7 +2401,7 @@ paths:
       tags: ["Invitations and RSVP"]
       operationId: resendInvitation
       summary: "Retry delivery of the current invitation revision"
-      security: [{ StaffSession: [] }]
+      security: [{ StaffSession: [], StaffCsrf: [] }]
       parameters:
         - $ref: '#/components/parameters/PInvitationId'
         - $ref: '#/components/parameters/IdempotencyKey'
@@ -2435,7 +2431,7 @@ paths:
       tags: ["Invitations and RSVP"]
       operationId: revokeInvitation
       summary: "Revoke invitation link and stop pending sends"
-      security: [{ StaffSession: [] }]
+      security: [{ StaffSession: [], StaffCsrf: [] }]
       parameters:
         - $ref: '#/components/parameters/PInvitationId'
         - $ref: '#/components/parameters/IdempotencyKey'
@@ -2511,7 +2507,7 @@ paths:
       tags: ["Authorization"]
       operationId: updateOrganizationMembership
       summary: "Update membership state or role grants"
-      security: [{ StaffSession: [] }]
+      security: [{ StaffSession: [], StaffCsrf: [] }]
       parameters:
         - $ref: '#/components/parameters/PMembershipId'
         - $ref: '#/components/parameters/IdempotencyKey'
@@ -2542,7 +2538,7 @@ paths:
       tags: ["Booking Administration"]
       operationId: createBookingDraft
       summary: "Create a booking draft without a public inquiry"
-      security: [{ StaffSession: [] }]
+      security: [{ StaffSession: [], StaffCsrf: [] }]
       parameters:
         - $ref: '#/components/parameters/POrganizationId'
         - $ref: '#/components/parameters/IdempotencyKey'
@@ -2643,7 +2639,7 @@ paths:
       tags: ["Cancellation Policy"]
       operationId: createCancellationPolicy
       summary: "Create a cancellation policy"
-      security: [{ StaffSession: [] }]
+      security: [{ StaffSession: [], StaffCsrf: [] }]
       parameters:
         - $ref: '#/components/parameters/POrganizationId'
         - $ref: '#/components/parameters/IdempotencyKey'
@@ -2696,7 +2692,7 @@ paths:
       tags: ["Collaboration"]
       operationId: proposeCollaborationGrant
       summary: "Propose a scoped cross-organization grant"
-      security: [{ StaffSession: [] }]
+      security: [{ StaffSession: [], StaffCsrf: [] }]
       parameters:
         - $ref: '#/components/parameters/POrganizationId'
         - $ref: '#/components/parameters/IdempotencyKey'
@@ -2749,7 +2745,7 @@ paths:
       tags: ["Events"]
       operationId: createEvent
       summary: "Create an explicit organizer-owned operational event"
-      security: [{ StaffSession: [] }]
+      security: [{ StaffSession: [], StaffCsrf: [] }]
       parameters:
         - $ref: '#/components/parameters/POrganizationId'
         - $ref: '#/components/parameters/IdempotencyKey'
@@ -2802,7 +2798,7 @@ paths:
       tags: ["Authorization"]
       operationId: createOrganizationMembership
       summary: "Invite or add an organization member"
-      security: [{ StaffSession: [] }]
+      security: [{ StaffSession: [], StaffCsrf: [] }]
       parameters:
         - $ref: '#/components/parameters/POrganizationId'
         - $ref: '#/components/parameters/IdempotencyKey'
@@ -2879,7 +2875,7 @@ paths:
       tags: ["Guest Registry"]
       operationId: createPerson
       summary: "Create a person in the organizer-owned guest registry"
-      security: [{ StaffSession: [] }]
+      security: [{ StaffSession: [], StaffCsrf: [] }]
       parameters:
         - $ref: '#/components/parameters/POrganizationId'
         - $ref: '#/components/parameters/IdempotencyKey'
@@ -2956,7 +2952,7 @@ paths:
       tags: ["Venue Inventory"]
       operationId: createVenue
       summary: "Create a venue"
-      security: [{ StaffSession: [] }]
+      security: [{ StaffSession: [], StaffCsrf: [] }]
       parameters:
         - $ref: '#/components/parameters/POrganizationId'
         - $ref: '#/components/parameters/IdempotencyKey'
@@ -3033,7 +3029,7 @@ paths:
       tags: ["Guest Registry"]
       operationId: updatePerson
       summary: "Update person profile/contact data"
-      security: [{ StaffSession: [] }]
+      security: [{ StaffSession: [], StaffCsrf: [] }]
       parameters:
         - $ref: '#/components/parameters/PPersonId'
         - $ref: '#/components/parameters/IdempotencyKey'
@@ -3064,7 +3060,7 @@ paths:
       tags: ["Event Readiness"]
       operationId: recordPrerequisiteCompletion
       summary: "Record externally completed prerequisite evidence"
-      security: [{ StaffSession: [] }]
+      security: [{ StaffSession: [], StaffCsrf: [] }]
       parameters:
         - $ref: '#/components/parameters/PPrerequisiteId'
         - $ref: '#/components/parameters/IdempotencyKey'
@@ -3149,7 +3145,7 @@ paths:
       tags: ["Invitations and RSVP"]
       operationId: correctRsvpResponse
       summary: "Append a correction to a prior RSVP response with a reason"
-      security: [{ StaffSession: [] }]
+      security: [{ StaffSession: [], StaffCsrf: [] }]
       parameters:
         - $ref: '#/components/parameters/PResponseId'
         - $ref: '#/components/parameters/IdempotencyKey'
@@ -3179,7 +3175,7 @@ paths:
       tags: ["Allocation"]
       operationId: createAllocationRun
       summary: "Queue an advisory allocation solver run"
-      security: [{ StaffSession: [] }]
+      security: [{ StaffSession: [], StaffCsrf: [] }]
       parameters:
         - $ref: '#/components/parameters/PSessionId'
         - $ref: '#/components/parameters/IdempotencyKey'
@@ -3232,7 +3228,7 @@ paths:
       tags: ["Venue Inventory"]
       operationId: updateVenue
       summary: "Update venue metadata"
-      security: [{ StaffSession: [] }]
+      security: [{ StaffSession: [], StaffCsrf: [] }]
       parameters:
         - $ref: '#/components/parameters/PVenueId'
         - $ref: '#/components/parameters/IdempotencyKey'
@@ -3286,7 +3282,7 @@ paths:
       tags: ["Venue Inventory"]
       operationId: createVenueResource
       summary: "Create a resource type, pool or unit"
-      security: [{ StaffSession: [] }]
+      security: [{ StaffSession: [], StaffCsrf: [] }]
       parameters:
         - $ref: '#/components/parameters/PVenueId'
         - $ref: '#/components/parameters/IdempotencyKey'
@@ -3316,7 +3312,7 @@ paths:
       tags: ["Venue Snapshot Sharing"]
       operationId: createVenueSnapshotShare
       summary: "Approve a venue revision, layers and resources for a named event"
-      security: [{ StaffSession: [] }]
+      security: [{ StaffSession: [], StaffCsrf: [] }]
       parameters:
         - $ref: '#/components/parameters/PVenueId'
         - $ref: '#/components/parameters/IdempotencyKey'
@@ -3369,7 +3365,7 @@ paths:
       tags: ["Venue Inventory"]
       operationId: createVenueSpace
       summary: "Create a venue space"
-      security: [{ StaffSession: [] }]
+      security: [{ StaffSession: [], StaffCsrf: [] }]
       parameters:
         - $ref: '#/components/parameters/PVenueId'
         - $ref: '#/components/parameters/IdempotencyKey'
@@ -3399,8 +3395,13 @@ components:
     StaffSession:
       type: apiKey
       in: cookie
-      name: eventor_session
+      name: __Host-eventor_session
       description: Staff authentication cookie. Mutations require CSRF/origin protection and server-side membership/permission checks.
+    StaffCsrf:
+      type: apiKey
+      in: header
+      name: X-CSRF-Token
+      description: Double-submit CSRF token paired with the session's readable CSRF cookie and checked against its server-side hash. Required for state-changing staff requests.
     GuestInvitationCapability:
       type: apiKey
       in: header
@@ -3716,7 +3717,8 @@ components:
         reasonCode: { type: string, maxLength: 100 }
     SessionCreateRequest:
       type: object
-      required: [email, password]
+      required: [email, password, organizationSlug]
+      additionalProperties: false
       properties:
         email: { type: string, format: email, maxLength: 320 }
         password: { type: string, minLength: 12, maxLength: 1024, writeOnly: true }
