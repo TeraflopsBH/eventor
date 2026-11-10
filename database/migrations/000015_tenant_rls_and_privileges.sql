@@ -41,10 +41,7 @@ CREATE POLICY collaboration_grant_parties ON eogp.collaboration_grants
     organization_id = eogp.current_organization_id()
     OR grantee_organization_id = eogp.current_organization_id()
   )
-  WITH CHECK (
-    organization_id = eogp.current_organization_id()
-    OR grantee_organization_id = eogp.current_organization_id()
-  );
+  WITH CHECK (organization_id = eogp.current_organization_id());
 
 -- Event-owned association is visible to the event owner and booking owner; field projections remain service-controlled.
 DROP POLICY tenant_isolation ON eogp.booking_event_links;
@@ -87,6 +84,8 @@ DECLARE
     'participation_status_history',
     'rsvp_responses',
     'attendance_records',
+    'event_notification_recipients',
+    'event_notification_exclusions',
     'event_notification_delivery_attempts',
     'event_prerequisite_status_history'
   ];
@@ -111,7 +110,8 @@ REVOKE ALL ON eogp.schema_migrations FROM eventor_runtime, eventor_worker;
 REVOKE INSERT, UPDATE, DELETE ON eogp.permissions FROM eventor_runtime, eventor_worker;
 GRANT SELECT, UPDATE ON eogp.outbox_events, eogp.background_jobs TO eventor_worker;
 GRANT SELECT, INSERT, UPDATE ON eogp.invitation_deliveries TO eventor_worker;
-GRANT SELECT, INSERT, UPDATE ON eogp.event_notification_recipients TO eventor_worker;
+GRANT SELECT ON eogp.event_notification_recipients TO eventor_worker;
+GRANT SELECT, UPDATE ON eogp.event_notification_campaigns TO eventor_worker;
 GRANT SELECT, INSERT ON eogp.event_notification_delivery_attempts TO eventor_worker;
 GRANT SELECT ON eogp.invitation_revisions, eogp.notification_template_revisions TO eventor_worker;
 
@@ -138,6 +138,8 @@ REVOKE UPDATE, DELETE ON
   eogp.participation_status_history,
   eogp.rsvp_responses,
   eogp.attendance_records,
+  eogp.event_notification_recipients,
+  eogp.event_notification_exclusions,
   eogp.event_notification_delivery_attempts,
   eogp.event_prerequisite_status_history
 FROM eventor_runtime, eventor_worker;
