@@ -687,7 +687,7 @@ $function$;
 -- audited command above.
 CREATE POLICY event_responsibility_performer_select
   ON eogp.event_responsibility_assignments
-  FOR SELECT TO eventor_owner, eventor_runtime
+  FOR SELECT TO eventor_owner
   USING (
     organization_id <> eogp.current_organization_id()
     AND performing_party_kind = 'organization'
@@ -725,7 +725,7 @@ CREATE POLICY event_responsibility_performer_select
 
 CREATE POLICY event_responsibility_performer_update
   ON eogp.event_responsibility_assignments
-  FOR UPDATE TO eventor_owner, eventor_runtime
+  FOR UPDATE TO eventor_owner
   USING (
     organization_id <> eogp.current_organization_id()
     AND performing_party_kind = 'organization'
@@ -771,12 +771,8 @@ CREATE POLICY event_responsibility_performer_update
 REVOKE SELECT, INSERT, UPDATE, DELETE
   ON eogp.event_responsibility_assignments
   FROM eventor_runtime;
-GRANT SELECT (
-  organization_id, event_id, id, task_code, task_label,
-  accountable_party_kind, performing_party_kind,
-  performing_organization_id, performing_membership_id,
-  due_at, status, updated_at
-) ON eogp.event_responsibility_assignments TO eventor_runtime;
+-- Runtime has no direct table SELECT. Only the membership-checked, allowlisted
+-- SECURITY DEFINER projection function can expose a delegated task to a caller.
 
 -- The delegated status command writes the audit row in the event owner's
 -- tenant while the authenticated transaction remains in the performing
