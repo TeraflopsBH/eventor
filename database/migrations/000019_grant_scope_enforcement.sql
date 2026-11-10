@@ -254,7 +254,7 @@ DECLARE
   v_grant_id uuid;
 BEGIN
   SELECT share.status, share.expires_at,
-         grant.status, grant.valid_from, grant.valid_until, grant.allowed_actions,
+         collab.status, collab.valid_from, collab.valid_until, collab.allowed_actions,
          share.organization_id, share.collaboration_grant_id
     INTO v_share_status, v_share_expires_at,
          v_grant_status, v_grant_valid_from, v_grant_valid_until, v_grant_actions,
