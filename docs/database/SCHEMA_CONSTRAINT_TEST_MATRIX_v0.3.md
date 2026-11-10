@@ -1,13 +1,13 @@
 # PostgreSQL integrity and concurrency test matrix — v0.3
 
-This matrix is intended to become executable migration/integration tests after the successor schema is implemented. The v0.2 SQL is not sufficient to run these tests as written.
+This matrix tracks executable PostgreSQL integration coverage and remaining gaps for the v0.3 successor schema. A checked item has a corresponding assertion in the current CI suite; unchecked items remain future test work. API authorization cases require route-level tests and are not proven by database constraints alone.
 
 ## Tenant relationships
-- [ ] Same-organization person merge target accepted.
-- [ ] Cross-organization person merge target rejected.
+- [x] Same-organization person merge target accepted.
+- [x] Cross-organization person merge target rejected.
 - [ ] Same-organization credential replacement accepted.
 - [ ] Cross-organization credential replacement rejected.
-- [ ] User actor with active membership in owning organization accepted.
+- [x] User actor with active membership in owning organization accepted.
 - [ ] User with no membership in owning organization rejected.
 - [ ] Member without operation permission rejected by API authorization.
 - [ ] Cross-organization delegated action succeeds only with active, matching grant and task scope.
@@ -16,20 +16,20 @@ This matrix is intended to become executable migration/integration tests after t
 ## Venue hierarchy
 - [ ] Valid organization → venue → building → level → space accepted.
 - [ ] Space pointing to a building from a different venue rejected.
-- [ ] Space pointing to a level from another building rejected.
-- [ ] Space with a level but no building rejected.
-- [ ] Cross-organization hierarchy reference rejected.
+- [x] Space pointing to a level from another building rejected.
+- [x] Space with a level but no building rejected.
+- [x] Cross-organization hierarchy reference rejected.
 
 ## Configuration integrity
-- [ ] Catalogue revision includes option and the option's own revision.
-- [ ] Option revision belonging to another stable option rejected.
-- [ ] Option from a different catalogue revision rejected.
+- [x] Catalogue revision includes option and the option's own revision.
+- [x] Option revision belonging to another stable option rejected.
+- [x] Option from a different catalogue revision rejected.
 - [ ] Retired option remains historically readable but cannot be newly selected where policy forbids it.
 - [ ] Published form/catalogue revision cannot be mutated through runtime permissions.
 
 ## Space reservations
-- [ ] Adjacent half-open intervals (10:00–11:00 and 11:00–12:00) both succeed.
-- [ ] Identical/overlapping intervals for the same room cannot both be active.
+- [x] Adjacent half-open intervals (10:00–11:00 and 11:00–12:00) both succeed.
+- [x] Identical/overlapping intervals for the same room cannot both be active.
 - [ ] Overlap is rejected even when one claim originated as a temporary hold and the other as a booking reservation.
 - [ ] Released/cancelled/expired interval no longer blocks a new reservation.
 - [ ] Hold extension that creates a conflict is rejected atomically.
@@ -44,9 +44,9 @@ This matrix is intended to become executable migration/integration tests after t
 ## Equipment/personnel
 - [ ] Same discrete unit cannot be reserved for overlapping time.
 - [ ] Different units in a pool can be reserved concurrently when capacity allows.
-- [ ] Pooled capacity is never exceeded under concurrent requests.
+- [x] Pooled capacity is never exceeded under concurrent requests.
 - [ ] Disjoint sub-interval reservations that both intersect a long requested interval are evaluated by peak simultaneous quantity, not incorrectly summed across the entire interval.
-- [ ] Adjacent half-open pool intervals do not count as simultaneous.
+- [x] Adjacent half-open pool intervals do not count as simultaneous.
 - [ ] Expired holds do not permanently consume capacity.
 - [ ] Resource line request/approval/delivery values remain separate from actual reservation records.
 
