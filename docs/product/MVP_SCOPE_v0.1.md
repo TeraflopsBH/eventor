@@ -1,6 +1,6 @@
 # Eventor MVP scope — v0.1
 
-**Status:** proposed product scope for review  
+**Status:** accepted initial product scope; organization-specific and GHB policies remain subject to validation  
 **Date:** 2026-11-10  
 **Reference deployment:** Gazi Husrev-beg's Library (GHB), Sarajevo  
 **Related:** [Issue #4](https://github.com/TeraflopsBH/eventor/issues/4), ADR 0004, ADR 0006
