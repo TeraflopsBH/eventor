@@ -663,6 +663,103 @@ BEGIN
 END;
 $function$;
 
+-- RLS admits a delegated performer only when an active grant names this
+-- exact task and the performer has a task-scoped/organization task.perform
+-- role. Direct table access is column-limited; status changes go through the
+-- audited command above.
+CREATE POLICY event_responsibility_performer_select
+  ON eogp.event_responsibility_assignments
+  FOR SELECT TO eventor_owner, eventor_runtime
+  USING (
+    organization_id <> eogp.current_organization_id()
+    AND performing_party_kind = 'organization'
+    AND performing_organization_id = eogp.current_organization_id()
+    AND EXISTS (
+      SELECT 1
+        FROM eogp.collaboration_grants AS grant_row
+       WHERE grant_row.organization_id = event_responsibility_assignments.grant_owner_organization_id
+         AND grant_row.grantee_organization_id = event_responsibility_assignments.performing_organization_id
+         AND grant_row.id = event_responsibility_assignments.collaboration_grant_id
+         AND grant_row.status = 'active'
+         AND grant_row.valid_from <= statement_timestamp()
+         AND (grant_row.valid_until IS NULL OR grant_row.valid_until > statement_timestamp())
+         AND grant_row.allowed_actions @> ARRAY['event.task.perform']::text[]
+         AND grant_row.projection -> 'taskIds' @> jsonb_build_array(event_responsibility_assignments.id::text)
+    )
+    AND EXISTS (
+      SELECT 1
+        FROM eogp.user_role_grants AS user_grant
+        JOIN eogp.role_permissions AS role_permission
+          ON role_permission.organization_id = user_grant.organization_id
+         AND role_permission.role_id = user_grant.role_id
+       WHERE user_grant.organization_id = event_responsibility_assignments.performing_organization_id
+         AND user_grant.revoked_at IS NULL
+         AND (user_grant.expires_at IS NULL OR user_grant.expires_at > clock_timestamp())
+         AND role_permission.permission_code = 'task.perform'
+         AND (
+           user_grant.scope_kind = 'organization'
+           OR (user_grant.scope_kind = 'task'
+               AND user_grant.scope_task_event_id = event_responsibility_assignments.event_id
+               AND user_grant.scope_task_id = event_responsibility_assignments.id)
+         )
+    )
+  );
+
+CREATE POLICY event_responsibility_performer_update
+  ON eogp.event_responsibility_assignments
+  FOR UPDATE TO eventor_owner, eventor_runtime
+  USING (
+    organization_id <> eogp.current_organization_id()
+    AND performing_party_kind = 'organization'
+    AND performing_organization_id = eogp.current_organization_id()
+    AND EXISTS (
+      SELECT 1
+        FROM eogp.collaboration_grants AS grant_row
+       WHERE grant_row.organization_id = event_responsibility_assignments.grant_owner_organization_id
+         AND grant_row.grantee_organization_id = event_responsibility_assignments.performing_organization_id
+         AND grant_row.id = event_responsibility_assignments.collaboration_grant_id
+         AND grant_row.status = 'active'
+         AND grant_row.valid_from <= statement_timestamp()
+         AND (grant_row.valid_until IS NULL OR grant_row.valid_until > statement_timestamp())
+         AND grant_row.allowed_actions @> ARRAY['event.task.perform']::text[]
+         AND grant_row.projection -> 'taskIds' @> jsonb_build_array(event_responsibility_assignments.id::text)
+    )
+    AND EXISTS (
+      SELECT 1
+        FROM eogp.user_role_grants AS user_grant
+        JOIN eogp.role_permissions AS role_permission
+          ON role_permission.organization_id = user_grant.organization_id
+         AND role_permission.role_id = user_grant.role_id
+       WHERE user_grant.organization_id = event_responsibility_assignments.performing_organization_id
+         AND user_grant.revoked_at IS NULL
+         AND (user_grant.expires_at IS NULL OR user_grant.expires_at > clock_timestamp())
+         AND role_permission.permission_code = 'task.perform'
+         AND (
+           user_grant.scope_kind = 'organization'
+           OR (user_grant.scope_kind = 'task'
+               AND user_grant.scope_task_event_id = event_responsibility_assignments.event_id
+               AND user_grant.scope_task_id = event_responsibility_assignments.id)
+         )
+    )
+  )
+  WITH CHECK (
+    performing_party_kind = 'organization'
+    AND performing_organization_id = eogp.current_organization_id()
+  );
+
+-- Do not expose private operational metadata or full task records through
+-- ordinary SELECT. The security-definer projection function returns a fixed
+-- allowlisted payload; updates are exclusively through update_assigned_task_status.
+REVOKE SELECT, INSERT, UPDATE, DELETE
+  ON eogp.event_responsibility_assignments
+  FROM eventor_runtime;
+GRANT SELECT (
+  organization_id, event_id, id, task_code, task_label,
+  accountable_party_kind, performing_party_kind,
+  performing_organization_id, performing_membership_id,
+  due_at, status, updated_at
+) ON eogp.event_responsibility_assignments TO eventor_runtime;
+
 REVOKE ALL ON FUNCTION eogp.get_assigned_task_projection(uuid,uuid) FROM PUBLIC;
 REVOKE ALL ON FUNCTION eogp.update_assigned_task_status(uuid,uuid,text,text,jsonb) FROM PUBLIC;
 GRANT EXECUTE ON FUNCTION eogp.get_assigned_task_projection(uuid,uuid),
