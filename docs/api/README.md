@@ -6,4 +6,4 @@
 - [OpenAPI v0.3 YAML](openapi.v0.3.yaml) — canonical OpenAPI 3.1.1 contract draft.
 - [Strict structural/security validator](../../scripts/validate_openapi.py) and [pinned validation dependencies](../../requirements-dev.txt).
 
-The v0.2 contract remains unchanged. The v0.3 contract is a draft; the PR workflow runs the strict Eventor checks, the pinned OpenAPI 3.1.1 validator and Redocly lint. API route implementations and route-level contract tests remain outstanding.
+The v0.2 contract remains unchanged. The v0.3 contract is a draft and its latest CI run passed the strict Eventor checks, pinned OpenAPI 3.1.1 validator and Redocly lint. API route implementations, generated-client verification and route-level contract tests remain outstanding.
