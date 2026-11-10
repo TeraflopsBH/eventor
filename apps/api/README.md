@@ -58,6 +58,19 @@ npm run build
 npm run start:worker
 ```
 
+## Contact-value encryption contract
+
+The contact registry stores email/phone values in `person_contact_points.encrypted_value`. New application code must use the shared `src/contact-crypto.ts` codec rather than inventing an envelope or reusing the private-event-reason encryption domain.
+
+- Format: `ECP1` magic bytes, a fresh 12-byte nonce, a 16-byte AES-256-GCM authentication tag, then ciphertext.
+- Key: a dedicated, cryptographically random 32-byte `EVENTOR_CONTACT_ENCRYPTION_KEY`, base64-encoded in deployment configuration. It must differ from the field-encryption and authentication-fingerprint keys.
+- Key derivation: HMAC-SHA-256 domain separation with the `eventor:contact-point-encryption:v1` label.
+- Authenticated context: tenant UUID and contact kind (`email`, `phone`, `postal`, or `other`). Moving ciphertext to another tenant or contact kind fails authentication.
+- The normalized contact hash remains a separate lookup value; it is not encryption key material.
+- Ciphertext is never logged or returned by review APIs. Decryption belongs only in the isolated delivery process immediately before provider submission.
+
+Existing ciphertext without the `ECP1` envelope is legacy/unknown format and is deliberately rejected by this codec. Do not attempt fallback decryption or send it. Before enabling delivery, migrate or re-enter legacy contacts through an approved source format, verify them, and ensure their consent is still `permitted`. Key rotation requires an explicit re-encryption migration with old and new keys; replacing the key alone makes existing values unreadable.
+
 ## Notification outbox behavior
 
 The organizer's event-change command writes a transactional outbox event. The worker:
