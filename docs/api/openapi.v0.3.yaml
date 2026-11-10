@@ -370,9 +370,8 @@ paths:
           application/json:
             schema:
               type: object
-              required: [initiatorKind, reasonCode]
+              required: [reasonCode]
               properties:
-                initiatorKind: { type: string, enum: [customer, venue_provider] }
                 reasonCode: { type: string, minLength: 1, maxLength: 80 }
       responses:
         '200':
@@ -524,7 +523,7 @@ paths:
           description: Venue cancellation/disruption workflow initiated.
           content:
             application/json:
-              schema: { $ref: '#/components/schemas/BookingDisruptionNotice' }
+              schema: { $ref: '#/components/schemas/VenueBookingCancellationInitiation' }
         '403': { $ref: '#/components/responses/Forbidden' }
         '404': { $ref: '#/components/responses/NotFound' }
         '409': { $ref: '#/components/responses/Conflict' }
@@ -835,19 +834,7 @@ paths:
       summary: Resolve an invitation capability without consuming or changing it
       security:
         - GuestInvitationCapability: []
-      requestBody:
-        required: true
-        content:
-          application/json:
-            schema:
-              type: object
-              required: [linkContext]
-              properties:
-                linkContext:
-                  type: string
-                  description: Opaque context submitted from the invitation URL fragment.
-                  minLength: 32
-                  maxLength: 2048
+      description: The browser reads the opaque token from the URL fragment and sends it in X-Guest-Invitation-Token. GET requests never resolve or consume tokens.
       responses:
         '200':
           description: Minimal personal invitation and event-safe context.
@@ -956,11 +943,7 @@ paths:
         required: true
         content:
           application/json:
-            schema:
-              type: object
-              required: [reasonCode]
-              properties:
-                reasonCode: { type: string, minLength: 1, maxLength: 80 }
+            schema: { $ref: '#/components/schemas/EventCancellationPreviewRequest' }
       responses:
         '200':
           description: Counts and task/booking impact; no guest contact details returned.
@@ -1048,6 +1031,16 @@ paths:
               required: [expectedEventRevision]
               properties:
                 expectedEventRevision: { type: integer, minimum: 1 }
+                notificationPlan:
+                  type: object
+                  required: [audienceKind, templateRevisionId, locale]
+                  properties:
+                    audienceKind: { type: string, enum: [accepted_tentative, all_active_invitees, all_previously_invited, custom] }
+                    templateRevisionId: { $ref: '#/components/schemas/Uuid' }
+                    locale: { type: string, default: bs-BA }
+                    selectedParticipationIds:
+                      type: array
+                      items: { $ref: '#/components/schemas/Uuid' }
       responses:
         '200':
           description: Event change committed; pending ordinary reminders are suppressed.
@@ -1872,6 +1865,30 @@ paths:
         recordedAt: { type: string, format: date-time }
         sequence: { type: integer, minimum: 1 }
         correctsResponseId: { $ref: '#/components/schemas/Uuid' }
+    EventCancellationPreviewRequest:
+      type: object
+      required: [reasonCode, audienceKind]
+      properties:
+        reasonCode: { type: string, minLength: 1, maxLength: 80 }
+        audienceKind: { type: string, enum: [accepted_tentative, all_active_invitees, all_previously_invited, custom] }
+        selectedParticipationIds:
+          type: array
+          items: { $ref: '#/components/schemas/Uuid' }
+    VenueBookingCancellationInitiation:
+      type: object
+      required: [cancellationRequest, disruptionNotice]
+      properties:
+        cancellationRequest: { $ref: '#/components/schemas/BookingCancellationRequest' }
+        disruptionNotice: { $ref: '#/components/schemas/BookingDisruptionNotice' }
+    EventDisruptionResolution:
+      type: object
+      required: [id, eventId, sourceProviderOrganizationId, status, resolutionKind]
+      properties:
+        id: { $ref: '#/components/schemas/Uuid' }
+        eventId: { $ref: '#/components/schemas/Uuid' }
+        sourceProviderOrganizationId: { $ref: '#/components/schemas/Uuid' }
+        status: { type: string, enum: [received, acknowledged, in_progress, resolved, dismissed] }
+        resolutionKind: { type: string, enum: [relocate, amend_booking, postpone, cancel_event, unresolved] }
     EventCancellationPreview:
       type: object
       required: [eventId, eventRevision, invitationCounts, rsvpCounts, pendingMessages, linkedBookingCount]
@@ -1903,6 +1920,16 @@ paths:
         reasonCode: { type: string, minLength: 1, maxLength: 80 }
         internalReason: { type: string, maxLength: 4000 }
         publicMessage: { type: string, minLength: 1, maxLength: 4000 }
+        notificationPlan:
+          type: object
+          required: [audienceKind, templateRevisionId, locale]
+          properties:
+            audienceKind: { type: string, enum: [accepted_tentative, all_active_invitees, all_previously_invited, custom] }
+            templateRevisionId: { $ref: '#/components/schemas/Uuid' }
+            locale: { type: string, default: bs-BA }
+            selectedParticipationIds:
+              type: array
+              items: { $ref: '#/components/schemas/Uuid' }
         replacementSchedule:
           type: object
           properties:
@@ -1931,6 +1958,7 @@ paths:
         decisionKind: { type: string, enum: [cancelled, postponed, rescheduled] }
         effectiveAt: { type: string, format: date-time }
         notificationCampaignStatus: { type: string, enum: [not_created, queued, partial, completed, failed] }
+        notificationCampaignId: { $ref: '#/components/schemas/Uuid' }
     CancellationCampaignPreviewRequest:
       type: object
       required: [audienceKind]
