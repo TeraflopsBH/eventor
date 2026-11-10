@@ -301,11 +301,36 @@ INSERT INTO eogp.event_responsibility_assignments (
 
 -- A booking-confirmation fixture exercises the secured draft-hold conversion:
 -- one pooled reservation, one individually tracked unit and one space hold.
+INSERT INTO eogp.booking_drafts
+ (id, organization_id, created_by_membership_id, current_revision_number)
+VALUES
+ ('50000000-0000-4000-8000-000000000002',
+  '11111111-1111-4111-8111-111111111111',
+  'aaaaaaaa-1111-4111-8111-aaaaaaaaaaaa',1);
+
+INSERT INTO eogp.booking_draft_revisions
+ (id, organization_id, draft_id, revision_number, values_snapshot, created_by_membership_id)
+VALUES
+ ('51000000-0000-4000-8000-000000000002',
+  '11111111-1111-4111-8111-111111111111',
+  '50000000-0000-4000-8000-000000000002',1,'{}'::jsonb,
+  'aaaaaaaa-1111-4111-8111-aaaaaaaaaaaa');
+
+INSERT INTO eogp.booking_resource_lines
+ (id, organization_id, draft_revision_id, resource_type_id, line_code,
+  label_snapshot, requested_quantity)
+VALUES
+ ('52000000-0000-4000-8000-000000000004',
+  '11111111-1111-4111-8111-111111111111',
+  '51000000-0000-4000-8000-000000000002',
+  '40000000-0000-4000-8000-000000000001',
+  'CHAIR-CONFIRM-LINE','Chair line for booking confirmation',4);
+
 INSERT INTO eogp.booking_offers (id, organization_id, draft_id, status)
 VALUES
  ('71000000-0000-4000-8000-000000000001',
   '11111111-1111-4111-8111-111111111111',
-  '50000000-0000-4000-8000-000000000001','accepted');
+  '50000000-0000-4000-8000-000000000002','accepted');
 
 INSERT INTO eogp.booking_offer_revisions
  (id, organization_id, offer_id, revision_number, draft_revision_id,
@@ -315,7 +340,7 @@ VALUES
  ('72000000-0000-4000-8000-000000000001',
   '11111111-1111-4111-8111-111111111111',
   '71000000-0000-4000-8000-000000000001',1,
-  '51000000-0000-4000-8000-000000000001',
+  '51000000-0000-4000-8000-000000000002',
   '{}'::jsonb,'BAM',0,0,0,'accepted',
   clock_timestamp() - interval '1 hour',clock_timestamp());
 
@@ -346,7 +371,7 @@ VALUES
   '11111111-1111-4111-8111-111111111111',
   '73000000-0000-4000-8000-000000000001',
   '40000000-0000-4000-8000-000000000001',
-  'CHAIR-LINE-IDEMPOTENCY','Confirmed chair line',4,4);
+  'CHAIR-CONFIRM-LINE','Confirmed chair line',4,4);
 
 INSERT INTO eogp.resource_units
  (id, organization_id, resource_pool_id, unit_code, status)
@@ -364,17 +389,17 @@ VALUES
  ('43000000-0000-4000-8000-000000000001',
   '11111111-1111-4111-8111-111111111111',
   '41000000-0000-4000-8000-000000000003',
-  '51000000-0000-4000-8000-000000000001',
-  '52000000-0000-4000-8000-000000000003',
+  '51000000-0000-4000-8000-000000000002',
+  '52000000-0000-4000-8000-000000000004',
   2,'2027-02-02 10:00+00','2027-02-02 11:00+00','held',
   clock_timestamp() + interval '1 day','ci-confirm-pooled-hold-01');
 
 SELECT eogp.reserve_resource_unit(
   '11111111-1111-4111-8111-111111111111',
   '42000000-0000-4000-8000-000000000004',
-  '51000000-0000-4000-8000-000000000001',
+  '51000000-0000-4000-8000-000000000002',
   NULL,NULL,
-  '52000000-0000-4000-8000-000000000003',
+  '52000000-0000-4000-8000-000000000004',
   '2027-02-03 10:00+00','2027-02-03 11:00+00',
   clock_timestamp() + interval '1 day','ci-confirm-unit-hold-01');
 
@@ -386,7 +411,7 @@ VALUES
  ('15000000-0000-4000-8000-000000000002',
   '11111111-1111-4111-8111-111111111111',
   '13000000-0000-4000-8000-000000000001',
-  '51000000-0000-4000-8000-000000000001',
+  '51000000-0000-4000-8000-000000000002',
   'draft_hold','held','2027-02-04 10:00+00','2027-02-04 11:00+00',
   clock_timestamp() + interval '1 day',
   'ci-confirm-space-hold-01',
