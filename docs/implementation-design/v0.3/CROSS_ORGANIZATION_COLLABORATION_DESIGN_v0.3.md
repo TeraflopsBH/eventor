@@ -1,6 +1,6 @@
 # Cross-organization venue and event collaboration — design proposal v0.3
 
-**Status:** proposed architecture and domain model; requires product-owner review before schema adoption  
+**Status:** accepted architecture and domain model; schema/API implementation and validation remain open  
 **Date:** 2026-11-10  
 **Related:** ADR 0004 (optional event operations), [Issue #12](https://github.com/TeraflopsBH/eventor/issues/12), [Database Review v0.2](../../database/DATABASE_REVIEW_v0.2.md)
 
@@ -242,7 +242,7 @@ These are design candidates, not approved table names or final DDL.
 - Recheck collaboration grant status on protected operations; cache invalidation/revocation behavior must be explicit.
 - RLS policies must preserve tenant isolation. Cross-tenant collaboration should be implemented as narrow scoped operations/projections, not by disabling RLS or using a general-purpose bypass role.
 
-## 10. Decisions requiring product-owner confirmation
+## 10. Confirmed architecture decisions and implementation details
 
 1. **Same-instance organizer tenancy:** support an organizer organization as a separate tenant in the same Eventor deployment when it wants guest/event operations (recommended: yes).
 2. **Space sharing:** use immutable event-owned snapshots of provider-approved space revisions/resources (recommended) rather than direct cross-tenant writes/references.
@@ -251,4 +251,4 @@ These are design candidates, not approved table names or final DDL.
 5. **External organizers:** keep them as booking-party records only unless they explicitly onboard as an Eventor organization in the same installation (recommended: yes).
 6. **Revocation behavior:** stop new access/snapshots immediately, preserve historical audit, and require reauthorization before further operations that need the revoked share (recommended: yes).
 
-The schema should not be changed until these choices are accepted and the corresponding authorization/data-projection tests are designed.
+The product owner accepted the recommended approach on 2026-11-10: separate same-instance organizer tenancy, immutable event-owned snapshots of approved venue revisions, explicit grant acceptance, many-to-many booking/event association where needed, external customers as booking-party records unless explicitly onboarded, and immediate revocation of future access with historical traceability. These are the accepted architectural defaults. Exact table names, cardinalities, lifecycle edge cases and authorization/data-projection tests remain engineering design work.
