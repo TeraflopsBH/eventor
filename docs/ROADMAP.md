@@ -18,7 +18,7 @@ This roadmap tracks the accepted Eventor product direction and implementation ga
 - [x] Produce an initial ordered PostgreSQL 18 migration draft and checksum runner.
 - [x] Produce canonical OpenAPI 3.1.1 v0.3 YAML from the route/security design.
 - [x] Add PostgreSQL integration/concurrency/RLS tests and pinned OpenAPI validation to the unified CI workflow.
-- [x] Pass the unified CI workflow end-to-end on PostgreSQL 18.6 and the canonical OpenAPI contract (latest PR run #42825572146; both jobs succeeded).
+- [x] Pass the unified CI workflow end-to-end on PostgreSQL 18.6 and the canonical OpenAPI contract (latest PR run #42837964380 on head `ce9fd3d7e4889b713f36e1d93d1b40c3e0c609f2`; both jobs succeeded).
 - [ ] Complete deeper schema/permission review, migration-upgrade/backup tests and route-level API contract tests before accepting the DDL.
 - [ ] Close Issues #2, #3, #13 and #17 only after their runtime/CI acceptance criteria pass.
 
@@ -26,7 +26,7 @@ This roadmap tracks the accepted Eventor product direction and implementation ga
 
 - [ ] Monorepo workspace and build tooling.
 - [ ] Fastify API skeleton, configuration and health/readiness endpoints.
-- [ ] PostgreSQL migrations, connection management and transaction conventions (initial 18-file migration draft and green PostgreSQL 18.6 CI are in draft PR #26; deployment is not started).
+- [ ] PostgreSQL migrations, connection management and transaction conventions (20-file migration draft and green PostgreSQL 18.6 CI are in draft PR #26; deployment is not started).
 - [ ] Shared contracts, validation and error model.
 - [ ] Authentication, sessions, authorization and audit foundation.
 - [ ] Organization, venue and event tenancy model.
