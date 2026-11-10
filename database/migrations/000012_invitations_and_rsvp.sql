@@ -50,6 +50,7 @@ CREATE TABLE eogp.invitations (
     created_at timestamptz NOT NULL DEFAULT clock_timestamp(),
     UNIQUE (organization_id, id),
     UNIQUE (organization_id, event_id, id),
+    UNIQUE (organization_id, event_id, id, participation_id),
     FOREIGN KEY (organization_id, event_id, participation_id)
       REFERENCES eogp.event_participations(organization_id, event_id, id),
     FOREIGN KEY (organization_id, created_by_membership_id)
@@ -184,6 +185,7 @@ CREATE TABLE eogp.rsvp_responses (
             AND invitation_id IS NOT NULL AND invitation_revision_id IS NOT NULL)
        OR (source_channel <> 'invitation_link' AND respondent_kind IN ('guest','representative','staff')
             AND actor_membership_id IS NOT NULL AND invitation_link_id IS NULL)),
+    CHECK ((invitation_id IS NULL) = (invitation_revision_id IS NULL)),
     CHECK ((correction_of_response_id IS NULL) = (correction_reason IS NULL)),
     CHECK (received_at <= recorded_at)
 );
