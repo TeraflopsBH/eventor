@@ -62,6 +62,7 @@ jobs:
       ADMIN_URL: postgresql://postgres:postgres_ci_password@127.0.0.1:5432/postgres
       MIGRATOR_URL: postgresql://eventor_migrator:eventor_ci_migrator_password@127.0.0.1:5432/eventor
       RUNTIME_URL: postgresql://eventor_runtime:eventor_ci_runtime_password@127.0.0.1:5432/eventor
+      AUTH_URL: postgresql://eventor_auth:eventor_ci_auth_password@127.0.0.1:5432/eventor
       DATABASE_URL: postgresql://eventor_migrator:eventor_ci_migrator_password@127.0.0.1:5432/eventor
     steps:
       - name: Check out repository
@@ -90,6 +91,8 @@ jobs:
             -c "ALTER ROLE eventor_runtime WITH PASSWORD 'eventor_ci_runtime_password';"
           psql "$ADMIN_URL" -X -v ON_ERROR_STOP=1 \
             -c "ALTER ROLE eventor_worker WITH PASSWORD 'eventor_ci_worker_password';"
+          psql "$ADMIN_URL" -X -v ON_ERROR_STOP=1 \
+            -c "ALTER ROLE eventor_auth WITH PASSWORD 'eventor_ci_auth_password';"
 
       - name: Confirm PostgreSQL major and extension availability
         run: |
@@ -120,6 +123,12 @@ jobs:
         env:
           DATABASE_URL_RUNTIME: postgresql://eventor_runtime:eventor_ci_runtime_password@127.0.0.1:5432/eventor
         run: bash scripts/db/test-migrations.sh
+
+      - name: Verify isolated authentication database role
+        run: psql "$AUTH_URL" -X -v ON_ERROR_STOP=1 -f tests/database/auth_role_smoke.sql
+
+      - name: Verify append-only history against owner-level mutation
+        run: psql "$MIGRATOR_URL" -X -v ON_ERROR_STOP=1 -f tests/database/append_only_smoke.sql
 
       - name: Report migration ledger
         run: |
