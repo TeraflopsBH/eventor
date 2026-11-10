@@ -87,7 +87,7 @@ const requestParams = {
   properties: { requestId: { type: "string", pattern: uuidPattern } },
   additionalProperties: false,
 } as const;
-const bookingParams = {
+const campaignParams = {\n  type: "object", required: ["campaignId"],\n  properties: { campaignId: { type: "string", pattern: uuidPattern } },\n  additionalProperties: false,\n} as const;\nconst bookingParams = {
   type: "object", required: ["bookingId"],
   properties: { bookingId: { type: "string", pattern: uuidPattern } },
   additionalProperties: false,
@@ -393,6 +393,53 @@ export function buildApi(dependencies: ApiDependencies): FastifyInstance {
         };
     return reply.code(200).send({ data });
   });
+
+
+  server.get<{ Params: { campaignId: string } }>(
+    "/event-notification-campaigns/:campaignId/review",
+    { schema: { params: campaignParams } },
+    async (request, reply) => {
+      const principal = request.staffPrincipal!;
+      const client = await dependencies.pool.connect();
+      try {
+        await client.query("BEGIN");
+        await client.query("SELECT set_config('app.organization_id',$1,true)", [principal.organizationId]);
+        const result = await client.query<ResultRow>(
+          "SELECT eogp.get_event_notification_campaign_review($1::uuid,$2::uuid,$3::uuid) AS result",
+          [principal.organizationId, request.params.campaignId, principal.membershipId],
+        );
+        await client.query("COMMIT");
+        return reply.code(200).send({ data: result.rows[0]?.result ?? null });
+      } catch (error) {
+        try { await client.query("ROLLBACK"); } catch { /* preserve the read error */ }
+        throw databaseError(error);
+      } finally {
+        client.release();
+      }
+    },
+  );
+
+  server.post<{ Params: { campaignId: string }; Body: Record<string, never> }>(
+    "/event-notification-campaigns/:campaignId/confirm",
+    {
+      schema: {
+        params: campaignParams,
+        headers: idempotencyHeaders,
+        body: { type: "object", properties: {}, additionalProperties: false },
+      },
+    },
+    async (request, reply) => {
+      const principal = request.staffPrincipal!;
+      return withCommand(request, reply, "confirmEventNotificationCampaign",
+        { campaignId: request.params.campaignId }, async (client) => {
+          const result = await client.query<ResultRow>(
+            "SELECT eogp.confirm_event_notification_campaign($1::uuid,$2::uuid,$3::uuid) AS result",
+            [principal.organizationId, request.params.campaignId, principal.membershipId],
+          );
+          return result.rows[0]?.result as Record<string, unknown>;
+        });
+    },
+  );
 
   server.post<{ Params: { bookingId: string }; Body: ReservationReleaseBody }>(
     "/bookings/:bookingId/reservations/release",
