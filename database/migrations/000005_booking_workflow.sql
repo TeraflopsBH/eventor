@@ -4,10 +4,12 @@ CREATE TABLE eogp.booking_inquiries (
     organization_id uuid NOT NULL REFERENCES eogp.organizations(id),
     public_reference text NOT NULL,
     form_revision_id uuid,
-    submitted_values jsonb NOT NULL,
-    requester_name text NOT NULL,
-    requester_email text,
-    requester_phone text,
+    submitted_values_ciphertext bytea NOT NULL,
+    requester_name_ciphertext bytea NOT NULL,
+    requester_email_hash text,
+    requester_email_ciphertext bytea,
+    requester_phone_hash text,
+    requester_phone_ciphertext bytea,
     requested_start timestamptz,
     requested_end timestamptz,
     requested_timezone text NOT NULL DEFAULT 'Europe/Sarajevo',
@@ -207,16 +209,20 @@ CREATE TABLE eogp.booking_party_contacts (
     booking_id uuid NOT NULL,
     party_role text NOT NULL
       CHECK (party_role IN ('requester','organizer','contracting_party','payer','billing_contact','authorized_booking_contact')),
-    display_name text NOT NULL,
-    email text,
-    phone text,
+    display_name_ciphertext bytea NOT NULL,
+    email_hash text,
+    email_ciphertext bytea,
+    phone_hash text,
+    phone_ciphertext bytea,
     authorized_actions text[] NOT NULL DEFAULT ARRAY[]::text[],
     is_primary boolean NOT NULL DEFAULT false,
     created_at timestamptz NOT NULL DEFAULT clock_timestamp(),
     UNIQUE (organization_id, id),
     UNIQUE (organization_id, booking_id, id),
     FOREIGN KEY (organization_id, booking_id) REFERENCES eogp.booking_records(organization_id, id),
-    CHECK (email IS NOT NULL OR phone IS NOT NULL OR display_name <> '')
+    CHECK (email_ciphertext IS NOT NULL OR phone_ciphertext IS NOT NULL OR display_name_ciphertext IS NOT NULL),
+    CHECK ((email_hash IS NULL) = (email_ciphertext IS NULL)),
+    CHECK ((phone_hash IS NULL) = (phone_ciphertext IS NULL))
 );
 CREATE INDEX booking_party_contacts_booking_idx
   ON eogp.booking_party_contacts (organization_id, booking_id, party_role);
