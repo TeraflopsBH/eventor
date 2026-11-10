@@ -95,6 +95,11 @@ This matrix tracks executable PostgreSQL integration coverage and remaining gaps
 - [x] Postponement reconfirmation audience snapshot selects accepted/tentative invitees and excludes declined/unanswered invitees.
 - [x] A provider booking-disruption notice alone does not cancel/postpone the organizer-owned event or create a guest-notification campaign; an explicit organizer decision is required.
 - [x] Event decision kind must match its executed change request; notification campaign purpose and published template must match the decision.
+- [x] Organizer event-change submission checks active membership, event-scoped initiation/postponement permission, current event revision and one unresolved request per event.
+- [x] Approval/rejection and execution are separate permission-gated commands; execution records the decision, status history, session outcomes, audit event and transactional notification outbox atomically.
+- [x] Cancellation, postponement and rescheduling commands enforce the event decision/status mapping; stale revisions, missing event scope and cross-tenant actors are rejected.
+- [x] Runtime API route tests cover fail-closed staff authentication and CSRF/origin checks, private-reason encryption, Idempotency-Key replay/conflict and custom-audience input validation.
+- [ ] Notification outbox consumer, audience-resolution/campaign-preparation worker and actual delivery provider integration.
 
 ## Append-only and issued business history
 - [x] Runtime role lacks UPDATE/DELETE privileges on append-only history tables.
