@@ -13,6 +13,20 @@ This matrix tracks executable PostgreSQL integration coverage and remaining gaps
 - [ ] Cross-organization delegated action succeeds only with active, matching grant and task scope.
 - [ ] Expired/revoked grant blocks new access without erasing historical records.
 
+## Global identity and authentication boundary
+- [ ] General runtime cannot SELECT, INSERT or update global user identity/password-hash rows directly.
+- [ ] Authentication role can resolve users and their organization memberships but cannot read venue/booking/event business data or mutate memberships.
+- [ ] Tenant-filtered member-profile view exposes only the active organization’s membership/profile projection.
+
+## Cross-organization grant and RLS lifecycle
+- [x] Grantor and grantee can see their own shared grant row; unrelated tenant cannot.
+- [x] Only an active member of the grantee organization can accept a grant.
+- [x] Repeated acceptance by the same actor is idempotent and does not duplicate the audit record.
+- [x] Grantee cannot invoke the grantor-side revocation command.
+- [x] Grantor can revoke; grantee retains historical visibility while the grant is marked revoked.
+- [ ] Revoked/expired grant blocks all new snapshot shares and protected delegated actions.
+- [ ] Venue snapshot share is constrained to the approved grant scope, projection and validity window.
+
 ## Venue hierarchy
 - [ ] Valid organization → venue → building → level → space accepted.
 - [ ] Space pointing to a building from a different venue rejected.
@@ -49,6 +63,10 @@ This matrix tracks executable PostgreSQL integration coverage and remaining gaps
 - [x] Adjacent half-open pool intervals do not count as simultaneous.
 - [ ] Expired holds do not permanently consume capacity.
 - [ ] Resource line request/approval/delivery values remain separate from actual reservation records.
+
+## Append-only history
+- [ ] Runtime role lacks UPDATE/DELETE privileges on append-only history tables.
+- [ ] Table triggers also reject UPDATE/DELETE when executed by the table owner.
 
 ## Optional modules and responsibility
 - [ ] New event has no guest/invitation/RSVP/check-in/prerequisite/cockpit modules unless explicitly enabled by its event preset or configuration.
