@@ -136,6 +136,9 @@ jobs:
       - name: Verify PR review remediation regressions
         run: psql "$MIGRATOR_URL" -X -v ON_ERROR_STOP=1 -f tests/database/review_regressions.sql
 
+      - name: Verify permission-gated booking reservation conversion as runtime
+        run: psql "$RUNTIME_URL" -X -v ON_ERROR_STOP=1 -f tests/database/booking_confirmation_runtime_smoke.sql
+
       - name: Verify booking reservation confirmation as runtime
         run: psql "$RUNTIME_URL" -X -v ON_ERROR_STOP=1 -f tests/database/booking_confirmation_runtime_smoke.sql
 
