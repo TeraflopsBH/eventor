@@ -383,19 +383,42 @@ COMMIT;
 -- Provider A proposes a venue-scoped grant to organizer B.
 BEGIN;
 SELECT set_config('app.organization_id', '10000000-0000-0000-0000-00000000000a', true);
-INSERT INTO eogp.collaboration_grants
- (id, organization_id, grantee_organization_id, scope_kind, scope_venue_id,
-  purpose, projection, allowed_actions, status, valid_from, valid_until, proposed_by_membership_id)
-VALUES
- ('61000000-0000-4000-8000-00000000000a',
-  '10000000-0000-0000-0000-00000000000a',
+SELECT eogp.propose_collaboration_grant(
+  '61000000-0000-4000-8000-00000000000a',
   '10000000-0000-0000-0000-00000000000b',
-  'venue','40000000-0000-0000-0000-00000000000a',
-  'CI venue snapshot collaboration','{"venueSummary":true}'::jsonb,
-  ARRAY['venue.snapshot.read']::text[],'proposed',
+  'venue',
+  '40000000-0000-0000-0000-00000000000a',
+  NULL,
+  NULL,
+  'CI venue snapshot collaboration',
+  '{"venueSummary":true}'::jsonb,
+  ARRAY['venue.snapshot.share','venue.snapshot.read']::text[],
   clock_timestamp() - interval '1 minute',
   clock_timestamp() + interval '1 day',
-  '30000000-0000-0000-0000-00000000000a');
+  '30000000-0000-0000-0000-00000000000a'
+);
+DO $test$
+BEGIN
+  IF NOT EXISTS (
+    SELECT 1 FROM eogp.collaboration_grants
+     WHERE organization_id = '10000000-0000-0000-0000-00000000000a'
+       AND id = '61000000-0000-4000-8000-00000000000a'
+       AND status = 'proposed'
+  ) OR NOT EXISTS (
+    SELECT 1 FROM eogp.collaboration_grant_revisions
+     WHERE organization_id = '10000000-0000-0000-0000-00000000000a'
+       AND grant_id = '61000000-0000-4000-8000-00000000000a'
+       AND revision_number = 1
+  ) OR NOT EXISTS (
+    SELECT 1 FROM eogp.audit_events
+     WHERE organization_id = '10000000-0000-0000-0000-00000000000a'
+       AND action = 'collaboration.grant.proposed'
+       AND aggregate_id = '61000000-0000-4000-8000-00000000000a'
+  ) THEN
+    RAISE EXCEPTION 'grant proposal must atomically write grant, revision and audit';
+  END IF;
+END;
+$test$;
 COMMIT;
 
 -- Only the named grantee tenant can see and accept the proposal, and the actor
