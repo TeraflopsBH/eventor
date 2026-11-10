@@ -41,7 +41,7 @@ GRANT SELECT (
   id, email, display_name, password_hash, status,
   email_verified_at, last_authenticated_at
 ) ON eogp.users TO eventor_auth;
-GRANT INSERT (email, display_name, password_hash, status)
+GRANT INSERT (id, email, display_name, password_hash, status)
   ON eogp.users TO eventor_auth;
 GRANT UPDATE (
   email, display_name, password_hash, status,
