@@ -36,7 +36,8 @@ test("contact ciphertext rejects malformed envelopes, wrong keys and tampering",
   assert.throws(() => decryptContactValue(Buffer.from("legacy"), key, context));
   const encrypted = encryptContactValue("person@example.test", key, context);
   const altered = Buffer.from(encrypted);
-  altered[altered.length - 1] ^= 1;
+  const lastIndex = altered.length - 1;
+  altered.writeUInt8(altered.readUInt8(lastIndex) ^ 1, lastIndex);
   assert.throws(() => decryptContactValue(altered, key, context));
   assert.throws(() => decryptContactValue(encrypted, randomBytes(32), context));
 });
