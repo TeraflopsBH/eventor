@@ -12,6 +12,8 @@ This roadmap is provisional. Scope and acceptance criteria must be finalized aft
 - [ ] Define MVP and acceptance criteria.
 - [ ] Add CI, issue/PR templates and repository protection settings.
 
+Database integrity blockers and successor test scenarios are documented in `docs/database/DATABASE_INTEGRITY_DESIGN_v0.3.md`; PostgreSQL execution remains a prerequisite before implementation.
+
 ## Phase 1 — Platform foundation
 
 - [ ] Monorepo workspace and build tooling.
