@@ -448,10 +448,11 @@ $provider_notice_assertions$;
 -- notifies only accepted/tentative invitees, and preserves old RSVP responses.
 INSERT INTO eogp.event_change_requests
   (id, organization_id, event_id, change_kind, expected_event_revision, reason_code,
-   public_message, status, initiated_by_organization_id, initiated_by_membership_id,
+   public_message, replacement_schedule_revision_id, status,
+   initiated_by_organization_id, initiated_by_membership_id,
    submitted_at, resolved_at)
 VALUES
-  ('91500000-0000-4000-8000-000000000002','22222222-2222-4222-8222-222222222222','90000000-0000-4000-8000-000000000002','postpone',1,'venue_disruption_reviewed','The event is postponed; a new date is being arranged.','executed','22222222-2222-4222-8222-222222222222','bbbbbbbb-2222-4222-8222-bbbbbbbbbbbb',clock_timestamp(),clock_timestamp());
+  ('91500000-0000-4000-8000-000000000002','22222222-2222-4222-8222-222222222222','90000000-0000-4000-8000-000000000002','postpone',1,'venue_disruption_reviewed','The event is postponed; a new date is being arranged.','90100000-0000-4000-8000-000000000003','executed','22222222-2222-4222-8222-222222222222','bbbbbbbb-2222-4222-8222-bbbbbbbbbbbb',clock_timestamp(),clock_timestamp());
 
 UPDATE eogp.events
    SET status = 'postponed',
