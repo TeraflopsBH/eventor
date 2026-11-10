@@ -2,7 +2,7 @@
 
 **Event Operations & Guest Logistics Platform (EOGP)**
 
-Eventor is a self-hosted, API-first platform for managing event inquiries and bookings, guest records, invitations and RSVP, spatial allocation, check-in, and live event operations.
+Eventor is a self-hosted, API-first platform that can be used for venue booking/resource management alone, full event organization and operations, or a configurable combination. Guest records, invitations/RSVP, seating, check-in and event-day operations are optional capabilities—not requirements for every venue booking.
 
 The first reference deployment is planned for **Gazi Husrev-beg's Library (GHB), Sarajevo**. The product is being designed as a reusable organization- and venue-aware platform rather than a one-off GHB application.
 
@@ -10,7 +10,8 @@ The first reference deployment is planned for **Gazi Husrev-beg's Library (GHB),
 
 ## Product goals
 
-- Manage venue inquiries, booking drafts, offers/approvals, and confirmed bookings as distinct records and workflow stages.
+- Manage venue inquiries, booking drafts, offers/approvals and confirmed bookings independently of optional operational-event management.
+- Support venue-provider, event-organizer and hybrid operating profiles with explicit responsibilities and scoped collaboration.
 - Maintain a reusable guest registry and event-specific participation records.
 - Support both guest self-service RSVP through secure invitation links and staff-recorded responses.
 - Model venues as spatial resources: rooms, zones, rows, individual positions, and count-based capacity pools.

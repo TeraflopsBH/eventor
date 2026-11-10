@@ -6,7 +6,7 @@
 
 ## Product
 
-Eventor is a reusable, self-hosted event operations and guest logistics platform. GHB Sarajevo is the first reference organization/venue, not the product's only intended deployment.
+Eventor is a reusable, self-hosted platform that can operate as a venue booking/resource system, a full event operations platform, or a configurable combination. GHB Sarajevo is the first reference organization/venue, not the product's only intended deployment.
 
 ## Established direction
 
@@ -20,6 +20,17 @@ Eventor is a reusable, self-hosted event operations and guest logistics platform
 - Self-hosted Linux deployment; Docker is optional, not mandatory.
 
 ## Agreed domain behavior
+
+### Operating scope and party responsibilities
+
+- A venue provider is not automatically the event organizer. Venue booking and venue-side service delivery are distinct from organizing the renter's event.
+- Organization-level operating profiles establish defaults: venue provider, event organizer or hybrid. They are configuration presets, not product/license tiers.
+- Booking/event-level scope can override organization defaults and independently activate only the modules required for that booking/event.
+- A booking can be completed without creating an operational event or collecting guest-level data.
+- Distinguish venue provider, booking requester/customer, contracting party, event organizer and operational operator; these roles may belong to different entities.
+- Organizer-side guest management, invitation/RSVP, seating, check-in, external prerequisites and live event cockpit are optional for venue-provider-only workflows.
+- Task/module responsibility and scoped collaboration must be explicit. A booking customer does not automatically become a tenant/member or gain access to the venue provider's workspace.
+- The venue provider retains its own venue/facility and contracted service responsibilities. Eventor records assigned operational ownership; it does not transfer duties or make legal determinations.
 
 ### Booking
 
@@ -83,6 +94,10 @@ Eventor is a reusable, self-hosted event operations and guest logistics platform
 - Existing GHB form options are reference data, not hardcoded product behavior.
 - The supplied mosque workbook is a grid-like spatial drawing. Preserve the source and map approved objects deliberately; do not blindly convert cells/numbers into seats.
 - The source venue workbook and sensitive operational details must not be committed unless explicitly reviewed and sanitized.
+
+## Operating model
+
+See [Operating Model](OPERATING_MODEL.md) and [ADR 0004](decisions/0004-optional-event-operations-scope.md). This is a new accepted product requirement and must be reflected in the next successor implementation design and schema/API revision; historical Blueprint v1.2 and Implementation Design v0.2 files remain unchanged snapshots.
 
 ## Imported design artifacts and reconciliation
 
