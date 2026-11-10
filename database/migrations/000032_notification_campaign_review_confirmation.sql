@@ -1,3 +1,10 @@
+-- Campaign review and confirmation permissions apply to cancellation,
+-- postponement and schedule-update notices, not only cancellation notices.
+INSERT INTO eogp.permissions (code, description, scope_kind, is_sensitive) VALUES
+  ('event.notifications.preview','Review event notification campaign snapshots','event',true),
+  ('event.notifications.send','Confirm event notification campaigns for delivery','event',true)
+ON CONFLICT (code) DO NOTHING;
+
 -- Organizer review and explicit confirmation of fixed notification campaign snapshots.
 -- Confirmation is a human authorization step; it does not queue or deliver messages.
 
@@ -29,7 +36,7 @@ BEGIN
 
   PERFORM eogp.assert_event_command_permission(
     p_organization_id, v_event_id, p_actor_membership_id,
-    'event.cancellation.notifications.preview'
+    'event.notifications.preview'
   );
 
   SELECT jsonb_build_object(
@@ -137,7 +144,7 @@ BEGIN
 
   PERFORM eogp.assert_event_command_permission(
     p_organization_id, v_campaign.event_id, p_actor_membership_id,
-    'event.cancellation.notifications.send'
+    'event.notifications.send'
   );
 
   IF v_campaign.status <> 'previewed' THEN
