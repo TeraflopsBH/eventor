@@ -2,8 +2,9 @@
 CREATE TABLE eogp.external_action_capabilities (
     id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
     organization_id uuid NOT NULL,
-    booking_id uuid NOT NULL,
+    booking_id uuid,
     booking_contact_id uuid,
+    offer_revision_id uuid,
     action_code text NOT NULL CHECK (action_code IN ('offer_accept','booking_cancellation_request','booking_cancellation_status')),
     token_sha256 text NOT NULL UNIQUE CHECK (token_sha256 ~ '^[0-9a-f]{64}$'),
     issued_at timestamptz NOT NULL DEFAULT clock_timestamp(),
@@ -14,15 +15,23 @@ CREATE TABLE eogp.external_action_capabilities (
     created_by_membership_id uuid,
     UNIQUE (organization_id, id),
     FOREIGN KEY (organization_id, booking_id) REFERENCES eogp.booking_records(organization_id, id),
+    FOREIGN KEY (organization_id, offer_revision_id) REFERENCES eogp.booking_offer_revisions(organization_id, id),
     FOREIGN KEY (organization_id, booking_contact_id) REFERENCES eogp.booking_party_contacts(organization_id, id),
     FOREIGN KEY (organization_id, created_by_membership_id)
       REFERENCES eogp.organization_memberships(organization_id, id),
     CHECK (expires_at > issued_at),
-    CHECK (use_count <= max_uses)
+    CHECK (use_count <= max_uses),
+    CHECK (
+      (action_code = 'offer_accept' AND offer_revision_id IS NOT NULL AND booking_id IS NULL AND booking_contact_id IS NULL)
+      OR (action_code <> 'offer_accept' AND offer_revision_id IS NULL AND booking_id IS NOT NULL)
+    )
 );
 CREATE INDEX external_action_capabilities_booking_idx
   ON eogp.external_action_capabilities (organization_id, booking_id, action_code)
-  WHERE revoked_at IS NULL;
+  WHERE revoked_at IS NULL AND booking_id IS NOT NULL;
+CREATE INDEX external_action_capabilities_offer_idx
+  ON eogp.external_action_capabilities (organization_id, offer_revision_id, action_code)
+  WHERE revoked_at IS NULL AND offer_revision_id IS NOT NULL;
 
 ALTER TABLE eogp.audit_events
   ADD CONSTRAINT audit_events_external_capability_fk
