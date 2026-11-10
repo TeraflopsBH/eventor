@@ -30,6 +30,7 @@ CREATE TABLE eogp.rsvp_policy_revisions (
     UNIQUE (organization_id, id),
     UNIQUE (organization_id, event_id, policy_id, id),
     UNIQUE (organization_id, policy_id, revision_number),
+    UNIQUE (organization_id, event_id, id),
     FOREIGN KEY (organization_id, event_id, policy_id)
       REFERENCES eogp.rsvp_policies(organization_id, event_id, id),
     CHECK (jsonb_typeof(allowed_responses) = 'array')
@@ -75,6 +76,7 @@ CREATE TABLE eogp.invitation_revisions (
     created_at timestamptz NOT NULL DEFAULT clock_timestamp(),
     UNIQUE (organization_id, id),
     UNIQUE (organization_id, event_id, invitation_id, id),
+    UNIQUE (organization_id, event_id, id),
     UNIQUE (organization_id, invitation_id, revision_number),
     FOREIGN KEY (organization_id, event_id, invitation_id)
       REFERENCES eogp.invitations(organization_id, event_id, id),
@@ -99,12 +101,14 @@ CREATE TABLE eogp.invitation_links (
     replaced_by_link_id uuid,
     created_at timestamptz NOT NULL DEFAULT clock_timestamp(),
     UNIQUE (organization_id, id),
+    UNIQUE (organization_id, event_id, id),
+    UNIQUE (organization_id, event_id, invitation_id, id),
     FOREIGN KEY (organization_id, event_id, invitation_id)
       REFERENCES eogp.invitations(organization_id, event_id, id),
     FOREIGN KEY (organization_id, event_id, invitation_id, invitation_revision_id)
       REFERENCES eogp.invitation_revisions(organization_id, event_id, invitation_id, id),
-    FOREIGN KEY (organization_id, replaced_by_link_id)
-      REFERENCES eogp.invitation_links(organization_id, id),
+    FOREIGN KEY (organization_id, event_id, invitation_id, replaced_by_link_id)
+      REFERENCES eogp.invitation_links(organization_id, event_id, invitation_id, id),
     CHECK (expires_at > issued_at),
     CHECK (replaced_by_link_id IS NULL OR replaced_by_link_id <> id)
 );
@@ -171,13 +175,14 @@ CREATE TABLE eogp.rsvp_responses (
       REFERENCES eogp.event_schedule_revisions(organization_id, event_id, id),
     FOREIGN KEY (organization_id, actor_membership_id)
       REFERENCES eogp.organization_memberships(organization_id, id),
-    FOREIGN KEY (organization_id, event_id, invitation_link_id)
-      REFERENCES eogp.invitation_links(organization_id, event_id, id),
+    FOREIGN KEY (organization_id, event_id, invitation_id, invitation_link_id)
+      REFERENCES eogp.invitation_links(organization_id, event_id, invitation_id, id),
     FOREIGN KEY (organization_id, event_id, participation_id, correction_of_response_id)
       REFERENCES eogp.rsvp_responses(organization_id, event_id, participation_id, id),
     CHECK ((source_channel = 'invitation_link' AND respondent_kind = 'guest'
-            AND invitation_link_id IS NOT NULL AND actor_membership_id IS NULL)
-       OR (source_channel <> 'invitation_link' AND respondent_kind IN ('representative','staff')
+            AND invitation_link_id IS NOT NULL AND actor_membership_id IS NULL
+            AND invitation_id IS NOT NULL AND invitation_revision_id IS NOT NULL)
+       OR (source_channel <> 'invitation_link' AND respondent_kind IN ('guest','representative','staff')
             AND actor_membership_id IS NOT NULL AND invitation_link_id IS NULL)),
     CHECK ((correction_of_response_id IS NULL) = (correction_reason IS NULL)),
     CHECK (received_at <= recorded_at)
