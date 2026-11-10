@@ -7,10 +7,10 @@
 
 ## Successor implementation draft
 
-- [Ordered PostgreSQL 18 migrations](../../database/migrations/) — 16 forward-only files covering tenancy, venue inventory, booking, reservations, cancellation, events, collaboration, RSVP, event disruption, attendance and RLS.
-- [Role bootstrap](../../scripts/db/bootstrap-roles.sql) and [checksum migration runner](../../scripts/db/migrate.sh).
+- [Ordered PostgreSQL 18 migrations](../../database/migrations/) — 17 forward-only files covering tenancy, venue inventory, booking, reservations, cancellation, events, collaboration, RSVP, event disruption, attendance and RLS.
+- [Role bootstrap](../../scripts/db/bootstrap-roles.sql) and [checksum migration runner](../../scripts/db/migrate.sh). The dedicated `eventor_auth` role is separate from `eventor_runtime`; normal tenant code reads member profiles through an RLS-filtered view and cannot select global password hashes.
 - [Original migration smoke tests](../../tests/database/) and [additional RLS/constraint tests](../../database/tests/rls_and_constraints.sql).
 - [Independent-connection capacity test](../../scripts/db/test_resource_concurrency.sh) and [additional concurrency runner](../../scripts/db/test-concurrency.sh).
 - [Unified PostgreSQL/API contract workflow](../../.github/workflows/contracts-and-database.yml).
 
-The v0.2 SQL remains a historical reference. The v0.3 migrations are an implementation draft; the latest CI run successfully applied all 16 migrations and passed RLS, hierarchy, reservation, concurrency and external-cancellation actor-attribution tests on PostgreSQL 18.6. The DDL still requires code review, broader upgrade/backup testing and approval before production deployment.
+The v0.2 SQL remains a historical reference. The v0.3 migrations are an implementation draft; the latest CI run successfully applied all 17 migrations and passed RLS, hierarchy, reservation, concurrency, collaboration-grant lifecycle, split-authentication-role and external-cancellation actor-attribution tests on PostgreSQL 18.6. The DDL still requires code review, broader upgrade/backup testing and approval before production deployment.
