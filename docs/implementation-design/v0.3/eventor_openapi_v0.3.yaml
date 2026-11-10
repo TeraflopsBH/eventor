@@ -3390,37 +3390,37 @@ components:
       name: allocationRevisionId
       in: path
       required: true
-      schema: { type: string, minLength: 1 }
+      schema: { type: string, format: uuid }
     PAssignmentId:
       name: assignmentId
       in: path
       required: true
-      schema: { type: string, minLength: 1 }
+      schema: { type: string, format: uuid }
     PBookingId:
       name: bookingId
       in: path
       required: true
-      schema: { type: string, minLength: 1 }
+      schema: { type: string, format: uuid }
     PCampaignId:
       name: campaignId
       in: path
       required: true
-      schema: { type: string, minLength: 1 }
+      schema: { type: string, format: uuid }
     PCapabilityId:
       name: capabilityId
       in: path
       required: true
-      schema: { type: string, minLength: 1 }
+      schema: { type: string, format: uuid }
     PDraftId:
       name: draftId
       in: path
       required: true
-      schema: { type: string, minLength: 1 }
+      schema: { type: string, format: uuid }
     PEventId:
       name: eventId
       in: path
       required: true
-      schema: { type: string, minLength: 1 }
+      schema: { type: string, format: uuid }
     PFormCode:
       name: formCode
       in: path
@@ -3430,47 +3430,47 @@ components:
       name: grantId
       in: path
       required: true
-      schema: { type: string, minLength: 1 }
+      schema: { type: string, format: uuid }
     PHoldId:
       name: holdId
       in: path
       required: true
-      schema: { type: string, minLength: 1 }
+      schema: { type: string, format: uuid }
     PInquiryId:
       name: inquiryId
       in: path
       required: true
-      schema: { type: string, minLength: 1 }
+      schema: { type: string, format: uuid }
     PInvitationId:
       name: invitationId
       in: path
       required: true
-      schema: { type: string, minLength: 1 }
+      schema: { type: string, format: uuid }
     PJobId:
       name: jobId
       in: path
       required: true
-      schema: { type: string, minLength: 1 }
+      schema: { type: string, format: uuid }
     PMembershipId:
       name: membershipId
       in: path
       required: true
-      schema: { type: string, minLength: 1 }
+      schema: { type: string, format: uuid }
     PNoticeId:
       name: noticeId
       in: path
       required: true
-      schema: { type: string, minLength: 1 }
+      schema: { type: string, format: uuid }
     POfferId:
       name: offerId
       in: path
       required: true
-      schema: { type: string, minLength: 1 }
+      schema: { type: string, format: uuid }
     POrganizationId:
       name: organizationId
       in: path
       required: true
-      schema: { type: string, minLength: 1 }
+      schema: { type: string, format: uuid }
     POrganizationSlug:
       name: organizationSlug
       in: path
@@ -3480,62 +3480,62 @@ components:
       name: participationId
       in: path
       required: true
-      schema: { type: string, minLength: 1 }
+      schema: { type: string, format: uuid }
     PPersonId:
       name: personId
       in: path
       required: true
-      schema: { type: string, minLength: 1 }
+      schema: { type: string, format: uuid }
     PPolicyId:
       name: policyId
       in: path
       required: true
-      schema: { type: string, minLength: 1 }
+      schema: { type: string, format: uuid }
     PPolicyRevisionId:
       name: policyRevisionId
       in: path
       required: true
-      schema: { type: string, minLength: 1 }
+      schema: { type: string, format: uuid }
     PPrerequisiteId:
       name: prerequisiteId
       in: path
       required: true
-      schema: { type: string, minLength: 1 }
+      schema: { type: string, format: uuid }
     PRequestId:
       name: requestId
       in: path
       required: true
-      schema: { type: string, minLength: 1 }
+      schema: { type: string, format: uuid }
     PResponseId:
       name: responseId
       in: path
       required: true
-      schema: { type: string, minLength: 1 }
+      schema: { type: string, format: uuid }
     PRevisionId:
       name: revisionId
       in: path
       required: true
-      schema: { type: string, minLength: 1 }
+      schema: { type: string, format: uuid }
     PRunId:
       name: runId
       in: path
       required: true
-      schema: { type: string, minLength: 1 }
+      schema: { type: string, format: uuid }
     PSessionId:
       name: sessionId
       in: path
       required: true
-      schema: { type: string, minLength: 1 }
+      schema: { type: string, format: uuid }
     PSnapshotId:
       name: snapshotId
       in: path
       required: true
-      schema: { type: string, minLength: 1 }
+      schema: { type: string, format: uuid }
     PVenueId:
       name: venueId
       in: path
       required: true
-      schema: { type: string, minLength: 1 }
+      schema: { type: string, format: uuid }
     IdempotencyKey:
       name: Idempotency-Key
       in: header
