@@ -32,7 +32,7 @@ CREATE TABLE eogp.venue_space_time_blocks (
       OR (reservation_kind = 'booking' AND booking_id IS NOT NULL AND status IN ('confirmed','released','cancelled'))
       OR (reservation_kind = 'maintenance' AND maintenance_window_id IS NOT NULL AND status IN ('blocked','released','cancelled'))
     ),
-    CHECK ((status = 'held') = (expires_at IS NOT NULL))
+    CHECK (status NOT IN ('held','expired') OR expires_at IS NOT NULL)
 );
 ALTER TABLE eogp.venue_space_time_blocks
   ADD CONSTRAINT venue_space_no_active_overlap
@@ -80,7 +80,7 @@ CREATE TABLE eogp.resource_reservations (
     CHECK (ends_at > starts_at),
     CHECK (num_nonnulls(resource_pool_id, resource_unit_id) = 1),
     CHECK (num_nonnulls(booking_draft_revision_id, booking_id, maintenance_window_id) = 1),
-    CHECK ((status = 'held') = (expires_at IS NOT NULL)),
+    CHECK (status NOT IN ('held','expired') OR expires_at IS NOT NULL),
     CHECK (status <> 'blocked' OR maintenance_window_id IS NOT NULL)
 );
 
