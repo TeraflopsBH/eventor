@@ -688,6 +688,8 @@ $function$;
 
 REVOKE ALL ON FUNCTION eogp.assert_revision_parent_mutable(text,jsonb) FROM PUBLIC;
 REVOKE ALL ON FUNCTION eogp.has_active_venue_snapshot_share(uuid,uuid) FROM PUBLIC;
+GRANT EXECUTE ON FUNCTION eogp.has_active_venue_snapshot_share(uuid,uuid)
+  TO eventor_owner, eventor_runtime;
 REVOKE ALL ON FUNCTION eogp.enforce_snapshot_object_projection() FROM PUBLIC;
 
 -- Narrow database path for the OpenAPI reservation-release operation. The
