@@ -1,6 +1,6 @@
 # Project state
 
-**Status:** accepted product/domain design baseline; 29-migration PostgreSQL 18 implementation across draft PRs #26/#27; canonical OpenAPI v0.3 contract and first Fastify command module implemented on PR #27; PostgreSQL 18.6, OpenAPI and API-route CI validation in progress; authentication/session integration, notification workers and production-readiness reviews remain open  
+**Status:** accepted product/domain design baseline; 30-migration PostgreSQL 18 implementation across draft PRs #26/#27; canonical OpenAPI v0.3 contract and first Fastify command module implemented on PR #27; PostgreSQL 18.6, OpenAPI and API-route CI validation in progress; authentication/session integration, notification workers and production-readiness reviews remain open  
 **Last updated:** 2026-11-10  
 **Implementation status:** database migrations and API contract exist in draft PR #26; no application route code or production database deployment has been established.
 
@@ -117,7 +117,7 @@ The accepted v0.3 design covers customer/organizer-initiated booking cancellatio
 
 ## Successor database and API baseline
 
-The accepted successor logical model and API design derive from ADRs 0004–0006, the RSVP/invitation and cancellation designs, and the venue-first MVP/role model. The database integrity baseline was merged in PR #24 and the aligned logical schema/API design in PR #25. The executable migration and OpenAPI baseline is PR #26; the separate remediation branch in PR #27 adds migrations 000022–000029 for reviewed integrity findings and the first API command implementation. Both remain draft/unmerged and require review.
+The accepted successor logical model and API design derive from ADRs 0004–0006, the RSVP/invitation and cancellation designs, and the venue-first MVP/role model. The database integrity baseline was merged in PR #24 and the aligned logical schema/API design in PR #25. The executable migration and OpenAPI baseline is PR #26; the separate remediation branch in PR #27 adds migrations 000022–000030 for reviewed integrity findings and the first API command implementation. Both remain draft/unmerged and require review.
 
 ## Executable schema and API contract draft
 
