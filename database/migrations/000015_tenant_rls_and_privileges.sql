@@ -42,6 +42,78 @@ CREATE POLICY collaboration_grant_parties ON eogp.collaboration_grants
     OR grantee_organization_id = eogp.current_organization_id()
   )
   WITH CHECK (organization_id = eogp.current_organization_id());
+CREATE POLICY collaboration_grant_acceptance ON eogp.collaboration_grants
+  FOR UPDATE
+  USING (grantee_organization_id = eogp.current_organization_id())
+  WITH CHECK (
+    grantee_organization_id = eogp.current_organization_id()
+    AND status = 'active'
+  );
+
+-- Acceptance is a narrowly scoped database command. The API must still check
+-- collaboration.manage permission before invoking it. Direct runtime DML is revoked.
+CREATE FUNCTION eogp.accept_collaboration_grant(
+  p_grant_id uuid,
+  p_actor_membership_id uuid
+) RETURNS void
+LANGUAGE plpgsql
+SECURITY DEFINER
+SET search_path = pg_catalog, eogp
+AS $function$
+DECLARE
+  v_organization_id uuid := eogp.current_organization_id();
+  v_member_status text;
+  v_grantor_organization_id uuid;
+  v_status text;
+  v_accepted_by uuid;
+BEGIN
+  IF v_organization_id IS NULL THEN
+    RAISE EXCEPTION 'tenant context is required' USING ERRCODE = '42501';
+  END IF;
+
+  SELECT status INTO v_member_status
+    FROM eogp.organization_memberships
+   WHERE organization_id = v_organization_id
+     AND id = p_actor_membership_id;
+  IF NOT FOUND OR v_member_status <> 'active' THEN
+    RAISE EXCEPTION 'active grantee membership is required' USING ERRCODE = '42501';
+  END IF;
+
+  SELECT organization_id, status, accepted_by_membership_id
+    INTO v_grantor_organization_id, v_status, v_accepted_by
+    FROM eogp.collaboration_grants
+   WHERE id = p_grant_id
+     AND grantee_organization_id = v_organization_id
+   FOR UPDATE;
+  IF NOT FOUND THEN
+    RAISE EXCEPTION 'collaboration grant not found' USING ERRCODE = 'P0002';
+  END IF;
+
+  IF v_status = 'active' AND v_accepted_by = p_actor_membership_id THEN
+    RETURN;
+  END IF;
+  IF v_status <> 'proposed' THEN
+    RAISE EXCEPTION 'collaboration grant is not awaiting acceptance' USING ERRCODE = '55000';
+  END IF;
+
+  UPDATE eogp.collaboration_grants
+     SET status = 'active',
+         accepted_by_membership_id = p_actor_membership_id,
+         accepted_at = clock_timestamp()
+   WHERE organization_id = v_grantor_organization_id
+     AND id = p_grant_id;
+
+  INSERT INTO eogp.audit_events (
+    organization_id, actor_membership_id, actor_kind, action,
+    aggregate_type, aggregate_id, safe_metadata
+  ) VALUES (
+    v_organization_id, p_actor_membership_id, 'membership',
+    'collaboration.grant.accepted', 'collaboration_grant', p_grant_id,
+    jsonb_build_object('grantorOrganizationId', v_grantor_organization_id)
+  );
+END;
+$function$;
+REVOKE ALL ON FUNCTION eogp.accept_collaboration_grant(uuid,uuid) FROM PUBLIC;
 
 -- Event-owned association is visible to the event owner and booking owner; field projections remain service-controlled.
 DROP POLICY tenant_isolation ON eogp.booking_event_links;
@@ -106,6 +178,9 @@ GRANT SELECT, INSERT, UPDATE, DELETE ON ALL TABLES IN SCHEMA eogp TO eventor_run
 GRANT USAGE, SELECT ON ALL SEQUENCES IN SCHEMA eogp TO eventor_runtime;
 
 GRANT SELECT ON eogp.permissions TO eventor_runtime, eventor_worker;
+REVOKE INSERT, UPDATE, DELETE ON eogp.collaboration_grants FROM eventor_runtime, eventor_worker;
+GRANT SELECT ON eogp.collaboration_grants TO eventor_runtime;
+GRANT EXECUTE ON FUNCTION eogp.accept_collaboration_grant(uuid,uuid) TO eventor_runtime;
 REVOKE ALL ON eogp.schema_migrations FROM eventor_runtime, eventor_worker;
 REVOKE INSERT, UPDATE, DELETE ON eogp.permissions FROM eventor_runtime, eventor_worker;
 GRANT SELECT, UPDATE ON eogp.outbox_events, eogp.background_jobs TO eventor_worker;
