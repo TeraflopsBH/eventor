@@ -57,7 +57,7 @@ CREATE TABLE eogp.booking_cancellation_requests (
     UNIQUE (organization_id, id),
     FOREIGN KEY (organization_id, booking_id) REFERENCES eogp.booking_records(organization_id, id),
     FOREIGN KEY (organization_id, booking_id, requester_contact_id)
-      REFERENCES eogp.booking_party_contacts(organization_id, id),
+      REFERENCES eogp.booking_party_contacts(organization_id, booking_id, id),
     FOREIGN KEY (organization_id, requester_membership_id)
       REFERENCES eogp.organization_memberships(organization_id, id),
     FOREIGN KEY (organization_id, booking_id, external_capability_id)
