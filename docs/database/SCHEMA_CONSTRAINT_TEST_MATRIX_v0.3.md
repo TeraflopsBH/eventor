@@ -104,7 +104,10 @@ This matrix tracks executable PostgreSQL integration coverage and remaining gaps
 - [x] Runtime API route tests cover fail-closed staff authentication and CSRF/origin checks, private-reason encryption, Idempotency-Key replay/conflict and custom-audience input validation.
 - [x] Worker-only tenant-scoped outbox processing prepares a fixed, reviewable campaign preview from accepted/tentative, active-invitee, previously-invited or custom audience rules; verified permitted contact snapshots remain encrypted and exclusions are retained.
 - [x] Worker processing is idempotent, locks outbox rows with SKIP LOCKED, retries with bounded backoff and dead-letters after the configured attempt ceiling; worker tests prove no delivery attempts are created during preparation.
-- [ ] Organizer campaign confirmation/review endpoint and actual email/SMS delivery-provider adapter, callback handling and delivery retries.
+- [x] Organizer campaign review returns the fixed recipient snapshot, channel totals, exclusion totals and published template content without exposing encrypted contact values.
+- [x] Campaign confirmation requires event-scoped send permission, a current matching event decision, a complete recipient-count snapshot and an active published template; confirmation is attributed in audit history.
+- [x] Runtime cannot directly mutate campaign/recipient/exclusion/delivery tables; campaign confirmation does not queue delivery or create delivery attempts.
+- [ ] Email/SMS delivery-provider adapter, callback handling and delivery retries.
 
 ## Append-only and issued business history
 - [x] Runtime role lacks UPDATE/DELETE privileges on append-only history tables.
