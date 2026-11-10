@@ -57,6 +57,20 @@ CREATE TABLE eogp.service_principals (
     UNIQUE (organization_id, code)
 );
 
+
+CREATE FUNCTION eogp.current_organization_id()
+RETURNS uuid
+LANGUAGE sql
+STABLE
+PARALLEL SAFE
+SET search_path = pg_catalog
+AS $function$
+  SELECT nullif(current_setting('app.organization_id', true), '')::uuid
+$function$;
+
+COMMENT ON FUNCTION eogp.current_organization_id() IS
+  'Returns transaction-local tenant context. The API must set it only after authorizing the active membership; it is not a replacement for application authorization.';
+
 CREATE TABLE eogp.schema_migrations (
     version text PRIMARY KEY,
     filename text NOT NULL UNIQUE,
