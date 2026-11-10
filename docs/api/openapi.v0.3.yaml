@@ -1315,6 +1315,59 @@ paths:
         '422': { $ref: '#/components/responses/UnprocessableEntity' }
         '429': { $ref: '#/components/responses/TooManyRequests' }
         '500': { $ref: '#/components/responses/InternalServerError' }
+  "/event-notification-campaigns/{campaignId}/review":
+    get:
+      tags: ["Event Notifications"]
+      operationId: reviewEventNotificationCampaign
+      summary: "Review a prepared campaign and its fixed recipient snapshot"
+      security: [{ StaffSession: [] }]
+      parameters:
+        - $ref: '#/components/parameters/PCampaignId'
+      responses:
+        '200':
+          description: "Campaign review projection without recipient contact values."
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/DataEnvelope' }
+        '400': { $ref: '#/components/responses/BadRequest' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '404': { $ref: '#/components/responses/NotFound' }
+        '409': { $ref: '#/components/responses/Conflict' }
+        '422': { $ref: '#/components/responses/UnprocessableEntity' }
+        '500': { $ref: '#/components/responses/InternalServerError' }
+  "/event-notification-campaigns/{campaignId}/confirm":
+    post:
+      tags: ["Event Notifications"]
+      operationId: confirmEventNotificationCampaign
+      summary: "Confirm a prepared campaign without queuing delivery"
+      description: "Requires event.cancellation.notifications.send permission. Confirmation is audited and does not enqueue or send email/SMS."
+      security: [{ StaffSession: [], StaffCsrf: [] }]
+      parameters:
+        - $ref: '#/components/parameters/PCampaignId'
+        - $ref: '#/components/parameters/IdempotencyKey'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              additionalProperties: false
+              maxProperties: 0
+      responses:
+        '201':
+          description: "Campaign confirmed; deliveryQueued is false."
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/DataEnvelope' }
+        '400': { $ref: '#/components/responses/BadRequest' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '404': { $ref: '#/components/responses/NotFound' }
+        '409': { $ref: '#/components/responses/Conflict' }
+        '412': { $ref: '#/components/responses/PreconditionFailed' }
+        '422': { $ref: '#/components/responses/UnprocessableEntity' }
+        '500': { $ref: '#/components/responses/InternalServerError' }
   "/event-notification-campaigns/{campaignId}":
     get:
       tags: ["Event Notifications"]
