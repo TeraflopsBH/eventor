@@ -320,7 +320,7 @@ export function buildApi(dependencies: ApiDependencies): FastifyInstance {
     async (request, reply) => {
       const body = request.body;
       const principal = request.staffPrincipal!;
-      return withCommand(request, reply, "releaseBookingReservations", body, async (client) => {
+      return withCommand(request, reply, "releaseBookingReservations", { bookingId: request.params.bookingId, body }, async (client) => {
         const result = await client.query<ResultRow>(
           "SELECT eogp.release_booking_reservations($1::uuid,$2::uuid,$3::uuid[],$4::uuid,$5::text) AS released_count",
           [principal.organizationId, request.params.bookingId, body.reservationIds, principal.membershipId, body.reason],
@@ -348,7 +348,7 @@ export function buildApi(dependencies: ApiDependencies): FastifyInstance {
       const encryptedReason = body.reasonInternal
         ? encryptPrivateText(body.reasonInternal, dependencies.privateFieldEncryptionKey) : null;
       const principal = request.staffPrincipal!;
-      return withCommand(request, reply, "createEventChangeRequest", body, async (client) => {
+      return withCommand(request, reply, "createEventChangeRequest", { eventId: request.params.eventId, body }, async (client) => {
         const result = await client.query<ResultRow>(
           "SELECT eogp.submit_event_change_request($1::uuid,$2::uuid,$3::uuid,$4::text,$5::integer,$6::text,$7::bytea,$8::text,$9::jsonb) AS result",
           [
@@ -367,7 +367,7 @@ export function buildApi(dependencies: ApiDependencies): FastifyInstance {
     { schema: { params: requestParams, headers: idempotencyHeaders, body: reasonBody } },
     async (request, reply) => {
       const principal = request.staffPrincipal!;
-      return withCommand(request, reply, "approveEventChangeRequest", request.body, async (client) => {
+      return withCommand(request, reply, "approveEventChangeRequest", { requestId: request.params.requestId, body: request.body }, async (client) => {
         const result = await client.query<ResultRow>(
           "SELECT eogp.decide_event_change_request($1::uuid,$2::uuid,$3::uuid,'approved',$4::text) AS result",
           [principal.organizationId, request.params.requestId, principal.membershipId, request.body.reason],
@@ -382,7 +382,7 @@ export function buildApi(dependencies: ApiDependencies): FastifyInstance {
     { schema: { params: requestParams, headers: idempotencyHeaders, body: reasonBody } },
     async (request, reply) => {
       const principal = request.staffPrincipal!;
-      return withCommand(request, reply, "rejectEventChangeRequest", request.body, async (client) => {
+      return withCommand(request, reply, "rejectEventChangeRequest", { requestId: request.params.requestId, body: request.body }, async (client) => {
         const result = await client.query<ResultRow>(
           "SELECT eogp.decide_event_change_request($1::uuid,$2::uuid,$3::uuid,'rejected',$4::text) AS result",
           [principal.organizationId, request.params.requestId, principal.membershipId, request.body.reason],
@@ -406,7 +406,7 @@ export function buildApi(dependencies: ApiDependencies): FastifyInstance {
         throw new ApiError(422, "CUSTOM_AUDIENCE_NOT_ALLOWED", "Participant IDs require the custom audience kind.");
       }
       const principal = request.staffPrincipal!;
-      return withCommand(request, reply, "executeEventChangeRequest", body, async (client) => {
+      return withCommand(request, reply, "executeEventChangeRequest", { requestId: request.params.requestId, body }, async (client) => {
         const result = await client.query<ResultRow>(
           "SELECT eogp.execute_event_change_request($1::uuid,$2::uuid,$3::uuid,$4::integer,$5::text,$6::boolean,$7::uuid[]) AS result",
           [
