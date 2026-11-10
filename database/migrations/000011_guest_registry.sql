@@ -38,7 +38,7 @@ CREATE TABLE eogp.person_contact_points (
     updated_at timestamptz NOT NULL DEFAULT clock_timestamp(),
     UNIQUE (organization_id, id),
     FOREIGN KEY (organization_id, person_id) REFERENCES eogp.persons(organization_id, id),
-    CHECK (normalized_value <> '')
+    CHECK (normalized_value_hash <> '')
 );
 CREATE INDEX person_contact_points_lookup_idx
   ON eogp.person_contact_points (organization_id, contact_kind, normalized_value_hash);
