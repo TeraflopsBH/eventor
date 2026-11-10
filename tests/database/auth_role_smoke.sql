@@ -25,13 +25,14 @@ BEGIN
 
   IF has_table_privilege(current_user, 'eogp.venues', 'SELECT')
      OR has_table_privilege(current_user, 'eogp.organization_memberships', 'UPDATE')
-     OR has_column_privilege(current_user, 'eogp.users', 'password_hash', 'UPDATE') THEN
-    RAISE EXCEPTION 'authentication role has excessive business-table or identity-write privileges';
+     OR has_table_privilege(current_user, 'eogp.users', 'DELETE') THEN
+    RAISE EXCEPTION 'authentication role has excessive business-table or identity-delete privileges';
   END IF;
 
   IF NOT has_column_privilege(current_user, 'eogp.users', 'password_hash', 'SELECT')
+     OR NOT has_column_privilege(current_user, 'eogp.users', 'password_hash', 'UPDATE')
      OR NOT has_column_privilege(current_user, 'eogp.users', 'email', 'SELECT') THEN
-    RAISE EXCEPTION 'authentication role lacks required credential lookup privileges';
+    RAISE EXCEPTION 'authentication role lacks required credential lookup/password-update privileges';
   END IF;
 END;
 $test$;
