@@ -4,10 +4,13 @@ BEGIN;
 SET LOCAL ROLE eventor_owner;
 
 -- Deterministic tenant, identity and venue fixtures.
+SELECT set_config('app.organization_id','11111111-1111-4111-8111-111111111111',true);
 INSERT INTO eogp.organizations (id, slug, name, operating_profile)
-VALUES
-  ('11111111-1111-4111-8111-111111111111','ci-venue-a','CI Venue A','venue_provider'),
-  ('22222222-2222-4222-8222-222222222222','ci-venue-b','CI Venue B','event_organizer');
+VALUES ('11111111-1111-4111-8111-111111111111','ci-venue-a','CI Venue A','venue_provider');
+SELECT set_config('app.organization_id','22222222-2222-4222-8222-222222222222',true);
+INSERT INTO eogp.organizations (id, slug, name, operating_profile)
+VALUES ('22222222-2222-4222-8222-222222222222','ci-venue-b','CI Venue B','event_organizer');
+SELECT set_config('app.organization_id','11111111-1111-4111-8111-111111111111',true);
 
 INSERT INTO eogp.users (id, email, display_name, status)
 VALUES
@@ -15,15 +18,20 @@ VALUES
   ('bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb','ci-b@example.invalid','CI User B','active');
 
 INSERT INTO eogp.organization_memberships (id, organization_id, user_id, status, joined_at)
-VALUES
-  ('aaaaaaaa-1111-4111-8111-aaaaaaaaaaaa','11111111-1111-4111-8111-111111111111','aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa','active',clock_timestamp()),
-  ('bbbbbbbb-2222-4222-8222-bbbbbbbbbbbb','22222222-2222-4222-8222-222222222222','bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb','active',clock_timestamp());
+VALUES ('aaaaaaaa-1111-4111-8111-aaaaaaaaaaaa','11111111-1111-4111-8111-111111111111','aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa','active',clock_timestamp());
+SELECT set_config('app.organization_id','22222222-2222-4222-8222-222222222222',true);
+INSERT INTO eogp.organization_memberships (id, organization_id, user_id, status, joined_at)
+VALUES ('bbbbbbbb-2222-4222-8222-bbbbbbbbbbbb','22222222-2222-4222-8222-222222222222','bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb','active',clock_timestamp());
+SELECT set_config('app.organization_id','11111111-1111-4111-8111-111111111111',true);
 
 INSERT INTO eogp.venues (id, organization_id, code, name, timezone_name)
 VALUES
   ('10000000-0000-4000-8000-000000000001','11111111-1111-4111-8111-111111111111','VENUE-A','Venue A','Europe/Sarajevo'),
-  ('10000000-0000-4000-8000-000000000002','11111111-1111-4111-8111-111111111111','VENUE-B','Venue B','Europe/Sarajevo'),
-  ('20000000-0000-4000-8000-000000000001','22222222-2222-4222-8222-222222222222','VENUE-C','Venue C','Europe/Sarajevo');
+  ('10000000-0000-4000-8000-000000000002','11111111-1111-4111-8111-111111111111','VENUE-B','Venue B','Europe/Sarajevo');
+SELECT set_config('app.organization_id','22222222-2222-4222-8222-222222222222',true);
+INSERT INTO eogp.venues (id, organization_id, code, name, timezone_name)
+VALUES ('20000000-0000-4000-8000-000000000001','22222222-2222-4222-8222-222222222222','VENUE-C','Venue C','Europe/Sarajevo');
+SELECT set_config('app.organization_id','11111111-1111-4111-8111-111111111111',true);
 
 INSERT INTO eogp.venue_buildings (id, organization_id, venue_id, code, name)
 VALUES
@@ -60,9 +68,13 @@ $test$;
 INSERT INTO eogp.persons (id, organization_id, first_name, last_name, status, created_by_membership_id)
 VALUES
   ('30000000-0000-4000-8000-000000000001','11111111-1111-4111-8111-111111111111','Person','One','active','aaaaaaaa-1111-4111-8111-aaaaaaaaaaaa'),
-  ('30000000-0000-4000-8000-000000000002','11111111-1111-4111-8111-111111111111','Person','Two','active','aaaaaaaa-1111-4111-8111-aaaaaaaaaaaa'),
-  ('30000000-0000-4000-8000-000000000003','22222222-2222-4222-8222-222222222222','Person','Three','active','bbbbbbbb-2222-4222-8222-bbbbbbbbbbbb'),
-  ('30000000-0000-4000-8000-000000000004','11111111-1111-4111-8111-111111111111','Person','Four','active','aaaaaaaa-1111-4111-8111-aaaaaaaaaaaa');
+  ('30000000-0000-4000-8000-000000000002','11111111-1111-4111-8111-111111111111','Person','Two','active','aaaaaaaa-1111-4111-8111-aaaaaaaaaaaa');
+SELECT set_config('app.organization_id','22222222-2222-4222-8222-222222222222',true);
+INSERT INTO eogp.persons (id, organization_id, first_name, last_name, status, created_by_membership_id)
+VALUES ('30000000-0000-4000-8000-000000000003','22222222-2222-4222-8222-222222222222','Person','Three','active','bbbbbbbb-2222-4222-8222-bbbbbbbbbbbb');
+SELECT set_config('app.organization_id','11111111-1111-4111-8111-111111111111',true);
+INSERT INTO eogp.persons (id, organization_id, first_name, last_name, status, created_by_membership_id)
+VALUES ('30000000-0000-4000-8000-000000000004','11111111-1111-4111-8111-111111111111','Person','Four','active','aaaaaaaa-1111-4111-8111-aaaaaaaaaaaa');
 
 UPDATE eogp.persons
    SET status = 'merged',
