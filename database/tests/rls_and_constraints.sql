@@ -637,6 +637,34 @@ END;
 $test$;
 COMMIT;
 
+-- A distinct read-only venue grant must allow source SELECT without permitting
+-- the event owner to bind/copy the provider's plan into an event snapshot.
+BEGIN;
+SELECT set_config('app.organization_id', '10000000-0000-0000-0000-00000000000a', true);
+SELECT eogp.propose_collaboration_grant(
+  '61000000-0000-4000-8000-00000000000c',
+  '10000000-0000-0000-0000-00000000000b',
+  'venue',
+  '40000000-0000-0000-0000-00000000000a',
+  NULL,
+  NULL,
+  'CI read-only venue snapshot grant',
+  '{"venueSummary":true}'::jsonb,
+  ARRAY['venue.snapshot.read']::text[],
+  clock_timestamp() - interval '1 minute',
+  clock_timestamp() + interval '1 day',
+  '30000000-0000-0000-0000-00000000000a'
+);
+COMMIT;
+
+BEGIN;
+SELECT set_config('app.organization_id', '10000000-0000-0000-0000-00000000000b', true);
+SELECT eogp.accept_collaboration_grant(
+  '61000000-0000-4000-8000-00000000000c',
+  '30000000-0000-0000-0000-00000000000b'
+);
+COMMIT;
+
 -- A separate booking-scoped grant may link only the exact booking in its scope.
 BEGIN;
 SELECT set_config('app.organization_id', '10000000-0000-0000-0000-00000000000a', true);
@@ -844,6 +872,31 @@ VALUES
   repeat('d',64),
   clock_timestamp() + interval '23 hours',
   '30000000-0000-0000-0000-00000000000a');
+INSERT INTO eogp.venue_space_revisions
+ (id, organization_id, venue_space_id, revision_number, geometry, semantic_snapshot,
+  content_sha256, published_at, created_by_membership_id)
+VALUES
+ ('64000000-0000-4000-8000-00000000000b',
+  '10000000-0000-0000-0000-00000000000a',
+  '70000000-0000-0000-0000-00000000000a',
+  2, '{}'::jsonb, '{"label":"CI read-only revision"}'::jsonb,
+  repeat('e',64), clock_timestamp(),
+  '30000000-0000-0000-0000-00000000000a');
+
+INSERT INTO eogp.venue_snapshot_shares
+ (id, organization_id, venue_space_revision_id, event_owner_organization_id,
+  event_id, collaboration_grant_id, approved_layers, approved_resources,
+  source_content_sha256, expires_at, approved_by_membership_id)
+VALUES
+ ('63000000-0000-4000-8000-00000000000d',
+  '10000000-0000-0000-0000-00000000000a',
+  '64000000-0000-4000-8000-00000000000b',
+  '10000000-0000-0000-0000-00000000000b',
+  '62000000-0000-4000-8000-00000000000a',
+  '61000000-0000-4000-8000-00000000000c',
+  '[]'::jsonb, '[]'::jsonb, repeat('e',64),
+  clock_timestamp() + interval '23 hours',
+  '30000000-0000-0000-0000-00000000000a');
 COMMIT;
 
 -- Event owner B can copy the approved, still-live share into its own immutable
@@ -883,6 +936,40 @@ BEGIN
       'recipient source projection is too broad or incomplete: revisions %, spaces %, layers %, objects %, pools %',
       source_revisions, source_spaces, source_layers, source_objects, source_pools;
   END IF;
+END;
+$test$;
+
+DO $test$
+DECLARE
+  visible_read_only_revision integer;
+BEGIN
+  SELECT count(*) INTO visible_read_only_revision
+    FROM eogp.venue_space_revisions
+   WHERE organization_id = '10000000-0000-0000-0000-00000000000a'
+     AND id = '64000000-0000-4000-8000-00000000000b';
+  IF visible_read_only_revision <> 1 THEN
+    RAISE EXCEPTION 'venue.snapshot.read did not expose its approved source revision';
+  END IF;
+
+  BEGIN
+    INSERT INTO eogp.event_venue_snapshots
+     (id, organization_id, event_id, share_owner_organization_id, snapshot_share_id,
+      source_organization_id, source_space_revision_id, source_content_sha256,
+      snapshot_content, created_by_membership_id)
+    VALUES
+     ('65000000-0000-4000-8000-00000000000b',
+      '10000000-0000-0000-0000-00000000000b',
+      '62000000-0000-4000-8000-00000000000a',
+      '10000000-0000-0000-0000-00000000000a',
+      '63000000-0000-4000-8000-00000000000d',
+      '10000000-0000-0000-0000-00000000000a',
+      '64000000-0000-4000-8000-00000000000b',
+      repeat('e',64), '{"layers":[],"resources":[]}'::jsonb,
+      '30000000-0000-0000-0000-00000000000b');
+    RAISE EXCEPTION 'read-only snapshot grant unexpectedly permitted event snapshot use';
+  EXCEPTION WHEN SQLSTATE '42501' THEN
+    NULL;
+  END;
 END;
 $test$;
 
