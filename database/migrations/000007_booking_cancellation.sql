@@ -83,6 +83,7 @@ CREATE INDEX booking_cancellation_requests_open_idx
 CREATE TABLE eogp.booking_cancellation_decisions (
     id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
     organization_id uuid NOT NULL,
+    booking_id uuid NOT NULL,
     cancellation_request_id uuid NOT NULL,
     decision text NOT NULL CHECK (decision IN ('approved','rejected','returned_for_changes')),
     actor_membership_id uuid NOT NULL,
@@ -108,8 +109,8 @@ CREATE TABLE eogp.booking_cancellation_effects (
     UNIQUE (organization_id, id),
     UNIQUE (organization_id, booking_id),
     FOREIGN KEY (organization_id, booking_id) REFERENCES eogp.booking_records(organization_id, id),
-    FOREIGN KEY (organization_id, cancellation_request_id)
-      REFERENCES eogp.booking_cancellation_requests(organization_id, id),
+    FOREIGN KEY (organization_id, booking_id, cancellation_request_id)
+      REFERENCES eogp.booking_cancellation_requests(organization_id, booking_id, id),
     FOREIGN KEY (organization_id, policy_revision_id)
       REFERENCES eogp.cancellation_policy_revisions(organization_id, id),
     FOREIGN KEY (organization_id, executed_by_membership_id)
