@@ -305,7 +305,7 @@ INSERT INTO eogp.booking_offers (id, organization_id, draft_id, status)
 VALUES
  ('71000000-0000-4000-8000-000000000001',
   '11111111-1111-4111-8111-111111111111',
-  'b0000000-0000-4000-8000-000000000001','accepted');
+  '50000000-0000-4000-8000-000000000001','accepted');
 
 INSERT INTO eogp.booking_offer_revisions
  (id, organization_id, offer_id, revision_number, draft_revision_id,
