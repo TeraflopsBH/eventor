@@ -10,6 +10,7 @@ import {
   type CreatedStaffSession,
   type StaffPrincipal,
 } from "./session-auth.js";
+export type { StaffPrincipal } from "./session-auth.js";
 
 type JsonRequestBody<Path extends keyof paths, Method extends keyof paths[Path]> =
   paths[Path][Method] extends { requestBody: { content: { "application/json": infer Body } } }
