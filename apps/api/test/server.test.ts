@@ -19,7 +19,9 @@ function makePool() {
   const idempotency = new Map<string, StoredIdempotency>();
   const commandCalls: Array<{ sql: string; values: unknown[] }> = [];
   let reservationCalls = 0;
-  let changeCalls = 0;\n  let campaignReviewCalls = 0;\n  let campaignConfirmCalls = 0;
+  let changeCalls = 0;
+  let campaignReviewCalls = 0;
+  let campaignConfirmCalls = 0;
 
   const client = {
     async query(sql: string, values: unknown[] = []) {
