@@ -1381,6 +1381,829 @@ paths:
                   shareId: { $ref: '#/components/schemas/Uuid' }
                   sourceRevisionId: { $ref: '#/components/schemas/Uuid' }
                   contentSha256: { type: string, pattern: '^[0-9a-f]{64} }
+
+  /organizations/{organizationId}/venues:
+    get:
+      tags: [Venue Spatial]
+      operationId: listOrganizationVenues
+      summary: List venues for an organization
+      parameters:
+        - $ref: '#/components/parameters/OrganizationId'
+      responses:
+        '200':
+          description: Venue list.
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [items]
+                properties:
+                  items:
+                    type: array
+                    items: { $ref: '#/components/schemas/Venue' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+    post:
+      tags: [Venue Spatial]
+      operationId: createOrganizationVenue
+      summary: Create a venue for an organization
+      parameters:
+        - $ref: '#/components/parameters/OrganizationId'
+        - $ref: '#/components/parameters/IdempotencyKey'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/VenueCreate' }
+      responses:
+        '201':
+          description: Venue created.
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Venue' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '422': { $ref: '#/components/responses/ValidationError' }
+
+  /venues/{venueId}:
+    get:
+      tags: [Venue Spatial]
+      operationId: getVenue
+      summary: Read venue and safe inventory summary
+      parameters:
+        - name: venueId
+          in: path
+          required: true
+          schema: { $ref: '#/components/schemas/Uuid' }
+      responses:
+        '200':
+          description: Venue projection.
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Venue' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '404': { $ref: '#/components/responses/NotFound' }
+    patch:
+      tags: [Venue Spatial]
+      operationId: updateVenue
+      summary: Update venue metadata
+      parameters:
+        - name: venueId
+          in: path
+          required: true
+          schema: { $ref: '#/components/schemas/Uuid' }
+        - $ref: '#/components/parameters/IfMatch'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              minProperties: 1
+              properties:
+                name: { type: string, minLength: 1, maxLength: 300 }
+                timezone: { type: string }
+                address: { type: object, additionalProperties: true }
+                status: { type: string, enum: [active, inactive, archived] }
+      responses:
+        '200':
+          description: Updated venue.
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Venue' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '412': { $ref: '#/components/responses/PreconditionFailed' }
+
+  /venues/{venueId}/spaces:
+    get:
+      tags: [Venue Spatial]
+      operationId: listVenueSpaces
+      summary: List spaces in a venue
+      parameters:
+        - name: venueId
+          in: path
+          required: true
+          schema: { $ref: '#/components/schemas/Uuid' }
+      responses:
+        '200':
+          description: Venue spaces, hierarchy and capacity summaries.
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [items]
+                properties:
+                  items:
+                    type: array
+                    items:
+                      type: object
+                      required: [id, code, name, spaceKind]
+                      properties:
+                        id: { $ref: '#/components/schemas/Uuid' }
+                        code: { type: string }
+                        name: { type: string }
+                        spaceKind: { type: string, enum: [building_area, level_area, room, zone, other] }
+                        capacity: { type: integer, minimum: 0 }
+                        buildingId: { $ref: '#/components/schemas/Uuid' }
+                        levelId: { $ref: '#/components/schemas/Uuid' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+    post:
+      tags: [Venue Spatial]
+      operationId: createVenueSpace
+      summary: Create a venue space within its validated building/level hierarchy
+      parameters:
+        - name: venueId
+          in: path
+          required: true
+          schema: { $ref: '#/components/schemas/Uuid' }
+        - $ref: '#/components/parameters/IdempotencyKey'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [code, name, spaceKind]
+              properties:
+                code: { type: string, maxLength: 80 }
+                name: { type: string, maxLength: 300 }
+                buildingId: { $ref: '#/components/schemas/Uuid' }
+                levelId: { $ref: '#/components/schemas/Uuid' }
+                parentSpaceId: { $ref: '#/components/schemas/Uuid' }
+                spaceKind: { type: string, enum: [building_area, level_area, room, zone, other] }
+                capacity: { type: integer, minimum: 0 }
+                areaSquareMetres: { type: number, minimum: 0 }
+      responses:
+        '201': { description: Venue space created. }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '409': { $ref: '#/components/responses/Conflict' }
+        '422': { $ref: '#/components/responses/ValidationError' }
+
+  /venues/{venueId}/resources:
+    get:
+      tags: [Availability]
+      operationId: listVenueResources
+      summary: List resource pools and discrete units
+      parameters:
+        - name: venueId
+          in: path
+          required: true
+          schema: { $ref: '#/components/schemas/Uuid' }
+      responses:
+        '200':
+          description: Resource inventory without guest or unrelated commercial data.
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [pools]
+                properties:
+                  pools:
+                    type: array
+                    items:
+                      type: object
+                      required: [id, code, capacity]
+                      properties:
+                        id: { $ref: '#/components/schemas/Uuid' }
+                        code: { type: string }
+                        capacity: { type: integer, minimum: 1 }
+                        unitLabel: { type: string }
+        '403': { $ref: '#/components/responses/Forbidden' }
+    post:
+      tags: [Availability]
+      operationId: createVenueResourcePool
+      summary: Create a reservable resource pool
+      parameters:
+        - name: venueId
+          in: path
+          required: true
+          schema: { $ref: '#/components/schemas/Uuid' }
+        - $ref: '#/components/parameters/IdempotencyKey'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [code, name, resourceTypeCode, capacity]
+              properties:
+                code: { type: string }
+                name: { type: string }
+                resourceTypeCode: { type: string }
+                capacity: { type: integer, minimum: 1 }
+                unitLabel: { type: string, default: unit }
+      responses:
+        '201': { description: Resource pool created. }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '422': { $ref: '#/components/responses/ValidationError' }
+
+  /availability/resources:
+    post:
+      tags: [Availability]
+      operationId: checkResourceAvailability
+      summary: Preview availability for equipment/personnel resource pools or units
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [reservations]
+              properties:
+                reservations:
+                  type: array
+                  minItems: 1
+                  items:
+                    type: object
+                    required: [resourceId, startsAt, endsAt, quantity]
+                    properties:
+                      resourceId: { $ref: '#/components/schemas/Uuid' }
+                      startsAt: { type: string, format: date-time }
+                      endsAt: { type: string, format: date-time }
+                      quantity: { type: integer, minimum: 1 }
+      responses:
+        '200':
+          description: Availability preview; transactionally enforced on reservation command.
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [isAvailable, items]
+                properties:
+                  isAvailable: { type: boolean }
+                  items:
+                    type: array
+                    items:
+                      type: object
+                      required: [resourceId, available]
+                      properties:
+                        resourceId: { $ref: '#/components/schemas/Uuid' }
+                        available: { type: boolean }
+                        peakReservedQuantity: { type: integer, minimum: 0 }
+                        capacity: { type: integer, minimum: 0 }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '422': { $ref: '#/components/responses/ValidationError' }
+
+  /bookings/{bookingId}/holds:
+    post:
+      tags: [Availability]
+      operationId: createBookingHold
+      summary: Create temporary space/resource holds for a draft
+      parameters:
+        - name: bookingId
+          in: path
+          required: true
+          schema: { $ref: '#/components/schemas/Uuid' }
+        - $ref: '#/components/parameters/IdempotencyKey'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [draftRevisionId, expiresAt, spaceBlocks]
+              properties:
+                draftRevisionId: { $ref: '#/components/schemas/Uuid' }
+                expiresAt: { type: string, format: date-time }
+                spaceBlocks:
+                  type: array
+                  items:
+                    type: object
+                    required: [spaceId, startsAt, endsAt]
+                    properties:
+                      spaceId: { $ref: '#/components/schemas/Uuid' }
+                      startsAt: { type: string, format: date-time }
+                      endsAt: { type: string, format: date-time }
+                resourceReservations:
+                  type: array
+                  items:
+                    type: object
+                    required: [resourcePoolId, startsAt, endsAt, quantity]
+                    properties:
+                      resourcePoolId: { $ref: '#/components/schemas/Uuid' }
+                      startsAt: { type: string, format: date-time }
+                      endsAt: { type: string, format: date-time }
+                      quantity: { type: integer, minimum: 1 }
+      responses:
+        '201': { description: All holds created atomically. }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '409': { $ref: '#/components/responses/Conflict' }
+        '422': { $ref: '#/components/responses/ValidationError' }
+
+  /holds/{holdId}/extend:
+    post:
+      tags: [Availability]
+      operationId: extendBookingHold
+      summary: Extend a temporary hold subject to policy and renewed availability
+      parameters:
+        - name: holdId
+          in: path
+          required: true
+          schema: { $ref: '#/components/schemas/Uuid' }
+        - $ref: '#/components/parameters/IdempotencyKey'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [newExpiresAt]
+              properties:
+                newExpiresAt: { type: string, format: date-time }
+      responses:
+        '200': { description: Hold extended. }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '409': { $ref: '#/components/responses/Conflict' }
+
+  /holds/{holdId}/release:
+    post:
+      tags: [Availability]
+      operationId: releaseBookingHold
+      summary: Release a draft hold
+      parameters:
+        - name: holdId
+          in: path
+          required: true
+          schema: { $ref: '#/components/schemas/Uuid' }
+        - $ref: '#/components/parameters/IdempotencyKey'
+      responses:
+        '200': { description: Hold released; historical record remains. }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '409': { $ref: '#/components/responses/Conflict' }
+
+  /bookings/{bookingId}/reservations:
+    get:
+      tags: [Availability]
+      operationId: listBookingReservations
+      summary: Read spaces and resource blocks associated with a booking
+      parameters:
+        - name: bookingId
+          in: path
+          required: true
+          schema: { $ref: '#/components/schemas/Uuid' }
+      responses:
+        '200':
+          description: Booking reservation blocks.
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [spaceBlocks, resourceReservations]
+                properties:
+                  spaceBlocks: { type: array, items: { type: object, additionalProperties: true } }
+                  resourceReservations: { type: array, items: { type: object, additionalProperties: true } }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '404': { $ref: '#/components/responses/NotFound' }
+
+  /bookings/{bookingId}/reservations/release:
+    post:
+      tags: [Availability]
+      operationId: releaseBookingReservations
+      summary: Release future reservation blocks after an authorized booking transition
+      parameters:
+        - name: bookingId
+          in: path
+          required: true
+          schema: { $ref: '#/components/schemas/Uuid' }
+        - $ref: '#/components/parameters/IdempotencyKey'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [reasonCode]
+              properties:
+                reasonCode: { type: string }
+                releaseAfter: { type: string, format: date-time }
+      responses:
+        '200': { description: Future blocks released atomically. }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '409': { $ref: '#/components/responses/Conflict' }
+
+  /bookings/{bookingId}/history:
+    get:
+      tags: [Booking]
+      operationId: getBookingHistory
+      summary: Read booking lifecycle history and approval decisions
+      parameters:
+        - name: bookingId
+          in: path
+          required: true
+          schema: { $ref: '#/components/schemas/Uuid' }
+      responses:
+        '200':
+          description: Append-only booking history.
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [items]
+                properties:
+                  items:
+                    type: array
+                    items:
+                      type: object
+                      required: [occurredAt, action]
+                      properties:
+                        occurredAt: { type: string, format: date-time }
+                        action: { type: string }
+                        reasonCode: { type: string }
+                        safeDetails: { type: object, additionalProperties: true }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '404': { $ref: '#/components/responses/NotFound' }
+
+  /events/{eventId}/booking-links:
+    post:
+      tags: [Collaboration]
+      operationId: linkBookingToEvent
+      summary: Explicitly link separately owned booking and organizer event
+      parameters:
+        - name: eventId
+          in: path
+          required: true
+          schema: { $ref: '#/components/schemas/Uuid' }
+        - $ref: '#/components/parameters/IdempotencyKey'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [bookingOwnerOrganizationId, bookingId]
+              properties:
+                bookingOwnerOrganizationId: { $ref: '#/components/schemas/Uuid' }
+                bookingId: { $ref: '#/components/schemas/Uuid' }
+                collaborationGrantId: { $ref: '#/components/schemas/Uuid' }
+                relationshipKind: { type: string, enum: [venue_for_event, service_for_event, other] }
+      responses:
+        '201':
+          description: Explicit booking/event association; no guest data access implied.
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [bookingEventLinkId, status]
+                properties:
+                  bookingEventLinkId: { $ref: '#/components/schemas/Uuid' }
+                  status: { type: string, enum: [active, ended, revoked] }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '409': { $ref: '#/components/responses/Conflict' }
+
+  /events/{eventId}/disruption-notices:
+    get:
+      tags: [Event Disruption]
+      operationId: listEventDisruptionNotices
+      summary: Read provider-originated venue disruption notices under an active scoped grant
+      parameters:
+        - name: eventId
+          in: path
+          required: true
+          schema: { $ref: '#/components/schemas/Uuid' }
+      responses:
+        '200':
+          description: Safe event-side disruption notices; does not expose provider internal notes.
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [items]
+                properties:
+                  items:
+                    type: array
+                    items: { $ref: '#/components/schemas/BookingDisruptionNotice' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+
+  /event-disruption-notices/{noticeId}/acknowledge:
+    post:
+      tags: [Event Disruption]
+      operationId: acknowledgeEventDisruption
+      summary: Acknowledge receipt of a venue disruption notice
+      parameters:
+        - name: noticeId
+          in: path
+          required: true
+          schema: { $ref: '#/components/schemas/Uuid' }
+        - $ref: '#/components/parameters/IdempotencyKey'
+      responses:
+        '200':
+          description: Event-owner acknowledgement recorded.
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/EventDisruptionResolution' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '404': { $ref: '#/components/responses/NotFound' }
+
+  /event-disruption-notices/{noticeId}/resolve:
+    post:
+      tags: [Event Disruption]
+      operationId: resolveEventDisruption
+      summary: Record organizer response to venue disruption
+      parameters:
+        - name: noticeId
+          in: path
+          required: true
+          schema: { $ref: '#/components/schemas/Uuid' }
+        - $ref: '#/components/parameters/IdempotencyKey'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [resolutionKind, notes]
+              properties:
+                resolutionKind: { type: string, enum: [relocate, amend_booking, postpone, cancel_event, unresolved] }
+                notes: { type: string, maxLength: 4000 }
+      responses:
+        '200':
+          description: Organizer resolution recorded separately from any booking/event transition.
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/EventDisruptionResolution' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '404': { $ref: '#/components/responses/NotFound' }
+
+  /invitations/{invitationId}/resend:
+    post:
+      tags: [Guest Operations]
+      operationId: resendInvitation
+      summary: Retry the current invitation delivery without changing RSVP state
+      parameters:
+        - name: invitationId
+          in: path
+          required: true
+          schema: { $ref: '#/components/schemas/Uuid' }
+        - $ref: '#/components/parameters/IdempotencyKey'
+      responses:
+        '202':
+          description: Delivery retry queued.
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/JobReceipt' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '409': { $ref: '#/components/responses/Conflict' }
+
+  /invitations/{invitationId}/revoke:
+    post:
+      tags: [Guest Operations]
+      operationId: revokeInvitation
+      summary: Revoke invitation-link access while retaining issued/delivery/RSVP history
+      parameters:
+        - name: invitationId
+          in: path
+          required: true
+          schema: { $ref: '#/components/schemas/Uuid' }
+        - $ref: '#/components/parameters/IdempotencyKey'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [reason]
+              properties:
+                reason: { type: string, minLength: 1, maxLength: 1000 }
+      responses:
+        '200': { description: Invitation link revoked; historical response remains. }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '409': { $ref: '#/components/responses/Conflict' }
+
+  /invitations/{invitationId}/reissue:
+    post:
+      tags: [Guest Operations]
+      operationId: reissueInvitation
+      summary: Issue a new invitation revision and link
+      parameters:
+        - name: invitationId
+          in: path
+          required: true
+          schema: { $ref: '#/components/schemas/Uuid' }
+        - $ref: '#/components/parameters/IdempotencyKey'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [scheduleRevisionId, rsvpPolicyRevisionId]
+              properties:
+                scheduleRevisionId: { $ref: '#/components/schemas/Uuid' }
+                rsvpPolicyRevisionId: { $ref: '#/components/schemas/Uuid' }
+                templateRevisionId: { $ref: '#/components/schemas/Uuid' }
+                locale: { type: string, default: bs-BA }
+      responses:
+        '202':
+          description: New invitation link generated and delivery queued.
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/JobReceipt' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '409': { $ref: '#/components/responses/Conflict' }
+
+  /rsvp-responses/{responseId}/corrections:
+    post:
+      tags: [Guest Operations]
+      operationId: correctRsvpResponse
+      summary: Append a correction; the original RSVP response is not overwritten
+      parameters:
+        - name: responseId
+          in: path
+          required: true
+          schema: { $ref: '#/components/schemas/Uuid' }
+        - $ref: '#/components/parameters/IdempotencyKey'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [correctedResponse, reason]
+              properties:
+                correctedResponse: { type: string, enum: [accepted, declined, tentative] }
+                reason: { type: string, minLength: 1, maxLength: 2000 }
+                receivedAt: { type: string, format: date-time }
+      responses:
+        '201':
+          description: Correction appended to response history.
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/RsvpResponseRecord' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '404': { $ref: '#/components/responses/NotFound' }
+
+  /guest-portal/access/resolve:
+    post:
+      tags: [Guest Portal]
+      operationId: resolveGuestPortalAccess
+      summary: Resolve a personal guest portal capability without exposing a guest directory
+      security:
+        - GuestPortalCapability: []
+      responses:
+        '200':
+          description: Personal, event-safe portal context.
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [eventTitle]
+                properties:
+                  eventTitle: { type: string }
+                  safeLocationSummary: { type: string }
+                  displayName: { type: string }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '410': { $ref: '#/components/responses/Gone' }
+
+  /guest-portal/me/allocation:
+    get:
+      tags: [Guest Portal]
+      operationId: getMyGuestAllocation
+      summary: Read only the caller's guest-safe allocation projection
+      security:
+        - GuestPortalCapability: []
+      responses:
+        '200':
+          description: Own allocation and sanitized map only.
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  eventTitle: { type: string }
+                  allocation: { type: object, additionalProperties: true }
+                  sanitizedMap: { type: object, additionalProperties: true }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '410': { $ref: '#/components/responses/Gone' }
+
+  /check-in/scan:
+    post:
+      tags: [Check-in]
+      operationId: scanAdmissionCredential
+      summary: Scan a distinct admission credential and record attendance attempt
+      parameters:
+        - $ref: '#/components/parameters/IdempotencyKey'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [token, stationId]
+              properties:
+                token: { type: string, minLength: 16, maxLength: 4096 }
+                stationId: { $ref: '#/components/schemas/Uuid' }
+                sessionId: { $ref: '#/components/schemas/Uuid' }
+                deviceSequence: { type: integer, minimum: 0 }
+      responses:
+        '200':
+          description: Safe scan result.
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [outcome]
+                properties:
+                  outcome: { type: string, enum: [accepted, duplicate, rejected, invalid, event_cancelled, capability_disabled] }
+                  displayMessage: { type: string }
+                  recordedAt: { type: string, format: date-time }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '409': { $ref: '#/components/responses/Conflict' }
+
+  /events/{eventId}/cockpit:
+    get:
+      tags: [Operations]
+      operationId: getCockpitSnapshot
+      summary: Read role-projected operational counts, alerts and freshness
+      parameters:
+        - name: eventId
+          in: path
+          required: true
+          schema: { $ref: '#/components/schemas/Uuid' }
+      responses:
+        '200':
+          description: Scope- and role-filtered cockpit snapshot.
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [eventId, generatedAt]
+                properties:
+                  eventId: { $ref: '#/components/schemas/Uuid' }
+                  generatedAt: { type: string, format: date-time }
+                  counts: { type: object, additionalProperties: { type: integer, minimum: 0 } }
+                  alerts: { type: array, items: { type: object, additionalProperties: true } }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '409': { $ref: '#/components/responses/Conflict' }
+
+  /events/{eventId}/prerequisites:
+    get:
+      tags: [Operations]
+      operationId: listEventPrerequisites
+      summary: Read external coordination/readiness tasks assigned for an event
+      parameters:
+        - name: eventId
+          in: path
+          required: true
+          schema: { $ref: '#/components/schemas/Uuid' }
+      responses:
+        '200':
+          description: Responsibility-scoped prerequisite list.
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [items]
+                properties:
+                  items:
+                    type: array
+                    items: { type: object, additionalProperties: true }
+        '403': { $ref: '#/components/responses/Forbidden' }
+    post:
+      tags: [Operations]
+      operationId: createEventPrerequisite
+      summary: Add a prerequisite to an assigned responsibility task
+      parameters:
+        - name: eventId
+          in: path
+          required: true
+          schema: { $ref: '#/components/schemas/Uuid' }
+        - $ref: '#/components/parameters/IdempotencyKey'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [responsibilityAssignmentId, requirementCode, title]
+              properties:
+                responsibilityAssignmentId: { $ref: '#/components/schemas/Uuid' }
+                requirementCode: { type: string }
+                title: { type: string, minLength: 1, maxLength: 300 }
+                externalAuthorityLabel: { type: string, maxLength: 300 }
+                dueAt: { type: string, format: date-time }
+      responses:
+        '201': { description: Prerequisite created. }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '422': { $ref: '#/components/responses/ValidationError' }
+
+  /jobs/{jobId}:
+    get:
+      tags: [Operations]
+      operationId: getJob
+      summary: Read job status within the caller's organization and scope
+      parameters:
+        - name: jobId
+          in: path
+          required: true
+          schema: { $ref: '#/components/schemas/Uuid' }
+      responses:
+        '200':
+          description: Asynchronous job state and safe reference.
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/JobReceipt' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '404': { $ref: '#/components/responses/NotFound' }
+
+
 components:
   securitySchemes:
     StaffSession:
