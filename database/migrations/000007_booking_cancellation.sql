@@ -49,7 +49,7 @@ CREATE TABLE eogp.booking_cancellation_requests (
     requester_membership_id uuid,
     external_capability_id uuid,
     reason_code text NOT NULL,
-    explanation text,
+    explanation_ciphertext bytea,
     status text NOT NULL DEFAULT 'submitted'
       CHECK (status IN ('submitted','under_review','approved','rejected','withdrawn','expired','effective')),
     requested_at timestamptz NOT NULL DEFAULT clock_timestamp(),
