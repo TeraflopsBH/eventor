@@ -1,6 +1,5 @@
 -- Forward-only remediation for high-risk findings in PR #26.
 -- Do not rewrite migrations 000001–000021: this migration preserves their checksum history.
-BEGIN;
 
 -- SECURITY DEFINER expiry commands are worker-only. PostgreSQL grants
 -- EXECUTE to PUBLIC by default; a later grant to eventor_worker is additive.
@@ -783,4 +782,3 @@ REVOKE ALL ON FUNCTION eogp.release_booking_reservations(uuid,uuid,uuid,text) FR
 GRANT EXECUTE ON FUNCTION eogp.release_booking_reservations(uuid,uuid,uuid,text)
   TO eventor_runtime;
 
-COMMIT;
