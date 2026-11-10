@@ -6,6 +6,26 @@ VALUES
   ('task.perform','Perform an explicitly assigned event responsibility task','task',true)
 ON CONFLICT (code) DO NOTHING;
 
+-- Do not fabricate actors for legacy terminal rows. If an environment
+-- contains prior ended/revoked rows, pause and backfill verified actor/reason
+-- provenance before applying these NOT NULL-for-terminal-state invariants.
+DO $migration_guard$
+BEGIN
+  IF EXISTS (
+    SELECT 1 FROM eogp.booking_event_links WHERE status <> 'active'
+  ) THEN
+    RAISE EXCEPTION
+      'booking_event_links contains terminal rows; backfill authentic status actor/reason before migration 000023';
+  END IF;
+  IF EXISTS (
+    SELECT 1 FROM eogp.venue_snapshot_shares WHERE status <> 'active'
+  ) THEN
+    RAISE EXCEPTION
+      'venue_snapshot_shares contains terminal rows; backfill authentic status actor/reason before migration 000023';
+  END IF;
+END;
+$migration_guard$;
+
 -- Status changes must identify the actor and a machine-readable reason.
 ALTER TABLE eogp.booking_event_links
   ADD COLUMN status_changed_by_membership_id uuid,
