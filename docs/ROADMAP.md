@@ -14,19 +14,19 @@ This roadmap is provisional. Scope and acceptance criteria must be finalized aft
 
 ## Phase 0.5 — Successor contracts
 
-- [ ] Accept database integrity and resource reservation constraints (Issue #13 / PR #24).
-- [x] Produce an initial ordered PostgreSQL 18 migration draft and checksum runner (implementation PR pending CI).
-- [x] Produce OpenAPI 3.1.1 v0.3 YAML from the route/security design (implementation PR pending validator).
+- [x] Accept database integrity and resource reservation constraints (Issue #13 / PR #24).
+- [x] Produce an initial ordered PostgreSQL 18 migration draft and checksum runner.
+- [x] Produce canonical OpenAPI 3.1.1 v0.3 YAML from the route/security design.
 - [x] Add PostgreSQL integration/concurrency/RLS tests and pinned OpenAPI validation to the unified CI workflow.
-- [ ] Fix and pass the unified CI workflow end-to-end on PostgreSQL 18.6 and the canonical OpenAPI contract.
-- [ ] Review/fix CI failures and complete runtime migration/security/contract validation before accepting the DDL.
+- [x] Pass the unified CI workflow end-to-end on PostgreSQL 18.6 and the canonical OpenAPI contract (run #42825256491).
+- [ ] Complete deeper schema/permission review, migration-upgrade/backup tests and route-level API contract tests before accepting the DDL.
 - [ ] Close Issues #2, #3, #13 and #17 only after their runtime/CI acceptance criteria pass.
 
 ## Phase 1 — Platform foundation
 
 - [ ] Monorepo workspace and build tooling.
 - [ ] Fastify API skeleton, configuration and health/readiness endpoints.
-- [ ] PostgreSQL migrations, connection management and transaction conventions (migration standards documented; executable migrations pending schema reconciliation).
+- [ ] PostgreSQL migrations, connection management and transaction conventions (initial 16-file migration draft and green PostgreSQL 18.6 CI are in draft PR #26; deployment is not started).
 - [ ] Shared contracts, validation and error model.
 - [ ] Authentication, sessions, authorization and audit foundation.
 - [ ] Organization, venue and event tenancy model.
