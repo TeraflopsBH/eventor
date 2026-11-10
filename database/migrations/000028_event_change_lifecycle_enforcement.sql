@@ -354,19 +354,20 @@ BEGIN
     END IF;
   END IF;
 
-  IF TG_TABLE_NAME = 'rsvp_responses'
-     AND NEW.source_channel = 'invitation_link' THEN
-    SELECT revoked_at, expires_at
-      INTO v_link_revoked_at, v_link_expires_at
-      FROM eogp.invitation_links
-     WHERE organization_id = NEW.organization_id
-       AND event_id = NEW.event_id
-       AND invitation_id = NEW.invitation_id
-       AND id = NEW.invitation_link_id;
-    IF NOT FOUND OR v_link_revoked_at IS NOT NULL
-       OR v_link_expires_at <= clock_timestamp() THEN
-      RAISE EXCEPTION 'invitation link is expired or revoked'
-        USING ERRCODE = '55000';
+  IF TG_TABLE_NAME = 'rsvp_responses' THEN
+    IF NEW.source_channel = 'invitation_link' THEN
+      SELECT revoked_at, expires_at
+        INTO v_link_revoked_at, v_link_expires_at
+        FROM eogp.invitation_links
+       WHERE organization_id = NEW.organization_id
+         AND event_id = NEW.event_id
+         AND invitation_id = NEW.invitation_id
+         AND id = NEW.invitation_link_id;
+      IF NOT FOUND OR v_link_revoked_at IS NOT NULL
+         OR v_link_expires_at <= clock_timestamp() THEN
+        RAISE EXCEPTION 'invitation link is expired or revoked'
+          USING ERRCODE = '55000';
+      END IF;
     END IF;
   END IF;
 
