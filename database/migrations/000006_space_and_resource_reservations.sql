@@ -242,4 +242,83 @@ BEGIN
 END;
 $function$;
 
+
+CREATE FUNCTION eogp.expire_space_holds(p_organization_id uuid)
+RETURNS bigint
+LANGUAGE plpgsql
+SECURITY DEFINER
+SET search_path = pg_catalog, eogp
+AS $function$
+DECLARE
+  v_count bigint;
+BEGIN
+  IF nullif(current_setting('app.organization_id', true), '')::uuid IS DISTINCT FROM p_organization_id THEN
+    RAISE EXCEPTION 'organization context mismatch' USING ERRCODE = '42501';
+  END IF;
+
+  PERFORM s.id
+    FROM eogp.venue_spaces s
+   WHERE s.organization_id = p_organization_id
+     AND EXISTS (
+       SELECT 1 FROM eogp.venue_space_time_blocks b
+        WHERE b.organization_id = s.organization_id
+          AND b.venue_space_id = s.id
+          AND b.status = 'held'
+          AND b.expires_at <= clock_timestamp()
+     )
+   ORDER BY s.id
+   FOR UPDATE;
+
+  UPDATE eogp.venue_space_time_blocks
+     SET status = 'expired', updated_at = clock_timestamp()
+   WHERE organization_id = p_organization_id
+     AND status = 'held'
+     AND expires_at <= clock_timestamp();
+  GET DIAGNOSTICS v_count = ROW_COUNT;
+  RETURN v_count;
+END;
+$function$;
+
+CREATE FUNCTION eogp.expire_resource_holds(p_organization_id uuid)
+RETURNS bigint
+LANGUAGE plpgsql
+SECURITY DEFINER
+SET search_path = pg_catalog, eogp
+AS $function$
+DECLARE
+  v_count bigint := 0;
+  v_pool_id uuid;
+  v_changed bigint;
+BEGIN
+  IF nullif(current_setting('app.organization_id', true), '')::uuid IS DISTINCT FROM p_organization_id THEN
+    RAISE EXCEPTION 'organization context mismatch' USING ERRCODE = '42501';
+  END IF;
+
+  FOR v_pool_id IN
+    SELECT DISTINCT resource_pool_id
+      FROM eogp.resource_reservations
+     WHERE organization_id = p_organization_id
+       AND resource_pool_id IS NOT NULL
+       AND status = 'held'
+       AND expires_at <= clock_timestamp()
+     ORDER BY resource_pool_id
+  LOOP
+    PERFORM 1 FROM eogp.resource_pools
+     WHERE organization_id = p_organization_id AND id = v_pool_id
+     FOR UPDATE;
+
+    UPDATE eogp.resource_reservations
+       SET status = 'expired'
+     WHERE organization_id = p_organization_id
+       AND resource_pool_id = v_pool_id
+       AND status = 'held'
+       AND expires_at <= clock_timestamp();
+    GET DIAGNOSTICS v_changed = ROW_COUNT;
+    v_count := v_count + v_changed;
+  END LOOP;
+
+  RETURN v_count;
+END;
+$function$;
+
 REVOKE ALL ON FUNCTION eogp.reserve_pooled_resource(uuid,uuid,uuid,uuid,uuid,timestamptz,timestamptz,integer,timestamptz,text) FROM PUBLIC;
