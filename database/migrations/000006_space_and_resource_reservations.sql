@@ -179,6 +179,17 @@ BEGIN
          AND l.id = p_booking_resource_line_id
          AND l.draft_revision_id IS NOT DISTINCT FROM p_booking_draft_revision_id
          AND l.booking_id IS NOT DISTINCT FROM p_booking_id
+         AND l.resource_type_id = (
+           SELECT rp.resource_type_id
+             FROM eogp.resource_pools rp
+            WHERE rp.organization_id = p_organization_id
+              AND rp.id = p_resource_pool_id
+         )
+         AND (
+           (p_booking_draft_revision_id IS NOT NULL AND p_quantity <= l.requested_quantity)
+           OR
+           (p_booking_id IS NOT NULL AND l.approved_quantity IS NOT NULL AND p_quantity <= l.approved_quantity)
+         )
     ) THEN
       RAISE EXCEPTION 'resource line does not belong to the supplied booking/draft revision'
         USING ERRCODE = '23503';
