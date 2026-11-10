@@ -16,12 +16,15 @@ BEGIN
   IF NOT EXISTS (SELECT 1 FROM pg_roles WHERE rolname = 'eventor_worker') THEN
     EXECUTE 'CREATE ROLE eventor_worker LOGIN NOINHERIT NOSUPERUSER NOCREATEDB NOCREATEROLE NOREPLICATION NOBYPASSRLS';
   END IF;
+  IF NOT EXISTS (SELECT 1 FROM pg_roles WHERE rolname = 'eventor_auth') THEN
+    EXECUTE 'CREATE ROLE eventor_auth LOGIN NOINHERIT NOSUPERUSER NOCREATEDB NOCREATEROLE NOREPLICATION NOBYPASSRLS';
+  END IF;
 END;
 $roles$;
 
 GRANT eventor_owner TO eventor_migrator;
 GRANT CONNECT, CREATE ON DATABASE :"database_name" TO eventor_owner;
-GRANT CONNECT ON DATABASE :"database_name" TO eventor_migrator, eventor_runtime, eventor_worker;
+GRANT CONNECT ON DATABASE :"database_name" TO eventor_migrator, eventor_runtime, eventor_worker, eventor_auth;
 
 -- No passwords are embedded in this repository. Set LOGIN-role passwords through
 -- the deployment secret manager or an interactive \password command.
