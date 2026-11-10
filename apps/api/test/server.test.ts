@@ -169,6 +169,16 @@ test("reservation release delegates exact selected IDs to the permission-gated d
   assert.equal(conflictingReuse.statusCode, 409);
   assert.equal(conflictingReuse.json().code, "IDEMPOTENCY_KEY_REUSED");
   assert.equal(mock.reservationCalls, 1);
+
+  const differentBooking = await app.inject({
+    method: "POST",
+    url: "/bookings/73000000-0000-4000-8000-000000000002/reservations/release",
+    headers,
+    payload,
+  });
+  assert.equal(differentBooking.statusCode, 409);
+  assert.equal(differentBooking.json().code, "IDEMPOTENCY_KEY_REUSED");
+  assert.equal(mock.reservationCalls, 1);
 });
 
 test("event change submission encrypts private reason text before database persistence", async (t) => {
