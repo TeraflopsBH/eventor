@@ -1258,7 +1258,7 @@ BEGIN
   IF visible_source_layers <> 0 OR visible_source_pools <> 0 THEN
     RAISE EXCEPTION 'revoked grant must hide provider source data from the recipient';
   END IF;
-  IF retained_snapshot_layers <> 1 OR retained_snapshot_objects <> 1
+  IF retained_snapshot_layers <> 2 OR retained_snapshot_objects <> 1
      OR retained_snapshot_resources <> 1 THEN
     RAISE EXCEPTION 'revocation must retain the already-copied event-owned historical snapshot';
   END IF;
