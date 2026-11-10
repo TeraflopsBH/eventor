@@ -145,7 +145,7 @@ test("reservation release delegates exact selected IDs to the permission-gated d
     payload,
   });
   assert.equal(first.statusCode, 201);
-  assert.equal(first.json().data.releasedCount, 2);
+  assert.equal(first.json<{ data: { releasedCount: number } }>().data.releasedCount, 2);
   assert.equal(mock.reservationCalls, 1);
   assert.equal(mock.commandCalls[0]?.values[0], principal.organizationId);
   assert.equal(mock.commandCalls[0]?.values[3], principal.membershipId);
@@ -157,7 +157,7 @@ test("reservation release delegates exact selected IDs to the permission-gated d
     payload,
   });
   assert.equal(replay.statusCode, 201);
-  assert.deepEqual(replay.json(), first.json());
+  assert.deepEqual(replay.json<Record<string, unknown>>(), first.json<Record<string, unknown>>());
   assert.equal(mock.reservationCalls, 1);
 
   const conflictingReuse = await app.inject({
@@ -188,7 +188,7 @@ test("event change submission encrypts private reason text before database persi
     },
   });
   assert.equal(response.statusCode, 201);
-  assert.equal(response.json().data.status, "submitted");
+  assert.equal(response.json<{ data: { status: string } }>().data.status, "submitted");
   const ciphertext = mock.commandCalls[0]?.values[6];
   assert.ok(Buffer.isBuffer(ciphertext));
   assert.equal((ciphertext as Buffer).subarray(0, 3).toString("ascii"), "EV1");
@@ -224,7 +224,7 @@ test("custom notification audience requires explicit participation IDs", async (
     payload: { expectedEventRevision: 1, campaignAudience: "custom" },
   });
   assert.equal(response.statusCode, 422);
-  assert.equal(response.json().code, "CUSTOM_AUDIENCE_REQUIRED");
+  assert.equal(response.json<{ code: string }>().code, "CUSTOM_AUDIENCE_REQUIRED");
   assert.equal(mock.changeCalls, 0);
 });
 
