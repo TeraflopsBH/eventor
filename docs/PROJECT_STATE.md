@@ -2,7 +2,7 @@
 
 **Status:** accepted product/domain design baseline; 32-migration PostgreSQL 18 implementation across draft PRs #26/#27; canonical OpenAPI v0.3 contract and first Fastify command module implemented on PR #27; PostgreSQL 18.6, OpenAPI and API-route CI validation in progress; staff-session/CSRF integration, campaign-preparation worker and organizer campaign review/confirmation now implemented; provider delivery and production-readiness reviews remain open  
 **Last updated:** 2026-11-10  
-**Implementation status:** database migrations and API contract exist in draft PR #26; no application route code or production database deployment has been established.
+**Implementation status:** database migrations and API contract exist in draft PR #26; PR #27 contains a tested Fastify command API, database-backed staff sessions and campaign review/confirmation, plus a separate preparation worker. No production database deployment has been established.
 
 ## Product
 
