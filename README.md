@@ -6,7 +6,7 @@ Eventor is a self-hosted, API-first platform for managing event inquiries and bo
 
 The first reference deployment is planned for **Gazi Husrev-beg's Library (GHB), Sarajevo**. The product is being designed as a reusable organization- and venue-aware platform rather than a one-off GHB application.
 
- > **Project status:** design baseline imported and initially reconciled; Phase 0 technical validation is still open. No production application implementation is present yet.
+> **Project status:** design baseline imported and initially reconciled; Phase 0 technical validation is still open. No production application implementation is present yet.
 
 ## Product goals
 
