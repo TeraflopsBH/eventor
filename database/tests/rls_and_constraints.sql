@@ -79,6 +79,91 @@ BEGIN
 END;
 $test$;
 
+-- Once published, a catalogue revision and its option associations are frozen.
+UPDATE eogp.config_catalogue_revisions
+   SET state = 'published', published_at = clock_timestamp()
+ WHERE organization_id = '10000000-0000-0000-0000-00000000000a'
+   AND id = '32000000-0000-4000-8000-00000000000a';
+
+DO $test$
+BEGIN
+  BEGIN
+    UPDATE eogp.config_catalogue_revisions
+       SET state = 'retired'
+     WHERE organization_id = '10000000-0000-0000-0000-00000000000a'
+       AND id = '32000000-0000-4000-8000-00000000000a';
+    RAISE EXCEPTION 'expected published catalogue revision immutability rejection';
+  EXCEPTION WHEN SQLSTATE '55000' THEN
+    NULL;
+  END;
+  BEGIN
+    INSERT INTO eogp.config_catalogue_revision_options
+     (organization_id, catalogue_id, catalogue_revision_id, option_id, option_revision_id)
+    VALUES
+     ('10000000-0000-0000-0000-00000000000a',
+      '31000000-0000-4000-8000-00000000000a',
+      '32000000-0000-4000-8000-00000000000a',
+      '33000000-0000-4000-8000-00000000000b',
+      '34000000-0000-4000-8000-00000000000b');
+    RAISE EXCEPTION 'expected published catalogue membership immutability rejection';
+  EXCEPTION WHEN SQLSTATE '55000' THEN
+    NULL;
+  END;
+  BEGIN
+    UPDATE eogp.config_catalogue_option_revisions
+       SET label = 'Tampered published label'
+     WHERE organization_id = '10000000-0000-0000-0000-00000000000a'
+       AND id = '34000000-0000-4000-8000-00000000000a';
+    RAISE EXCEPTION 'expected published catalogue option revision immutability rejection';
+  EXCEPTION WHEN SQLSTATE '55000' THEN
+    NULL;
+  END;
+END;
+$test$;
+
+INSERT INTO eogp.booking_form_definitions
+ (id, organization_id, scope_kind, form_code, name)
+VALUES
+ ('41000000-0000-4000-8000-00000000000a',
+  '10000000-0000-0000-0000-00000000000a',
+  'organization','CI-BOOKING-FORM','CI Booking Form');
+
+INSERT INTO eogp.booking_form_revisions
+ (id, organization_id, form_definition_id, revision_number, locale,
+  field_schema, state, published_at)
+VALUES
+ ('42000000-0000-4000-8000-00000000000a',
+  '10000000-0000-0000-0000-00000000000a',
+  '41000000-0000-4000-8000-00000000000a',
+  1,'bs-BA','{"fields":[]}'::jsonb,'published',clock_timestamp());
+
+DO $test$
+BEGIN
+  BEGIN
+    UPDATE eogp.booking_form_revisions
+       SET field_schema = '{"fields":[{"code":"tampered"}]}'::jsonb
+     WHERE organization_id = '10000000-0000-0000-0000-00000000000a'
+       AND id = '42000000-0000-4000-8000-00000000000a';
+    RAISE EXCEPTION 'expected published booking form revision immutability rejection';
+  EXCEPTION WHEN SQLSTATE '55000' THEN
+    NULL;
+  END;
+  BEGIN
+    INSERT INTO eogp.booking_form_catalogue_bindings
+     (organization_id, form_revision_id, catalogue_id, catalogue_revision_id, field_code)
+    VALUES
+     ('10000000-0000-0000-0000-00000000000a',
+      '42000000-0000-4000-8000-00000000000a',
+      '31000000-0000-4000-8000-00000000000a',
+      '32000000-0000-4000-8000-00000000000a',
+      'category');
+    RAISE EXCEPTION 'expected published booking form binding immutability rejection';
+  EXCEPTION WHEN SQLSTATE '55000' THEN
+    NULL;
+  END;
+END;
+$test$;
+
 -- Person merge targets are valid within the same tenant.
 INSERT INTO eogp.persons (id, organization_id, first_name, last_name, created_by_membership_id)
 VALUES
@@ -180,6 +265,29 @@ VALUES
  ('e0000000-0000-0000-0000-00000000000a','10000000-0000-0000-0000-00000000000a',
   'd0000000-0000-0000-0000-00000000000a',1,'c0000000-0000-0000-0000-00000000000a',
   '{}'::jsonb,'BAM',0,0,0,'accepted',clock_timestamp(),clock_timestamp());
+
+DO $test$
+BEGIN
+  BEGIN
+    UPDATE eogp.booking_offer_revisions
+       SET terms_snapshot = '{"tampered":true}'::jsonb
+     WHERE organization_id = '10000000-0000-0000-0000-00000000000a'
+       AND id = 'e0000000-0000-0000-0000-00000000000a';
+    RAISE EXCEPTION 'expected issued offer terms immutability rejection';
+  EXCEPTION WHEN SQLSTATE '55000' THEN
+    NULL;
+  END;
+  BEGIN
+    UPDATE eogp.booking_draft_revisions
+       SET values_snapshot = '{"tampered":true}'::jsonb
+     WHERE organization_id = '10000000-0000-0000-0000-00000000000a'
+       AND id = 'c0000000-0000-0000-0000-00000000000a';
+    RAISE EXCEPTION 'expected append-only booking draft revision rejection';
+  EXCEPTION WHEN SQLSTATE '55000' THEN
+    NULL;
+  END;
+END;
+$test$;
 
 INSERT INTO eogp.booking_records (id, organization_id, booking_code, source_offer_revision_id)
 VALUES ('f0000000-0000-0000-0000-00000000000a','10000000-0000-0000-0000-00000000000a',
@@ -518,8 +626,72 @@ VALUES
   '10000000-0000-0000-0000-00000000000a',
   '70000000-0000-0000-0000-00000000000a',
   1, '{}'::jsonb, '{"label":"CI published revision"}'::jsonb,
-  repeat('d',64), clock_timestamp(),
+  repeat('d',64), NULL,
   '30000000-0000-0000-0000-00000000000a');
+
+-- Draft spatial children can be edited before publication.
+INSERT INTO eogp.spatial_layers
+ (id, organization_id, venue_space_revision_id, code, label, layer_kind)
+VALUES
+ ('64100000-0000-4000-8000-00000000000a',
+  '10000000-0000-0000-0000-00000000000a',
+  '64000000-0000-4000-8000-00000000000a',
+  'CI-ZONES','CI Zones','zones');
+
+INSERT INTO eogp.spatial_objects
+ (id, organization_id, layer_id, object_kind, stable_code, geometry)
+VALUES
+ ('64200000-0000-4000-8000-00000000000a',
+  '10000000-0000-0000-0000-00000000000a',
+  '64100000-0000-4000-8000-00000000000a',
+  'zone','CI-ZONE','{"x":0,"y":0,"width":10,"height":10}'::jsonb);
+
+INSERT INTO eogp.floor_plan_assets
+ (id, organization_id, venue_space_revision_id, storage_key, media_type, content_sha256, byte_length)
+VALUES
+ ('64300000-0000-4000-8000-00000000000a',
+  '10000000-0000-0000-0000-00000000000a',
+  '64000000-0000-4000-8000-00000000000a',
+  'ci/test/floorplan.svg','image/svg+xml',repeat('e',64),0);
+
+UPDATE eogp.venue_space_revisions
+   SET published_at = clock_timestamp()
+ WHERE organization_id = '10000000-0000-0000-0000-00000000000a'
+   AND id = '64000000-0000-4000-8000-00000000000a';
+
+DO $test$
+BEGIN
+  BEGIN
+    UPDATE eogp.venue_space_revisions
+       SET geometry = '{"tampered":true}'::jsonb
+     WHERE organization_id = '10000000-0000-0000-0000-00000000000a'
+       AND id = '64000000-0000-4000-8000-00000000000a';
+    RAISE EXCEPTION 'expected published venue revision immutability rejection';
+  EXCEPTION WHEN SQLSTATE '55000' THEN
+    NULL;
+  END;
+  BEGIN
+    INSERT INTO eogp.spatial_layers
+     (organization_id, venue_space_revision_id, code, label, layer_kind)
+    VALUES
+     ('10000000-0000-0000-0000-00000000000a',
+      '64000000-0000-4000-8000-00000000000a',
+      'LATE','Late Layer','zones');
+    RAISE EXCEPTION 'expected published venue revision child insertion rejection';
+  EXCEPTION WHEN SQLSTATE '55000' THEN
+    NULL;
+  END;
+  BEGIN
+    UPDATE eogp.spatial_objects
+       SET geometry = '{"tampered":true}'::jsonb
+     WHERE organization_id = '10000000-0000-0000-0000-00000000000a'
+       AND id = '64200000-0000-4000-8000-00000000000a';
+    RAISE EXCEPTION 'expected published venue spatial object immutability rejection';
+  EXCEPTION WHEN SQLSTATE '55000' THEN
+    NULL;
+  END;
+END;
+$test$;
 
 -- The booking-scoped grant must not authorize a venue plan share.
 DO $test$
