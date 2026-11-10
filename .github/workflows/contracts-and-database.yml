@@ -101,7 +101,7 @@ jobs:
           esac
 
       - name: Apply checksum-verified migrations
-        run: scripts/db/migrate.sh
+        run: bash scripts/db/migrate.sh
 
       - name: Run database integrity smoke tests
         run: psql "$MIGRATOR_URL" -X -v ON_ERROR_STOP=1 -f tests/database/migration_smoke.sql
@@ -114,7 +114,7 @@ jobs:
             -f tests/database/rls_smoke.sql
 
       - name: Verify pooled capacity with independent concurrent connections
-        run: scripts/db/test_resource_concurrency.sh
+        run: bash scripts/db/test_resource_concurrency.sh
 
       - name: Run extended tenant, hierarchy and interval smoke tests
         env:
