@@ -1341,7 +1341,7 @@ paths:
       tags: ["Event Notifications"]
       operationId: confirmEventNotificationCampaign
       summary: "Confirm a prepared campaign without queuing delivery"
-      description: "Requires event.cancellation.notifications.send permission. Confirmation is audited and does not enqueue or send email/SMS."
+      description: "Requires event.notifications.send permission. Confirmation is audited and does not enqueue or send email/SMS."
       security: [{ StaffSession: [], StaffCsrf: [] }]
       parameters:
         - $ref: '#/components/parameters/PCampaignId'
