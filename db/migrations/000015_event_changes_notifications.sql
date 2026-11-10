@@ -58,6 +58,7 @@ CREATE TABLE eogp.event_decisions (
   executed_by_membership_id uuid NOT NULL,
   effective_at    timestamptz NOT NULL DEFAULT clock_timestamp(),
   UNIQUE (organization_id, id),
+  UNIQUE (organization_id, event_id, id),
   UNIQUE (organization_id, change_request_id),
   FOREIGN KEY (organization_id, event_id, change_request_id)
     REFERENCES eogp.event_change_requests(organization_id, event_id, id) ON DELETE RESTRICT,
@@ -105,6 +106,7 @@ CREATE TABLE eogp.event_notification_template_revisions (
   subject_template text NOT NULL,
   body_template   text NOT NULL,
   published_at    timestamptz,
+  UNIQUE (organization_id, id),
   UNIQUE (organization_id, template_id, id),
   UNIQUE (organization_id, template_id, revision_no, locale),
   FOREIGN KEY (organization_id, template_id)
@@ -124,6 +126,7 @@ CREATE TABLE eogp.event_notification_campaigns (
   created_by_membership_id uuid NOT NULL,
   created_at      timestamptz NOT NULL DEFAULT clock_timestamp(),
   UNIQUE (organization_id, id),
+  UNIQUE (organization_id, event_id, id),
   FOREIGN KEY (organization_id, event_id, event_decision_id)
     REFERENCES eogp.event_decisions(organization_id, event_id, id) ON DELETE RESTRICT,
   FOREIGN KEY (organization_id, template_revision_id)
