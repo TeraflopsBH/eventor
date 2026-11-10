@@ -18,8 +18,8 @@ BEGIN
      AND event_decision_id = '94900000-0000-4000-8000-000000000001'
      AND purpose = 'event_cancellation';
 
-  IF v_campaign_id IS NULL OR v_count <> 1 THEN
-    RAISE EXCEPTION 'worker did not create one eligible recipient in a preview campaign; campaign %, count %',
+  IF v_campaign_id IS NULL OR v_count <> 2 THEN
+    RAISE EXCEPTION 'worker did not create the two historically invited eligible recipients in a preview campaign; campaign %, count %',
       v_campaign_id, v_count;
   END IF;
 
@@ -38,6 +38,17 @@ BEGIN
 
   IF v_recipient_ciphertext IS DISTINCT FROM v_expected_ciphertext THEN
     RAISE EXCEPTION 'worker did not preserve the encrypted destination snapshot';
+  END IF;
+
+  IF NOT EXISTS (
+    SELECT 1
+      FROM eogp.event_notification_recipients
+     WHERE organization_id = '22222222-2222-4222-8222-222222222222'
+       AND campaign_id = v_campaign_id
+       AND participation_id = '94300000-0000-4000-8000-000000000003'
+       AND invitation_id = '94500000-0000-4000-8000-000000000003'
+  ) THEN
+    RAISE EXCEPTION 'previously invited participant was omitted because the latest invitation revision was still a draft';
   END IF;
 
   SELECT count(*) INTO v_count
