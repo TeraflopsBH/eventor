@@ -164,19 +164,27 @@ if ! grep -q "children of published revision" "$TMP_DIR/child.log"; then
   exit 1
 fi
 
-published_count="$(psql "$DATABASE_URL_RUNTIME" -X -qAt -v ON_ERROR_STOP=1 -c "
-  SELECT count(*)
-    FROM eogp.venue_space_revisions
-   WHERE organization_id = '$ORG'
-     AND id = '$REVISION'
-     AND published_at IS NOT NULL;
-")"
-child_count="$(psql "$DATABASE_URL_RUNTIME" -X -qAt -v ON_ERROR_STOP=1 -c "
-  SELECT count(*)
-    FROM eogp.spatial_layers
-   WHERE organization_id = '$ORG'
-     AND id = '$LAYER';
-")"
+published_count="$(psql "$DATABASE_URL_RUNTIME" -X -qAt -v ON_ERROR_STOP=1 <<SQL
+BEGIN;
+SET LOCAL app.organization_id TO '$ORG';
+SELECT count(*)
+  FROM eogp.venue_space_revisions
+ WHERE organization_id = '$ORG'
+   AND id = '$REVISION'
+   AND published_at IS NOT NULL;
+COMMIT;
+SQL
+)"
+child_count="$(psql "$DATABASE_URL_RUNTIME" -X -qAt -v ON_ERROR_STOP=1 <<SQL
+BEGIN;
+SET LOCAL app.organization_id TO '$ORG';
+SELECT count(*)
+  FROM eogp.spatial_layers
+ WHERE organization_id = '$ORG'
+   AND id = '$LAYER';
+COMMIT;
+SQL
+)"
 
 if [[ "$published_count" != "1" || "$child_count" != "0" ]]; then
   echo "Unexpected final race state: published revisions=$published_count, child rows=$child_count."
