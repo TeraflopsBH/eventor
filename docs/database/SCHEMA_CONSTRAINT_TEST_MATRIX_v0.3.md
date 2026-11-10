@@ -60,6 +60,7 @@ This matrix tracks executable PostgreSQL integration coverage and remaining gaps
 - [x] Identical/overlapping intervals for the same room cannot both be active.
 - [x] A released space hold cannot be revived; a new hold cannot be inserted with an already-expired deadline.
 - [x] Runtime and worker roles cannot UPDATE/DELETE space-time block rows directly; lifecycle changes use controlled commands.
+- [x] Accepted draft resource and space holds are converted atomically to confirmed booking reservations through a permission-gated command; retries do not duplicate occupancy or audit history.
 - [ ] Overlap is rejected even when one claim originated as a temporary hold and the other as a booking reservation.
 - [ ] Released/cancelled/expired interval no longer blocks a new reservation.
 - [ ] Hold extension that creates a conflict is rejected atomically.
