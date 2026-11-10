@@ -1,6 +1,6 @@
 # Project state
 
-**Status:** accepted product/domain design baseline; 30-migration PostgreSQL 18 implementation across draft PRs #26/#27; canonical OpenAPI v0.3 contract and first Fastify command module implemented on PR #27; PostgreSQL 18.6, OpenAPI and API-route CI validation in progress; authentication/session integration, notification workers and production-readiness reviews remain open  
+**Status:** accepted product/domain design baseline; 31-migration PostgreSQL 18 implementation across draft PRs #26/#27; canonical OpenAPI v0.3 contract and first Fastify command module implemented on PR #27; PostgreSQL 18.6, OpenAPI and API-route CI validation in progress; staff-session/CSRF integration and campaign-preparation worker now implemented; campaign confirmation, delivery provider and production-readiness reviews remain open  
 **Last updated:** 2026-11-10  
 **Implementation status:** database migrations and API contract exist in draft PR #26; no application route code or production database deployment has been established.
 
@@ -117,7 +117,7 @@ The accepted v0.3 design covers customer/organizer-initiated booking cancellatio
 
 ## Successor database and API baseline
 
-The accepted successor logical model and API design derive from ADRs 0004–0006, the RSVP/invitation and cancellation designs, and the venue-first MVP/role model. The database integrity baseline was merged in PR #24 and the aligned logical schema/API design in PR #25. The executable migration and OpenAPI baseline is PR #26; the separate remediation branch in PR #27 adds migrations 000022–000030 for reviewed integrity findings and the first API command implementation. Both remain draft/unmerged and require review.
+The accepted successor logical model and API design derive from ADRs 0004–0006, the RSVP/invitation and cancellation designs, and the venue-first MVP/role model. The database integrity baseline was merged in PR #24 and the aligned logical schema/API design in PR #25. The executable migration and OpenAPI baseline is PR #26; the separate remediation branch in PR #27 adds migrations 000022–000031 for reviewed integrity findings, database-backed staff sessions and the notification campaign-preparation worker; PR #27 also contains the Fastify API and worker bootstraps. Both remain draft/unmerged and require review.
 
 ## Executable schema and API contract draft
 
@@ -139,7 +139,7 @@ The accepted initial scope and acceptance scenarios are in [MVP Scope v0.1](prod
 
 ## API contract review
 
-The imported OpenAPI v0.2 contract passed YAML parsing and local structural checks (36 paths, 46 operations, unique operation IDs, 172 resolved local references); that historical check was not a full OpenAPI semantic validation. The canonical v0.3 contract is [`docs/api/openapi.v0.3.yaml`](api/openapi.v0.3.yaml) and is validated in CI by the strict Eventor structural/security validator, the pinned OpenAPI 3.1.1 validator and Redocly lint. It currently contains 106 paths and 123 operations. The first API command routes, OpenAPI TypeScript declaration generation and route tests are implemented on PR #27. The host application's staff authentication/session store, remaining OpenAPI operations, broader route-level authorization tests and UI consumption of generated types remain open under Issues #3 and #17.
+The imported OpenAPI v0.2 contract passed YAML parsing and local structural checks (36 paths, 46 operations, unique operation IDs, 172 resolved local references); that historical check was not a full OpenAPI semantic validation. The canonical v0.3 contract is [`docs/api/openapi.v0.3.yaml`](api/openapi.v0.3.yaml) and is validated in CI by the strict Eventor structural/security validator, the pinned OpenAPI 3.1.1 validator and Redocly lint. It currently contains 106 paths and 123 operations. The first API command routes, database-backed Argon2id staff sessions, CSRF/origin validation, OpenAPI TypeScript declaration generation, route tests and a tenant-aware campaign-preparation worker are implemented on PR #27. The staff frontend, remaining OpenAPI operations, campaign-confirmation/delivery-provider integration and full production readiness remain open under Issues #3, #17 and #21.
 
 ## Imported design artifacts and reconciliation
 
@@ -158,7 +158,7 @@ The separate v0.2 booking SQL addendum duplicates all 22 booking/configuration t
 1. Complete a deeper review of the v0.3 DDL, RLS policies, actor attribution, cross-organization access boundaries and full constraint-test matrix.
 2. Add migration-upgrade and backup/restore validation; current CI proves fresh-database installation, not recovery readiness.
 3. Integrate the API module with the actual staff session store and CSRF/origin middleware; expand route-level coverage across remaining OpenAPI operations and consume generated types from the staff client.
-4. Implement the outbox consumer, notification audience resolution/campaign preparation and delivery provider; the current event execution command queues a dispatch request but does not send guest messages.
+4. Implement the organizer campaign-confirmation endpoint, email/SMS provider abstraction, provider callback processing and delivery retries. The current worker prepares a previewed recipient snapshot but intentionally does not send guest messages.
 5. Begin the remaining application foundation and venue-booking vertical slice only after database/API review; confirm GHB-specific inventory, capacities, pricing, cancellation terms, approval thresholds and operating policies before production seeding.
 
 ## Open questions / validation gates
