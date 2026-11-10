@@ -31,7 +31,7 @@ DO $confirm$
 DECLARE
   v_campaign_id uuid;
   v_result jsonb;
-  v_count integer;
+  v_count integer;\n  v_second_confirmation_rejected boolean := false;
 BEGIN
   SELECT id INTO v_campaign_id
     FROM eogp.event_notification_campaigns
@@ -85,10 +85,12 @@ BEGIN
       v_campaign_id,
       'bbbbbbbb-2222-4222-8222-bbbbbbbbbbbb'
     );
-    RAISE EXCEPTION 'a second confirmation must fail rather than silently mutate a confirmed campaign';
   EXCEPTION WHEN SQLSTATE '55000' THEN
-    NULL;
+    v_second_confirmation_rejected := true;
   END;
+  IF NOT v_second_confirmation_rejected THEN
+    RAISE EXCEPTION 'a second confirmation must fail rather than silently mutate a confirmed campaign';
+  END IF;
 END;
 $confirm$;
 COMMIT;
