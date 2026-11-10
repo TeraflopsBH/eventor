@@ -21,10 +21,10 @@ AS $function$
        AND share.venue_space_revision_id = p_source_revision_id
        AND share.event_owner_organization_id = eogp.current_organization_id()
        AND share.status = 'active'
-       AND (share.expires_at IS NULL OR share.expires_at > clock_timestamp())
+       AND (share.expires_at IS NULL OR share.expires_at > statement_timestamp())
        AND collab.status = 'active'
-       AND collab.valid_from <= clock_timestamp()
-       AND (collab.valid_until IS NULL OR collab.valid_until > clock_timestamp())
+       AND collab.valid_from <= statement_timestamp()
+       AND (collab.valid_until IS NULL OR collab.valid_until > statement_timestamp())
        AND collab.allowed_actions @> ARRAY['venue.snapshot.use']::text[]
   );
 $function$;
@@ -72,7 +72,7 @@ CREATE POLICY spatial_layers_active_share_read
          AND share.venue_space_revision_id = spatial_layers.venue_space_revision_id
          AND share.event_owner_organization_id = eogp.current_organization_id()
          AND share.status = 'active'
-         AND (share.expires_at IS NULL OR share.expires_at > clock_timestamp())
+         AND (share.expires_at IS NULL OR share.expires_at > statement_timestamp())
          AND share.approved_layers @> jsonb_build_array(spatial_layers.id::text)
          AND eogp.has_active_venue_snapshot_share(
                share.organization_id, share.venue_space_revision_id
@@ -107,7 +107,7 @@ CREATE POLICY resource_pools_active_share_read
        WHERE share.organization_id = resource_pools.organization_id
          AND share.event_owner_organization_id = eogp.current_organization_id()
          AND share.status = 'active'
-         AND (share.expires_at IS NULL OR share.expires_at > clock_timestamp())
+         AND (share.expires_at IS NULL OR share.expires_at > statement_timestamp())
          AND share.approved_resources @> jsonb_build_array(resource_pools.id::text)
          AND eogp.has_active_venue_snapshot_share(
                share.organization_id, share.venue_space_revision_id
@@ -126,7 +126,7 @@ CREATE POLICY resource_units_active_share_read
        WHERE share.organization_id = resource_units.organization_id
          AND share.event_owner_organization_id = eogp.current_organization_id()
          AND share.status = 'active'
-         AND (share.expires_at IS NULL OR share.expires_at > clock_timestamp())
+         AND (share.expires_at IS NULL OR share.expires_at > statement_timestamp())
          AND share.approved_resources @> jsonb_build_array(resource_units.id::text)
          AND eogp.has_active_venue_snapshot_share(
                share.organization_id, share.venue_space_revision_id
@@ -193,7 +193,7 @@ BEGIN
         FROM eogp.resource_pools AS pool
        WHERE pool.organization_id = NEW.organization_id
          AND pool.venue_id = v_venue_id
-      UNION
+      UNION ALL
       SELECT unit.id
         FROM eogp.resource_units AS unit
         JOIN eogp.resource_pools AS pool
