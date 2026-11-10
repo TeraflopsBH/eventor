@@ -3,7 +3,7 @@ import { runEventNotificationWorker } from "./notification-worker.js";
 
 function required(name: string): string {
   const value = process.env[name]?.trim();
-  if (!value) throw new Error(\`Missing required environment variable: \${name}\`);
+  if (!value) throw new Error(`Missing required environment variable: ${name}`);
   return value;
 }
 function positiveInteger(name: string, fallback: number, max: number): number {
@@ -11,7 +11,7 @@ function positiveInteger(name: string, fallback: number, max: number): number {
   if (!raw) return fallback;
   const value = Number(raw);
   if (!Number.isInteger(value) || value < 1 || value > max) {
-    throw new Error(\`\${name} must be an integer between 1 and \${max}.\`);
+    throw new Error(`${name} must be an integer between 1 and ${max}.`);
   }
   return value;
 }
