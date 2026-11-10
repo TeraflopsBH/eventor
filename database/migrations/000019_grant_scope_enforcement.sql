@@ -49,7 +49,13 @@ BEGIN
       USING ERRCODE = '23514';
   END IF;
 
-  IF NEW.status <> 'active' THEN
+  IF TG_OP = 'UPDATE' THEN
+    IF OLD.status <> 'active'
+       OR NEW.status NOT IN ('ended','revoked')
+       OR (to_jsonb(NEW) - 'status') IS DISTINCT FROM (to_jsonb(OLD) - 'status') THEN
+      RAISE EXCEPTION 'booking-event links are immutable except for one-way ending/revocation'
+        USING ERRCODE = '55000';
+    END IF;
     RETURN NEW;
   END IF;
 
@@ -131,8 +137,9 @@ BEGIN
   END IF;
 
   IF NEW.status <> 'active'
-     OR jsonb_typeof(NEW.approved_layers) <> 'array'
-     OR jsonb_typeof(NEW.approved_resources) <> 'array' THEN
+     OR jsonb_typeof(NEW.approved_layers) IS DISTINCT FROM 'array'
+     OR jsonb_typeof(NEW.approved_resources) IS DISTINCT FROM 'array'
+     OR NEW.approved_at > clock_timestamp() THEN
     RAISE EXCEPTION 'new venue snapshot shares must be active with array projections'
       USING ERRCODE = '22023';
   END IF;
@@ -253,15 +260,15 @@ BEGIN
          v_grant_status, v_grant_valid_from, v_grant_valid_until, v_grant_actions,
          v_grant_owner_organization_id, v_grant_id
     FROM eogp.venue_snapshot_shares AS share
-    JOIN eogp.collaboration_grants AS grant
-      ON grant.organization_id = share.organization_id
-     AND grant.grantee_organization_id = share.event_owner_organization_id
-     AND grant.id = share.collaboration_grant_id
+    JOIN eogp.collaboration_grants AS collab
+      ON collab.organization_id = share.organization_id
+     AND collab.grantee_organization_id = share.event_owner_organization_id
+     AND collab.id = share.collaboration_grant_id
    WHERE share.organization_id = NEW.share_owner_organization_id
      AND share.event_owner_organization_id = NEW.organization_id
      AND share.event_id = NEW.event_id
      AND share.id = NEW.snapshot_share_id
-   FOR UPDATE OF share, grant;
+   FOR UPDATE OF share, collab;
 
   IF NOT FOUND
      OR v_share_status <> 'active'
