@@ -14,6 +14,14 @@ This roadmap is provisional. Scope and acceptance criteria must be finalized aft
 
 Database integrity blockers and successor test scenarios are documented in `docs/database/DATABASE_INTEGRITY_DESIGN_v0.3.md`; PostgreSQL execution remains a prerequisite before implementation.
 
+## Phase 0.5 — Successor contracts
+
+- [ ] Review and accept the database integrity design (PR #19).
+- [ ] Review the logical successor schema inventory and ownership model (branch `design/successor-contracts-v0.3`).
+- [ ] Produce ordered executable PostgreSQL migrations and validate them against the selected supported PostgreSQL major version.
+- [ ] Produce OpenAPI v0.3 YAML from the route/security design and run a pinned full validator.
+- [ ] Add database concurrency/RLS tests and API contract/auth matrix tests before closing Issues #2, #3, #13 and #17.
+
 ## Phase 1 — Platform foundation
 
 - [ ] Monorepo workspace and build tooling.
