@@ -87,7 +87,12 @@ const requestParams = {
   properties: { requestId: { type: "string", pattern: uuidPattern } },
   additionalProperties: false,
 } as const;
-const campaignParams = {\n  type: "object", required: ["campaignId"],\n  properties: { campaignId: { type: "string", pattern: uuidPattern } },\n  additionalProperties: false,\n} as const;\nconst bookingParams = {
+const campaignParams = {
+  type: "object", required: ["campaignId"],
+  properties: { campaignId: { type: "string", pattern: uuidPattern } },
+  additionalProperties: false,
+} as const;
+const bookingParams = {
   type: "object", required: ["bookingId"],
   properties: { bookingId: { type: "string", pattern: uuidPattern } },
   additionalProperties: false,
