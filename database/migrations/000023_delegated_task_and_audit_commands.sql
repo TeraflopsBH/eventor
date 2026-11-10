@@ -760,6 +760,30 @@ GRANT SELECT (
   due_at, status, updated_at
 ) ON eogp.event_responsibility_assignments TO eventor_runtime;
 
+-- The delegated status command writes the audit row in the event owner's
+-- tenant while the authenticated transaction remains in the performing
+-- tenant. Permit only that exact task/grant/action tuple.
+CREATE POLICY event_task_delegated_audit_insert
+  ON eogp.audit_events
+  FOR INSERT TO eventor_owner, eventor_runtime
+  WITH CHECK (
+    action = 'event.task.status.changed'
+    AND aggregate_type = 'event_responsibility_assignment'
+    AND actor_kind = 'membership'
+    AND actor_organization_id = eogp.current_organization_id()
+    AND authorization_grant_owner_organization_id = organization_id
+    AND EXISTS (
+      SELECT 1
+        FROM eogp.event_responsibility_assignments AS assignment
+       WHERE assignment.organization_id = eogp.audit_events.organization_id
+         AND assignment.id = eogp.audit_events.aggregate_id
+         AND assignment.performing_party_kind = 'organization'
+         AND assignment.performing_organization_id = eogp.current_organization_id()
+         AND assignment.collaboration_grant_id = eogp.audit_events.authorization_grant_id
+         AND assignment.grant_owner_organization_id = eogp.audit_events.authorization_grant_owner_organization_id
+    )
+  );
+
 REVOKE ALL ON FUNCTION eogp.get_assigned_task_projection(uuid,uuid) FROM PUBLIC;
 REVOKE ALL ON FUNCTION eogp.update_assigned_task_status(uuid,uuid,text,text,jsonb) FROM PUBLIC;
 GRANT EXECUTE ON FUNCTION eogp.get_assigned_task_projection(uuid,uuid),
