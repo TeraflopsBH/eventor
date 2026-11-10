@@ -4,9 +4,12 @@ on:
   push:
     branches:
       - feat/postgresql18-migrations-openapi-v0.3
+      - fix/pr26-high-risk-integrity-review
       - main
   pull_request:
-    branches: [main]
+    branches:
+      - main
+      - feat/postgresql18-migrations-openapi-v0.3
 
 permissions:
   contents: read
