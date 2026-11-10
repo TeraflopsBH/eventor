@@ -5,15 +5,6 @@ SET LOCAL search_path TO eogp, public;
 
 SET LOCAL search_path TO eogp, public;
 
-ALTER TABLE eogp.event_responsibility_assignments
-  ADD CONSTRAINT event_responsibility_event_key UNIQUE (organization_id, event_id, id);
-
-ALTER TABLE eogp.event_prerequisites
-  DROP CONSTRAINT event_prerequisites_responsibility_assignment_id_fkey,
-  ADD CONSTRAINT event_prerequisites_assignment_event_fk
-    FOREIGN KEY (organization_id, event_id, responsibility_assignment_id)
-    REFERENCES eogp.event_responsibility_assignments(organization_id, event_id, id) ON DELETE RESTRICT;
-
 CREATE FUNCTION eogp.reject_immutable_mutation()
 RETURNS trigger
 LANGUAGE plpgsql
@@ -31,19 +22,24 @@ DECLARE
   tables text[] := ARRAY[
     'audit_events',
     'booking_confirmed_snapshots',
+    'booking_inquiries',
+    'booking_draft_revisions',
     'booking_status_history',
     'booking_cancellation_decisions',
     'booking_cancellation_effects',
+    'booking_disruption_notices',
     'event_status_history',
     'event_schedule_revisions',
     'event_change_approval_decisions',
     'event_decisions',
     'event_decision_sessions',
+    'event_venue_snapshots',
+    'event_venue_snapshot_layers',
+    'collaboration_grant_revisions',
     'venue_space_revisions',
     'invitation_revisions',
     'invitation_deliveries',
     'rsvp_responses',
-    'event_notification_recipients',
     'event_notification_delivery_attempts',
     'attendance_records',
     'checkin_scan_records'
@@ -144,3 +140,49 @@ COMMENT ON TABLE eogp.event_notification_recipients IS
 INSERT INTO eogp.schema_migrations(version, filename, checksum_sha256)
 VALUES ('000017', '000017_integrity_hardening.sql', :'migration_checksum');
 COMMIT;
+
+CREATE FUNCTION eogp.guard_notification_recipient_snapshot()
+RETURNS trigger
+LANGUAGE plpgsql
+SET search_path = eogp, pg_temp
+AS $$
+BEGIN
+  IF ROW(NEW.organization_id, NEW.campaign_id, NEW.event_id, NEW.participation_id,
+         NEW.channel, NEW.qualification_code, NEW.contact_snapshot_ciphertext,
+         NEW.contact_snapshot_key_id, NEW.locale, NEW.created_at)
+     IS DISTINCT FROM
+     ROW(OLD.organization_id, OLD.campaign_id, OLD.event_id, OLD.participation_id,
+         OLD.channel, OLD.qualification_code, OLD.contact_snapshot_ciphertext,
+         OLD.contact_snapshot_key_id, OLD.locale, OLD.created_at) THEN
+    RAISE EXCEPTION 'Notification recipient snapshot fields are immutable'
+      USING ERRCODE = '55000';
+  END IF;
+  RETURN NEW;
+END;
+$$;
+
+CREATE TRIGGER event_notification_recipient_snapshot_immutable_trg
+BEFORE UPDATE ON eogp.event_notification_recipients
+FOR EACH ROW EXECUTE FUNCTION eogp.guard_notification_recipient_snapshot();
+
+CREATE FUNCTION eogp.guard_booking_offer_terms()
+RETURNS trigger
+LANGUAGE plpgsql
+SET search_path = eogp, pg_temp
+AS $$
+BEGIN
+  IF ROW(NEW.organization_id, NEW.draft_revision_id, NEW.revision_no, NEW.currency,
+         NEW.tax_basis, NEW.total_amount, NEW.terms_snapshot, NEW.valid_until, NEW.created_at)
+     IS DISTINCT FROM
+     ROW(OLD.organization_id, OLD.draft_revision_id, OLD.revision_no, OLD.currency,
+         OLD.tax_basis, OLD.total_amount, OLD.terms_snapshot, OLD.valid_until, OLD.created_at) THEN
+    RAISE EXCEPTION 'Issued booking offer terms are immutable; issue a replacement offer revision'
+      USING ERRCODE = '55000';
+  END IF;
+  RETURN NEW;
+END;
+$$;
+
+CREATE TRIGGER booking_offer_terms_immutable_trg
+BEFORE UPDATE ON eogp.booking_offers
+FOR EACH ROW EXECUTE FUNCTION eogp.guard_booking_offer_terms();
