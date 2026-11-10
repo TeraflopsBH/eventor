@@ -1,9 +1,9 @@
 # API documentation
 
 - [OpenAPI v0.2 draft](../implementation-design/v0.2/eogp_openapi_v0.2.yaml) — historical first contract snapshot.
-- [API Contract Review v0.2](API_CONTRACT_REVIEW_v0.2.md) — structural checks, security baseline and successor gaps.
-- [OpenAPI Successor Contract Design v0.3](API_DESIGN_v0.3.md) — route/security/command design.
-- [OpenAPI v0.3 YAML](../implementation-design/v0.3/eventor_openapi_v0.3.yaml) — concrete 3.1.1 contract draft.
-- [Structural guardrails](../../scripts/api/check_openapi.py) and [pinned validator](../../requirements-dev.txt).
+- [API Contract Review v0.2](API_CONTRACT_REVIEW_v0.2.md) — historical structural review and successor gaps.
+- [OpenAPI Successor Contract Design v0.3](API_DESIGN_v0.3.md) — route, principal/security and command semantics.
+- [OpenAPI v0.3 YAML](openapi.v0.3.yaml) — canonical OpenAPI 3.1.1 contract draft.
+- [Strict structural/security validator](../../scripts/validate_openapi.py) and [pinned validation dependencies](../../requirements-dev.txt).
 
-The v0.2 contract remains unchanged. The v0.3 YAML is a draft and must pass the pinned full validator and custom security/operation/path-parameter checks in CI before it is considered accepted.
+The v0.2 contract remains unchanged. The v0.3 contract is a draft; the PR workflow runs the strict Eventor checks, the pinned OpenAPI 3.1.1 validator and Redocly lint. API route implementations and route-level contract tests remain outstanding.
