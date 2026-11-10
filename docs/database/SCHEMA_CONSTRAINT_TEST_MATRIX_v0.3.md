@@ -53,6 +53,7 @@ This matrix tracks executable PostgreSQL integration coverage and remaining gaps
 - [x] Published form revisions and form-to-catalogue bindings reject mutation.
 - [x] Published venue-space revisions and spatial layer/object children reject mutation or late additions.
 - [ ] Published price-list, cancellation-policy, RSVP-policy, notification-template and event-capability revisions have dedicated mutation regression cases.
+- [x] Cancellation effects reject an unpinned policy revision and preserve the explicit NULL/no-policy booking snapshot.
 
 ## Space reservations
 - [x] Adjacent half-open intervals (10:00–11:00 and 11:00–12:00) both succeed.
