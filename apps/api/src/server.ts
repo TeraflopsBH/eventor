@@ -1089,7 +1089,7 @@ export function buildApi(dependencies: ApiDependencies): FastifyInstance {
     async (request, reply) => {
       const principal = request.staffPrincipal!;
       return withCommand(
-        request, reply, "convertBookingInquiryToDraft",
+        request, reply, "createBookingDraftFromInquiry",
         { inquiryId: request.params.inquiryId },
         async (client) => {
           const result = await client.query<ResultRow>(
