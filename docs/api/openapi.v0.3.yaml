@@ -1595,6 +1595,81 @@ paths:
         '422': { $ref: '#/components/responses/UnprocessableEntity' }
         '429': { $ref: '#/components/responses/TooManyRequests' }
         '500': { $ref: '#/components/responses/InternalServerError' }
+  "/notification-delivery-attempts/{attemptId}/reconcile":
+    post:
+      tags: ["Event Notifications"]
+      operationId: reconcileNotificationDeliveryAttempt
+      summary: "Record an audited operator decision for an uncertain or failed delivery attempt"
+      description: "Requires event.notifications.delivery.manage. The operator must choose a verified outcome and provide a reason. Reconciliation never sends a message. confirmed_sent means SMTP/provider acceptance is confirmed, not inbox delivery."
+      security: [{ StaffSession: [], StaffCsrf: [] }]
+      parameters:
+        - name: attemptId
+          in: path
+          required: true
+          schema: { type: string, format: uuid }
+        - $ref: '#/components/parameters/IdempotencyKey'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [resolution, reason]
+              properties:
+                resolution:
+                  type: string
+                  enum: [confirmed_sent, confirmed_not_sent, confirmed_delivered, confirmed_bounced]
+                reason: { type: string, minLength: 3, maxLength: 1000 }
+              additionalProperties: false
+      responses:
+        '201':
+          description: "Audited reconciliation decision recorded."
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/DataEnvelope' }
+        '400': { $ref: '#/components/responses/BadRequest' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '404': { $ref: '#/components/responses/NotFound' }
+        '409': { $ref: '#/components/responses/Conflict' }
+        '422': { $ref: '#/components/responses/UnprocessableEntity' }
+        '500': { $ref: '#/components/responses/InternalServerError' }
+  "/notification-delivery-attempts/{attemptId}/retry":
+    post:
+      tags: ["Event Notifications"]
+      operationId: retryFailedNotificationDeliveryAttempt
+      summary: "Authorize a distinct retry for a failed delivery attempt"
+      description: "Requires event.notifications.delivery.manage and event.notifications.send. Only the latest failed attempt can be retried, a reason is mandatory, and no retry is automatic for uncertain submissions. Each retry creates a new immutable attempt."
+      security: [{ StaffSession: [], StaffCsrf: [] }]
+      parameters:
+        - name: attemptId
+          in: path
+          required: true
+          schema: { type: string, format: uuid }
+        - $ref: '#/components/parameters/IdempotencyKey'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [reason]
+              properties:
+                reason: { type: string, minLength: 3, maxLength: 1000 }
+              additionalProperties: false
+      responses:
+        '201':
+          description: "A separate delivery attempt was queued."
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/DataEnvelope' }
+        '400': { $ref: '#/components/responses/BadRequest' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '404': { $ref: '#/components/responses/NotFound' }
+        '409': { $ref: '#/components/responses/Conflict' }
+        '422': { $ref: '#/components/responses/UnprocessableEntity' }
+        '500': { $ref: '#/components/responses/InternalServerError' }
   "/event-notification-campaigns/{campaignId}/recipients":
     get:
       tags: ["Event Notifications"]
