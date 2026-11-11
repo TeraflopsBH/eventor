@@ -284,6 +284,16 @@ export interface BookingInquiryCapabilities {
   canAssign: boolean;
   canManage: boolean;
   canAnnotate: boolean;
+  canConvert: boolean;
+}
+
+export interface BookingInquiryConversion {
+  inquiryId: string;
+  draftId: string;
+  revisionId: string;
+  revisionNumber: number;
+  status: "converted";
+  changed: boolean;
 }
 
 export interface BookingInquiryAssignee {
@@ -338,6 +348,11 @@ export const api = {
     request<Envelope<Record<string, unknown>>>(
       `/booking-inquiries/${encodeURIComponent(inquiryId)}/status`,
       { method: "POST", body, idempotent: true },
+    ),
+  convertBookingInquiryToDraft: (inquiryId: string) =>
+    request<Envelope<BookingInquiryConversion>>(
+      `/booking-inquiries/${encodeURIComponent(inquiryId)}/conversion`,
+      { method: "POST", body: {}, idempotent: true },
     ),
   addBookingInquiryAnnotation: (inquiryId: string, annotation: string) =>
     request<Envelope<Record<string, unknown>>>(
