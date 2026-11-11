@@ -217,7 +217,7 @@ BEGIN
      AND id=p_endpoint_id AND enabled=true;
   RETURN v_result;
 END;
-
+$function$;
 
 -- Called by the API only after Svix signature and timestamp verification.
 -- Recipient addresses and raw payloads are not stored. The exact RFC Message-ID
