@@ -3,6 +3,7 @@ import { createCipheriv, createHash, createHmac, randomBytes, randomUUID } from 
 import type { Pool, PoolClient, QueryResultRow } from "pg";
 import { decryptDeliveryCredentialBundle, decryptDeliveryCredentials, encryptDeliveryCredentialBundle, encryptDeliveryCredentials } from "./delivery-credentials-crypto.js";
 import { decryptContactValue, encryptContactValue } from "./contact-crypto.js";
+import { PublicFormAnswersError, PublicFormSchemaError, validatePublicFormAnswers } from "./public-form-validation.js";
 import { verifyResendWebhookSignature } from "./resend-webhook.js";
 import { classifySmtpFailure, sendSmtpTestMessage, type SmtpSettings, type SmtpTransportFactory } from "./smtp-transport.js";
 import type { paths } from "./generated/openapi.js";
@@ -496,6 +497,12 @@ function encryptPrivateText(value: string, key: Buffer | undefined): Buffer {
 }
 function databaseError(error: unknown): ApiError {
   if (error instanceof ApiError) return error;
+  if (error instanceof PublicFormAnswersError) {
+    return new ApiError(422, "PUBLIC_FORM_ANSWERS_INVALID", "Submitted answers do not match the published booking form.");
+  }
+  if (error instanceof PublicFormSchemaError) {
+    return new ApiError(500, "PUBLIC_FORM_SCHEMA_INVALID", "The published booking form schema is invalid.");
+  }
   const code = typeof error === "object" && error !== null && "code" in error
     ? String((error as { code?: unknown }).code ?? "") : "";
   switch (code) {
@@ -763,8 +770,8 @@ export function buildApi(dependencies: ApiDependencies): FastifyInstance {
       const client = await dependencies.pool.connect();
       try {
         const formResult = await client.query<ResultRow>(
-          "SELECT eogp.get_published_public_booking_form($1::text,$2::text) AS result",
-          [request.params.organizationSlug, body.formCode],
+          "SELECT eogp.get_public_booking_form_revision($1::text,$2::text,$3::uuid) AS result",
+          [request.params.organizationSlug, body.formCode, body.formRevisionId],
         );
         const form = formResult.rows[0]?.result;
         if (!form || typeof form !== "object" || Array.isArray(form)) {
@@ -775,9 +782,12 @@ export function buildApi(dependencies: ApiDependencies): FastifyInstance {
         const formProjection = form as Record<string, unknown>;
         const organizationId = formProjection.organizationId;
         const defaultTimezone = formProjection.defaultTimezone;
-        if (typeof organizationId !== "string" || typeof defaultTimezone !== "string") {
+        if (typeof organizationId !== "string" || typeof defaultTimezone !== "string" ||
+            typeof formProjection.formRevisionId !== "string" ||
+            formProjection.formRevisionId.toLowerCase() !== body.formRevisionId.toLowerCase()) {
           throw new ApiError(500, "PUBLIC_BOOKING_FORM_INVALID", "The published booking form could not be loaded.");
         }
+        validatePublicFormAnswers(formProjection.fieldSchema, body.answers);
 
         const submittedValues = {
           requested: {
