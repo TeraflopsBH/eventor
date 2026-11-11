@@ -149,6 +149,14 @@ dd { margin: 0; overflow-wrap: anywhere; }
 .operator-controls { display: grid; grid-template-columns: minmax(180px, .7fr) minmax(220px, 1.3fr) auto; align-items: end; gap: 12px; padding-top: 12px; border-top: 1px solid var(--border); }
 .operator-controls textarea { resize: vertical; min-height: 54px; }
 .operator-controls .fine-print { grid-column: 1 / -1; margin: 0; }
+
+.resend-webhook-box { display: grid; gap: 12px; border: 1px solid var(--border); border-radius: 10px; padding: 16px; background: #11111166; }
+.resend-webhook-heading { display: flex; justify-content: space-between; align-items: start; gap: 12px; }
+.resend-webhook-heading h4 { margin: 0 0 5px; font-size: 12px; }
+.resend-webhook-heading p { margin: 0; }
+.resend-webhook-box input[readonly] { font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size: 10px; }
+.resend-webhook-box code { color: #f1c49e; }
+
 @media (max-width: 850px) {
   .operator-controls { grid-template-columns: 1fr; }
   .operator-controls .fine-print { grid-column: auto; }
