@@ -4,7 +4,7 @@ import test from "node:test";
 import type { Pool, PoolClient } from "pg";
 import { buildApi, type StaffPrincipal } from "../src/server.js";
 import { encryptDeliveryCredentialBundle } from "../src/delivery-credentials-crypto.js";
-import { decryptContactValue } from "../src/contact-crypto.js";
+import { decryptContactValue, encryptContactValue } from "../src/contact-crypto.js";
 import type { SmtpTransportFactory } from "../src/smtp-transport.js";
 
 const resendWebhookSigningSecret = `whsec_${Buffer.from("eventor-resend-webhook-test-secret-32-bytes").toString("base64")}`;
@@ -14,6 +14,27 @@ const principal: StaffPrincipal = {
   organizationId: "22222222-2222-4222-8222-222222222222",
   membershipId: "bbbbbbbb-2222-4222-8222-bbbbbbbbbbbb",
 };
+const inquiryTestContactKey = Buffer.alloc(32, 10);
+const inquiryNameCiphertext = encryptContactValue(
+  "Jane Example", inquiryTestContactKey,
+  { organizationId: principal.organizationId, contactKind: "other" },
+).toString("base64");
+const inquiryEmailCiphertext = encryptContactValue(
+  "jane@example.test", inquiryTestContactKey,
+  { organizationId: principal.organizationId, contactKind: "email" },
+).toString("base64");
+const inquiryPhoneCiphertext = encryptContactValue(
+  "+38761123456", inquiryTestContactKey,
+  { organizationId: principal.organizationId, contactKind: "phone" },
+).toString("base64");
+const inquiryValuesCiphertext = encryptContactValue(
+  JSON.stringify({
+    requested: { timezone: "Europe/Sarajevo", spaceCodes: ["MAIN-HALL"] },
+    answers: { event_date: "2027-01-18", estimated_guests: 120 },
+  }),
+  inquiryTestContactKey,
+  { organizationId: principal.organizationId, contactKind: "other" },
+).toString("base64");
 
 interface StoredIdempotency {
   requestHash: string;
@@ -44,6 +65,11 @@ function makePool() {
   let resendWebhookRecordCalls = 0;
   let publicBookingFormCalls = 0;
   let publicBookingInquiryCalls = 0;
+  let bookingInquiryListCalls = 0;
+  let bookingInquiryGetCalls = 0;
+  let bookingInquiryAssignCalls = 0;
+  let bookingInquiryStatusCalls = 0;
+  let bookingInquiryAnnotationCalls = 0;
   const deliveryTests = new Map<string, string>();
 
   const client = {
@@ -78,6 +104,94 @@ function makePool() {
           publicReference: "INQ-AB12CD34EF56AB78",
           status: "received",
           replayed: false,
+        } }], rowCount: 1 };
+      }
+      if (normalized.includes("eogp.list_booking_inquiries(")) {
+        bookingInquiryListCalls += 1;
+        commandCalls.push({ sql: normalized, values });
+        return { rows: [{ result: {
+          items: [{
+            inquiryId: "14141414-1414-4141-8141-141414141414",
+            publicReference: "INQ-1234567890ABCDEF",
+            status: "received",
+            formRevisionId: "12121212-1212-4121-8121-121212121212",
+            requesterNameCiphertextBase64: inquiryNameCiphertext,
+            requestedStart: "2027-01-18T09:00:00.000Z",
+            requestedEnd: "2027-01-18T12:00:00.000Z",
+            requestedTimezone: "Europe/Sarajevo",
+            assignedToMembershipId: null,
+            submittedAt: "2026-11-11T12:00:00.000Z",
+            updatedAt: "2026-11-11T12:00:00.000Z",
+          }],
+          page: { limit: values[4], offset: values[5], total: 1 },
+        } }], rowCount: 1 };
+      }
+      if (normalized.includes("eogp.get_booking_inquiry(")) {
+        bookingInquiryGetCalls += 1;
+        commandCalls.push({ sql: normalized, values });
+        return { rows: [{ result: {
+          inquiryId: "14141414-1414-4141-8141-141414141414",
+          publicReference: "INQ-1234567890ABCDEF",
+          status: "under_review",
+          formRevisionId: "12121212-1212-4121-8121-121212121212",
+          fieldSchema: { fields: [{ code: "event_date", type: "date", required: true }] },
+          requesterNameCiphertextBase64: inquiryNameCiphertext,
+          requesterEmailCiphertextBase64: inquiryEmailCiphertext,
+          requesterPhoneCiphertextBase64: inquiryPhoneCiphertext,
+          submittedValuesCiphertextBase64: inquiryValuesCiphertext,
+          requestedStart: "2027-01-18T09:00:00.000Z",
+          requestedEnd: "2027-01-18T12:00:00.000Z",
+          requestedTimezone: "Europe/Sarajevo",
+          assignedToMembershipId: "cccccccc-2222-4222-8222-cccccccccccc",
+          submittedAt: "2026-11-11T12:00:00.000Z",
+          updatedAt: "2026-11-11T12:15:00.000Z",
+          annotations: [{
+            annotationId: "15151515-1515-4151-8151-151515151515",
+            annotation: "Call to confirm setup access.",
+            visibility: "internal",
+            actorMembershipId: principal.membershipId,
+            createdAt: "2026-11-11T12:10:00.000Z",
+          }],
+          statusHistory: [{
+            previousStatus: "received", newStatus: "under_review", reason: "Assigned for review",
+            actorKind: "membership", actorMembershipId: principal.membershipId,
+            occurredAt: "2026-11-11T12:15:00.000Z",
+          }],
+          assignmentHistory: [{
+            previousAssigneeMembershipId: null,
+            newAssigneeMembershipId: "cccccccc-2222-4222-8222-cccccccccccc",
+            actorMembershipId: principal.membershipId,
+            occurredAt: "2026-11-11T12:05:00.000Z",
+          }],
+        } }], rowCount: 1 };
+      }
+      if (normalized.includes("eogp.assign_booking_inquiry(")) {
+        bookingInquiryAssignCalls += 1;
+        commandCalls.push({ sql: normalized, values });
+        return { rows: [{ result: {
+          inquiryId: values[1],
+          assignedToMembershipId: values[3],
+          changed: true,
+        } }], rowCount: 1 };
+      }
+      if (normalized.includes("eogp.change_booking_inquiry_status(")) {
+        bookingInquiryStatusCalls += 1;
+        commandCalls.push({ sql: normalized, values });
+        return { rows: [{ result: {
+          inquiryId: values[1],
+          previousStatus: "received",
+          status: values[3],
+          changed: true,
+        } }], rowCount: 1 };
+      }
+      if (normalized.includes("eogp.add_booking_inquiry_annotation(")) {
+        bookingInquiryAnnotationCalls += 1;
+        commandCalls.push({ sql: normalized, values });
+        return { rows: [{ result: {
+          annotationId: "16161616-1616-4161-8161-161616161616",
+          inquiryId: values[1],
+          visibility: "internal",
+          createdAt: "2026-11-11T12:20:00.000Z",
         } }], rowCount: 1 };
       }
       if (normalized.startsWith("DELETE FROM eogp.idempotency_records")) {
@@ -341,6 +455,11 @@ function makePool() {
     get resendWebhookRecordCalls() { return resendWebhookRecordCalls; },
     get publicBookingFormCalls() { return publicBookingFormCalls; },
     get publicBookingInquiryCalls() { return publicBookingInquiryCalls; },
+    get bookingInquiryListCalls() { return bookingInquiryListCalls; },
+    get bookingInquiryGetCalls() { return bookingInquiryGetCalls; },
+    get bookingInquiryAssignCalls() { return bookingInquiryAssignCalls; },
+    get bookingInquiryStatusCalls() { return bookingInquiryStatusCalls; },
+    get bookingInquiryAnnotationCalls() { return bookingInquiryAnnotationCalls; },
   };
 }
 
@@ -509,6 +628,94 @@ test("public booking intake exposes only published forms and stores anonymous in
   });
   assert.equal(nonAllowListedPublicPath.statusCode, 401);
   assert.equal(mock.publicBookingInquiryCalls, 1);
+});
+
+test("staff inquiry inbox decrypts authorized projections and routes assignment, status and internal-note commands", async (t) => {
+  const mock = makePool();
+  const app = makeApi(mock.pool);
+  t.after(async () => app.close());
+
+  const list = await app.inject({
+    method: "GET",
+    url: `/organizations/${principal.organizationId}/booking-inquiries?status=received&limit=10&offset=0`,
+  });
+  assert.equal(list.statusCode, 200);
+  const listBody = list.json<{
+    data: Array<{ inquiryId: string; requesterName: string; publicReference: string }>;
+    meta: { limit: number; offset: number; totalCount: number };
+  }>();
+  assert.equal(listBody.data.length, 1);
+  assert.equal(listBody.data[0]?.requesterName, "Jane Example");
+  assert.equal(listBody.data[0]?.publicReference, "INQ-1234567890ABCDEF");
+  assert.deepEqual(listBody.meta, { limit: 10, offset: 0, totalCount: 1 });
+  assert.equal(mock.bookingInquiryListCalls, 1);
+  assert.equal(mock.commandCalls.find((call) => call.sql.includes("eogp.list_booking_inquiries("))?.values[2], "received");
+
+  const inquiryId = "14141414-1414-4141-8141-141414141414";
+  const detail = await app.inject({
+    method: "GET",
+    url: `/booking-inquiries/${inquiryId}`,
+  });
+  assert.equal(detail.statusCode, 200);
+  const detailBody = detail.json<{
+    data: {
+      requesterName: string;
+      requesterEmail: string;
+      requesterPhone: string;
+      submittedValues: { answers: Record<string, unknown> };
+      annotations: Array<{ annotation: string; visibility: string }>;
+      statusHistory: Array<{ newStatus: string }>;
+      assignmentHistory: Array<{ newAssigneeMembershipId: string }>;
+    };
+  }>().data;
+  assert.equal(detailBody.requesterName, "Jane Example");
+  assert.equal(detailBody.requesterEmail, "jane@example.test");
+  assert.equal(detailBody.requesterPhone, "+38761123456");
+  assert.equal(detailBody.submittedValues.answers.estimated_guests, 120);
+  assert.equal(detailBody.annotations[0]?.visibility, "internal");
+  assert.equal(detailBody.annotations[0]?.annotation, "Call to confirm setup access.");
+  assert.equal(detailBody.statusHistory[0]?.newStatus, "under_review");
+  assert.equal(detailBody.assignmentHistory[0]?.newAssigneeMembershipId, "cccccccc-2222-4222-8222-cccccccccccc");
+  assert.equal(mock.bookingInquiryGetCalls, 1);
+
+  const assignee = "cccccccc-2222-4222-8222-cccccccccccc";
+  const assignment = await app.inject({
+    method: "POST",
+    url: `/booking-inquiries/${inquiryId}/assignment`,
+    headers: { "idempotency-key": "assign-inquiry-0001" },
+    payload: { assignedToMembershipId: assignee },
+  });
+  assert.equal(assignment.statusCode, 201);
+  assert.equal(assignment.json<{ data: { assignedToMembershipId: string; changed: boolean } }>().data.assignedToMembershipId, assignee);
+  assert.equal(mock.bookingInquiryAssignCalls, 1);
+
+  const status = await app.inject({
+    method: "POST",
+    url: `/booking-inquiries/${inquiryId}/status`,
+    headers: { "idempotency-key": "status-inquiry-0001" },
+    payload: { status: "under_review", reason: "Assigned to the booking team." },
+  });
+  assert.equal(status.statusCode, 201);
+  assert.equal(status.json<{ data: { status: string } }>().data.status, "under_review");
+  assert.equal(mock.bookingInquiryStatusCalls, 1);
+
+  const annotation = await app.inject({
+    method: "POST",
+    url: `/booking-inquiries/${inquiryId}/annotations`,
+    headers: { "idempotency-key": "annotation-inquiry-0001" },
+    payload: { annotation: "Call to confirm setup access." },
+  });
+  assert.equal(annotation.statusCode, 201);
+  assert.equal(annotation.json<{ data: { visibility: string } }>().data.visibility, "internal");
+  assert.equal(mock.bookingInquiryAnnotationCalls, 1);
+
+  const anonymous = makeApi(mock.pool, { authenticated: false });
+  t.after(async () => anonymous.close());
+  const denied = await anonymous.inject({
+    method: "GET",
+    url: `/organizations/${principal.organizationId}/booking-inquiries`,
+  });
+  assert.equal(denied.statusCode, 401);
 });
 
 test("reservation release delegates exact selected IDs to the permission-gated database command and replays idempotently", async (t) => {
