@@ -771,15 +771,6 @@ BEGIN
        SET status=v_final_status,delivery_completed_at=clock_timestamp()
      WHERE organization_id=p_organization_id AND id=v_campaign_id
        AND status IN ('queued','sending');
-    INSERT INTO eogp.audit_events(
-      organization_id,actor_organization_id,actor_kind,action,
-      aggregate_type,aggregate_id,safe_metadata
-    ) VALUES (
-      p_organization_id,p_organization_id,'system',
-      'event.notification_campaign.delivery_finished',
-      'event_notification_campaign',v_campaign_id,
-      jsonb_build_object('status',v_final_status,'sent',v_sent,'failed',v_failed,'uncertain',v_uncertain)
-    );
   END IF;
 
   RETURN jsonb_build_object(
