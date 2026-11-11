@@ -30,6 +30,14 @@ test("delivery credentials cannot be moved to another organization", () => {
   }));
 });
 
+test("delivery credentials cannot be moved between email and SMS channels", () => {
+  const encrypted = encryptDeliveryCredentials(credentials, key, context);
+  assert.throws(() => decryptDeliveryCredentials(encrypted, key, {
+    ...context,
+    channel: "sms",
+  }));
+});
+
 test("delivery credentials cannot be decrypted with another key", () => {
   const encrypted = encryptDeliveryCredentials(credentials, key, context);
   assert.throws(() => decryptDeliveryCredentials(encrypted, Buffer.alloc(32, 0x2a), context));
