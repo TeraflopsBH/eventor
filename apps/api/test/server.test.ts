@@ -2,6 +2,7 @@ import assert from "node:assert/strict";
 import test from "node:test";
 import type { Pool, PoolClient } from "pg";
 import { buildApi, type StaffPrincipal } from "../src/server.js";
+import type { SmtpTransportFactory } from "../src/smtp-transport.js";
 
 const principal: StaffPrincipal = {
   userId: "bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb",
@@ -22,7 +23,7 @@ function makePool() {
   let changeCalls = 0;
   let campaignReviewCalls = 0;
   let campaignConfirmCalls = 0;
-  let deliveryConfigCalls = 0;
+  let deliveryConfigCalls = 0;\n  let deliveryTestBegins = 0;\n  let deliveryTestCompletions = 0;\n  let campaignQueueCalls = 0;\n  const deliveryTests = new Map<string, string>();
 
   const client = {
     async query(sql: string, values: unknown[] = []) {
@@ -79,6 +80,45 @@ function makePool() {
         return { rows: [{ result: {
           campaignId: values[1], status: "confirmed", recipientCount: 2,
           deliveryQueued: false,
+        } }], rowCount: 1 };
+      }
+      if (normalized.includes("eogp.begin_organization_email_delivery_test(")) {
+        deliveryTestBegins += 1;
+        const idempotencyHash = String(values[2]);
+        const existing = deliveryTests.get(idempotencyHash);
+        if (existing) {
+          return { rows: [{ result: {
+            requestId: existing, status: "succeeded", created: false,
+            configRevisionId: "dddddddd-4444-4444-8444-dddddddddddd",
+          } }], rowCount: 1 };
+        }
+        const requestId = "eeeeeeee-5555-4555-8555-eeeeeeeeeeee";
+        deliveryTests.set(idempotencyHash, requestId);
+        return { rows: [{ result: {
+          requestId, status: "pending", created: true,
+          configRevisionId: "dddddddd-4444-4444-8444-dddddddddddd",
+          settings: {
+            host: "smtp.example.test", port: 587, transportSecurity: "starttls",
+            authMode: "none", senderEmail: "events@example.test",
+            senderName: "Eventor", connectionTimeoutMs: 15000,
+          },
+          credentialsCiphertextBase64: null,
+        } }], rowCount: 1 };
+      }
+      if (normalized.includes("eogp.complete_organization_email_delivery_test(")) {
+        deliveryTestCompletions += 1;
+        commandCalls.push({ sql: normalized, values });
+        return { rows: [{ result: {
+          requestId: values[2], status: values[3] ? "succeeded" : "failed",
+          deliveryEnabled: Boolean(values[3]),
+        } }], rowCount: 1 };
+      }
+      if (normalized.includes("eogp.queue_event_notification_campaign(")) {
+        campaignQueueCalls += 1;
+        commandCalls.push({ sql: normalized, values });
+        return { rows: [{ result: {
+          campaignId: values[1], status: "queued",
+          emailRecipientCount: 2, smsSuppressedCount: 1,
         } }], rowCount: 1 };
       }
       if (normalized.includes("eogp.get_organization_email_delivery_config(")) {
@@ -144,7 +184,7 @@ function makePool() {
     get changeCalls() { return changeCalls; },
     get campaignReviewCalls() { return campaignReviewCalls; },
     get campaignConfirmCalls() { return campaignConfirmCalls; },
-    get deliveryConfigCalls() { return deliveryConfigCalls; },
+    get deliveryConfigCalls() { return deliveryConfigCalls; },\n    get deliveryTestBegins() { return deliveryTestBegins; },\n    get deliveryTestCompletions() { return deliveryTestCompletions; },\n    get campaignQueueCalls() { return campaignQueueCalls; },
   };
 }
 
@@ -155,7 +195,7 @@ function makeApi(
     originValid?: boolean;
     encryptionKey?: Buffer;
     loginOriginValid?: boolean;
-    withSessionCallbacks?: boolean;
+    withSessionCallbacks?: boolean;\n    smtpTransportFactory?: SmtpTransportFactory;
   } = {},
 ) {
   return buildApi({
@@ -174,7 +214,7 @@ function makeApi(
       getCurrentPrincipal: async () => ({ ...principal, memberships: [] }),
     } : {}),
     privateFieldEncryptionKey: options.encryptionKey ?? Buffer.alloc(32, 7),
-    deliveryCredentialsEncryptionKey: Buffer.alloc(32, 9),
+    deliveryCredentialsEncryptionKey: Buffer.alloc(32, 9),\n    smtpTransportFactory: options.smtpTransportFactory,
   });
 }
 
@@ -508,4 +548,73 @@ test("organization SMTP configuration projection never returns credentials", asy
   assert.equal(data.credentialsConfigured, true);
   assert.equal("credentials" in data, false);
   assert.equal("password" in data, false);
+});
+
+test("SMTP test sends only to the requested address and idempotent replay does not resend", async (t) => {
+  const mock = makePool();
+  let verifyCalls = 0;
+  let sendCalls = 0;
+  let closeCalls = 0;
+  const app = makeApi(mock.pool, {
+    smtpTransportFactory: () => ({
+      async verify() { verifyCalls += 1; return true; },
+      async sendMail(message) {
+        sendCalls += 1;
+        assert.equal(message.to, "operator@example.test");
+        return { messageId: "smtp-test-message", accepted: [message.to] };
+      },
+      close() { closeCalls += 1; },
+    }),
+  });
+  t.after(async () => app.close());
+  const headers = { "idempotency-key": "smtp-test-request-0001" };
+  const first = await app.inject({
+    method: "POST",
+    url: "/organization/delivery/email/test",
+    headers,
+    payload: { recipient: "operator@example.test" },
+  });
+  assert.equal(first.statusCode, 200);
+  assert.equal(first.json<{ data: { status: string; deliveryEnabled: boolean } }>().data.status, "succeeded");
+  assert.equal(first.json<{ data: { deliveryEnabled: boolean } }>().data.deliveryEnabled, true);
+  assert.equal(verifyCalls, 1);
+  assert.equal(sendCalls, 1);
+  assert.equal(closeCalls, 1);
+  assert.equal(mock.deliveryTestCompletions, 1);
+
+  const replay = await app.inject({
+    method: "POST",
+    url: "/organization/delivery/email/test",
+    headers,
+    payload: { recipient: "operator@example.test" },
+  });
+  assert.equal(replay.statusCode, 200);
+  assert.equal(replay.json<{ data: { replayed: boolean } }>().data.replayed, true);
+  assert.equal(sendCalls, 1);
+  assert.equal(mock.deliveryTestCompletions, 1);
+});
+
+test("campaign queueing is an explicit idempotent command", async (t) => {
+  const mock = makePool();
+  const app = makeApi(mock.pool);
+  t.after(async () => app.close());
+  const headers = { "idempotency-key": "queue-campaign-0001" };
+  const first = await app.inject({
+    method: "POST",
+    url: "/event-notification-campaigns/94900000-0000-4000-8000-000000000001/queue",
+    headers,
+    payload: {},
+  });
+  assert.equal(first.statusCode, 201);
+  assert.equal(first.json<{ data: { status: string; smsSuppressedCount: number } }>().data.status, "queued");
+  assert.equal(first.json<{ data: { smsSuppressedCount: number } }>().data.smsSuppressedCount, 1);
+  assert.equal(mock.campaignQueueCalls, 1);
+  const replay = await app.inject({
+    method: "POST",
+    url: "/event-notification-campaigns/94900000-0000-4000-8000-000000000001/queue",
+    headers,
+    payload: {},
+  });
+  assert.equal(replay.statusCode, 201);
+  assert.equal(mock.campaignQueueCalls, 1);
 });
