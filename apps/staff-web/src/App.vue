@@ -151,6 +151,18 @@ function clearMessages(): void {
   pageNotice.value = "";
 }
 
+function clearBookingDraftState(): void {
+  bookingDraftDetail.value = null;
+  bookingDraftEditorOpen.value = false;
+  bookingDraftValuesJson.value = "{}";
+  bookingDraftSpaceLinesJson.value = "[]";
+  bookingDraftResourceLinesJson.value = "[]";
+  bookingDraftRequestedStart.value = "";
+  bookingDraftRequestedEnd.value = "";
+  bookingDraftTimezone.value = "Europe/Sarajevo";
+  bookingDraftChangeReason.value = "";
+}
+
 function showError(error: unknown): void {
   if (error instanceof ApiError) {
     if (error.status === 401) {
@@ -161,8 +173,8 @@ function showError(error: unknown): void {
       inquiryRows.value = [];
       inquiryDetail.value = null;
       inquiryAssignees.value = [];
-      bookingDraftDetail.value = null;
-      bookingDraftEditorOpen.value = false;
+      selectedInquiryId.value = "";
+      clearBookingDraftState();
       inquiryCapabilities.value = {
         canAssign: false, canManage: false, canAnnotate: false, canConvert: false,
         canReadDraft: false, canManageDraft: false,
@@ -248,9 +260,8 @@ async function signOut(): Promise<void> {
     inquiryRows.value = [];
     inquiryDetail.value = null;
     inquiryAssignees.value = [];
-    bookingDraftDetail.value = null;
-    bookingDraftEditorOpen.value = false;
     selectedInquiryId.value = "";
+    clearBookingDraftState();
     inquiryCapabilities.value = {
       canAssign: false, canManage: false, canAnnotate: false, canConvert: false,
       canReadDraft: false, canManageDraft: false,
@@ -571,8 +582,7 @@ async function openInquiry(item: BookingInquiryListItem): Promise<void> {
   selectedInquiryId.value = item.inquiryId;
   inquiryStatusReason.value = "";
   inquiryAnnotationText.value = "";
-  bookingDraftDetail.value = null;
-  bookingDraftEditorOpen.value = false;
+  clearBookingDraftState();
   busy.value = true;
   try {
     await refreshInquiryDetailData();
