@@ -50,6 +50,7 @@ CREATE FUNCTION eogp.record_verified_notification_provider_event(
   p_provider_name text,
   p_provider_event_id text,
   p_attempt_id uuid,
+  p_provider_message_reference text,
   p_outcome text,
   p_payload_sha256 text
 ) RETURNS jsonb
@@ -94,6 +95,7 @@ BEGIN
    WHERE event.organization_id=p_organization_id AND event.attempt_id=p_attempt_id
    ORDER BY event.created_at DESC,event.id DESC LIMIT 1;
   IF v_event_provider IS DISTINCT FROM p_provider_name
+     OR v_provider_reference IS DISTINCT FROM p_provider_message_reference
      OR v_provider_reference IS NULL OR v_provider_reference='' THEN
     RAISE EXCEPTION 'provider event does not match a known provider submission'
       USING ERRCODE='55000';
@@ -336,7 +338,7 @@ BEGIN
 END;
 $function$;
 
-REVOKE ALL ON FUNCTION eogp.record_verified_notification_provider_event(uuid,text,text,uuid,text,text) FROM PUBLIC;
+REVOKE ALL ON FUNCTION eogp.record_verified_notification_provider_event(uuid,text,text,uuid,text,text,text) FROM PUBLIC;
 REVOKE ALL ON FUNCTION eogp.reconcile_notification_delivery_attempt(uuid,uuid,uuid,text,text) FROM PUBLIC;
 REVOKE ALL ON FUNCTION eogp.retry_failed_notification_delivery_attempt(uuid,uuid,uuid,text) FROM PUBLIC;
 GRANT EXECUTE ON FUNCTION eogp.record_verified_notification_provider_event(uuid,text,text,uuid,text,text)
