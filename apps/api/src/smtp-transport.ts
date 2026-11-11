@@ -73,7 +73,7 @@ export function createSmtpTransport(
       });
       return {
         messageId: String(result.messageId ?? ""),
-        accepted: result.accepted.map((value) => String(value)),
+        accepted: result.accepted.map((value: unknown) => String(value)),
       };
     },
     close() {
