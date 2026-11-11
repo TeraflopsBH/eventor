@@ -1,7 +1,8 @@
 import Fastify, { type FastifyInstance, type FastifyReply, type FastifyRequest } from "fastify";
 import { createCipheriv, createHash, createHmac, randomBytes } from "node:crypto";
 import type { Pool, PoolClient, QueryResultRow } from "pg";
-import { encryptDeliveryCredentials } from "./delivery-credentials-crypto.js";
+import { decryptDeliveryCredentials, encryptDeliveryCredentials } from "./delivery-credentials-crypto.js";
+import { classifySmtpFailure, sendSmtpTestMessage, type SmtpSettings, type SmtpTransportFactory } from "./smtp-transport.js";
 import type { paths } from "./generated/openapi.js";
 import {
   clearStaffSessionCookies,
@@ -22,6 +23,7 @@ type EventChangeBody = JsonRequestBody<"/events/{eventId}/change-requests", "pos
 type EventChangeDecisionBody = JsonRequestBody<"/event-change-requests/{requestId}/approve", "post">;
 type EventChangeExecutionBody = JsonRequestBody<"/event-change-requests/{requestId}/execute", "post">;
 type EmailDeliveryConfigBody = JsonRequestBody<"/organization/delivery/email/configuration", "post">;
+type EmailDeliveryTestBody = JsonRequestBody<"/organization/delivery/email/test", "post">;
 
 export type StaffAuthenticator = (request: FastifyRequest) => Promise<StaffPrincipal | null>;
 export type MutationOriginVerifier = (request: FastifyRequest, principal: StaffPrincipal) => Promise<boolean>;
@@ -37,7 +39,7 @@ export interface ApiDependencies {
   readonly revokeStaffSession?: (principal: StaffPrincipal) => Promise<void>;
   readonly getCurrentPrincipal?: (principal: StaffPrincipal) => Promise<Record<string, unknown>>;
   readonly privateFieldEncryptionKey?: Buffer;
-  readonly deliveryCredentialsEncryptionKey?: Buffer;
+  readonly deliveryCredentialsEncryptionKey?: Buffer;\n  readonly smtpTransportFactory?: SmtpTransportFactory;
   readonly trustedProxyAddresses?: readonly string[];
 }
 
@@ -98,6 +100,12 @@ const campaignParams = {
 const bookingParams = {
   type: "object", required: ["bookingId"],
   properties: { bookingId: { type: "string", pattern: uuidPattern } },
+  additionalProperties: false,
+} as const;
+const emailDeliveryTestBody = {
+  type: "object",
+  required: ["recipient"],
+  properties: { recipient: { type: "string", format: "email", maxLength: 320 } },
   additionalProperties: false,
 } as const;
 const emailDeliveryConfigBody = {
@@ -591,6 +599,130 @@ export function buildApi(dependencies: ApiDependencies): FastifyInstance {
     },
   );
 
+
+  server.post<{ Body: EmailDeliveryTestBody }>(
+    "/organization/delivery/email/test",
+    { schema: { headers: idempotencyHeaders, body: emailDeliveryTestBody } },
+    async (request, reply) => {
+      const principal = request.staffPrincipal!;
+      const key = request.headers["idempotency-key"];
+      if (typeof key !== "string" || key.length < 8 || key.length > 200) {
+        throw new ApiError(400, "IDEMPOTENCY_KEY_REQUIRED", "A valid Idempotency-Key header is required.");
+      }
+      const idempotencyHash = createHash("sha256").update(key, "utf8").digest("hex");
+      const recipientHash = createHash("sha256")
+        .update(request.body.recipient.trim().toLowerCase(), "utf8").digest("hex");
+
+      const beginClient = await dependencies.pool.connect();
+      let begin: Record<string, unknown>;
+      try {
+        await beginClient.query("BEGIN");
+        await beginClient.query("SELECT set_config('app.organization_id',$1,true)", [principal.organizationId]);
+        const result = await beginClient.query<ResultRow>(
+          "SELECT eogp.begin_organization_email_delivery_test($1::uuid,$2::uuid,$3::text,$4::text) AS result",
+          [principal.organizationId, principal.membershipId, idempotencyHash, recipientHash],
+        );
+        begin = result.rows[0]?.result as Record<string, unknown>;
+        await beginClient.query("COMMIT");
+      } catch (error) {
+        try { await beginClient.query("ROLLBACK"); } catch { /* preserve original error */ }
+        throw databaseError(error);
+      } finally {
+        beginClient.release();
+      }
+
+      if (begin.created !== true) {
+        const status = begin.status === "succeeded" ? 200 : begin.status === "failed" ? 502 : 202;
+        return reply.code(status).send({
+          data: {
+            requestId: begin.requestId,
+            status: begin.status,
+            deliveryEnabled: false,
+            replayed: true,
+          },
+        });
+      }
+
+      const encryptionKey = dependencies.deliveryCredentialsEncryptionKey;
+      if (!encryptionKey || encryptionKey.length !== 32) {
+        throw new ApiError(503, "DELIVERY_CREDENTIAL_ENCRYPTION_UNAVAILABLE", "Delivery credential encryption is not configured.");
+      }
+
+      let succeeded = false;
+      let failureCode = "SMTP_UNKNOWN";
+      let messageId: string | null = null;
+      try {
+        const settings = begin.settings as SmtpSettings;
+        const encoded = begin.credentialsCiphertextBase64;
+        const credentials = typeof encoded === "string"
+          ? decryptDeliveryCredentials(Buffer.from(encoded, "base64"), encryptionKey, {
+              organizationId: principal.organizationId,
+              channel: "email",
+            })
+          : null;
+        const sent = await sendSmtpTestMessage(
+          settings,
+          credentials,
+          request.body.recipient.trim(),
+          dependencies.smtpTransportFactory,
+        );
+        succeeded = true;
+        messageId = sent.messageId;
+      } catch (error) {
+        failureCode = classifySmtpFailure(error).code;
+        request.log.warn({ failureCode }, "Organization SMTP test failed");
+      }
+
+      const finishClient = await dependencies.pool.connect();
+      let finish: Record<string, unknown>;
+      try {
+        await finishClient.query("BEGIN");
+        await finishClient.query("SELECT set_config('app.organization_id',$1,true)", [principal.organizationId]);
+        const result = await finishClient.query<ResultRow>(
+          "SELECT eogp.complete_organization_email_delivery_test($1::uuid,$2::uuid,$3::uuid,$4::boolean,$5::text) AS result",
+          [principal.organizationId, principal.membershipId, begin.requestId, succeeded, succeeded ? null : failureCode],
+        );
+        finish = result.rows[0]?.result as Record<string, unknown>;
+        await finishClient.query("COMMIT");
+      } catch (error) {
+        try { await finishClient.query("ROLLBACK"); } catch { /* preserve original error */ }
+        throw databaseError(error);
+      } finally {
+        finishClient.release();
+      }
+
+      if (!succeeded) {
+        return reply.code(502).send({
+          data: { requestId: begin.requestId, status: "failed", failureCode, deliveryEnabled: false },
+        });
+      }
+      return reply.code(200).send({
+        data: { ...finish, messageId, testRecipient: request.body.recipient.trim() },
+      });
+    },
+  );
+
+  server.post<{ Params: { campaignId: string }; Body: Record<string, never> }>(
+    "/event-notification-campaigns/:campaignId/queue",
+    {
+      schema: {
+        params: campaignParams,
+        headers: idempotencyHeaders,
+        body: { type: "object", properties: {}, additionalProperties: false },
+      },
+    },
+    async (request, reply) => {
+      const principal = request.staffPrincipal!;
+      return withCommand(request, reply, "queueEventNotificationCampaign",
+        { campaignId: request.params.campaignId }, async (client) => {
+          const result = await client.query<ResultRow>(
+            "SELECT eogp.queue_event_notification_campaign($1::uuid,$2::uuid,$3::uuid) AS result",
+            [principal.organizationId, request.params.campaignId, principal.membershipId],
+          );
+          return result.rows[0]?.result as Record<string, unknown>;
+        });
+    },
+  );
 
   server.get("/organization/delivery/email/configuration", async (request, reply) => {
     const principal = request.staffPrincipal!;
