@@ -240,6 +240,16 @@ export const api = {
       `/event-notification-campaigns/${encodeURIComponent(campaignId)}/deliveries${query.size ? `?${query.toString()}` : ""}`,
     );
   },
+  reconcileDeliveryAttempt: (attemptId: string, body: { resolution: string; reason: string }) =>
+    request<Envelope<{ attemptId: string; previousStatus: string; status: string; campaignStatus: string }>>(
+      `/notification-delivery-attempts/${encodeURIComponent(attemptId)}/reconcile`,
+      { method: "POST", body, idempotent: true },
+    ),
+  retryDeliveryAttempt: (attemptId: string, reason: string) =>
+    request<Envelope<{ attemptId: string; previousAttemptId: string; attemptNumber: number; status: string }>>(
+      `/notification-delivery-attempts/${encodeURIComponent(attemptId)}/retry`,
+      { method: "POST", body: { reason }, idempotent: true },
+    ),
   getCampaignReview: (campaignId: string) =>
     request<Envelope<CampaignReview>>(`/event-notification-campaigns/${encodeURIComponent(campaignId)}/review`),
   confirmCampaign: (campaignId: string) =>
