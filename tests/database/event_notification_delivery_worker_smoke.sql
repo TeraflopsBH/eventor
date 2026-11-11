@@ -61,7 +61,7 @@ BEGIN
   END IF;
   v_result:=eogp.record_verified_notification_provider_event(
     '22222222-2222-4222-8222-222222222222','smtp','ci-provider-event-1',
-    v_job.attempt_id,'ci-smtp-accepted-1','delivered',repeat('a',64)
+    v_job.attempt_id,v_message_reference,'delivered',repeat('a',64)
   );
   IF NOT (v_result->>'duplicate')::boolean THEN
     RAISE EXCEPTION 'duplicate provider callback was not idempotent';
