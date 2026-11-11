@@ -1,6 +1,6 @@
 # Eventor staff web
 
-Vue 3 + TypeScript + Vite staff workspace for authentication, organization email delivery and event-notification operations.
+Vue 3 + TypeScript + Vite staff workspace for authentication, organization email delivery, event-notification operations and venue booking inquiry review.
 
 ## Development
 
@@ -26,7 +26,11 @@ For a different same-origin API prefix or reverse-proxy path at build/runtime, s
 - Campaign progress aggregates and a paginated, status-filterable delivery-attempt report with retry indicators, safe failure codes and timestamps.
 - Operator reconciliation for uncertain/permanent failed attempts with an explicit verified outcome and mandatory audit reason.
 - Separate operator-authorized retries for eligible failed attempts; the API creates a new attempt and enforces permissions and retry limits.
-- API-enforced event permission and CSRF checks; the UI does not make security decisions. Delivery projections never expose recipient contact values or provider message references.
+- Permission-aware booking inquiry inbox with status and assignee filters, pagination and requester/request summaries.
+- Inquiry detail showing decrypted requester information, requested booking times/spaces, answers from the pinned form schema, internal notes and immutable status/assignment history.
+- Assignment to an active same-organization member, controlled review status transitions with audit reasons, and append-only internal note creation. Declined/spam inquiries are terminal and cannot be reopened or reassigned.
+- Inquiry action controls are shown from a permission projection; the backend database commands remain authoritative. The assignee roster returns only active membership IDs and display names, never colleague email/contact information.
+- API-enforced organization scope, inquiry permissions and CSRF checks; the UI does not make security decisions. Delivery projections never expose recipient contact values or provider message references.
 
 Campaigns are listed only when the current membership has event-scoped preview permission. Resend callbacks are accepted only after the signing secret has been activated and the exact raw-body Svix signature passes verification. SMTP acceptance remains distinct from recipient-mail-server delivery and inbox placement.
 
