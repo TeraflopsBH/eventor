@@ -42,7 +42,7 @@ A queued campaign continues to use the exact SMTP revision pinned when it was qu
 
 The worker records SMTP acceptance as `sent`; it does not claim that the recipient read or even received the message. Temporary connection and SMTP 4xx failures are retried with bounded exponential backoff (up to five attempts). Permanent 5xx and configuration/template errors are not automatically retried. If the connection fails at the SMTP DATA stage and acceptance is ambiguous, the attempt is marked `uncertain` and is not automatically resent, to avoid duplicate messages. Expired in-flight leases are also marked uncertain for operator reconciliation.
 
-SMS recipients are recorded as suppressed with `SMS_CHANNEL_NOT_CONFIGURED`. No SMS provider is integrated or called. SMTP acceptance and delivery attempts never modify RSVP, invitation or attendance history, and notification failure never rolls back an event cancellation or postponement.
+SMS recipients are recorded as suppressed with `SMS_CHANNEL_NOT_CONFIGURED`. `src/sms-transport.ts` defines a provider-neutral adapter/registry contract, but Eventor ships no vendor implementation and no SMS provider is integrated or called. A provider must be explicitly selected and its adapter installed before SMS can be enabled. SMTP acceptance and delivery attempts never modify RSVP, invitation or attendance history, and notification failure never rolls back an event cancellation or postponement.
 
 ### Notification template placeholders
 
