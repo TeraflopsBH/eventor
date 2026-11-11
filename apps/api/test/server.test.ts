@@ -838,6 +838,16 @@ test("staff inquiry inbox decrypts authorized projections and routes assignment,
     principal.membershipId,
   ]);
 
+  const replay = await app.inject({
+    method: "POST",
+    url: `/booking-inquiries/${inquiryId}/create-draft`,
+    headers: { "idempotency-key": "convert-inquiry-0001" },
+    payload: {},
+  });
+  assert.equal(replay.statusCode, 201);
+  assert.deepEqual(replay.json(), conversion.json());
+  assert.equal(mock.bookingInquiryConversionCalls, 1);
+
   const anonymous = makeApi(mock.pool, { authenticated: false });
   t.after(async () => anonymous.close());
   const denied = await anonymous.inject({
