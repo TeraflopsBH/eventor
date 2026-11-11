@@ -22,6 +22,9 @@ function makePool() {
   let reservationCalls = 0;
   let changeCalls = 0;
   let campaignReviewCalls = 0;
+  let campaignListCalls = 0;
+  let campaignProgressCalls = 0;
+  let campaignDeliveryListCalls = 0;
   let campaignConfirmCalls = 0;
   let deliveryConfigCalls = 0;
   let deliveryTestBegins = 0;
@@ -70,6 +73,51 @@ function makePool() {
           found.responseBody = JSON.parse(String(values[5])) as Record<string, unknown>;
         }
         return { rows: [], rowCount: found ? 1 : 0 };
+      }
+      if (normalized.includes("eogp.list_event_notification_campaigns(")) {
+        campaignListCalls += 1;
+        commandCalls.push({ sql: normalized, values });
+        return { rows: [{ result: {
+          items: [{
+            campaignId: "94900000-0000-4000-8000-000000000001",
+            eventId: "94000000-0000-4000-8000-000000000001",
+            purpose: "event_cancellation", audienceKind: "all_previously_invited",
+            status: "queued", recipientCount: 2, actualRecipientCount: 2,
+            createdAt: "2026-11-11T09:00:00.000Z", confirmedAt: null,
+            queuedAt: "2026-11-11T09:01:00.000Z", deliveryStartedAt: null,
+            deliveryCompletedAt: null,
+          }],
+          page: { limit: values[3], offset: values[4], total: 1 },
+        } }], rowCount: 1 };
+      }
+      if (normalized.includes("eogp.get_event_notification_campaign_progress(")) {
+        campaignProgressCalls += 1;
+        commandCalls.push({ sql: normalized, values });
+        return { rows: [{ result: {
+          campaignId: values[1], eventId: "94000000-0000-4000-8000-000000000001",
+          status: "sending", purpose: "event_cancellation", recipientCount: 2,
+          attemptCount: 3,
+          deliveryCounts: { queued: 1, sending: 0, sent: 1, failed: 0, uncertain: 0, suppressed: 0 },
+          createdAt: "2026-11-11T09:00:00.000Z", confirmedAt: null,
+          queuedAt: "2026-11-11T09:01:00.000Z", deliveryStartedAt: "2026-11-11T09:02:00.000Z",
+          deliveryCompletedAt: null,
+        } }], rowCount: 1 };
+      }
+      if (normalized.includes("eogp.list_event_notification_campaign_deliveries(")) {
+        campaignDeliveryListCalls += 1;
+        commandCalls.push({ sql: normalized, values });
+        return { rows: [{ result: {
+          items: [{
+            attemptId: "95000000-0000-4000-8000-000000000001",
+            recipientReference: "95100000-0000-4000-8000-000000000001",
+            channel: "email", attemptNumber: 1, status: "failed",
+            failureCode: "SMTP_4XX", provider: "smtp",
+            queuedForAt: "2026-11-11T09:01:00.000Z", sendingAt: "2026-11-11T09:02:00.000Z",
+            completedAt: "2026-11-11T09:03:00.000Z", retryScheduled: true,
+          }],
+          page: { limit: values[4], offset: values[5], total: 1 },
+          counts: { failed: 1, queued: 1 },
+        } }], rowCount: 1 };
       }
       if (normalized.includes("eogp.get_event_notification_campaign_review(")) {
         campaignReviewCalls += 1;
@@ -195,6 +243,9 @@ function makePool() {
     get reservationCalls() { return reservationCalls; },
     get changeCalls() { return changeCalls; },
     get campaignReviewCalls() { return campaignReviewCalls; },
+    get campaignListCalls() { return campaignListCalls; },
+    get campaignProgressCalls() { return campaignProgressCalls; },
+    get campaignDeliveryListCalls() { return campaignDeliveryListCalls; },
     get campaignConfirmCalls() { return campaignConfirmCalls; },
     get deliveryConfigCalls() { return deliveryConfigCalls; },
     get deliveryTestBegins() { return deliveryTestBegins; },
@@ -451,6 +502,57 @@ test("staff login rejects requests without the configured browser origin", async
   assert.equal(login.json().code, "ORIGIN_REJECTED");
 });
 
+
+test("campaign list applies pagination and returns only the database permission projection", async (t) => {
+  const mock = makePool();
+  const app = makeApi(mock.pool);
+  t.after(async () => app.close());
+  const response = await app.inject({
+    method: "GET",
+    url: "/event-notification-campaigns?status=queued&limit=10&offset=20",
+  });
+  assert.equal(response.statusCode, 200);
+  const payload = response.json<{ data: Array<{ campaignId: string }>; meta: { limit: number; offset: number; totalCount: number } }>();
+  assert.equal(payload.data[0]?.campaignId, "94900000-0000-4000-8000-000000000001");
+  assert.deepEqual(payload.meta, { limit: 10, offset: 20, totalCount: 1 });
+  assert.equal(mock.campaignListCalls, 1);
+  assert.equal(mock.commandCalls[0]?.values[0], principal.organizationId);
+  assert.equal(mock.commandCalls[0]?.values[1], principal.membershipId);
+  assert.equal(mock.commandCalls[0]?.values[2], "queued");
+});
+
+test("campaign progress and delivery report expose only operational attempt metadata", async (t) => {
+  const mock = makePool();
+  const app = makeApi(mock.pool);
+  t.after(async () => app.close());
+  const campaignId = "94900000-0000-4000-8000-000000000001";
+  const progress = await app.inject({
+    method: "GET",
+    url: `/event-notification-campaigns/${campaignId}`,
+  });
+  assert.equal(progress.statusCode, 200);
+  assert.equal(progress.json<{ data: { deliveryCounts: { sent: number } } }>().data.deliveryCounts.sent, 1);
+  assert.equal(mock.campaignProgressCalls, 1);
+
+  const deliveries = await app.inject({
+    method: "GET",
+    url: `/event-notification-campaigns/${campaignId}/deliveries?status=failed&limit=5&offset=0`,
+  });
+  assert.equal(deliveries.statusCode, 200);
+  const payload = deliveries.json<{
+    data: Array<{ status: string; failureCode: string; recipientReference: string }>;
+    meta: { totalCount: number; counts: Record<string, number> };
+  }>();
+  assert.equal(payload.data[0]?.status, "failed");
+  assert.equal(payload.data[0]?.failureCode, "SMTP_4XX");
+  assert.equal(payload.meta.counts.failed, 1);
+  assert.equal("email" in payload.data[0]!, false);
+  assert.equal("phone" in payload.data[0]!, false);
+  assert.equal("providerMessageReference" in payload.data[0]!, false);
+  assert.equal(mock.campaignDeliveryListCalls, 1);
+  assert.equal(mock.commandCalls[1]?.values[2], principal.membershipId);
+  assert.equal(mock.commandCalls[1]?.values[3], "failed");
+});
 
 test("campaign review returns a restricted snapshot projection through the permission-gated database function", async (t) => {
   const mock = makePool();
