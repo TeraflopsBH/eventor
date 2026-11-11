@@ -161,6 +161,8 @@ jobs:
         run: psql "$RUNTIME_URL" -X -v ON_ERROR_STOP=1 -f tests/database/organization_delivery_configuration_smoke.sql
       - name: Verify SMTP delivery worker claim, retry and terminal states
         run: psql "$WORKER_URL" -X -v ON_ERROR_STOP=1 -f tests/database/event_notification_delivery_worker_smoke.sql
+      - name: Verify queued campaign cancellation guard after sending starts
+        run: psql "$RUNTIME_URL" -X -v ON_ERROR_STOP=1 -f tests/database/event_notification_campaign_cancel_smoke.sql
  
       - name: Verify confirmed campaign snapshot guards as owner
         run: psql "$MIGRATOR_URL" -X -v ON_ERROR_STOP=1 -f tests/database/event_notification_campaign_snapshot_guard_smoke.sql
