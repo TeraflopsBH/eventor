@@ -15,6 +15,8 @@ This package contains the first deployable command API and a separate tenant-awa
 - `POST /booking-inquiries/{inquiryId}/status` — change inquiry review status with an audit reason.
 - `POST /booking-inquiries/{inquiryId}/annotations` — append an internal-only staff note.
 - `POST /booking-inquiries/{inquiryId}/create-draft` — atomically convert an open inquiry into a separate draft with immutable revision 1; replays return the same draft.
+- `GET /booking-drafts/{draftId}` — permission-checked current revision, decrypted values, field schema, space/resource lines and immutable revision history.
+- `POST /booking-drafts/{draftId}/revisions` — create an immutable successor revision with expected-revision concurrency, ECP1-encrypted values and validated space/resource lines.
 - `GET /public/organizations/{organizationSlug}/booking-forms/{formCode}` — public read of an active organization's latest published booking form and its versioned field schema.
 - `POST /public/organizations/{organizationSlug}/booking-inquiries` — accept an encrypted, idempotent booking inquiry using the exact published form revision supplied by the visitor.
 - `POST /bookings/{bookingId}/reservations/release`
@@ -51,9 +53,9 @@ Requester name, email, phone, requested details and validated dynamic answers ar
 
 The inbox, detail, assignment, status and annotation routes require an authenticated staff session. Database SECURITY DEFINER projections and commands re-check active membership plus the `booking.inquiry.read`, `booking.inquiry.assign`, `booking.inquiry.manage` or `booking.inquiry.annotate` permission on an organization-scope role grant. Inquiries are not yet linked to a booking, so booking-specific role grants do not authorize inquiry access. Inquiry source and history tables are not directly accessible to the runtime database role. Contact fields and answers are decrypted only in the API after the permission-checked detail projection. Assignment and status changes append immutable histories and audit events. Staff annotations are append-only and internal-only; customer-visible annotations are not supported by these endpoints.
 
-The inquiry capability projection requires `booking.inquiry.read` and reports separate `canAssign`, `canManage`, `canAnnotate` and `canConvert` flags. The conversion flag reflects the `booking.inquiry.convert` permission. The roster endpoint additionally requires `booking.inquiry.assign`, and returns only active same-organization membership IDs and display names. The UI hides unavailable controls, but every write continues to re-check authorization inside the database SECURITY DEFINER command.
+The inquiry capability projection requires `booking.inquiry.read` and reports separate `canAssign`, `canManage`, `canAnnotate`, `canConvert`, `canReadDraft` and `canManageDraft` flags. The conversion flag reflects `booking.inquiry.convert`. Draft reads require `booking.draft.read` or `booking.draft.manage`; successor revisions require `booking.draft.manage`. Because a draft has no confirmed `booking_records` row, draft permissions are currently accepted from active organization-scope grants; booking-scoped grants cannot target a draft UUID. The roster endpoint additionally requires `booking.inquiry.assign`, and returns only active same-organization membership IDs and display names. The UI hides unavailable controls, but every write continues to re-check authorization inside the database SECURITY DEFINER command.
 
-The Vue staff workspace now provides a permission-aware inquiry inbox/detail, active-member assignment, review-status transitions, internal-note creation, status/assignment history and an authorized conversion action. Conversion creates a separate draft with immutable revision 1; the original inquiry and encrypted submission remain preserved. The draft revision stores an ECP1 ciphertext wrapper rather than plaintext answers. This action does not issue an offer, reserve resources or confirm a booking. Editable draft revision commands/UI and the booking offer/approval workflow remain outstanding.
+The Vue staff workspace now provides a permission-aware inquiry inbox/detail, active-member assignment, review-status transitions, internal-note creation, status/assignment history, authorized inquiry conversion and a draft editor. The draft projection decrypts values only after its database permission check; revision writes validate against the pinned source-form schema, re-encrypt values with ECP1 and create immutable successor revisions. The database rejects stale revisions and refuses edits while the previous revision has active space/resource holds. Earlier revisions remain unchanged. Offer creation/revisions, customer acceptance/rejection, approval and booking confirmation remain outstanding.
 
 ## Organization-owned SMTP
 
@@ -188,7 +190,7 @@ CI regenerates OpenAPI TypeScript declarations, runs strict TypeScript compilati
 
 ## Remaining integration work
 
-- Implement editable draft projections and successor revisions for the newly converted drafts, then offer revisions/approval, acceptance/rejection and booking confirmation.
+- Implement booking offer creation/revisions, customer acceptance/rejection, approval and explicit booking confirmation with resource rechecks.
 - Expand the staff UI to the remaining event, booking, venue and guest workflows.
 - Implement an SMS provider adapter only when a concrete provider is selected; keep it optional and tenant-configurable.
 - Extend provider-specific status handling only when another concrete provider is selected. Resend's raw-body signature verification, exact Message-ID correlation and delivered/bounced callbacks are implemented. SMTP acceptance alone remains `sent`, not `delivered`.
