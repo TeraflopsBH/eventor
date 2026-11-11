@@ -1229,9 +1229,23 @@ export function buildApi(dependencies: ApiDependencies): FastifyInstance {
       if (!key || key.length !== 32) {
         throw new ApiError(503, "BOOKING_DRAFT_ENCRYPTION_UNAVAILABLE", "Booking draft value encryption is not configured.");
       }
-      assertBoundedAnswerValues(request.body.values);
+      const existingRequested = request.body.values.requested;
+      const requestedValues = existingRequested && typeof existingRequested === "object" &&
+        !Array.isArray(existingRequested)
+        ? existingRequested as Record<string, unknown>
+        : {};
+      const normalizedValues: Record<string, unknown> = {
+        ...request.body.values,
+        requested: {
+          ...requestedValues,
+          startAt: request.body.requestedStart,
+          endAt: request.body.requestedEnd,
+          timezone: request.body.timezone,
+        },
+      };
+      assertBoundedAnswerValues(normalizedValues);
       const valuesCiphertext = encryptContactValue(
-        JSON.stringify(request.body.values),
+        JSON.stringify(normalizedValues),
         key,
         { organizationId: principal.organizationId, contactKind: "other" },
       );
@@ -1255,7 +1269,7 @@ export function buildApi(dependencies: ApiDependencies): FastifyInstance {
             const fieldSchema = (currentRevision as Record<string, unknown>).fieldSchema;
             if (fieldSchema !== null && fieldSchema !== undefined) {
               const values = request.body.values;
-              validatePublicFormAnswers(fieldSchema, values.answers ?? {});
+              validatePublicFormAnswers(fieldSchema, normalizedValues.answers ?? {});
             }
           }
 
