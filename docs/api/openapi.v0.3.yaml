@@ -650,22 +650,18 @@ paths:
     post:
       tags: ["Booking Administration"]
       operationId: createBookingDraftFromInquiry
-      summary: "Create a separate editable draft from an inquiry"
+      summary: "Atomically convert an open inquiry into a separate booking draft"
+      description: "Requires booking.inquiry.convert. Creates a draft and immutable revision 1, stores the original ECP1-encrypted submission in the revision snapshot without decrypting it, marks the source inquiry converted and appends attributed history/audit records. Replays return the existing draft. This operation does not issue an offer, reserve resources or confirm a booking."
       security: [{ StaffSession: [], StaffCsrf: [] }]
       parameters:
         - $ref: '#/components/parameters/PInquiryId'
         - $ref: '#/components/parameters/IdempotencyKey'
-      requestBody:
-        required: true
-        content:
-          application/json:
-            schema: { $ref: '#/components/schemas/CreateBookingDraftRequest' }
       responses:
         '201':
-          description: "Successful response."
+          description: "Draft and initial immutable revision created, or an existing conversion returned."
           content:
             application/json:
-              schema: { $ref: '#/components/schemas/DataEnvelope' }
+              schema: { $ref: '#/components/schemas/BookingInquiryConversionResponse' }
         '400': { $ref: '#/components/responses/BadRequest' }
         '401': { $ref: '#/components/responses/Unauthorized' }
         '403': { $ref: '#/components/responses/Forbidden' }
@@ -4414,11 +4410,28 @@ components:
       properties:
         data:
           type: object
-          required: [canAssign, canManage, canAnnotate]
+          required: [canAssign, canManage, canAnnotate, canConvert]
           properties:
             canAssign: { type: boolean }
             canManage: { type: boolean }
             canAnnotate: { type: boolean }
+            canConvert: { type: boolean }
+          additionalProperties: false
+      additionalProperties: false
+    BookingInquiryConversionResponse:
+      type: object
+      required: [data]
+      properties:
+        data:
+          type: object
+          required: [inquiryId, draftId, revisionId, revisionNumber, status, changed]
+          properties:
+            inquiryId: { type: string, format: uuid }
+            draftId: { type: string, format: uuid }
+            revisionId: { type: string, format: uuid }
+            revisionNumber: { type: integer, const: 1 }
+            status: { type: string, const: converted }
+            changed: { type: boolean, description: False when the inquiry was already converted and the existing draft was returned. }
           additionalProperties: false
       additionalProperties: false
     BookingInquiryAssigneeListResponse:
