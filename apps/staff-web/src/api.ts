@@ -201,6 +201,13 @@ export interface DeliveryAttempt {
   retryScheduled: boolean;
 }
 
+export interface ResendWebhookConfiguration {
+  endpointId: string | null;
+  configured: boolean;
+  callbackUrl: string | null;
+  updatedAt?: string | null;
+}
+
 export interface PageMeta {
   limit: number;
   offset: number;
@@ -220,6 +227,18 @@ export const api = {
     request<Envelope<{ status?: string; messageId?: string }>>("/organization/delivery/email/test", {
       method: "POST", body: { recipient }, idempotent: true,
     }),
+  getResendWebhookConfiguration: () =>
+    request<Envelope<ResendWebhookConfiguration>>("/organization/delivery/email/resend-webhook"),
+  prepareResendWebhook: () =>
+    request<Envelope<{ endpointId: string; enabled: boolean; callbackUrl: string }>>(
+      "/organization/delivery/email/resend-webhook/prepare",
+      { method: "POST", body: {}, idempotent: true },
+    ),
+  activateResendWebhook: (endpointId: string, signingSecret: string) =>
+    request<Envelope<{ endpointId: string; enabled: boolean; updatedAt: string }>>(
+      "/organization/delivery/email/resend-webhook/activate",
+      { method: "POST", body: { endpointId, signingSecret }, idempotent: true },
+    ),
   getCampaigns: (options: { status?: string; limit?: number; offset?: number } = {}) => {
     const query = new URLSearchParams();
     if (options.status) query.set("status", options.status);
