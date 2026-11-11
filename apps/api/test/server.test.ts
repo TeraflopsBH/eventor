@@ -41,6 +41,7 @@ function makePool() {
   let resendWebhookActivateCalls = 0;
   let resendWebhookResolveCalls = 0;
   let resendWebhookRecordCalls = 0;
+  let publicBookingFormCalls = 0;
   const deliveryTests = new Map<string, string>();
 
   const client = {
@@ -50,6 +51,23 @@ function makePool() {
         return { rows: [], rowCount: 0 };
       }
       if (normalized.startsWith("SELECT set_config(")) return { rows: [], rowCount: 1 };
+      if (normalized.includes("eogp.get_published_public_booking_form(")) {
+        publicBookingFormCalls += 1;
+        commandCalls.push({ sql: normalized, values });
+        return { rows: [{ result: {
+          organizationId: "11111111-1111-4111-8111-111111111111",
+          organizationSlug: values[0],
+          organizationName: "GHB",
+          defaultTimezone: "Europe/Sarajevo",
+          formCode: values[1],
+          formName: "Venue rental inquiry",
+          formRevisionId: "12121212-1212-4121-8121-121212121212",
+          revisionNumber: 3,
+          locale: "bs-BA",
+          fieldSchema: { fields: [{ code: "event_date", type: "date", required: true }] },
+          publishedAt: "2026-11-11T12:00:00.000Z",
+        } }], rowCount: 1 };
+      }
       if (normalized.startsWith("DELETE FROM eogp.idempotency_records")) {
         return { rows: [], rowCount: 0 };
       }
@@ -309,6 +327,7 @@ function makePool() {
     get resendWebhookActivateCalls() { return resendWebhookActivateCalls; },
     get resendWebhookResolveCalls() { return resendWebhookResolveCalls; },
     get resendWebhookRecordCalls() { return resendWebhookRecordCalls; },
+    get publicBookingFormCalls() { return publicBookingFormCalls; },
   };
 }
 
@@ -345,6 +364,46 @@ function makeApi(
     ...(options.smtpTransportFactory ? { smtpTransportFactory: options.smtpTransportFactory } : {}),
   });
 }
+
+test("published booking form is the only anonymous application read and is tenant-resolved by its public slug", async (t) => {
+  const mock = makePool();
+  const app = makeApi(mock.pool, { authenticated: false });
+  t.after(async () => app.close());
+
+  const response = await app.inject({
+    method: "GET",
+    url: "/public/organizations/ghb/booking-forms/venue-rental",
+  });
+  assert.equal(response.statusCode, 200);
+  assert.equal(response.headers["cache-control"], "public, max-age=60");
+  const payload = response.json<{
+    data: {
+      organizationId: string;
+      organizationSlug: string;
+      formCode: string;
+      formRevisionId: string;
+      fieldSchema: { fields: Array<{ code: string }> };
+    };
+  }>();
+  assert.equal(payload.data.organizationSlug, "ghb");
+  assert.equal(payload.data.formCode, "venue-rental");
+  assert.equal(payload.data.formRevisionId, "12121212-1212-4121-8121-121212121212");
+  assert.equal(payload.data.fieldSchema.fields[0]?.code, "event_date");
+  assert.equal(mock.publicBookingFormCalls, 1);
+  assert.equal(mock.commandCalls[0]?.values[0], "ghb");
+  assert.equal(mock.commandCalls[0]?.values[1], "venue-rental");
+
+  const staffProjection = await app.inject({ method: "GET", url: "/me" });
+  assert.equal(staffProjection.statusCode, 401);
+  const anonymousInquiryWrite = await app.inject({
+    method: "POST",
+    url: "/public/organizations/ghb/booking-inquiries",
+    headers: { "idempotency-key": "anonymous-inquiry-0001" },
+    payload: {},
+  });
+  assert.equal(anonymousInquiryWrite.statusCode, 401);
+  assert.equal(mock.publicBookingFormCalls, 1);
+});
 
 test("reservation release delegates exact selected IDs to the permission-gated database command and replays idempotently", async (t) => {
   const mock = makePool();
