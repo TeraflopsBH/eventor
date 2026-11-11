@@ -1,0 +1,22 @@
+{
+  "name": "@eventor/staff-web",
+  "version": "0.3.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "typecheck": "vue-tsc --noEmit -p tsconfig.json",
+    "build": "vue-tsc --noEmit -p tsconfig.json && vite build",
+    "dev": "vite --host 0.0.0.0",
+    "preview": "vite preview --host 0.0.0.0"
+  },
+  "dependencies": {
+    "vue": "3.5.25"
+  },
+  "devDependencies": {
+    "@types/node": "22.15.30",
+    "@vitejs/plugin-vue": "6.0.2",
+    "typescript": "5.9.3",
+    "vite": "7.2.2",
+    "vue-tsc": "3.1.4"
+  }
+}
