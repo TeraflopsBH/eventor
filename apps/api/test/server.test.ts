@@ -82,7 +82,11 @@ function makePool() {
       if (normalized.includes("eogp.get_published_public_booking_form(") || normalized.includes("eogp.get_public_booking_form_revision(")) {
         publicBookingFormCalls += 1;
         commandCalls.push({ sql: normalized, values });
-        return { rows: [{ result: {
+        const isExactRevisionLookup = normalized.includes("eogp.get_public_booking_form_revision(");
+        const formExists = values[1] === "venue-rental";
+        const revisionMatches = !isExactRevisionLookup ||
+          values[2] === "12121212-1212-4121-8121-121212121212";
+        const result = formExists && revisionMatches ? {
           organizationId: "11111111-1111-4111-8111-111111111111",
           organizationSlug: values[0],
           organizationName: "GHB",
@@ -98,7 +102,8 @@ function makePool() {
             { code: "estimated_guests", type: "number", required: true, integer: true, min: 1, max: 5000 },
           ] },
           publishedAt: "2026-11-11T12:00:00.000Z",
-        } }], rowCount: 1 };
+        } : null;
+        return { rows: [{ result }], rowCount: 1 };
       }
       if (normalized.includes("eogp.submit_public_booking_inquiry(")) {
         publicBookingInquiryCalls += 1;
@@ -590,6 +595,25 @@ test("public booking intake exposes only published forms and stores anonymous in
     assert.equal(invalid.statusCode, 422);
     assert.equal(invalid.json<{ code: string }>().code, "PUBLIC_FORM_ANSWERS_INVALID");
   }
+  assert.equal(mock.publicBookingInquiryCalls, 1);
+
+  const staleRevision = await app.inject({
+    method: "POST",
+    url: "/public/organizations/ghb/booking-inquiries",
+    headers: { "idempotency-key": "anonymous-inquiry-stale-01" },
+    payload: { ...inquiryBody, formRevisionId: "99999999-9999-4999-8999-999999999999" },
+  });
+  assert.equal(staleRevision.statusCode, 409);
+  assert.equal(staleRevision.json<{ code: string }>().code, "PUBLIC_FORM_REVISION_UNAVAILABLE");
+
+  const missingForm = await app.inject({
+    method: "POST",
+    url: "/public/organizations/ghb/booking-inquiries",
+    headers: { "idempotency-key": "anonymous-inquiry-missing-01" },
+    payload: { ...inquiryBody, formCode: "unknown-form" },
+  });
+  assert.equal(missingForm.statusCode, 404);
+  assert.equal(missingForm.json<{ code: string }>().code, "PUBLIC_BOOKING_FORM_NOT_FOUND");
   assert.equal(mock.publicBookingInquiryCalls, 1);
 
   const submissionCall = mock.commandCalls.find((call) => call.sql.includes("eogp.submit_public_booking_inquiry("));
