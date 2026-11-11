@@ -6,7 +6,7 @@ Eventor is a self-hosted, API-first platform that can be used for venue booking/
 
 The first reference deployment is planned for **Gazi Husrev-beg's Library (GHB), Sarajevo**. The product is being designed as a reusable organization- and venue-aware platform rather than a one-off GHB application.
 
-> **Project status:** accepted design baseline; 39 PostgreSQL migrations targeting 18.6, canonical OpenAPI v0.3, Fastify staff API/worker and the first Vue 3 staff-web slice are implemented and CI-validated on draft PR #27. The full booking/event application, remaining API operations and production deployment are not yet complete.
+> **Project status:** accepted design baseline; 39 PostgreSQL 18 migrations, the canonical OpenAPI v0.3 contract, a Fastify staff API/notification-worker foundation and the first Vue 3 staff-web slice are present on draft PR #27. The latest fully green three-job CI run (#43027314682) covered an earlier PR #27 head (`8c19c51…`) and predates migration 000039. Runs for the current head (`fc07e54…`) failed before recording any job steps; their logs are unavailable, so the current head is not yet CI-validated. The venue-booking application and production deployment remain incomplete.
 
 ## Product goals
 
@@ -48,7 +48,7 @@ Directories will be introduced as their corresponding implementation work begins
 
 ## Development status
 
-The accepted design baseline now has 38 ordered PostgreSQL migrations, a canonical OpenAPI v0.3 contract, a Fastify API/worker foundation and an initial Vue staff workspace. These are under review on draft PR #27; no production database deployment has been established, and the full booking/event product remains incomplete.
+The accepted design baseline now has 39 ordered PostgreSQL migrations, a canonical OpenAPI v0.3 contract, a Fastify staff API plus notification workers, and an initial Vue staff workspace for authentication, organization SMTP configuration and notification campaigns. These changes are under review on draft PR #27. The latest fully green three-job CI run (#43027314682) predates migration 000039; the current PR head has not yet received a successful end-to-end validation. No production database deployment has been established, and the venue-booking workflow remains the next major application slice.
 
 ## Security and data handling
 
