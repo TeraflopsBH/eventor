@@ -47,7 +47,7 @@ BEGIN
 
   IF v_result ->> 'status' <> 'confirmed'
      OR (v_result ->> 'deliveryQueued')::boolean IS DISTINCT FROM false
-     OR (v_result ->> 'recipientCount')::integer <> 2 THEN
+     OR (v_result ->> 'recipientCount')::integer <> 3 THEN
     RAISE EXCEPTION 'campaign confirmation returned an unexpected result: %', v_result;
   END IF;
 
