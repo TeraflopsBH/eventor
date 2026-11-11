@@ -51,6 +51,9 @@ interface DeliveryCompletionRow extends QueryResultRow {
     campaignStatus: string;
   };
 }
+interface ResendMessageReferenceRow extends QueryResultRow {
+  reference: string;
+}
 
 export interface NotificationWorkerTotals {
   readonly tenantsVisited: number;
@@ -275,7 +278,7 @@ export async function processPendingEmailDeliveries(
           const prepared = await inTenantTransaction(
             pool,
             tenant.organization_id,
-            async (client) => client.query<{ reference: string }>(
+            async (client) => client.query<ResendMessageReferenceRow>(
               "SELECT eogp.prepare_resend_delivery_submission($1::uuid,$2::uuid) AS reference",
               [tenant.organization_id, job.attempt_id],
             ),
