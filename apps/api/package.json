@@ -14,12 +14,14 @@
   "dependencies": {
     "fastify": "5.12.8",
     "pg": "8.23.1",
-    "argon2": "0.45.2"
+    "argon2": "0.45.2",
+    "nodemailer": "7.0.10"
   },
   "devDependencies": {
     "@types/node": "22.15.30",
     "@types/pg": "8.15.5",
     "openapi-typescript": "7.13.0",
-    "typescript": "5.9.3"
+    "typescript": "5.9.3",
+    "@types/nodemailer": "7.0.4"
   }
 }
