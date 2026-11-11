@@ -73,6 +73,50 @@ BEGIN
     RAISE EXCEPTION 'cross-tenant campaign list unexpectedly succeeded';
   EXCEPTION WHEN insufficient_privilege THEN NULL;
   END;
+
+  -- The worker smoke leaves one attempt uncertain. Resolve it only after an
+  -- explicit operator decision, then authorize a separate retry.
+  DECLARE
+    v_uncertain_attempt_id uuid;
+    v_reconcile jsonb;
+    v_retry jsonb;
+  BEGIN
+    SELECT attempt.id INTO v_uncertain_attempt_id
+      FROM eogp.event_notification_delivery_attempts attempt
+      LEFT JOIN LATERAL (
+        SELECT status FROM eogp.event_notification_delivery_attempt_events
+         WHERE organization_id=attempt.organization_id AND attempt_id=attempt.id
+         ORDER BY created_at DESC,id DESC LIMIT 1
+      ) latest ON true
+     WHERE attempt.organization_id='22222222-2222-4222-8222-222222222222'
+       AND attempt.campaign_id=v_campaign_id
+       AND coalesce(latest.status,attempt.status)='uncertain'
+     LIMIT 1;
+    IF v_uncertain_attempt_id IS NULL THEN
+      RAISE EXCEPTION 'uncertain attempt fixture is missing';
+    END IF;
+    v_reconcile:=eogp.reconcile_notification_delivery_attempt(
+      '22222222-2222-4222-8222-222222222222',
+      v_uncertain_attempt_id,
+      'bbbbbbbb-2222-4222-8222-bbbbbbbbbbbb',
+      'confirmed_not_sent',
+      'CI operator verified the remote SMTP server did not accept the message.'
+    );
+    IF v_reconcile->>'status'<>'failed'
+       OR v_reconcile->>'previousStatus'<>'uncertain' THEN
+      RAISE EXCEPTION 'operator reconciliation returned an unexpected result: %',v_reconcile;
+    END IF;
+    v_retry:=eogp.retry_failed_notification_delivery_attempt(
+      '22222222-2222-4222-8222-222222222222',
+      v_uncertain_attempt_id,
+      'bbbbbbbb-2222-4222-8222-bbbbbbbbbbbb',
+      'CI explicitly authorizes a new attempt after confirming non-acceptance.'
+    );
+    IF v_retry->>'status'<>'queued'
+       OR (v_retry->>'attemptNumber')::integer<>2 THEN
+      RAISE EXCEPTION 'operator retry was not created as a distinct attempt: %',v_retry;
+    END IF;
+  END;
 END;
 $reporting$;
 COMMIT;
