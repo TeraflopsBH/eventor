@@ -4,6 +4,7 @@ import test from "node:test";
 import type { Pool, PoolClient } from "pg";
 import { buildApi, type StaffPrincipal } from "../src/server.js";
 import { encryptDeliveryCredentialBundle } from "../src/delivery-credentials-crypto.js";
+import { decryptContactValue } from "../src/contact-crypto.js";
 import type { SmtpTransportFactory } from "../src/smtp-transport.js";
 
 const resendWebhookSigningSecret = `whsec_${Buffer.from("eventor-resend-webhook-test-secret-32-bytes").toString("base64")}`;
@@ -42,6 +43,7 @@ function makePool() {
   let resendWebhookResolveCalls = 0;
   let resendWebhookRecordCalls = 0;
   let publicBookingFormCalls = 0;
+  let publicBookingInquiryCalls = 0;
   const deliveryTests = new Map<string, string>();
 
   const client = {
@@ -66,6 +68,16 @@ function makePool() {
           locale: "bs-BA",
           fieldSchema: { fields: [{ code: "event_date", type: "date", required: true }] },
           publishedAt: "2026-11-11T12:00:00.000Z",
+        } }], rowCount: 1 };
+      }
+      if (normalized.includes("eogp.submit_public_booking_inquiry(")) {
+        publicBookingInquiryCalls += 1;
+        commandCalls.push({ sql: normalized, values });
+        return { rows: [{ result: {
+          inquiryId: "13131313-1313-4131-8131-131313131313",
+          publicReference: "INQ-AB12CD34EF56AB78",
+          status: "received",
+          replayed: false,
         } }], rowCount: 1 };
       }
       if (normalized.startsWith("DELETE FROM eogp.idempotency_records")) {
@@ -328,6 +340,7 @@ function makePool() {
     get resendWebhookResolveCalls() { return resendWebhookResolveCalls; },
     get resendWebhookRecordCalls() { return resendWebhookRecordCalls; },
     get publicBookingFormCalls() { return publicBookingFormCalls; },
+    get publicBookingInquiryCalls() { return publicBookingInquiryCalls; },
   };
 }
 
@@ -341,6 +354,8 @@ function makeApi(
     withSessionCallbacks?: boolean;
     smtpTransportFactory?: SmtpTransportFactory;
     publicApiBaseUrl?: string;
+    contactEncryptionKey?: Buffer;
+    publicInquiryFingerprintKey?: Buffer;
   } = {},
 ) {
   return buildApi({
@@ -359,24 +374,27 @@ function makeApi(
       getCurrentPrincipal: async () => ({ ...principal, memberships: [] }),
     } : {}),
     privateFieldEncryptionKey: options.encryptionKey ?? Buffer.alloc(32, 7),
+    contactEncryptionKey: options.contactEncryptionKey ?? Buffer.alloc(32, 10),
+    publicInquiryFingerprintKey: options.publicInquiryFingerprintKey ?? Buffer.alloc(32, 11),
     deliveryCredentialsEncryptionKey: Buffer.alloc(32, 9),
     publicApiBaseUrl: options.publicApiBaseUrl ?? "https://eventor.example.test/api",
     ...(options.smtpTransportFactory ? { smtpTransportFactory: options.smtpTransportFactory } : {}),
   });
 }
 
-test("published booking form is the only anonymous application read and is tenant-resolved by its public slug", async (t) => {
+test("public booking intake exposes only published forms and stores anonymous inquiries encrypted and idempotently", async (t) => {
   const mock = makePool();
-  const app = makeApi(mock.pool, { authenticated: false });
+  const contactKey = Buffer.alloc(32, 10);
+  const app = makeApi(mock.pool, { authenticated: false, contactEncryptionKey: contactKey });
   t.after(async () => app.close());
 
-  const response = await app.inject({
+  const formResponse = await app.inject({
     method: "GET",
     url: "/public/organizations/ghb/booking-forms/venue-rental",
   });
-  assert.equal(response.statusCode, 200);
-  assert.equal(response.headers["cache-control"], "public, max-age=60");
-  const payload = response.json<{
+  assert.equal(formResponse.statusCode, 200);
+  assert.equal(formResponse.headers["cache-control"], "public, max-age=60");
+  const form = formResponse.json<{
     data: {
       organizationId: string;
       organizationSlug: string;
@@ -384,25 +402,113 @@ test("published booking form is the only anonymous application read and is tenan
       formRevisionId: string;
       fieldSchema: { fields: Array<{ code: string }> };
     };
-  }>();
-  assert.equal(payload.data.organizationSlug, "ghb");
-  assert.equal(payload.data.formCode, "venue-rental");
-  assert.equal(payload.data.formRevisionId, "12121212-1212-4121-8121-121212121212");
-  assert.equal(payload.data.fieldSchema.fields[0]?.code, "event_date");
-  assert.equal(mock.publicBookingFormCalls, 1);
-  assert.equal(mock.commandCalls[0]?.values[0], "ghb");
-  assert.equal(mock.commandCalls[0]?.values[1], "venue-rental");
+  }>().data;
+  assert.equal(form.organizationSlug, "ghb");
+  assert.equal(form.formCode, "venue-rental");
+  assert.equal(form.formRevisionId, "12121212-1212-4121-8121-121212121212");
+  assert.equal(form.fieldSchema.fields[0]?.code, "event_date");
 
-  const staffProjection = await app.inject({ method: "GET", url: "/me" });
-  assert.equal(staffProjection.statusCode, 401);
-  const anonymousInquiryWrite = await app.inject({
+  const inquiryBody = {
+    formCode: "venue-rental",
+    formRevisionId: form.formRevisionId,
+    requester: {
+      displayName: "Jane Example",
+      email: "jane@example.test",
+      phone: "+38761123456",
+    },
+    requested: {
+      startAt: "2027-01-18T10:00:00+01:00",
+      endAt: "2027-01-18T13:00:00+01:00",
+      timezone: "Europe/Sarajevo",
+      spaceCodes: ["MAIN-HALL"],
+    },
+    answers: {
+      event_date: "2027-01-18",
+      event_name: "Annual meeting",
+      estimated_guests: 120,
+    },
+  };
+  const submit = await app.inject({
     method: "POST",
     url: "/public/organizations/ghb/booking-inquiries",
     headers: { "idempotency-key": "anonymous-inquiry-0001" },
-    payload: {},
+    payload: inquiryBody,
   });
-  assert.equal(anonymousInquiryWrite.statusCode, 401);
-  assert.equal(mock.publicBookingFormCalls, 1);
+  assert.equal(submit.statusCode, 201);
+  assert.equal(submit.headers["cache-control"], "no-store");
+  const submitData = submit.json<{ data: { inquiryId: string; publicReference: string; status: string; replayed: boolean } }>().data;
+  assert.equal(submitData.inquiryId, "13131313-1313-4131-8131-131313131313");
+  assert.equal(submitData.publicReference, "INQ-AB12CD34EF56AB78");
+  assert.equal(submitData.status, "received");
+  assert.equal(submitData.replayed, false);
+  assert.equal(mock.publicBookingFormCalls, 2);
+  assert.equal(mock.publicBookingInquiryCalls, 1);
+
+  const submissionCall = mock.commandCalls.find((call) => call.sql.includes("eogp.submit_public_booking_inquiry("));
+  assert.ok(submissionCall);
+  assert.equal(submissionCall.values[0], "ghb");
+  assert.equal(submissionCall.values[1], "venue-rental");
+  assert.equal(submissionCall.values[2], form.formRevisionId);
+  assert.match(String(submissionCall.values[3]), /^[0-9a-f]{64}$/);
+  assert.match(String(submissionCall.values[4]), /^[0-9a-f]{64}$/);
+  assert.match(String(submissionCall.values[5]), /^[0-9a-f]{64}$/);
+  assert.ok(Buffer.isBuffer(submissionCall.values[6]));
+  assert.ok(Buffer.isBuffer(submissionCall.values[7]));
+  assert.ok(Buffer.isBuffer(submissionCall.values[9]));
+  assert.ok(Buffer.isBuffer(submissionCall.values[11]));
+  assert.notEqual(submissionCall.values[8], "jane@example.test");
+  assert.notEqual(submissionCall.values[10], "+38761123456");
+  assert.equal(
+    decryptContactValue(submissionCall.values[7] as Buffer, contactKey, {
+      organizationId: form.organizationId,
+      contactKind: "other",
+    }),
+    "Jane Example",
+  );
+  assert.equal(
+    decryptContactValue(submissionCall.values[9] as Buffer, contactKey, {
+      organizationId: form.organizationId,
+      contactKind: "email",
+    }),
+    "jane@example.test",
+  );
+  assert.equal(
+    decryptContactValue(submissionCall.values[11] as Buffer, contactKey, {
+      organizationId: form.organizationId,
+      contactKind: "phone",
+    }),
+    "+38761123456",
+  );
+  const encryptedSubmission = JSON.parse(
+    decryptContactValue(submissionCall.values[6] as Buffer, contactKey, {
+      organizationId: form.organizationId,
+      contactKind: "other",
+    }),
+  ) as { answers: Record<string, unknown>; requested: { spaceCodes: string[] } };
+  assert.equal(encryptedSubmission.answers.event_name, "Annual meeting");
+  assert.deepEqual(encryptedSubmission.requested.spaceCodes, ["MAIN-HALL"]);
+  assert.ok(!submissionCall.values.includes("Jane Example"));
+  assert.ok(!submissionCall.values.includes("jane@example.test"));
+  assert.ok(!submissionCall.values.includes("+38761123456"));
+
+  const unsupportedAttachment = await app.inject({
+    method: "POST",
+    url: "/public/organizations/ghb/booking-inquiries",
+    headers: { "idempotency-key": "anonymous-inquiry-0002" },
+    payload: { ...inquiryBody, attachmentReferences: ["upload-token-1"] },
+  });
+  assert.equal(unsupportedAttachment.statusCode, 422);
+  assert.equal(mock.publicBookingInquiryCalls, 1);
+
+  const staffProjection = await app.inject({ method: "GET", url: "/me" });
+  assert.equal(staffProjection.statusCode, 401);
+  const nonAllowListedPublicPath = await app.inject({
+    method: "POST",
+    url: "/public/organizations/ghb/booking-inquiries/extra",
+    payload: inquiryBody,
+  });
+  assert.equal(nonAllowListedPublicPath.statusCode, 401);
+  assert.equal(mock.publicBookingInquiryCalls, 1);
 });
 
 test("reservation release delegates exact selected IDs to the permission-gated database command and replays idempotently", async (t) => {
