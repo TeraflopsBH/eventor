@@ -341,7 +341,7 @@ $function$;
 REVOKE ALL ON FUNCTION eogp.record_verified_notification_provider_event(uuid,text,text,uuid,text,text,text) FROM PUBLIC;
 REVOKE ALL ON FUNCTION eogp.reconcile_notification_delivery_attempt(uuid,uuid,uuid,text,text) FROM PUBLIC;
 REVOKE ALL ON FUNCTION eogp.retry_failed_notification_delivery_attempt(uuid,uuid,uuid,text) FROM PUBLIC;
-GRANT EXECUTE ON FUNCTION eogp.record_verified_notification_provider_event(uuid,text,text,uuid,text,text)
+GRANT EXECUTE ON FUNCTION eogp.record_verified_notification_provider_event(uuid,text,text,uuid,text,text,text)
   TO eventor_worker;
 GRANT EXECUTE ON FUNCTION eogp.reconcile_notification_delivery_attempt(uuid,uuid,uuid,text,text),
   eogp.retry_failed_notification_delivery_attempt(uuid,uuid,uuid,text)
