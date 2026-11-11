@@ -39,7 +39,8 @@ export interface ApiDependencies {
   readonly revokeStaffSession?: (principal: StaffPrincipal) => Promise<void>;
   readonly getCurrentPrincipal?: (principal: StaffPrincipal) => Promise<Record<string, unknown>>;
   readonly privateFieldEncryptionKey?: Buffer;
-  readonly deliveryCredentialsEncryptionKey?: Buffer;\n  readonly smtpTransportFactory?: SmtpTransportFactory;
+  readonly deliveryCredentialsEncryptionKey?: Buffer;
+  readonly smtpTransportFactory?: SmtpTransportFactory;
   readonly trustedProxyAddresses?: readonly string[];
 }
 
