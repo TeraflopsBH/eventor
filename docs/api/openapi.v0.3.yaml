@@ -153,6 +153,46 @@ paths:
         '422': { $ref: '#/components/responses/UnprocessableEntity' }
         '429': { $ref: '#/components/responses/TooManyRequests' }
         '500': { $ref: '#/components/responses/InternalServerError' }
+  "/organization/delivery/email/test":
+    post:
+      tags: ["Organization Delivery"]
+      operationId: testOrganizationEmailDelivery
+      summary: "Send an explicitly requested SMTP test email"
+      description: "Requires organization.delivery.manage and an idempotency key. Verifies the configured SMTP connection and sends a test message only to the supplied address. A successful test enables the current SMTP configuration revision for campaign queueing. Replaying the same key never sends a second test message."
+      security: [{ StaffSession: [], StaffCsrf: [] }]
+      parameters:
+        - $ref: '#/components/parameters/IdempotencyKey'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [recipient]
+              additionalProperties: false
+              properties:
+                recipient: { type: string, format: email, maxLength: 320 }
+      responses:
+        '200':
+          description: "SMTP test message accepted and current configuration enabled."
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/DataEnvelope' }
+        '202':
+          description: "The idempotent SMTP test request is already pending."
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/DataEnvelope' }
+        '400': { $ref: '#/components/responses/BadRequest' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '409': { $ref: '#/components/responses/Conflict' }
+        '502':
+          description: "SMTP verification or test message delivery failed."
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/DataEnvelope' }
+        '500': { $ref: '#/components/responses/InternalServerError' }
   "/organization/delivery/email/configuration":
     get:
       tags: ["Organization Delivery"]
@@ -1374,6 +1414,32 @@ paths:
         '401': { $ref: '#/components/responses/Unauthorized' }
         '403': { $ref: '#/components/responses/Forbidden' }
         '404': { $ref: '#/components/responses/NotFound' }
+        '409': { $ref: '#/components/responses/Conflict' }
+        '422': { $ref: '#/components/responses/UnprocessableEntity' }
+        '500': { $ref: '#/components/responses/InternalServerError' }
+  "/event-notification-campaigns/{campaignId}/queue":
+    post:
+      tags: ["Event Notifications"]
+      operationId: queueEventNotificationCampaign
+      summary: "Queue an explicitly confirmed campaign for SMTP delivery"
+      description: "Requires event.notifications.send. The organization must have completed an SMTP test email for its current configuration. This is the explicit action that authorizes actual campaign delivery. SMS recipients are suppressed until an SMS provider is configured."
+      security: [{ StaffSession: [], StaffCsrf: [] }]
+      parameters:
+        - $ref: '#/components/parameters/PCampaignId'
+        - $ref: '#/components/parameters/IdempotencyKey'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { type: object, additionalProperties: false }
+      responses:
+        '201':
+          description: "Campaign queued for email delivery."
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/DataEnvelope' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/Forbidden' }
         '409': { $ref: '#/components/responses/Conflict' }
         '422': { $ref: '#/components/responses/UnprocessableEntity' }
         '500': { $ref: '#/components/responses/InternalServerError' }
