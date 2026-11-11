@@ -354,3 +354,88 @@ test("Resend delivery prepares a stable Message-ID before SMTP and keeps it when
   assert.equal(completionValues[4], stableReference);
   assert.ok(statements.some((sql) => sql.includes("prepare_resend_delivery_submission")));
 });
+
+
+test("uncertain Resend DATA outcome retains the pre-submission Message-ID for callback reconciliation", async () => {
+  const organizationId = "22222222-2222-4222-8222-222222222222";
+  const contactKey = Buffer.alloc(32, 0x73);
+  const deliveryKey = Buffer.alloc(32, 0x74);
+  const attemptId = "dddddddd-dddd-4ddd-8ddd-dddddddddddd";
+  const stableReference = "<eventor-dddddddddddd4ddd8dddddddddddddd@delivery.eventor.invalid>";
+  const job = {
+    attempt_id: attemptId,
+    campaign_id: "bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb",
+    recipient_id: "cccccccc-cccc-4ccc-8ccc-cccccccccccc",
+    destination_ciphertext: encryptContactValue("guest@example.test", contactKey, {
+      organizationId, contactKind: "email",
+    }),
+    credentials_ciphertext: encryptDeliveryCredentials({
+      username: "resend", password: "resend-api-key-not-real",
+    }, deliveryKey, { organizationId, channel: "email" }),
+    smtp_settings: {
+      host: "smtp.resend.com", port: 587, transportSecurity: "starttls",
+      authMode: "password", senderEmail: "events@example.test",
+      senderName: "Eventor", connectionTimeoutMs: 15000,
+    },
+    sender_email: "events@example.test", sender_name: "Eventor", reply_to: null,
+    subject_template: "Update: {{event.title}}", body_template: "Hello",
+    event_title: "Event", event_code: "EV-1", event_status: "cancelled",
+    decision_kind: "cancelled", campaign_purpose: "event_cancellation",
+    starts_at: null, ends_at: null, timezone_name: "Europe/Sarajevo",
+  };
+  let claimCount = 0;
+  let completionValues: unknown[] = [];
+  let messageIdSent: string | undefined;
+  let preparedCount = 0;
+  const pool = {
+    async query() {
+      return { rows: [{ organization_id: organizationId }], rowCount: 1 };
+    },
+    async connect() {
+      return {
+        async query(sql: string, values: unknown[] = []) {
+          const normalized = sql.replace(/\\s+/g, " ").trim();
+          if (normalized === "BEGIN" || normalized === "COMMIT" || normalized === "ROLLBACK") {
+            return { rows: [], rowCount: 0 };
+          }
+          if (normalized.startsWith("SELECT set_config(")) return { rows: [], rowCount: 1 };
+          if (normalized.startsWith("SELECT * FROM eogp.claim_next_email_delivery")) {
+            claimCount += 1;
+            return claimCount === 1 ? { rows: [job], rowCount: 1 } : { rows: [], rowCount: 0 };
+          }
+          if (normalized.includes("eogp.prepare_resend_delivery_submission(")) {
+            preparedCount += 1;
+            return { rows: [{ reference: stableReference }], rowCount: 1 };
+          }
+          if (normalized.includes("eogp.complete_email_delivery_attempt(")) {
+            completionValues = values;
+            return { rows: [{ result: {
+              outcome: "uncertain", retryScheduled: false, campaignStatus: "partial",
+            } }], rowCount: 1 };
+          }
+          throw new Error("Unexpected SQL: " + normalized);
+        },
+        release() {},
+      } as unknown as PoolClient;
+    },
+  } as unknown as Pool;
+
+  const factory: SmtpTransportFactory = () => ({
+    async verify() { return true; },
+    async sendMail(message) {
+      messageIdSent = message.messageId;
+      throw Object.assign(new Error("connection lost during SMTP DATA"), { command: "DATA" });
+    },
+    close() {},
+  });
+
+  const result = await processPendingEmailDeliveries(
+    pool, contactKey, deliveryKey, 5, 10, factory,
+  );
+  assert.equal(result.emailAttempts, 1);
+  assert.equal(result.emailUncertain, 1);
+  assert.equal(preparedCount, 1);
+  assert.equal(messageIdSent, stableReference);
+  assert.equal(completionValues[2], "uncertain");
+  assert.equal(completionValues[4], stableReference);
+});
