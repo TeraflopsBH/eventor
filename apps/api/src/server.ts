@@ -83,6 +83,7 @@ interface CommandResponse {
 type Command = (client: PoolClient) => Promise<Record<string, unknown>>;
 
 interface PublicBookingInquiryBody {
+  readonly formCode: string;
   readonly formRevisionId: string;
   readonly requester: {
     readonly displayName: string;
@@ -147,8 +148,9 @@ const publicBookingInquiryHeaders = {
 } as const;
 const publicBookingInquiryBody = {
   type: "object",
-  required: ["formRevisionId", "requester", "requested", "answers"],
+  required: ["formCode", "formRevisionId", "requester", "requested", "answers"],
   properties: {
+    formCode: { type: "string", minLength: 2, maxLength: 80, pattern: "^[A-Za-z0-9][A-Za-z0-9_-]*$" },
     formRevisionId: { type: "string", pattern: uuidPattern },
     requester: {
       type: "object",
@@ -661,7 +663,7 @@ export function buildApi(dependencies: ApiDependencies): FastifyInstance {
       try {
         const formResult = await client.query<ResultRow>(
           "SELECT eogp.get_published_public_booking_form($1::text,$2::text) AS result",
-          [request.params.organizationSlug, "venue-rental"],
+          [request.params.organizationSlug, body.formCode],
         );
         const form = formResult.rows[0]?.result;
         if (!form || typeof form !== "object" || Array.isArray(form)) {
@@ -722,7 +724,7 @@ export function buildApi(dependencies: ApiDependencies): FastifyInstance {
           "SELECT eogp.submit_public_booking_inquiry($1::text,$2::text,$3::uuid,$4::text,$5::text,$6::text,$7::bytea,$8::bytea,$9::text,$10::bytea,$11::text,$12::bytea,$13::timestamptz,$14::timestamptz,$15::text) AS result",
           [
             request.params.organizationSlug,
-            typeof formProjection.formCode === "string" ? formProjection.formCode : "venue-rental",
+            body.formCode,
             body.formRevisionId,
             sourceFingerprint,
             keyFingerprint,
