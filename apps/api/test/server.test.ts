@@ -256,6 +256,7 @@ function makePool() {
           assignedToMembershipId: "cccccccc-2222-4222-8222-cccccccccccc",
           submittedAt: "2026-11-11T12:00:00.000Z",
           updatedAt: "2026-11-11T12:15:00.000Z",
+          bookingDraft: null,
           annotations: [{
             annotationId: "15151515-1515-4151-8151-151515151515",
             annotation: "Call to confirm setup access.",
