@@ -22,6 +22,10 @@ This package contains the first deployable command API and a separate tenant-awa
 - `GET /organization/delivery/email/configuration` — read safe SMTP settings and credential/test status; never returns credentials.
 - `POST /organization/delivery/email/configuration` — create a new immutable SMTP configuration revision. Credentials are write-only.
 - `POST /organization/delivery/email/test` — verify the current SMTP connection and send one explicitly requested test message to the supplied address. A successful test enables that exact configuration revision.
+- `GET /organization/delivery/email/resend-webhook` — read the safe Resend callback endpoint status and public URL; never returns the signing secret.
+- `POST /organization/delivery/email/resend-webhook/prepare` — prepare or replace the organization's Resend callback endpoint URL.
+- `POST /organization/delivery/email/resend-webhook/activate` — encrypt and activate the Resend Svix signing secret.
+- `POST /webhooks/resend/{endpointId}` — public, signed callback endpoint; staff session authentication is not used. Raw-body Svix verification is mandatory.
 
 All mutating staff routes require an idempotency key, an authenticated session, an allow-listed browser Origin and a valid CSRF token. Database commands enforce tenant and permission checks.
 
@@ -43,11 +47,25 @@ SMTP is a network egress capability. Production deployments must apply outbound 
 
 A queued campaign continues to use the exact SMTP revision pinned when it was queued. Updating the organization's current SMTP settings affects future queue actions, not already authorized campaigns. A queued campaign can be cancelled only before the worker claims its first attempt. Once sending has started, cancellation is rejected; already accepted or uncertain SMTP messages cannot be recalled.
 
+## Resend SMTP and signed delivery callbacks
+
+Resend is an optional provider adapter; it does not replace organization-owned SMTP. Configure the email host as `smtp.resend.com`, port `587` with STARTTLS (or port `465` with implicit TLS), authentication mode `password`, username `resend`, and the organization's Resend API key as the SMTP password. Eventor continues sending through Nodemailer.
+
+The staff Email Delivery panel provides a two-step callback setup:
+1. Prepare the callback URL in Eventor. Configure that exact URL as a webhook in the Resend dashboard, selecting only `email.delivered` and `email.bounced`.
+2. Copy the webhook's `whsec_` signing secret from Resend into Eventor and activate it. The secret is encrypted with the delivery-credential key and is never returned by the API.
+
+Set `EVENTOR_PUBLIC_API_BASE_URL` to the externally reachable HTTPS API base URL, including any reverse-proxy API prefix (for example, `https://eventor.example.test/api`). Eventor rejects a non-HTTPS URL. Allow the public callback route through the reverse proxy; apply request-rate and body-size limits there as well.
+
+The callback handler verifies the Svix v1 HMAC signature against the exact raw JSON body and rejects timestamps more than five minutes from server time. The endpoint UUID is a routing identifier, not a secret. Authenticated events are correlated using Resend's RFC `message_id` and the immutable SMTP acceptance reference; one Eventor SMTP attempt contains one recipient. The database stores only the event ID, status, timestamp, and payload hash—not the callback body, address, or signing secret.
+
+Only `email.delivered` and `email.bounced` are currently applied. Resend's delivery-delayed events leave the attempt as `sent` while Resend continues its own retry process. A delivered event means the recipient mail server accepted the message, not that it reached the inbox. A bounce is recorded as `bounced`; Eventor does not automatically resend it. Organizations using a different SMTP host continue without provider callbacks.
+
 ## Delivery reconciliation and provider events
 
 - `POST /notification-delivery-attempts/{attemptId}/reconcile` records an event-scoped, audited operator decision for an attempt whose effective status is `uncertain` or `failed`. The operator must choose a verified outcome (`confirmed_sent`, `confirmed_not_sent`, `confirmed_delivered` or `confirmed_bounced`) and provide a reason. Reconciliation never sends a message.
 - `POST /notification-delivery-attempts/{attemptId}/retry` is a separate, explicit action. It requires both delivery-management and send permissions, a reason, the latest failed attempt, and remaining retry budget. It creates a new immutable attempt; uncertain attempts cannot be retried until reconciled as not sent.
-- Provider callback ingestion is deliberately not exposed as a generic unauthenticated webhook. Migration 000037 adds a tenant-scoped, append-only normalized provider-event inbox and a worker-only database command. A provider-specific adapter must first authenticate the callback, normalize it, resolve the exact provider message reference to its attempt, and then call the command. Event IDs are idempotent; payloads and contact values are not stored.
+- Provider callback ingestion is deliberately not exposed as a generic unauthenticated webhook. Migration 000038 adds a tenant-scoped, append-only normalized provider-event inbox and a worker-only database command. A provider-specific adapter must first authenticate the callback, normalize it, resolve the exact provider message reference to its attempt, and then call the command. Event IDs are idempotent; payloads and contact values are not stored.
 - The generic SMTP transport has no delivery/bounce callback capability. SMTP acceptance remains `sent`; only a verified provider event may advance it to `delivered` or `bounced`. No provider adapter is currently installed.
 
 The worker records SMTP acceptance as `sent`; it does not claim that the recipient read or even received the message. Temporary connection and SMTP 4xx failures are retried with bounded exponential backoff (up to five attempts). Permanent 5xx and configuration/template errors are not automatically retried. If the connection fails at the SMTP DATA stage and acceptance is ambiguous, the attempt is marked `uncertain` and is not automatically resent, to avoid duplicate messages. Expired in-flight leases are also marked uncertain for operator reconciliation.
@@ -145,6 +163,6 @@ CI regenerates OpenAPI TypeScript declarations, runs strict TypeScript compilati
 
 - Expand the staff UI to the remaining event, booking, venue and guest workflows.
 - Implement an SMS provider adapter only when a concrete provider is selected; keep it optional and tenant-configurable.
-- Implement a provider-specific callback adapter after selecting a provider. The normalized inbox is ready, but callback signature verification and provider-message-reference resolution belong to that adapter. SMTP acceptance alone remains `sent`, not `delivered`.
+- Extend provider-specific status handling only when another concrete provider is selected. Resend's raw-body signature verification, exact Message-ID correlation and delivered/bounced callbacks are implemented. SMTP acceptance alone remains `sent`, not `delivered`.
 - Complete the rest of the OpenAPI operations and production runbooks for backup, recovery, network egress and secret rotation.
 \nAll campaign listing, progress, review and delivery-report projections require the event-scoped `event.notifications.preview` permission. Campaign list visibility is evaluated per event; a membership cannot enumerate campaigns for events it cannot preview. The delivery report intentionally omits recipient destination values, ciphertext, and provider message references. Pagination is bounded to 100 rows per page.
