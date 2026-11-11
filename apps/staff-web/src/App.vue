@@ -53,6 +53,7 @@ const inquiryCapabilities = ref<BookingInquiryCapabilities>({
   canAssign: false,
   canManage: false,
   canAnnotate: false,
+  canConvert: false,
 });
 const selectedInquiryId = ref("");
 const inquiryAssignmentChoice = ref("unassigned");
@@ -71,6 +72,10 @@ const canConfirm = computed(() => campaign.value?.status === "previewed");
 const canCancel = computed(() => campaign.value?.status === "queued");
 const canEditInquiryAssignment = computed(() =>
   inquiryCapabilities.value.canAssign &&
+  (inquiryDetail.value?.status === "received" || inquiryDetail.value?.status === "under_review"),
+);
+const canConvertInquiry = computed(() =>
+  inquiryCapabilities.value.canConvert &&
   (inquiryDetail.value?.status === "received" || inquiryDetail.value?.status === "under_review"),
 );
 const inquiryStatusTargets = computed<InquiryStatusCommand[]>(() => {
@@ -612,6 +617,28 @@ async function saveInquiryStatus(): Promise<void> {
   }
 }
 
+async function saveInquiryConversion(): Promise<void> {
+  const detail = inquiryDetail.value;
+  if (!detail || !canConvertInquiry.value) return;
+  if (!window.confirm(
+    `Convert ${detail.publicReference} into a separate booking draft? The original inquiry will be preserved, but its status will become converted. This does not issue an offer, reserve resources or confirm a booking.`,
+  )) return;
+
+  clearMessages();
+  busy.value = true;
+  try {
+    const result = await api.convertBookingInquiryToDraft(detail.inquiryId);
+    await Promise.all([refreshInquiryDetailData(), refreshInquiryListData()]);
+    pageNotice.value = result.data.changed
+      ? `Booking draft created (revision ${result.data.revisionNumber}). Draft ID: ${result.data.draftId}. No offer or reservation has been created.`
+      : `This inquiry was already converted. Existing draft ID: ${result.data.draftId}.`;
+  } catch (error) {
+    showError(error);
+  } finally {
+    busy.value = false;
+  }
+}
+
 async function saveInquiryAnnotation(): Promise<void> {
   const detail = inquiryDetail.value;
   const annotation = inquiryAnnotationText.value.trim();
@@ -949,6 +976,17 @@ onMounted(() => { void refreshSession(); });
                 </p>
                 <button class="button button-primary" type="button" :disabled="busy || inquiryStatusReason.trim().length < 3" @click="saveInquiryStatus">
                   Save status change
+                </button>
+              </section>
+
+              <section v-if="canConvertInquiry" class="inquiry-card">
+                <h4>Convert to booking draft</h4>
+                <p class="fine-print">
+                  Creates a separate draft and immutable revision 1 from the submitted request. The original inquiry is retained.
+                  This step does not issue an offer, hold availability or confirm a booking.
+                </p>
+                <button class="button button-primary" type="button" :disabled="busy" @click="saveInquiryConversion">
+                  Create booking draft
                 </button>
               </section>
             </div>
