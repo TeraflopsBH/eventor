@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { computed, onMounted, reactive, ref } from "vue";
-import { api, ApiError, type CampaignReview, type EmailConfiguration, type Principal } from "./api";
+import { api, ApiError, type CampaignReview, type CampaignProgress, type CampaignListItem, type DeliveryAttempt, type PageMeta, type EmailConfiguration, type Principal } from "./api";
 
 const principal = ref<Principal | null>(null);
 const loadingSession = ref(true);
@@ -29,6 +29,16 @@ const testRecipient = ref("");
 
 const campaignId = ref("");
 const campaign = ref<CampaignReview | null>(null);
+const campaignProgress = ref<CampaignProgress | null>(null);
+const deliveryAttempts = ref<DeliveryAttempt[]>([]);
+const deliveryMeta = ref<PageMeta | null>(null);
+const deliveryStatusFilter = ref("");
+const deliveryOffset = ref(0);
+const campaigns = ref<CampaignListItem[]>([]);
+const campaignListMeta = ref<PageMeta | null>(null);
+const campaignListOffset = ref(0);
+const operatorResolution = reactive<Record<string, string>>({});
+const operatorReason = reactive<Record<string, string>>({});
 
 const selectedOrganization = computed(() =>
   principal.value?.memberships?.find((membership) => membership.selected)?.organizationName
@@ -194,7 +204,96 @@ async function loadCampaign(): Promise<void> {
   try {
     const result = await api.getCampaignReview(id);
     campaign.value = result.data;
-    pageNotice.value = "Campaign review loaded. Recipient contact details are intentionally not exposed here.";
+    deliveryOffset.value = 0;
+    deliveryStatusFilter.value = "";
+    await refreshCampaignDeliveryData();
+    pageNotice.value = "Campaign review and delivery report loaded. Recipient contact details are intentionally not exposed here.";
+  } catch (error) {
+    showError(error);
+  } finally {
+    busy.value = false;
+  }
+}
+
+async function loadCampaignList(offset = 0): Promise<void> {
+  clearMessages();
+  busy.value = true;
+  try {
+    const result = await api.getCampaigns({ limit: 25, offset });
+    campaigns.value = result.data;
+    campaignListMeta.value = result.meta;
+    campaignListOffset.value = offset;
+  } catch (error) {
+    showError(error);
+  } finally {
+    busy.value = false;
+  }
+}
+
+async function openListedCampaign(item: CampaignListItem): Promise<void> {
+  campaignId.value = item.campaignId;
+  await loadCampaign();
+}
+
+async function refreshCampaignDeliveryData(): Promise<void> {
+  if (!campaign.value) return;
+  const [progress, deliveries] = await Promise.all([
+    api.getCampaignProgress(campaign.value.campaignId),
+    api.getCampaignDeliveries(campaign.value.campaignId, {
+      status: deliveryStatusFilter.value || undefined,
+      limit: 25,
+      offset: deliveryOffset.value,
+    }),
+  ]);
+  campaignProgress.value = progress.data;
+  deliveryAttempts.value = deliveries.data;
+  deliveryMeta.value = deliveries.meta;
+}
+
+async function reconcileDeliveryAttempt(attempt: DeliveryAttempt): Promise<void> {
+  const resolution = operatorResolution[attempt.attemptId] ?? "";
+  const reason = (operatorReason[attempt.attemptId] ?? "").trim();
+  if (!resolution) {
+    pageError.value = "Choose the verified delivery outcome before reconciling this attempt.";
+    return;
+  }
+  if (reason.length < 3) {
+    pageError.value = "Enter an audit reason of at least 3 characters.";
+    return;
+  }
+  const labels: Record<string, string> = {
+    confirmed_sent: "confirmed SMTP/provider acceptance",
+    confirmed_not_sent: "confirmed not accepted",
+    confirmed_delivered: "confirmed delivered",
+    confirmed_bounced: "confirmed bounced",
+  };
+  if (!window.confirm(`Record that this attempt was ${labels[resolution]}? This records an audited decision and does not send a message.`)) return;
+  clearMessages();
+  busy.value = true;
+  try {
+    await api.reconcileDeliveryAttempt(attempt.attemptId, { resolution, reason });
+    await refreshCampaignDeliveryData();
+    pageNotice.value = "The delivery attempt was reconciled. No message was sent.";
+  } catch (error) {
+    showError(error);
+  } finally {
+    busy.value = false;
+  }
+}
+
+async function retryDeliveryAttempt(attempt: DeliveryAttempt): Promise<void> {
+  const reason = (operatorReason[attempt.attemptId] ?? "").trim();
+  if (reason.length < 3) {
+    pageError.value = "Enter an audit reason of at least 3 characters before retrying.";
+    return;
+  }
+  if (!window.confirm("Authorize a new delivery attempt? This may send another message. Only use it after confirming the previous attempt was not accepted.")) return;
+  clearMessages();
+  busy.value = true;
+  try {
+    await api.retryDeliveryAttempt(attempt.attemptId, reason);
+    await refreshCampaignDeliveryData();
+    pageNotice.value = "A distinct retry attempt was queued under your authorization.";
   } catch (error) {
     showError(error);
   } finally {
@@ -219,6 +318,7 @@ async function runCampaignAction(action: "confirm" | "queue" | "cancel"): Promis
     if (action === "cancel") await api.cancelCampaign(campaign.value.campaignId);
     const result = await api.getCampaignReview(campaign.value.campaignId);
     campaign.value = result.data;
+    await refreshCampaignDeliveryData();
     pageNotice.value = action === "confirm"
       ? "Campaign confirmed. No messages have been queued or sent."
       : action === "queue"
@@ -365,7 +465,28 @@ onMounted(() => { void refreshSession(); });
           <div><p class="eyebrow">EVENT NOTIFICATIONS</p><h2>Campaign review and authorization</h2></div>
           <span class="pill pill-neutral">Human approval required</span>
         </div>
-        <p class="muted">Enter a campaign ID from the authorized event workflow. The current API provides campaign review by ID; it does not yet expose a campaign listing endpoint.</p>
+        <div class="campaign-list-header">
+          <div><h3>Authorized campaigns</h3><p class="muted">Only campaigns visible to your event-scoped preview permission are listed.</p></div>
+          <button class="button button-secondary" type="button" :disabled="busy" @click="loadCampaignList(0)">Refresh list</button>
+        </div>
+        <div v-if="campaigns.length" class="campaign-list">
+          <div v-for="item in campaigns" :key="item.campaignId" class="campaign-list-row">
+            <div>
+              <strong>{{ item.purpose.replaceAll("_", " ") }}</strong>
+              <span>{{ item.status }} · {{ item.actualRecipientCount }} recipients · {{ new Date(item.createdAt).toLocaleString() }}</span>
+              <small class="mono">{{ item.campaignId }}</small>
+            </div>
+            <button class="button button-secondary" type="button" :disabled="busy" @click="openListedCampaign(item)">Open</button>
+          </div>
+          <div class="pagination">
+            <button class="button button-quiet" type="button" :disabled="busy || !campaignListMeta || campaignListOffset === 0" @click="loadCampaignList(Math.max(0, campaignListOffset - 25))">Previous</button>
+            <span>{{ campaignListMeta?.totalCount ?? 0 }} campaigns</span>
+            <button class="button button-quiet" type="button" :disabled="busy || !campaignListMeta || campaignListOffset + 25 >= campaignListMeta.totalCount" @click="loadCampaignList(campaignListOffset + 25)">Next</button>
+          </div>
+        </div>
+        <p v-else class="muted">No campaigns loaded. Refresh the list to view campaigns you are permitted to preview.</p>
+        <div class="divider"></div>
+        <p class="muted">You can also open a campaign directly by UUID.</p>
         <form class="campaign-lookup" @submit.prevent="loadCampaign">
           <label>Campaign UUID<input v-model="campaignId" type="text" required maxlength="36" placeholder="xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx" /></label>
           <button class="button button-primary" type="submit" :disabled="busy">Load review</button>
@@ -415,6 +536,66 @@ onMounted(() => { void refreshSession(); });
             <button v-if="canCancel" class="button button-danger" :disabled="busy" @click="runCampaignAction('cancel')">Cancel before sending</button>
             <span v-if="campaign.status === 'confirmed' && !configuration?.deliveryEnabled" class="fine-print">Test and enable the current SMTP configuration before queueing.</span>
             <span v-if="campaign.status === 'sending' || campaign.status === 'uncertain'" class="fine-print">Delivery has started or has an uncertain outcome. The campaign cannot be cancelled safely.</span>
+          </div>
+          <div v-if="campaignProgress" class="review-card delivery-report">
+            <div class="section-heading">
+              <div><h4>Delivery progress</h4><p class="fine-print">{{ campaignProgress.attemptCount }} total attempts</p></div>
+              <button class="button button-secondary" type="button" :disabled="busy" @click="refreshCampaignDeliveryData">Refresh status</button>
+            </div>
+            <div class="metric-grid compact-metrics">
+              <div class="metric"><span>Queued</span><strong>{{ campaignProgress.deliveryCounts.queued }}</strong></div>
+              <div class="metric"><span>Sent / delivered</span><strong>{{ campaignProgress.deliveryCounts.sent }}</strong></div>
+              <div class="metric"><span>Failed</span><strong>{{ campaignProgress.deliveryCounts.failed }}</strong></div>
+              <div class="metric"><span>Uncertain</span><strong>{{ campaignProgress.deliveryCounts.uncertain }}</strong></div>
+            </div>
+            <div class="delivery-toolbar">
+              <label>Filter status
+                <select v-model="deliveryStatusFilter" @change="deliveryOffset = 0; refreshCampaignDeliveryData()">
+                  <option value="">All statuses</option>
+                  <option v-for="status in ['queued','sending','sent','delivered','failed','bounced','uncertain','suppressed']" :key="status" :value="status">{{ status }}</option>
+                </select>
+              </label>
+            </div>
+            <div v-if="deliveryAttempts.length" class="delivery-attempt-list">
+              <article v-for="attempt in deliveryAttempts" :key="attempt.attemptId" class="delivery-attempt">
+                <div class="delivery-attempt-heading">
+                  <div><strong>{{ attempt.channel }} · attempt {{ attempt.attemptNumber }}</strong><span class="mono">{{ attempt.recipientReference }}</span></div>
+                  <span class="pill" :class="attempt.status === 'sent' || attempt.status === 'delivered' ? 'pill-success' : attempt.status === 'failed' || attempt.status === 'bounced' ? 'pill-danger' : attempt.status === 'uncertain' ? 'pill-warning' : 'pill-neutral'">{{ attempt.status }}</span>
+                </div>
+                <div class="delivery-meta">
+                  <span>Provider: {{ attempt.provider ?? "—" }}</span>
+                  <span>Failure: {{ attempt.failureCode ?? "—" }}</span>
+                  <span>Retry scheduled: {{ attempt.retryScheduled ? "Yes" : "No" }}</span>
+                  <span>Completed: {{ attempt.completedAt ? new Date(attempt.completedAt).toLocaleString() : "—" }}</span>
+                </div>
+                <div v-if="attempt.status === 'uncertain' || (attempt.status === 'failed' && !attempt.retryScheduled)" class="operator-controls">
+                  <label>Verified outcome
+                    <select v-model="operatorResolution[attempt.attemptId]">
+                      <option disabled value="">Choose an outcome…</option>
+                      <option value="confirmed_sent">Confirmed accepted by mail provider</option>
+                      <option value="confirmed_not_sent">Confirmed not accepted</option>
+                      <option value="confirmed_delivered">Confirmed delivered</option>
+                      <option value="confirmed_bounced">Confirmed bounced</option>
+                    </select>
+                  </label>
+                  <label>Audit reason
+                    <textarea v-model="operatorReason[attempt.attemptId]" rows="2" maxlength="1000" placeholder="Record how the outcome was verified…"></textarea>
+                  </label>
+                  <button class="button button-secondary" type="button" :disabled="busy" @click="reconcileDeliveryAttempt(attempt)">Record reconciliation</button>
+                </div>
+                <div v-if="attempt.status === 'failed' && !attempt.retryScheduled" class="operator-controls">
+                  <p class="fine-print">Retry creates a new attempt and may send another message. Only proceed after confirming non-acceptance.</p>
+                  <button class="button button-danger" type="button" :disabled="busy" @click="retryDeliveryAttempt(attempt)">Authorize separate retry</button>
+                </div>
+              </article>
+            </div>
+            <p v-else class="muted">No attempts match this filter.</p>
+            <div class="pagination">
+              <button class="button button-quiet" type="button" :disabled="busy || deliveryOffset === 0" @click="deliveryOffset = Math.max(0, deliveryOffset - 25); refreshCampaignDeliveryData()">Previous</button>
+              <span>{{ deliveryMeta?.totalCount ?? 0 }} attempts</span>
+              <button class="button button-quiet" type="button" :disabled="busy || !deliveryMeta || deliveryOffset + 25 >= deliveryMeta.totalCount" @click="deliveryOffset += 25; refreshCampaignDeliveryData()">Next</button>
+            </div>
+            <p class="fine-print">Recipient references are pseudonymous. No email addresses, phone numbers, or provider message references are shown. SMTP acceptance is not inbox delivery.</p>
           </div>
           <p class="fine-print">Confirmation does not send messages. Queueing is a separate authorization. Cancellation is available only while the campaign remains queued and before the first delivery attempt begins. SMTP acceptance is not proof of inbox delivery.</p>
         </template>
