@@ -310,11 +310,16 @@ REVOKE ALL ON FUNCTION eogp.convert_booking_inquiry_to_draft(uuid,uuid,uuid)
 GRANT EXECUTE ON FUNCTION eogp.convert_booking_inquiry_to_draft(uuid,uuid,uuid)
   TO eventor_runtime;
 
--- Draft state is exposed only through permission-checked commands and
--- projections. The immutable revisions remain inaccessible as raw table rows.
+-- Drafts, draft revisions, draft space lines, resource lines and offers are exposed
+-- only through permission-checked commands and projections. The immutable
+-- revisions remain inaccessible as raw table rows.
 REVOKE ALL ON
   eogp.booking_drafts,
-  eogp.booking_draft_revisions
+  eogp.booking_draft_revisions,
+  eogp.booking_draft_space_lines,
+  eogp.booking_offers,
+  eogp.booking_offer_revisions,
+  eogp.booking_resource_lines
 FROM PUBLIC, eventor_runtime, eventor_worker, eventor_auth;
 
 COMMENT ON FUNCTION eogp.convert_booking_inquiry_to_draft(uuid,uuid,uuid) IS
