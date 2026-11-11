@@ -1,6 +1,6 @@
 # Project state
 
-**Status:** accepted product/domain design baseline; 36-migration PostgreSQL 18 implementation, canonical OpenAPI v0.3, Fastify staff API/workers and initial Vue 3 staff web on draft PR #27; PostgreSQL 18.6, OpenAPI, API and staff-web CI validation configured; SMTP delivery worker and explicit campaign queue/cancel lifecycle implemented; production-readiness review remains open  
+**Status:** accepted product/domain design baseline; 37-migration PostgreSQL 18 implementation, canonical OpenAPI v0.3, Fastify staff API/workers and initial Vue 3 staff web on draft PR #27; PostgreSQL 18.6, OpenAPI, API and staff-web CI validation configured; SMTP delivery worker and explicit campaign queue/cancel lifecycle implemented; production-readiness review remains open  
 **Last updated:** 2026-11-11  
 **Implementation status:** database migrations and API contract exist in draft PR #26; PR #27 contains a tested Fastify command API, database-backed staff sessions and campaign review/confirmation, plus a separate preparation worker. No production database deployment has been established.
 
@@ -117,7 +117,7 @@ The accepted v0.3 design covers customer/organizer-initiated booking cancellatio
 
 ## Successor database and API baseline
 
-The accepted successor logical model and API design derive from ADRs 0004–0006, the RSVP/invitation and cancellation designs, and the venue-first MVP/role model. The database integrity baseline was merged in PR #24 and the aligned logical schema/API design in PR #25. The executable migration and OpenAPI baseline is PR #26; the separate remediation branch in PR #27 adds migrations 000022–000032 for reviewed integrity findings, database-backed staff sessions, the notification campaign-preparation worker and audited campaign review/confirmation; PR #27 also contains the Fastify API and worker bootstraps, including staff campaign review and confirmation routes. Both remain draft/unmerged and require review.
+The accepted successor logical model and API design derive from ADRs 0004–0006, the RSVP/invitation and cancellation designs, and the venue-first MVP/role model. The database integrity baseline was merged in PR #24 and the aligned logical schema/API design in PR #25. The executable migration and OpenAPI baseline is PR #26; the separate remediation branch in PR #27 adds migrations 000022–000037 for reviewed integrity findings, database-backed staff sessions, the notification campaign-preparation worker and audited campaign review/confirmation; PR #27 also contains the Fastify API and worker bootstraps, including staff campaign review and confirmation routes. Both remain draft/unmerged and require review.
 
 ## Executable schema and API contract draft
 
@@ -157,8 +157,8 @@ The separate v0.2 booking SQL addendum duplicates all 22 booking/configuration t
 
 1. Complete a deeper review of the v0.3 DDL, RLS policies, actor attribution, cross-organization access boundaries and full constraint-test matrix.
 2. Add migration-upgrade and backup/restore validation; current CI proves fresh-database installation, not recovery readiness.
-3. Expand the initial staff web beyond authentication, SMTP settings and campaign authorization; add a campaign listing and delivery-attempt status/reconciliation API projection before implementing those screens.
-4. Add provider callbacks where supported so final delivery/bounce states can be distinguished from SMTP acceptance; implement an SMS provider only after selecting and reviewing a concrete provider adapter.
+3. Add staff-web controls for operator delivery reconciliation and explicitly authorized retries; the permission-gated API commands and audited database state transitions are now implemented.
+4. Implement a provider-specific callback adapter only after selecting a concrete delivery provider. Migration 000037 now supplies a worker-only, idempotent normalized event inbox; callback signature verification and exact provider-message-reference mapping must occur in the adapter. Generic SMTP still cannot report delivery/bounce.
 5. Begin the remaining application foundation and venue-booking vertical slice only after database/API review; confirm GHB-specific inventory, capacities, pricing, cancellation terms, approval thresholds and operating policies before production seeding.
 
 ## Open questions / validation gates
