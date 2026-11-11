@@ -74,19 +74,38 @@ function isDateTime(value: string): boolean {
 function parseSchema(fieldSchema: unknown): readonly PublicFormField[] {
   if (!isRecord(fieldSchema)) throw new PublicFormSchemaError();
   const version = fieldSchema.schemaVersion === undefined ? 1 : fieldSchema.schemaVersion;
-  if (version !== 1 || !Array.isArray(fieldSchema.fields) || fieldSchema.fields.length > 100) {
+  const schemaProperties = new Set(["schemaVersion", "fields"]);
+  if (version !== 1 || !Array.isArray(fieldSchema.fields) || fieldSchema.fields.length > 100 ||
+      Object.keys(fieldSchema).some((key) => !schemaProperties.has(key))) {
     throw new PublicFormSchemaError();
   }
 
   const seenCodes = new Set<string>();
+  const fieldProperties = new Set([
+    "code", "type", "label", "description", "helpText", "placeholder", "required",
+    "options", "minLength", "maxLength", "min", "max", "integer", "minItems", "maxItems",
+  ]);
   const fields: PublicFormField[] = [];
 
   for (const raw of fieldSchema.fields) {
-    if (!isRecord(raw) || typeof raw.code !== "string" || !codePattern.test(raw.code) ||
+    if (!isRecord(raw) || Object.keys(raw).some((key) => !fieldProperties.has(key)) ||
+        typeof raw.code !== "string" || !codePattern.test(raw.code) ||
         seenCodes.has(raw.code) || typeof raw.type !== "string" ||
         !supportedTypes.has(raw.type as PublicFormFieldType) ||
         (raw.required !== undefined && typeof raw.required !== "boolean")) {
       throw new PublicFormSchemaError();
+    }
+    for (const property of ["label", "placeholder"]) {
+      if (raw[property] !== undefined &&
+          (typeof raw[property] !== "string" || raw[property].length > 200)) {
+        throw new PublicFormSchemaError();
+      }
+    }
+    for (const property of ["description", "helpText"]) {
+      if (raw[property] !== undefined &&
+          (typeof raw[property] !== "string" || raw[property].length > 1000)) {
+        throw new PublicFormSchemaError();
+      }
     }
     seenCodes.add(raw.code);
 
@@ -144,8 +163,8 @@ function parseSchema(fieldSchema: unknown): readonly PublicFormField[] {
       }
       const optionValues = new Set<string>();
       for (const rawOption of raw.options) {
-        if (!isRecord(rawOption) || typeof rawOption.value !== "string" ||
-            rawOption.value.length < 1 || rawOption.value.length > 200 ||
+        if (!isRecord(rawOption) || Object.keys(rawOption).some((key) => !["value", "label"].includes(key)) ||
+            typeof rawOption.value !== "string" || rawOption.value.length < 1 || rawOption.value.length > 200 ||
             typeof rawOption.label !== "string" || rawOption.label.trim().length < 1 ||
             rawOption.label.length > 200 || optionValues.has(rawOption.value)) {
           throw new PublicFormSchemaError();
