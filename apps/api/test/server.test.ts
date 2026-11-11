@@ -21,7 +21,7 @@ function makePool() {
   let reservationCalls = 0;
   let changeCalls = 0;
   let campaignReviewCalls = 0;
-  let campaignConfirmCalls = 0;
+  let campaignConfirmCalls = 0;\n  let deliveryConfigCalls = 0;
 
   const client = {
     async query(sql: string, values: unknown[] = []) {
@@ -80,6 +80,22 @@ function makePool() {
           deliveryQueued: false,
         } }], rowCount: 1 };
       }
+      if (normalized.includes("eogp.get_organization_email_delivery_config(")) {
+        return { rows: [{ result: {
+          channel: "email", provider: "smtp", revision: 2,
+          settings: { host: "smtp.example.test", port: 587, transportSecurity: "starttls", authMode: "password" },
+          credentialsConfigured: true,
+        } }], rowCount: 1 };
+      }
+      if (normalized.includes("eogp.set_organization_email_delivery_config(")) {
+        deliveryConfigCalls += 1;
+        commandCalls.push({ sql: normalized, values });
+        return { rows: [{ result: {
+          channel: "email", provider: "smtp", revision: 3,
+          settings: JSON.parse(String(values[2])),
+          credentialsConfigured: Boolean(values[4]) || Boolean(values[5]) === false,
+        } }], rowCount: 1 };
+      }
       if (normalized.includes("eogp.release_booking_reservations(")) {
         reservationCalls += 1;
         commandCalls.push({ sql: normalized, values });
@@ -126,7 +142,7 @@ function makePool() {
     get reservationCalls() { return reservationCalls; },
     get changeCalls() { return changeCalls; },
     get campaignReviewCalls() { return campaignReviewCalls; },
-    get campaignConfirmCalls() { return campaignConfirmCalls; },
+    get campaignConfirmCalls() { return campaignConfirmCalls; },\n    get deliveryConfigCalls() { return deliveryConfigCalls; },
   };
 }
 
@@ -155,7 +171,7 @@ function makeApi(
       revokeStaffSession: async () => undefined,
       getCurrentPrincipal: async () => ({ ...principal, memberships: [] }),
     } : {}),
-    privateFieldEncryptionKey: options.encryptionKey ?? Buffer.alloc(32, 7),
+    privateFieldEncryptionKey: options.encryptionKey ?? Buffer.alloc(32, 7),\n    deliveryCredentialsEncryptionKey: Buffer.alloc(32, 9),
   });
 }
 
@@ -432,4 +448,61 @@ test("campaign confirmation rejects an invalid browser origin before database ac
   });
   assert.equal(response.statusCode, 403);
   assert.equal(mock.campaignConfirmCalls, 0);
+});
+
+test("organization SMTP configuration encrypts credentials before database persistence and is idempotent", async (t) => {
+  const mock = makePool();
+  const app = makeApi(mock.pool);
+  t.after(async () => app.close());
+  const payload = {
+    host: "smtp.example.test",
+    port: 587,
+    transportSecurity: "starttls",
+    authMode: "password",
+    senderEmail: "events@example.test",
+    senderName: "Eventor",
+    credentials: {
+      username: "mailer@example.test",
+      password: "super-secret-smtp-password",
+    },
+  };
+  const headers = { "idempotency-key": "smtp-config-version-0001" };
+  const first = await app.inject({
+    method: "POST",
+    url: "/organization/delivery/email/configuration",
+    headers,
+    payload,
+  });
+  assert.equal(first.statusCode, 201);
+  assert.equal(mock.deliveryConfigCalls, 1);
+  const storedCiphertext = mock.commandCalls[0]?.values[3];
+  assert.ok(Buffer.isBuffer(storedCiphertext));
+  assert.equal((storedCiphertext as Buffer).subarray(0, 4).toString("ascii"), "EDC1");
+  assert.equal((storedCiphertext as Buffer).includes(Buffer.from(payload.credentials.password)), false);
+  assert.equal(JSON.stringify(mock.commandCalls[0]?.values).includes(payload.credentials.password), false);
+
+  const replay = await app.inject({
+    method: "POST",
+    url: "/organization/delivery/email/configuration",
+    headers,
+    payload,
+  });
+  assert.equal(replay.statusCode, 201);
+  assert.deepEqual(replay.json<Record<string, unknown>>(), first.json<Record<string, unknown>>());
+  assert.equal(mock.deliveryConfigCalls, 1);
+});
+
+test("organization SMTP configuration projection never returns credentials", async (t) => {
+  const mock = makePool();
+  const app = makeApi(mock.pool);
+  t.after(async () => app.close());
+  const response = await app.inject({
+    method: "GET",
+    url: "/organization/delivery/email/configuration",
+  });
+  assert.equal(response.statusCode, 200);
+  const data = response.json<{ data: Record<string, unknown> }>().data;
+  assert.equal(data.credentialsConfigured, true);
+  assert.equal("credentials" in data, false);
+  assert.equal("password" in data, false);
 });
