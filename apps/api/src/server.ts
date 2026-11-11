@@ -280,7 +280,7 @@ const bookingDraftRevisionBody = {
         required: ["resourceTypeId", "requestedQuantity"],
         properties: {
           resourceTypeId: { type: "string", pattern: uuidPattern },
-          requestedQuantity: { type: "number", exclusiveMinimum: 0, maximum: 999999999 },
+          requestedQuantity: { type: "number", exclusiveMinimum: 0, maximum: 999999999.999 },
           values: { type: "object", maxProperties: 100, additionalProperties: true },
         },
         additionalProperties: false,
@@ -1244,6 +1244,8 @@ export function buildApi(dependencies: ApiDependencies): FastifyInstance {
         },
       };
       assertBoundedAnswerValues(normalizedValues);
+      assertBoundedAnswerValues(request.body.spaceLines);
+      assertBoundedAnswerValues(request.body.resourceLines);
       const valuesCiphertext = encryptContactValue(
         JSON.stringify(normalizedValues),
         key,
