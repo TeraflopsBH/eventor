@@ -591,7 +591,8 @@ CREATE FUNCTION eogp.claim_next_email_delivery(
   destination_ciphertext bytea,credentials_ciphertext bytea,
   smtp_settings jsonb,sender_email text,sender_name text,reply_to text,
   subject_template text,body_template text,event_title text,event_code text,
-  event_status text,starts_at timestamptz,ends_at timestamptz,timezone_name text
+  event_status text,decision_kind text,campaign_purpose text,
+  starts_at timestamptz,ends_at timestamptz,timezone_name text
 )
 LANGUAGE plpgsql
 SECURITY DEFINER
@@ -604,6 +605,22 @@ BEGIN
     RAISE EXCEPTION 'delivery claim requires worker role and matching tenant context'
       USING ERRCODE='42501';
   END IF;
+
+  UPDATE eogp.event_notification_delivery_attempts
+     SET status='uncertain',failure_code='SMTP_UNKNOWN',lease_expires_at=NULL
+   WHERE organization_id=p_organization_id
+     AND status='sending' AND lease_expires_at<clock_timestamp();
+
+  UPDATE eogp.event_notification_campaigns campaign
+     SET status='partial',delivery_completed_at=clock_timestamp()
+   WHERE campaign.organization_id=p_organization_id
+     AND campaign.status='sending'
+     AND NOT EXISTS (
+       SELECT 1 FROM eogp.event_notification_delivery_attempts attempt
+        WHERE attempt.organization_id=campaign.organization_id
+          AND attempt.campaign_id=campaign.id
+          AND attempt.status IN ('queued','sending')
+     );
 
   SELECT attempt.id AS attempt_id,attempt.organization_id,attempt.campaign_id,
          attempt.recipient_id,campaign.event_id,campaign.template_revision_id,
@@ -641,6 +658,7 @@ BEGIN
          config.settings,config.settings->>'senderEmail',
          config.settings->>'senderName',config.settings->>'replyTo',
          template.subject_template,template.body_template,event.title,event.event_code,event.status,
+         decision.decision_kind,campaign.purpose,
          schedule.starts_at,schedule.ends_at,schedule.timezone_name
     FROM eogp.event_notification_campaigns campaign
     JOIN eogp.event_notification_recipients recipient
