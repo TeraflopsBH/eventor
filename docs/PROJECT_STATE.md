@@ -1,6 +1,6 @@
 # Project state
 
-**Status:** accepted product/domain design baseline; 35-migration PostgreSQL 18 implementation, canonical OpenAPI v0.3, Fastify staff API/workers and initial Vue 3 staff web on draft PR #27; PostgreSQL 18.6, OpenAPI, API and staff-web CI validation configured; SMTP delivery worker and explicit campaign queue/cancel lifecycle implemented; production-readiness review remains open  
+**Status:** accepted product/domain design baseline; 36-migration PostgreSQL 18 implementation, canonical OpenAPI v0.3, Fastify staff API/workers and initial Vue 3 staff web on draft PR #27; PostgreSQL 18.6, OpenAPI, API and staff-web CI validation configured; SMTP delivery worker and explicit campaign queue/cancel lifecycle implemented; production-readiness review remains open  
 **Last updated:** 2026-11-11  
 **Implementation status:** database migrations and API contract exist in draft PR #26; PR #27 contains a tested Fastify command API, database-backed staff sessions and campaign review/confirmation, plus a separate preparation worker. No production database deployment has been established.
 
