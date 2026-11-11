@@ -30,6 +30,7 @@ export interface SmtpTransport {
     replyTo?: string;
     subject: string;
     text: string;
+    messageId?: string;
   }): Promise<SmtpSendResult>;
   close(): void;
 }
@@ -70,6 +71,7 @@ export function createSmtpTransport(
         ...(settings.replyTo ? { replyTo: settings.replyTo } : {}),
         subject: message.subject,
         text: message.text,
+        ...(message.messageId ? { messageId: message.messageId } : {}),
       });
       return {
         messageId: String(result.messageId ?? ""),
