@@ -10,6 +10,8 @@ export interface SmtpCredentials {
   readonly password: string;
 }
 
+export type DeliveryCredentialBundle = Readonly<Record<string, string>>;
+
 export interface DeliveryCredentialContext {
   readonly organizationId: string;
   readonly channel: "email" | "sms";
@@ -46,7 +48,28 @@ function deriveKey(masterKey: Buffer): Buffer {
     .digest();
 }
 
-function validateCredentials(credentials: SmtpCredentials): void {
+function validateCredentialBundle(credentials: DeliveryCredentialBundle): void {
+  if (!credentials || typeof credentials !== "object" || Array.isArray(credentials)) {
+    throw new TypeError("Delivery credentials must be a named string bundle.");
+  }
+  const entries = Object.entries(credentials);
+  if (entries.length < 1 || entries.length > 32) {
+    throw new TypeError("Delivery credential bundle must contain between 1 and 32 entries.");
+  }
+  let totalBytes = 0;
+  for (const [name, value] of entries) {
+    if (!/^[a-zA-Z][a-zA-Z0-9_.-]{0,63}$/.test(name) ||
+        typeof value !== "string" || value.length === 0 || value.length > 4096) {
+      throw new TypeError("Delivery credential bundle contains an invalid key or value.");
+    }
+    totalBytes += Buffer.byteLength(value, "utf8");
+  }
+  if (totalBytes > 8192) {
+    throw new TypeError("Delivery credential bundle exceeds the supported size.");
+  }
+}
+
+function validateSmtpCredentials(credentials: SmtpCredentials): void {
   if (!credentials || typeof credentials.username !== "string" ||
       typeof credentials.password !== "string" ||
       credentials.username.trim().length === 0 ||
@@ -57,29 +80,26 @@ function validateCredentials(credentials: SmtpCredentials): void {
   }
 }
 
-export function encryptDeliveryCredentials(
-  credentials: SmtpCredentials,
+export function encryptDeliveryCredentialBundle(
+  credentials: DeliveryCredentialBundle,
   masterKey: Buffer,
   context: DeliveryCredentialContext,
 ): Buffer {
-  validateCredentials(credentials);
+  validateCredentialBundle(credentials);
   const key = deriveKey(masterKey);
   const nonce = randomBytes(NONCE_BYTES);
   const cipher = createCipheriv("aes-256-gcm", key, nonce);
   cipher.setAAD(aad(context));
-  const plaintext = Buffer.from(JSON.stringify({
-    username: credentials.username,
-    password: credentials.password,
-  }), "utf8");
+  const plaintext = Buffer.from(JSON.stringify(credentials), "utf8");
   const ciphertext = Buffer.concat([cipher.update(plaintext), cipher.final()]);
   return Buffer.concat([MAGIC, nonce, cipher.getAuthTag(), ciphertext]);
 }
 
-export function decryptDeliveryCredentials(
+export function decryptDeliveryCredentialBundle(
   envelope: Buffer,
   masterKey: Buffer,
   context: DeliveryCredentialContext,
-): SmtpCredentials {
+): DeliveryCredentialBundle {
   if (!Buffer.isBuffer(envelope) || envelope.length <= MAGIC.length + NONCE_BYTES + TAG_BYTES) {
     throw new TypeError("Invalid delivery credential envelope.");
   }
@@ -91,11 +111,7 @@ export function decryptDeliveryCredentials(
   const nonceStart = MAGIC.length;
   const tagStart = nonceStart + NONCE_BYTES;
   const ciphertextStart = tagStart + TAG_BYTES;
-  const decipher = createDecipheriv(
-    "aes-256-gcm",
-    key,
-    envelope.subarray(nonceStart, tagStart),
-  );
+  const decipher = createDecipheriv("aes-256-gcm", key, envelope.subarray(nonceStart, tagStart));
   decipher.setAAD(aad(context));
   decipher.setAuthTag(envelope.subarray(tagStart, ciphertextStart));
   const plaintext = Buffer.concat([
@@ -109,12 +125,39 @@ export function decryptDeliveryCredentials(
   } catch {
     throw new TypeError("Invalid delivery credential payload.");
   }
-  if (!parsed || typeof parsed !== "object" ||
-      typeof (parsed as Record<string, unknown>).username !== "string" ||
-      typeof (parsed as Record<string, unknown>).password !== "string") {
+  if (!parsed || typeof parsed !== "object" || Array.isArray(parsed)) {
     throw new TypeError("Invalid delivery credential payload.");
   }
-  const credentials = parsed as SmtpCredentials;
-  validateCredentials(credentials);
+  const bundle = parsed as DeliveryCredentialBundle;
+  validateCredentialBundle(bundle);
+  return bundle;
+}
+
+export function encryptDeliveryCredentials(
+  credentials: SmtpCredentials,
+  masterKey: Buffer,
+  context: DeliveryCredentialContext,
+): Buffer {
+  if (context.channel !== "email") {
+    throw new TypeError("SMTP credentials must be bound to the email channel.");
+  }
+  validateSmtpCredentials(credentials);
+  return encryptDeliveryCredentialBundle(credentials, masterKey, context);
+}
+
+export function decryptDeliveryCredentials(
+  envelope: Buffer,
+  masterKey: Buffer,
+  context: DeliveryCredentialContext,
+): SmtpCredentials {
+  if (context.channel !== "email") {
+    throw new TypeError("SMTP credentials must be bound to the email channel.");
+  }
+  const bundle = decryptDeliveryCredentialBundle(envelope, masterKey, context);
+  if (typeof bundle.username !== "string" || typeof bundle.password !== "string") {
+    throw new TypeError("Invalid SMTP credential payload.");
+  }
+  const credentials = { username: bundle.username, password: bundle.password };
+  validateSmtpCredentials(credentials);
   return credentials;
 }
