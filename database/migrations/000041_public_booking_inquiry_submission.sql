@@ -82,9 +82,7 @@ BEGIN
      OR nullif(trim(p_form_code), '') IS NULL
      OR length(p_form_code) > 80
      OR p_form_revision_id IS NULL
-     OR p_source_fingerprint !~ '^[0-9a-f]{64}$'
-     OR p_key_fingerprint !~ '^[0-9a-f]{64}$'
-     OR p_request_fingerprint !~ '^[0-9a-f]{64}$'
+     OR p_source_fingerprint IS NULL OR p_source_fingerprint !~ '^[0-9a-f]{64}
      OR p_submitted_values_ciphertext IS NULL
      OR octet_length(p_submitted_values_ciphertext) <= 32
      OR p_requester_name_ciphertext IS NULL
@@ -176,7 +174,489 @@ BEGIN
 
   -- An hourly bucket makes the limit durable across API instances/restarts.
   -- Existing idempotent replays return above and do not consume another slot.
-  v_window_started_at := date_trunc('hour', v_now);
+  v_window_started_at := date_trunc('hour', v_now AT TIME ZONE 'UTC') AT TIME ZONE 'UTC';
+  DELETE FROM eogp.public_booking_submission_rate_limits
+   WHERE organization_id = v_organization_id
+     AND window_started_at < v_window_started_at - interval '48 hours';
+
+  INSERT INTO eogp.public_booking_submission_rate_limits (
+    organization_id, source_fingerprint, window_started_at, request_count
+  ) VALUES (
+    v_organization_id, p_source_fingerprint, v_window_started_at, 1
+  )
+  ON CONFLICT (organization_id, source_fingerprint, window_started_at)
+  DO UPDATE SET request_count = eogp.public_booking_submission_rate_limits.request_count + 1,
+                updated_at = clock_timestamp()
+  WHERE eogp.public_booking_submission_rate_limits.request_count < 10
+  RETURNING request_count INTO v_request_count;
+
+  IF NOT FOUND THEN
+    RETURN jsonb_build_object(
+      'rateLimited', true,
+      'retryAfterSeconds',
+        greatest(1, ceil(extract(epoch FROM (v_window_started_at + interval '1 hour' - v_now)))::integer)
+    );
+  END IF;
+
+  v_public_reference := 'INQ-' ||
+    upper(substr(replace(gen_random_uuid()::text, '-', ''), 1, 16));
+
+  INSERT INTO eogp.booking_inquiries (
+    organization_id, public_reference, form_revision_id,
+    submitted_values_ciphertext, requester_name_ciphertext,
+    requester_email_hash, requester_email_ciphertext,
+    requester_phone_hash, requester_phone_ciphertext,
+    requested_start, requested_end, requested_timezone
+  ) VALUES (
+    v_organization_id, v_public_reference, p_form_revision_id,
+    p_submitted_values_ciphertext, p_requester_name_ciphertext,
+    p_requester_email_hash, p_requester_email_ciphertext,
+    p_requester_phone_hash, p_requester_phone_ciphertext,
+    p_requested_start, p_requested_end, v_timezone
+  )
+  RETURNING id, status INTO v_inquiry_id, v_status;
+
+  INSERT INTO eogp.public_booking_submission_idempotency (
+    organization_id, key_fingerprint, request_fingerprint, inquiry_id
+  ) VALUES (
+    v_organization_id, p_key_fingerprint, p_request_fingerprint, v_inquiry_id
+  );
+
+  RETURN jsonb_build_object(
+    'inquiryId', v_inquiry_id,
+    'publicReference', v_public_reference,
+    'status', v_status,
+    'replayed', false
+  );
+END;
+$function$;
+
+REVOKE ALL ON FUNCTION eogp.submit_public_booking_inquiry(
+  text,text,uuid,text,text,text,bytea,bytea,text,bytea,text,bytea,timestamptz,timestamptz,text
+) FROM PUBLIC;
+GRANT EXECUTE ON FUNCTION eogp.submit_public_booking_inquiry(
+  text,text,uuid,text,text,text,bytea,bytea,text,bytea,text,bytea,timestamptz,timestamptz,text
+) TO eventor_runtime;
+
+COMMENT ON FUNCTION eogp.submit_public_booking_inquiry(
+  text,text,uuid,text,text,text,bytea,bytea,text,bytea,text,bytea,timestamptz,timestamptz,text
+) IS
+  'Anonymous booking intake command. Resolves an active public tenant route, checks a published form revision, enforces durable per-source hourly limits and idempotency, and stores only application-encrypted requester/submission values.';
+
+     OR p_key_fingerprint IS NULL OR p_key_fingerprint !~ '^[0-9a-f]{64}
+     OR p_submitted_values_ciphertext IS NULL
+     OR octet_length(p_submitted_values_ciphertext) <= 32
+     OR p_requester_name_ciphertext IS NULL
+     OR octet_length(p_requester_name_ciphertext) <= 32
+     OR ((p_requester_email_hash IS NULL) <> (p_requester_email_ciphertext IS NULL))
+     OR ((p_requester_phone_hash IS NULL) <> (p_requester_phone_ciphertext IS NULL))
+     OR (p_requester_email_hash IS NOT NULL AND p_requester_email_hash !~ '^[0-9a-f]{64}$')
+     OR (p_requester_phone_hash IS NOT NULL AND p_requester_phone_hash !~ '^[0-9a-f]{64}$')
+     OR (p_requester_email_ciphertext IS NOT NULL AND octet_length(p_requester_email_ciphertext) <= 32)
+     OR (p_requester_phone_ciphertext IS NOT NULL AND octet_length(p_requester_phone_ciphertext) <= 32)
+     OR (p_requested_start IS NOT NULL AND p_requested_end IS NOT NULL AND p_requested_end <= p_requested_start) THEN
+    RAISE EXCEPTION 'invalid public booking inquiry payload' USING ERRCODE = '22023';
+  END IF;
+
+  -- The slug resolves only to an active public route. Lock the route row so an
+  -- organization suspension/slug change serializes against an in-flight submit.
+  SELECT organization_id INTO v_organization_id
+    FROM eogp.public_organization_routes
+   WHERE organization_slug = trim(p_organization_slug)
+     AND is_active = true
+   FOR SHARE;
+  IF NOT FOUND THEN
+    RETURN jsonb_build_object('formUnavailable', true);
+  END IF;
+
+  PERFORM set_config('app.organization_id', v_organization_id::text, true);
+
+  -- Serialize identical idempotency keys even when their first request is
+  -- currently being submitted. The hash is keyed by the API and reveals no key.
+  PERFORM pg_advisory_xact_lock(
+    hashtextextended(v_organization_id::text || ':' || p_key_fingerprint, 0)
+  );
+
+  SELECT * INTO v_existing
+    FROM eogp.public_booking_submission_idempotency
+   WHERE organization_id = v_organization_id
+     AND key_fingerprint = p_key_fingerprint
+   FOR UPDATE;
+  IF FOUND THEN
+    IF v_existing.request_fingerprint <> p_request_fingerprint THEN
+      RETURN jsonb_build_object('idempotencyConflict', true);
+    END IF;
+
+    SELECT public_reference, status
+      INTO v_public_reference, v_status
+      FROM eogp.booking_inquiries
+     WHERE organization_id = v_organization_id
+       AND id = v_existing.inquiry_id;
+    IF NOT FOUND THEN
+      RAISE EXCEPTION 'idempotency record references a missing inquiry'
+        USING ERRCODE = '55000';
+    END IF;
+
+    RETURN jsonb_build_object(
+      'inquiryId', v_existing.inquiry_id,
+      'publicReference', v_public_reference,
+      'status', v_status,
+      'replayed', true
+    );
+  END IF;
+
+  -- Pin the submission to a published revision of this exact form. Previous
+  -- published revisions remain valid so visitors can finish a page already open.
+  PERFORM 1
+    FROM eogp.booking_form_definitions definition
+    JOIN eogp.booking_form_revisions revision
+      ON revision.organization_id = definition.organization_id
+     AND revision.form_definition_id = definition.id
+   WHERE definition.organization_id = v_organization_id
+     AND definition.form_code = p_form_code
+     AND definition.status = 'active'
+     AND revision.id = p_form_revision_id
+     AND revision.state = 'published'
+     AND revision.published_at IS NOT NULL
+   FOR SHARE OF definition, revision;
+  IF NOT FOUND THEN
+    RETURN jsonb_build_object('formUnavailable', true);
+  END IF;
+
+  SELECT default_timezone INTO v_default_timezone
+    FROM eogp.organizations
+   WHERE id = v_organization_id;
+  v_timezone := coalesce(nullif(trim(p_requested_timezone), ''), v_default_timezone);
+  IF v_timezone IS NULL OR NOT EXISTS (
+    SELECT 1 FROM pg_catalog.pg_timezone_names WHERE name = v_timezone
+  ) THEN
+    RAISE EXCEPTION 'invalid requested timezone' USING ERRCODE = '22023';
+  END IF;
+
+  -- An hourly bucket makes the limit durable across API instances/restarts.
+  -- Existing idempotent replays return above and do not consume another slot.
+  v_window_started_at := date_trunc('hour', v_now AT TIME ZONE 'UTC') AT TIME ZONE 'UTC';
+  DELETE FROM eogp.public_booking_submission_rate_limits
+   WHERE organization_id = v_organization_id
+     AND window_started_at < v_window_started_at - interval '48 hours';
+
+  INSERT INTO eogp.public_booking_submission_rate_limits (
+    organization_id, source_fingerprint, window_started_at, request_count
+  ) VALUES (
+    v_organization_id, p_source_fingerprint, v_window_started_at, 1
+  )
+  ON CONFLICT (organization_id, source_fingerprint, window_started_at)
+  DO UPDATE SET request_count = eogp.public_booking_submission_rate_limits.request_count + 1,
+                updated_at = clock_timestamp()
+  WHERE eogp.public_booking_submission_rate_limits.request_count < 10
+  RETURNING request_count INTO v_request_count;
+
+  IF NOT FOUND THEN
+    RETURN jsonb_build_object(
+      'rateLimited', true,
+      'retryAfterSeconds',
+        greatest(1, ceil(extract(epoch FROM (v_window_started_at + interval '1 hour' - v_now)))::integer)
+    );
+  END IF;
+
+  v_public_reference := 'INQ-' ||
+    upper(substr(replace(gen_random_uuid()::text, '-', ''), 1, 16));
+
+  INSERT INTO eogp.booking_inquiries (
+    organization_id, public_reference, form_revision_id,
+    submitted_values_ciphertext, requester_name_ciphertext,
+    requester_email_hash, requester_email_ciphertext,
+    requester_phone_hash, requester_phone_ciphertext,
+    requested_start, requested_end, requested_timezone
+  ) VALUES (
+    v_organization_id, v_public_reference, p_form_revision_id,
+    p_submitted_values_ciphertext, p_requester_name_ciphertext,
+    p_requester_email_hash, p_requester_email_ciphertext,
+    p_requester_phone_hash, p_requester_phone_ciphertext,
+    p_requested_start, p_requested_end, v_timezone
+  )
+  RETURNING id, status INTO v_inquiry_id, v_status;
+
+  INSERT INTO eogp.public_booking_submission_idempotency (
+    organization_id, key_fingerprint, request_fingerprint, inquiry_id
+  ) VALUES (
+    v_organization_id, p_key_fingerprint, p_request_fingerprint, v_inquiry_id
+  );
+
+  RETURN jsonb_build_object(
+    'inquiryId', v_inquiry_id,
+    'publicReference', v_public_reference,
+    'status', v_status,
+    'replayed', false
+  );
+END;
+$function$;
+
+REVOKE ALL ON FUNCTION eogp.submit_public_booking_inquiry(
+  text,text,uuid,text,text,text,bytea,bytea,text,bytea,text,bytea,timestamptz,timestamptz,text
+) FROM PUBLIC;
+GRANT EXECUTE ON FUNCTION eogp.submit_public_booking_inquiry(
+  text,text,uuid,text,text,text,bytea,bytea,text,bytea,text,bytea,timestamptz,timestamptz,text
+) TO eventor_runtime;
+
+COMMENT ON FUNCTION eogp.submit_public_booking_inquiry(
+  text,text,uuid,text,text,text,bytea,bytea,text,bytea,text,bytea,timestamptz,timestamptz,text
+) IS
+  'Anonymous booking intake command. Resolves an active public tenant route, checks a published form revision, enforces durable per-source hourly limits and idempotency, and stores only application-encrypted requester/submission values.';
+
+     OR p_request_fingerprint IS NULL OR p_request_fingerprint !~ '^[0-9a-f]{64}
+     OR p_submitted_values_ciphertext IS NULL
+     OR octet_length(p_submitted_values_ciphertext) <= 32
+     OR p_requester_name_ciphertext IS NULL
+     OR octet_length(p_requester_name_ciphertext) <= 32
+     OR ((p_requester_email_hash IS NULL) <> (p_requester_email_ciphertext IS NULL))
+     OR ((p_requester_phone_hash IS NULL) <> (p_requester_phone_ciphertext IS NULL))
+     OR (p_requester_email_hash IS NOT NULL AND p_requester_email_hash !~ '^[0-9a-f]{64}$')
+     OR (p_requester_phone_hash IS NOT NULL AND p_requester_phone_hash !~ '^[0-9a-f]{64}$')
+     OR (p_requester_email_ciphertext IS NOT NULL AND octet_length(p_requester_email_ciphertext) <= 32)
+     OR (p_requester_phone_ciphertext IS NOT NULL AND octet_length(p_requester_phone_ciphertext) <= 32)
+     OR (p_requested_start IS NOT NULL AND p_requested_end IS NOT NULL AND p_requested_end <= p_requested_start) THEN
+    RAISE EXCEPTION 'invalid public booking inquiry payload' USING ERRCODE = '22023';
+  END IF;
+
+  -- The slug resolves only to an active public route. Lock the route row so an
+  -- organization suspension/slug change serializes against an in-flight submit.
+  SELECT organization_id INTO v_organization_id
+    FROM eogp.public_organization_routes
+   WHERE organization_slug = trim(p_organization_slug)
+     AND is_active = true
+   FOR SHARE;
+  IF NOT FOUND THEN
+    RETURN jsonb_build_object('formUnavailable', true);
+  END IF;
+
+  PERFORM set_config('app.organization_id', v_organization_id::text, true);
+
+  -- Serialize identical idempotency keys even when their first request is
+  -- currently being submitted. The hash is keyed by the API and reveals no key.
+  PERFORM pg_advisory_xact_lock(
+    hashtextextended(v_organization_id::text || ':' || p_key_fingerprint, 0)
+  );
+
+  SELECT * INTO v_existing
+    FROM eogp.public_booking_submission_idempotency
+   WHERE organization_id = v_organization_id
+     AND key_fingerprint = p_key_fingerprint
+   FOR UPDATE;
+  IF FOUND THEN
+    IF v_existing.request_fingerprint <> p_request_fingerprint THEN
+      RETURN jsonb_build_object('idempotencyConflict', true);
+    END IF;
+
+    SELECT public_reference, status
+      INTO v_public_reference, v_status
+      FROM eogp.booking_inquiries
+     WHERE organization_id = v_organization_id
+       AND id = v_existing.inquiry_id;
+    IF NOT FOUND THEN
+      RAISE EXCEPTION 'idempotency record references a missing inquiry'
+        USING ERRCODE = '55000';
+    END IF;
+
+    RETURN jsonb_build_object(
+      'inquiryId', v_existing.inquiry_id,
+      'publicReference', v_public_reference,
+      'status', v_status,
+      'replayed', true
+    );
+  END IF;
+
+  -- Pin the submission to a published revision of this exact form. Previous
+  -- published revisions remain valid so visitors can finish a page already open.
+  PERFORM 1
+    FROM eogp.booking_form_definitions definition
+    JOIN eogp.booking_form_revisions revision
+      ON revision.organization_id = definition.organization_id
+     AND revision.form_definition_id = definition.id
+   WHERE definition.organization_id = v_organization_id
+     AND definition.form_code = p_form_code
+     AND definition.status = 'active'
+     AND revision.id = p_form_revision_id
+     AND revision.state = 'published'
+     AND revision.published_at IS NOT NULL
+   FOR SHARE OF definition, revision;
+  IF NOT FOUND THEN
+    RETURN jsonb_build_object('formUnavailable', true);
+  END IF;
+
+  SELECT default_timezone INTO v_default_timezone
+    FROM eogp.organizations
+   WHERE id = v_organization_id;
+  v_timezone := coalesce(nullif(trim(p_requested_timezone), ''), v_default_timezone);
+  IF v_timezone IS NULL OR NOT EXISTS (
+    SELECT 1 FROM pg_catalog.pg_timezone_names WHERE name = v_timezone
+  ) THEN
+    RAISE EXCEPTION 'invalid requested timezone' USING ERRCODE = '22023';
+  END IF;
+
+  -- An hourly bucket makes the limit durable across API instances/restarts.
+  -- Existing idempotent replays return above and do not consume another slot.
+  v_window_started_at := date_trunc('hour', v_now AT TIME ZONE 'UTC') AT TIME ZONE 'UTC';
+  DELETE FROM eogp.public_booking_submission_rate_limits
+   WHERE organization_id = v_organization_id
+     AND window_started_at < v_window_started_at - interval '48 hours';
+
+  INSERT INTO eogp.public_booking_submission_rate_limits (
+    organization_id, source_fingerprint, window_started_at, request_count
+  ) VALUES (
+    v_organization_id, p_source_fingerprint, v_window_started_at, 1
+  )
+  ON CONFLICT (organization_id, source_fingerprint, window_started_at)
+  DO UPDATE SET request_count = eogp.public_booking_submission_rate_limits.request_count + 1,
+                updated_at = clock_timestamp()
+  WHERE eogp.public_booking_submission_rate_limits.request_count < 10
+  RETURNING request_count INTO v_request_count;
+
+  IF NOT FOUND THEN
+    RETURN jsonb_build_object(
+      'rateLimited', true,
+      'retryAfterSeconds',
+        greatest(1, ceil(extract(epoch FROM (v_window_started_at + interval '1 hour' - v_now)))::integer)
+    );
+  END IF;
+
+  v_public_reference := 'INQ-' ||
+    upper(substr(replace(gen_random_uuid()::text, '-', ''), 1, 16));
+
+  INSERT INTO eogp.booking_inquiries (
+    organization_id, public_reference, form_revision_id,
+    submitted_values_ciphertext, requester_name_ciphertext,
+    requester_email_hash, requester_email_ciphertext,
+    requester_phone_hash, requester_phone_ciphertext,
+    requested_start, requested_end, requested_timezone
+  ) VALUES (
+    v_organization_id, v_public_reference, p_form_revision_id,
+    p_submitted_values_ciphertext, p_requester_name_ciphertext,
+    p_requester_email_hash, p_requester_email_ciphertext,
+    p_requester_phone_hash, p_requester_phone_ciphertext,
+    p_requested_start, p_requested_end, v_timezone
+  )
+  RETURNING id, status INTO v_inquiry_id, v_status;
+
+  INSERT INTO eogp.public_booking_submission_idempotency (
+    organization_id, key_fingerprint, request_fingerprint, inquiry_id
+  ) VALUES (
+    v_organization_id, p_key_fingerprint, p_request_fingerprint, v_inquiry_id
+  );
+
+  RETURN jsonb_build_object(
+    'inquiryId', v_inquiry_id,
+    'publicReference', v_public_reference,
+    'status', v_status,
+    'replayed', false
+  );
+END;
+$function$;
+
+REVOKE ALL ON FUNCTION eogp.submit_public_booking_inquiry(
+  text,text,uuid,text,text,text,bytea,bytea,text,bytea,text,bytea,timestamptz,timestamptz,text
+) FROM PUBLIC;
+GRANT EXECUTE ON FUNCTION eogp.submit_public_booking_inquiry(
+  text,text,uuid,text,text,text,bytea,bytea,text,bytea,text,bytea,timestamptz,timestamptz,text
+) TO eventor_runtime;
+
+COMMENT ON FUNCTION eogp.submit_public_booking_inquiry(
+  text,text,uuid,text,text,text,bytea,bytea,text,bytea,text,bytea,timestamptz,timestamptz,text
+) IS
+  'Anonymous booking intake command. Resolves an active public tenant route, checks a published form revision, enforces durable per-source hourly limits and idempotency, and stores only application-encrypted requester/submission values.';
+
+     OR p_submitted_values_ciphertext IS NULL
+     OR octet_length(p_submitted_values_ciphertext) <= 32
+     OR p_requester_name_ciphertext IS NULL
+     OR octet_length(p_requester_name_ciphertext) <= 32
+     OR ((p_requester_email_hash IS NULL) <> (p_requester_email_ciphertext IS NULL))
+     OR ((p_requester_phone_hash IS NULL) <> (p_requester_phone_ciphertext IS NULL))
+     OR (p_requester_email_hash IS NOT NULL AND p_requester_email_hash !~ '^[0-9a-f]{64}$')
+     OR (p_requester_phone_hash IS NOT NULL AND p_requester_phone_hash !~ '^[0-9a-f]{64}$')
+     OR (p_requester_email_ciphertext IS NOT NULL AND octet_length(p_requester_email_ciphertext) <= 32)
+     OR (p_requester_phone_ciphertext IS NOT NULL AND octet_length(p_requester_phone_ciphertext) <= 32)
+     OR (p_requested_start IS NOT NULL AND p_requested_end IS NOT NULL AND p_requested_end <= p_requested_start) THEN
+    RAISE EXCEPTION 'invalid public booking inquiry payload' USING ERRCODE = '22023';
+  END IF;
+
+  -- The slug resolves only to an active public route. Lock the route row so an
+  -- organization suspension/slug change serializes against an in-flight submit.
+  SELECT organization_id INTO v_organization_id
+    FROM eogp.public_organization_routes
+   WHERE organization_slug = trim(p_organization_slug)
+     AND is_active = true
+   FOR SHARE;
+  IF NOT FOUND THEN
+    RETURN jsonb_build_object('formUnavailable', true);
+  END IF;
+
+  PERFORM set_config('app.organization_id', v_organization_id::text, true);
+
+  -- Serialize identical idempotency keys even when their first request is
+  -- currently being submitted. The hash is keyed by the API and reveals no key.
+  PERFORM pg_advisory_xact_lock(
+    hashtextextended(v_organization_id::text || ':' || p_key_fingerprint, 0)
+  );
+
+  SELECT * INTO v_existing
+    FROM eogp.public_booking_submission_idempotency
+   WHERE organization_id = v_organization_id
+     AND key_fingerprint = p_key_fingerprint
+   FOR UPDATE;
+  IF FOUND THEN
+    IF v_existing.request_fingerprint <> p_request_fingerprint THEN
+      RETURN jsonb_build_object('idempotencyConflict', true);
+    END IF;
+
+    SELECT public_reference, status
+      INTO v_public_reference, v_status
+      FROM eogp.booking_inquiries
+     WHERE organization_id = v_organization_id
+       AND id = v_existing.inquiry_id;
+    IF NOT FOUND THEN
+      RAISE EXCEPTION 'idempotency record references a missing inquiry'
+        USING ERRCODE = '55000';
+    END IF;
+
+    RETURN jsonb_build_object(
+      'inquiryId', v_existing.inquiry_id,
+      'publicReference', v_public_reference,
+      'status', v_status,
+      'replayed', true
+    );
+  END IF;
+
+  -- Pin the submission to a published revision of this exact form. Previous
+  -- published revisions remain valid so visitors can finish a page already open.
+  PERFORM 1
+    FROM eogp.booking_form_definitions definition
+    JOIN eogp.booking_form_revisions revision
+      ON revision.organization_id = definition.organization_id
+     AND revision.form_definition_id = definition.id
+   WHERE definition.organization_id = v_organization_id
+     AND definition.form_code = p_form_code
+     AND definition.status = 'active'
+     AND revision.id = p_form_revision_id
+     AND revision.state = 'published'
+     AND revision.published_at IS NOT NULL
+   FOR SHARE OF definition, revision;
+  IF NOT FOUND THEN
+    RETURN jsonb_build_object('formUnavailable', true);
+  END IF;
+
+  SELECT default_timezone INTO v_default_timezone
+    FROM eogp.organizations
+   WHERE id = v_organization_id;
+  v_timezone := coalesce(nullif(trim(p_requested_timezone), ''), v_default_timezone);
+  IF v_timezone IS NULL OR NOT EXISTS (
+    SELECT 1 FROM pg_catalog.pg_timezone_names WHERE name = v_timezone
+  ) THEN
+    RAISE EXCEPTION 'invalid requested timezone' USING ERRCODE = '22023';
+  END IF;
+
+  -- An hourly bucket makes the limit durable across API instances/restarts.
+  -- Existing idempotent replays return above and do not consume another slot.
+  v_window_started_at := date_trunc('hour', v_now AT TIME ZONE 'UTC') AT TIME ZONE 'UTC';
   DELETE FROM eogp.public_booking_submission_rate_limits
    WHERE organization_id = v_organization_id
      AND window_started_at < v_window_started_at - interval '48 hours';
