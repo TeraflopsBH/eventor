@@ -296,7 +296,12 @@ paths:
               required: [endpointId, signingSecret]
               properties:
                 endpointId: { type: string, format: uuid }
-                signingSecret: { type: string, minLength: 24, maxLength: 512, pattern: '^whsec_[A-Za-z0-9+/]+={0,2}
+                signingSecret:
+                  type: string
+                  minLength: 24
+                  maxLength: 512
+                  pattern: '^whsec_[A-Za-z0-9+/]+={0,2}$'
+                  writeOnly: true
     delete:
       tags: ["Authentication"]
       operationId: deleteStaffSession
