@@ -301,7 +301,7 @@ BEGIN
     RETURN NEW;
   END IF;
 
-  IF current_user='eventor_owner' AND OLD.status IN ('completed','partial','failed')
+  IF current_user='eventor_owner' AND OLD.status IN ('queued','completed','partial','failed')
      AND NEW.status='queued'
      AND (to_jsonb(NEW)-ARRAY[
        'status','queued_by_organization_id','queued_by_membership_id','queued_at',
