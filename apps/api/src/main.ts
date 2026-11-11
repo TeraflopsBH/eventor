@@ -63,6 +63,8 @@ function optionalPublicApiBaseUrl(): string | undefined {
   return `${parsed.origin}${path === "/" ? "" : path}`;
 }
 
+const publicApiBaseUrl = optionalPublicApiBaseUrl();
+
 const trustedProxyAddresses = (process.env.EVENTOR_TRUST_PROXY_CIDRS ?? "")
   .split(",")
   .map((value) => value.trim())
@@ -82,7 +84,7 @@ const app = buildApi({
   getCurrentPrincipal: (principal) => auth.getCurrentPrincipal(principal),
   privateFieldEncryptionKey,
   deliveryCredentialsEncryptionKey,
-  publicApiBaseUrl: optionalPublicApiBaseUrl(),
+  ...(publicApiBaseUrl ? { publicApiBaseUrl } : {}),
   trustedProxyAddresses,
 });
 
