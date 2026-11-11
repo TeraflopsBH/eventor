@@ -59,7 +59,7 @@ function optionalPublicApiBaseUrl(): string | undefined {
       parsed.search || parsed.hash) {
     throw new Error("EVENTOR_PUBLIC_API_BASE_URL must use HTTPS and must not contain credentials, query parameters or a fragment.");
   }
-  const path = parsed.pathname.replace(/\\/+$/, "");
+  const path = parsed.pathname.replace(/[/]+$/, "");
   return `${parsed.origin}${path === "/" ? "" : path}`;
 }
 
