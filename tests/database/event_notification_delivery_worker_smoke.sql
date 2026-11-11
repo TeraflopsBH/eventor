@@ -31,7 +31,7 @@ BEGIN
   SELECT * INTO v_job
     FROM eogp.claim_next_email_delivery('22222222-2222-4222-8222-222222222222');
   IF v_job.attempt_id IS NULL OR v_job.destination_ciphertext IS NULL
-     OR v_job.smtp_settings->>'host'<>'smtp.example.test'
+     OR v_job.smtp_settings->>'host'<>'smtp.resend.com'
      OR v_job.sender_email<>'events@example.test'
      OR v_job.subject_template IS NULL THEN
     RAISE EXCEPTION 'worker claim did not return the required encrypted SMTP job';
