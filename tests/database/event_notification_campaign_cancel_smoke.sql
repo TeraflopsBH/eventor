@@ -23,8 +23,8 @@ BEGIN
     FROM eogp.event_notification_campaigns
    WHERE organization_id='22222222-2222-4222-8222-222222222222'
      AND event_decision_id='94900000-0000-4000-8000-000000000001';
-  IF NOT v_rejected OR v_status<>'sending' THEN
-    RAISE EXCEPTION 'a campaign already being sent must not be cancelled: rejected %, status %',
+  IF NOT v_rejected OR v_status<>'partial' THEN
+    RAISE EXCEPTION 'a campaign with an uncertain delivery outcome must not be cancelled: rejected %, status %',
       v_rejected,v_status;
   END IF;
 END;
