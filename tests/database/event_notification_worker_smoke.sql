@@ -18,7 +18,7 @@ BEGIN
      AND event_decision_id = '94900000-0000-4000-8000-000000000001'
      AND purpose = 'event_cancellation';
 
-  IF v_campaign_id IS NULL OR v_count <> 2 THEN
+  IF v_campaign_id IS NULL OR v_count <> 3 THEN
     RAISE EXCEPTION 'worker did not create the two historically invited eligible recipients in a preview campaign; campaign %, count %',
       v_campaign_id, v_count;
   END IF;
