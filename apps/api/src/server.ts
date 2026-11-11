@@ -201,6 +201,12 @@ const inquiryParams = {
   properties: { inquiryId: { type: "string", pattern: uuidPattern } },
   additionalProperties: false,
 } as const;
+const bookingDraftParams = {
+  type: "object",
+  required: ["draftId"],
+  properties: { draftId: { type: "string", pattern: uuidPattern } },
+  additionalProperties: false,
+} as const;
 const organizationInquiryParams = {
   type: "object",
   required: ["organizationId"],
@@ -238,6 +244,50 @@ const inquiryAnnotationBody = {
   type: "object",
   required: ["annotation"],
   properties: { annotation: { type: "string", minLength: 1, maxLength: 4000 } },
+  additionalProperties: false,
+} as const;
+const bookingDraftRevisionBody = {
+  type: "object",
+  required: [
+    "expectedRevisionNumber", "values", "requestedStart", "requestedEnd",
+    "timezone", "spaceLines", "resourceLines", "changeReason",
+  ],
+  properties: {
+    expectedRevisionNumber: { type: "integer", minimum: 0 },
+    values: { type: "object", maxProperties: 100, additionalProperties: true },
+    requestedStart: { type: ["string", "null"], format: "date-time" },
+    requestedEnd: { type: ["string", "null"], format: "date-time" },
+    timezone: { type: "string", minLength: 1, maxLength: 80 },
+    spaceLines: {
+      type: "array", maxItems: 50,
+      items: {
+        type: "object",
+        required: ["venueSpaceId", "startsAt", "endsAt", "blockKind"],
+        properties: {
+          venueSpaceId: { type: "string", pattern: uuidPattern },
+          startsAt: { type: "string", format: "date-time" },
+          endsAt: { type: "string", format: "date-time" },
+          blockKind: { type: "string", enum: ["setup", "rehearsal", "event_use", "teardown", "buffer"] },
+          requestedCapacity: { type: "integer", minimum: 0 },
+        },
+        additionalProperties: false,
+      },
+    },
+    resourceLines: {
+      type: "array", maxItems: 100,
+      items: {
+        type: "object",
+        required: ["resourceTypeId", "requestedQuantity"],
+        properties: {
+          resourceTypeId: { type: "string", pattern: uuidPattern },
+          requestedQuantity: { type: "number", exclusiveMinimum: 0, maximum: 999999999 },
+          values: { type: "object", maxProperties: 100, additionalProperties: true },
+        },
+        additionalProperties: false,
+      },
+    },
+    changeReason: { type: "string", minLength: 3, maxLength: 2000 },
+  },
   additionalProperties: false,
 } as const;
 
@@ -479,6 +529,54 @@ function decryptInquiryDetail(value: unknown, key: Buffer | undefined, organizat
     requesterEmail: decryptInquiryCiphertext(requesterEmailCiphertextBase64, key, organizationId, "email"),
     requesterPhone: decryptInquiryCiphertext(requesterPhoneCiphertextBase64, key, organizationId, "phone"),
     submittedValues,
+  };
+}
+
+function decryptBookingDraftProjection(
+  value: unknown,
+  key: Buffer | undefined,
+  organizationId: string,
+): Record<string, unknown> {
+  if (!value || typeof value !== "object" || Array.isArray(value)) {
+    throw new ApiError(500, "BOOKING_DRAFT_PROJECTION_INVALID", "The booking draft projection is invalid.");
+  }
+  const record = value as Record<string, unknown>;
+  const currentRevision = record.currentRevision;
+  if (currentRevision === null || currentRevision === undefined) {
+    return { ...record, currentRevision: null };
+  }
+  if (typeof currentRevision !== "object" || Array.isArray(currentRevision)) {
+    throw new ApiError(500, "BOOKING_DRAFT_PROJECTION_INVALID", "The current booking draft revision is invalid.");
+  }
+  const revision = currentRevision as Record<string, unknown>;
+  const snapshot = revision.valuesSnapshot;
+  if (!snapshot || typeof snapshot !== "object" || Array.isArray(snapshot)) {
+    throw new ApiError(500, "BOOKING_DRAFT_SNAPSHOT_INVALID", "The booking draft snapshot is invalid.");
+  }
+  const envelope = snapshot as Record<string, unknown>;
+  if (envelope.schemaVersion !== 1 || envelope.encryption !== "ECP1" ||
+      envelope.contactKind !== "other" || typeof envelope.ciphertextBase64 !== "string") {
+    throw new ApiError(500, "BOOKING_DRAFT_SNAPSHOT_UNSUPPORTED", "The booking draft snapshot format is unsupported.");
+  }
+  const encryptedValues = decryptInquiryCiphertext(
+    envelope.ciphertextBase64, key, organizationId, "other",
+  );
+  let values: unknown;
+  try {
+    values = encryptedValues === null ? null : JSON.parse(encryptedValues);
+  } catch {
+    throw new ApiError(500, "BOOKING_DRAFT_SNAPSHOT_INVALID", "The encrypted booking draft values could not be decoded.");
+  }
+  if (!values || typeof values !== "object" || Array.isArray(values)) {
+    throw new ApiError(500, "BOOKING_DRAFT_SNAPSHOT_INVALID", "The decrypted booking draft values are not an object.");
+  }
+  const { valuesSnapshot: _valuesSnapshot, ...safeRevision } = revision;
+  return {
+    ...record,
+    currentRevision: {
+      ...safeRevision,
+      values,
+    },
   };
 }
 
@@ -1073,6 +1171,113 @@ export function buildApi(dependencies: ApiDependencies): FastifyInstance {
       } finally {
         client.release();
       }
+    },
+  );
+
+  server.get<{ Params: { draftId: string } }>(
+    "/booking-drafts/:draftId",
+    { schema: { params: bookingDraftParams } },
+    async (request, reply) => {
+      const principal = request.staffPrincipal!;
+      const client = await dependencies.pool.connect();
+      try {
+        await client.query("BEGIN");
+        await client.query("SELECT set_config('app.organization_id',$1,true)", [principal.organizationId]);
+        const result = await client.query<ResultRow>(
+          "SELECT eogp.get_booking_draft($1::uuid,$2::uuid,$3::uuid) AS result",
+          [principal.organizationId, request.params.draftId, principal.membershipId],
+        );
+        await client.query("COMMIT");
+        return reply.code(200).send({
+          data: decryptBookingDraftProjection(
+            result.rows[0]?.result, dependencies.contactEncryptionKey, principal.organizationId,
+          ),
+        });
+      } catch (error) {
+        try { await client.query("ROLLBACK"); } catch { /* preserve the read error */ }
+        throw databaseError(error);
+      } finally {
+        client.release();
+      }
+    },
+  );
+
+  server.post<{
+    Params: { draftId: string };
+    Body: {
+      expectedRevisionNumber: number;
+      values: Record<string, unknown>;
+      requestedStart: string | null;
+      requestedEnd: string | null;
+      timezone: string;
+      spaceLines: Array<Record<string, unknown>>;
+      resourceLines: Array<Record<string, unknown>>;
+      changeReason: string;
+    };
+  }>(
+    "/booking-drafts/:draftId/revisions",
+    {
+      schema: {
+        params: bookingDraftParams,
+        headers: idempotencyHeaders,
+        body: bookingDraftRevisionBody,
+      },
+    },
+    async (request, reply) => {
+      const principal = request.staffPrincipal!;
+      const key = dependencies.contactEncryptionKey;
+      if (!key || key.length !== 32) {
+        throw new ApiError(503, "BOOKING_DRAFT_ENCRYPTION_UNAVAILABLE", "Booking draft value encryption is not configured.");
+      }
+      assertBoundedAnswerValues(request.body.values);
+      const valuesCiphertext = encryptContactValue(
+        JSON.stringify(request.body.values),
+        key,
+        { organizationId: principal.organizationId, contactKind: "other" },
+      );
+      return withCommand(
+        request,
+        reply,
+        "createBookingDraftRevision",
+        { draftId: request.params.draftId, ...request.body },
+        async (client) => {
+          const current = await client.query<ResultRow>(
+            "SELECT eogp.get_booking_draft($1::uuid,$2::uuid,$3::uuid) AS result",
+            [principal.organizationId, request.params.draftId, principal.membershipId],
+          );
+          const projection = current.rows[0]?.result;
+          if (!projection || typeof projection !== "object" || Array.isArray(projection)) {
+            throw new ApiError(500, "BOOKING_DRAFT_PROJECTION_INVALID", "The booking draft projection is invalid.");
+          }
+          const currentRecord = projection as Record<string, unknown>;
+          const currentRevision = currentRecord.currentRevision;
+          if (currentRevision && typeof currentRevision === "object" && !Array.isArray(currentRevision)) {
+            const fieldSchema = (currentRevision as Record<string, unknown>).fieldSchema;
+            if (fieldSchema !== null && fieldSchema !== undefined) {
+              const values = request.body.values;
+              validatePublicFormAnswers(fieldSchema, values.answers ?? {});
+            }
+          }
+
+          const result = await client.query<ResultRow>(
+            "SELECT eogp.create_booking_draft_revision($1::uuid,$2::uuid,$3::uuid,$4::integer,$5::bytea,$6::timestamptz,$7::timestamptz,$8::text,$9::jsonb,$10::jsonb,$11::text) AS result",
+            [
+              principal.organizationId,
+              request.params.draftId,
+              principal.membershipId,
+              request.body.expectedRevisionNumber,
+              valuesCiphertext,
+              request.body.requestedStart,
+              request.body.requestedEnd,
+              request.body.timezone,
+              JSON.stringify(request.body.spaceLines),
+              JSON.stringify(request.body.resourceLines),
+              request.body.changeReason,
+            ],
+          );
+          return result.rows[0]?.result as Record<string, unknown>;
+        },
+      );
     },
   );
 
