@@ -112,6 +112,8 @@ DECLARE
   v_denied boolean := false;
   v_cross_tenant_denied boolean := false;
   v_invalid_transition_denied boolean := false;
+  v_terminal_assignment_denied boolean := false;
+  v_append_only_denied boolean := false;
   v_ciphertext bytea := decode('45435031' || repeat('00',29),'hex');
 BEGIN
   v_submitted := eogp.submit_public_booking_inquiry(
@@ -201,6 +203,19 @@ BEGIN
     RAISE EXCEPTION 'booking inquiry history projections did not reflect the commands: %',v_detail;
   END IF;
 
+  BEGIN
+    UPDATE eogp.booking_inquiry_status_history
+       SET reason='attempted history mutation'
+     WHERE organization_id='a7000000-0000-4000-8000-000000000001'
+       AND inquiry_id=v_inquiry_id
+       AND new_status='under_review';
+  EXCEPTION WHEN SQLSTATE '55000' THEN
+    v_append_only_denied := true;
+  END;
+  IF NOT v_append_only_denied THEN
+    RAISE EXCEPTION 'inquiry status history was mutable';
+  END IF;
+
   PERFORM eogp.change_booking_inquiry_status(
     'a7000000-0000-4000-8000-000000000001',
     v_inquiry_id,
@@ -222,6 +237,20 @@ BEGIN
   END;
   IF NOT v_invalid_transition_denied THEN
     RAISE EXCEPTION 'terminal inquiry was incorrectly allowed to transition back to review';
+  END IF;
+
+  BEGIN
+    PERFORM eogp.assign_booking_inquiry(
+      'a7000000-0000-4000-8000-000000000001',
+      v_inquiry_id,
+      'a7200000-0000-4000-8000-000000000001',
+      'a7200000-0000-4000-8000-000000000002'
+    );
+  EXCEPTION WHEN SQLSTATE '55000' THEN
+    v_terminal_assignment_denied := true;
+  END;
+  IF NOT v_terminal_assignment_denied THEN
+    RAISE EXCEPTION 'terminal inquiry was incorrectly assignable';
   END IF;
 
   BEGIN
@@ -265,6 +294,16 @@ BEGIN
   ) THEN
     RAISE EXCEPTION 'runtime role cannot execute permission-filtered inquiry projections';
   END IF;
+  IF NOT has_function_privilege(
+    'eventor_runtime','eogp.assign_booking_inquiry(uuid,uuid,uuid,uuid)','EXECUTE'
+  ) OR NOT has_function_privilege(
+    'eventor_runtime','eogp.change_booking_inquiry_status(uuid,uuid,uuid,text,text)','EXECUTE'
+  ) OR NOT has_function_privilege(
+    'eventor_runtime','eogp.add_booking_inquiry_annotation(uuid,uuid,uuid,text)','EXECUTE'
+  ) THEN
+    RAISE EXCEPTION 'runtime role cannot execute the staff inquiry commands';
+  END IF;
+
 END;
 $test$;
 
