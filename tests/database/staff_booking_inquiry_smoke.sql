@@ -331,8 +331,12 @@ BEGIN
   );
   IF v_converted_detail->>'status' <> 'converted'
      OR jsonb_array_length(v_converted_detail->'statusHistory') <> 2
-     OR v_converted_detail->'statusHistory'->1->>'newStatus' <> 'converted'
-     OR v_converted_detail->'statusHistory'->1->>'actorKind' <> 'membership' THEN
+     OR NOT EXISTS (
+       SELECT 1
+         FROM jsonb_array_elements(v_converted_detail->'statusHistory') history
+        WHERE history->>'newStatus' = 'converted'
+          AND history->>'actorKind' = 'membership'
+     ) THEN
     RAISE EXCEPTION 'conversion did not append the attributed inquiry status history: %',v_converted_detail;
   END IF;
 
@@ -348,6 +352,16 @@ BEGIN
           WHERE organization_id='a7000000-0000-4000-8000-000000000001'
             AND draft_id=(v_conversion->>'draftId')::uuid) <> 1 THEN
     RAISE EXCEPTION 'replayed inquiry conversion created duplicate draft state: %',v_conversion_replay;
+  END IF;
+
+  IF (SELECT count(*) FROM eogp.audit_events
+       WHERE organization_id='a7000000-0000-4000-8000-000000000001'
+         AND actor_membership_id='a7200000-0000-4000-8000-000000000001'
+         AND action='booking.inquiry.converted'
+         AND aggregate_type='booking_inquiry'
+         AND aggregate_id=v_conversion_inquiry_id
+         AND safe_metadata->>'draftId'=v_conversion->>'draftId') <> 1 THEN
+    RAISE EXCEPTION 'conversion audit event was missing, duplicated or incorrectly attributed';
   END IF;
 
   IF EXISTS (
