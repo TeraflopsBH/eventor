@@ -636,7 +636,7 @@ BEGIN
       AND attempt.status='queued' AND attempt.next_attempt_at<=clock_timestamp()
       AND campaign.status IN ('queued','sending')
       AND recipient.channel='email'
-    ORDER BY attempt.next_attempt_at,attempt.created_at,attempt.id
+    ORDER BY attempt.next_attempt_at,attempt.id
     FOR UPDATE OF attempt SKIP LOCKED
     LIMIT 1;
 
