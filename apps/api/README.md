@@ -110,8 +110,9 @@ Configure separate, cryptographically random 32-byte keys, base64-encoded in dep
 - `EVENTOR_CONTACT_ENCRYPTION_KEY`
 - `EVENTOR_DELIVERY_CREDENTIALS_KEY`
 - `EVENTOR_AUTH_FINGERPRINT_KEY`
+- `EVENTOR_PUBLIC_INQUIRY_FINGERPRINT_KEY`
 
-Never reuse one key for another purpose. The API requires all four keys; the notification worker requires the contact-encryption and delivery-credential keys. The public inquiry API uses the contact key for tenant-bound ECP1 encryption and the auth fingerprint key with a separate purpose tag for source/idempotency fingerprints. Key rotation requires an explicit re-encryption procedure. Replacing a key alone makes existing ciphertext unreadable.
+Never reuse one key for another purpose. The API requires all five keys; the notification worker requires the contact-encryption and delivery-credential keys. The public inquiry API uses the contact key for tenant-bound ECP1 encryption and its dedicated public-inquiry fingerprint key for source/idempotency fingerprints. Key rotation requires an explicit re-encryption procedure. Replacing a key alone makes existing ciphertext unreadable.
 
 Both database connection URLs should use TLS with certificate and hostname verification in production (for example, PostgreSQL `sslmode=verify-full` with a trusted CA). Configure database passwords outside this repository.
 
