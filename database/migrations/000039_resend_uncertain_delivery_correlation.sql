@@ -292,11 +292,6 @@ BEGIN
     RAISE EXCEPTION 'Resend event cannot override the current operator or delivery decision'
       USING ERRCODE='55000';
   END IF;
-  IF v_current_status IN ('delivered','bounced') AND v_current_status<>p_outcome THEN
-    RAISE EXCEPTION 'conflicting terminal Resend delivery outcome'
-      USING ERRCODE='55000';
-  END IF;
-
   INSERT INTO eogp.event_notification_provider_events(
     organization_id,provider_name,provider_event_id,attempt_id,outcome,payload_sha256
   ) VALUES (
@@ -320,6 +315,11 @@ BEGIN
     RETURN jsonb_build_object(
       'accepted',true,'duplicate',true,'attemptId',v_attempt_id,'status',v_existing.outcome
     );
+  END IF;
+
+  IF v_current_status IN ('delivered','bounced') AND v_current_status<>p_outcome THEN
+    RAISE EXCEPTION 'conflicting terminal Resend delivery outcome'
+      USING ERRCODE='55000';
   END IF;
 
   INSERT INTO eogp.event_notification_delivery_attempt_events(
