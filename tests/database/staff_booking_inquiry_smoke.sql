@@ -621,12 +621,28 @@ BEGIN
      OR has_table_privilege('eventor_runtime','eogp.booking_inquiry_assignment_history','INSERT')
      OR has_table_privilege('eventor_runtime','eogp.booking_drafts','SELECT')
      OR has_table_privilege('eventor_runtime','eogp.booking_drafts','INSERT')
+     OR has_table_privilege('eventor_runtime','eogp.booking_drafts','UPDATE')
+     OR has_table_privilege('eventor_runtime','eogp.booking_drafts','DELETE')
      OR has_table_privilege('eventor_runtime','eogp.booking_draft_revisions','SELECT')
      OR has_table_privilege('eventor_runtime','eogp.booking_draft_revisions','INSERT')
+     OR has_table_privilege('eventor_runtime','eogp.booking_draft_revisions','UPDATE')
+     OR has_table_privilege('eventor_runtime','eogp.booking_draft_revisions','DELETE')
+     OR has_table_privilege('eventor_runtime','eogp.booking_draft_space_lines','SELECT')
      OR has_table_privilege('eventor_runtime','eogp.booking_draft_space_lines','INSERT')
+     OR has_table_privilege('eventor_runtime','eogp.booking_draft_space_lines','UPDATE')
+     OR has_table_privilege('eventor_runtime','eogp.booking_draft_space_lines','DELETE')
+     OR has_table_privilege('eventor_runtime','eogp.booking_offers','SELECT')
      OR has_table_privilege('eventor_runtime','eogp.booking_offers','INSERT')
+     OR has_table_privilege('eventor_runtime','eogp.booking_offers','UPDATE')
+     OR has_table_privilege('eventor_runtime','eogp.booking_offers','DELETE')
+     OR has_table_privilege('eventor_runtime','eogp.booking_offer_revisions','SELECT')
      OR has_table_privilege('eventor_runtime','eogp.booking_offer_revisions','INSERT')
-     OR has_table_privilege('eventor_runtime','eogp.booking_resource_lines','INSERT') THEN
+     OR has_table_privilege('eventor_runtime','eogp.booking_offer_revisions','UPDATE')
+     OR has_table_privilege('eventor_runtime','eogp.booking_offer_revisions','DELETE')
+     OR has_table_privilege('eventor_runtime','eogp.booking_resource_lines','SELECT')
+     OR has_table_privilege('eventor_runtime','eogp.booking_resource_lines','INSERT')
+     OR has_table_privilege('eventor_runtime','eogp.booking_resource_lines','UPDATE')
+     OR has_table_privilege('eventor_runtime','eogp.booking_resource_lines','DELETE') THEN
     RAISE EXCEPTION 'runtime role has direct access to protected inquiry or draft source/history tables';
   END IF;
 
@@ -641,6 +657,12 @@ BEGIN
   ) THEN
     RAISE EXCEPTION 'runtime role cannot execute permission-filtered inquiry projections';
   END IF;
+  IF has_function_privilege(
+    'eventor_runtime','eogp.assert_booking_draft_permission(uuid,uuid,uuid,text)','EXECUTE'
+  ) THEN
+    RAISE EXCEPTION 'runtime role can call the internal booking draft permission helper directly';
+  END IF;
+
   IF NOT has_function_privilege(
     'eventor_runtime','eogp.convert_booking_inquiry_to_draft(uuid,uuid,uuid)','EXECUTE'
   ) OR NOT has_function_privilege(
