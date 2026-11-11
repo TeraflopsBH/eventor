@@ -373,9 +373,10 @@ export function buildApi(dependencies: ApiDependencies): FastifyInstance {
   server.decorateRequest("rawJsonBody", null);
   server.removeContentTypeParser("application/json");
   server.addContentTypeParser("application/json", { parseAs: "string" }, (request, body, done) => {
-    request.rawJsonBody = body;
+    const rawBody = typeof body === "string" ? body : body.toString("utf8");
+    request.rawJsonBody = rawBody;
     try {
-      done(null, JSON.parse(body) as unknown);
+      done(null, JSON.parse(rawBody) as unknown);
     } catch (error) {
       done(error as Error);
     }
@@ -385,7 +386,7 @@ export function buildApi(dependencies: ApiDependencies): FastifyInstance {
   // allow-listed Origin. All other routes derive identity from the opaque DB
   // session cookie; state-changing requests additionally require CSRF validation.
   server.addHook("onRequest", async (request, reply) => {
-    const pathname = request.url.split("?", 1)[0];
+    const pathname = request.url.split("?", 1)[0] ?? request.url;
     if (request.method === "POST" &&
         pathname.startsWith("/webhooks/resend/") &&
         /^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89abAB][0-9a-f]{3}-[0-9a-f]{12}$/i.test(pathname.slice("/webhooks/resend/".length))) {
