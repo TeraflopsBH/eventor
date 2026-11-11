@@ -100,7 +100,7 @@ BEGIN
     RAISE EXCEPTION 'provider event does not match a known provider submission'
       USING ERRCODE='55000';
   END IF;
-  IF v_current_status NOT IN ('sent','delivered','bounced') THEN
+  IF v_current_status NOT IN ('sent','delivered','bounced','uncertain') THEN
     RAISE EXCEPTION 'provider event cannot resolve the current delivery state'
       USING ERRCODE='55000';
   END IF;
