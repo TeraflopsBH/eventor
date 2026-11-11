@@ -145,8 +145,8 @@ BEGIN
     'deliveryCounts',jsonb_build_object(
       'queued',coalesce((SELECT total FROM status_counts WHERE status='queued'),0),
       'sending',coalesce((SELECT total FROM status_counts WHERE status='sending'),0),
-      'sent',coalesce((SELECT total FROM status_counts WHERE status IN ('sent','delivered')),0),
-      'failed',coalesce((SELECT total FROM status_counts WHERE status IN ('failed','bounced')),0),
+      'sent',(SELECT coalesce(sum(total),0) FROM status_counts WHERE status IN ('sent','delivered')),
+      'failed',(SELECT coalesce(sum(total),0) FROM status_counts WHERE status IN ('failed','bounced')),
       'uncertain',coalesce((SELECT total FROM status_counts WHERE status='uncertain'),0),
       'suppressed',coalesce((SELECT total FROM status_counts WHERE status='suppressed'),0)
     ),
