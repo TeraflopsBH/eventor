@@ -775,6 +775,16 @@ export function buildApi(dependencies: ApiDependencies): FastifyInstance {
         );
         const form = formResult.rows[0]?.result;
         if (!form || typeof form !== "object" || Array.isArray(form)) {
+          const latestFormResult = await client.query<ResultRow>(
+            "SELECT eogp.get_published_public_booking_form($1::text,$2::text) AS result",
+            [request.params.organizationSlug, body.formCode],
+          );
+          const latestForm = latestFormResult.rows[0]?.result;
+          if (latestForm && typeof latestForm === "object" && !Array.isArray(latestForm)) {
+            return reply.code(409).send(
+              safeProblem(request.id, 409, "PUBLIC_FORM_REVISION_UNAVAILABLE", "The published form changed or is no longer available. Reload it and try again."),
+            );
+          }
           return reply.code(404).send(
             safeProblem(request.id, 404, "PUBLIC_BOOKING_FORM_NOT_FOUND", "The requested booking form is not available."),
           );
