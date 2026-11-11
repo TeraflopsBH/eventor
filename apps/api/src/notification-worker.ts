@@ -168,6 +168,7 @@ async function sendClaimedEmail(
   contactKey: Buffer,
   deliveryKey: Buffer,
   factory: SmtpTransportFactory,
+  providerMessageReference: string | null,
 ): Promise<{ outcome: "sent" | "failed" | "uncertain"; failureCode: string | null; messageReference: string | null }> {
   try {
     const credentials = job.credentials_ciphertext
@@ -198,13 +199,18 @@ async function sendClaimedEmail(
         to: destination,
         subject,
         text,
+        ...(providerMessageReference ? { messageId: providerMessageReference } : {}),
       });
       if (!result.accepted.some((address) => address.toLowerCase() === destination.toLowerCase())) {
         const error = new Error("SMTP server did not accept the recipient.") as Error & { responseCode: number };
         error.responseCode = 550;
         throw error;
       }
-      return { outcome: "sent", failureCode: null, messageReference: result.messageId };
+      return {
+        outcome: "sent",
+        failureCode: null,
+        messageReference: providerMessageReference ?? result.messageId,
+      };
     } finally {
       transport.close();
     }
@@ -255,13 +261,52 @@ export async function processPendingEmailDeliveries(
       });
       if (!job) break;
 
-      const result = await sendClaimedEmail(
-        job,
-        tenant.organization_id,
-        contactEncryptionKey,
-        deliveryCredentialsEncryptionKey,
-        factory,
-      );
+      let result: {
+        outcome: "sent" | "failed" | "uncertain";
+        failureCode: string | null;
+        messageReference: string | null;
+      };
+
+      if (job.smtp_settings.host.trim().toLowerCase() === "smtp.resend.com") {
+        // Prepare and commit the stable Message-ID before any SMTP bytes are
+        // submitted. If Resend accepts the mail but the DATA response is lost,
+        // its signed callback can still resolve the resulting uncertain attempt.
+        try {
+          const prepared = await inTenantTransaction(
+            pool,
+            tenant.organization_id,
+            async (client) => client.query<{ reference: string }>(
+              "SELECT eogp.prepare_resend_delivery_submission($1::uuid,$2::uuid) AS reference",
+              [tenant.organization_id, job.attempt_id],
+            ),
+          );
+          const providerReference = prepared.rows[0]?.reference;
+          if (typeof providerReference !== "string" || providerReference.length < 3) {
+            throw new Error("Resend Message-ID preparation returned no reference.");
+          }
+          result = await sendClaimedEmail(
+            job,
+            tenant.organization_id,
+            contactEncryptionKey,
+            deliveryCredentialsEncryptionKey,
+            factory,
+            providerReference,
+          );
+        } catch {
+          // The message has not been submitted yet. Record a safe, permanent
+          // preparation failure instead of creating a false uncertain send.
+          result = { outcome: "failed", failureCode: "SMTP_UNKNOWN", messageReference: null };
+        }
+      } else {
+        result = await sendClaimedEmail(
+          job,
+          tenant.organization_id,
+          contactEncryptionKey,
+          deliveryCredentialsEncryptionKey,
+          factory,
+          null,
+        );
+      }
       await inTenantTransaction(pool, tenant.organization_id, async (client) => {
         const completed = await client.query<DeliveryCompletionRow>(
           "SELECT eogp.complete_email_delivery_attempt($1::uuid,$2::uuid,$3::text,$4::text,$5::text) AS result",
