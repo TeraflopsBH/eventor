@@ -75,22 +75,22 @@ BEGIN
     '22222222-2222-4222-8222-222222222222',
     'bbbbbbbb-2222-4222-8222-bbbbbbbbbbbb',
     jsonb_build_object(
-      'host','smtp.example.test',
-      'port',465,
-      'transportSecurity','implicit_tls',
-      'authMode','none',
+      'host','smtp.resend.com',
+      'port',587,
+      'transportSecurity','starttls',
+      'authMode','password',
       'senderEmail','events@example.test',
       'senderName','Eventor CI',
       'replyTo','',
       'connectionTimeoutMs',15000
     ),
-    NULL,
-    false,
-    true
+    decode('45444331' || repeat('00',29),'hex'),
+    true,
+    false
   );
 
   IF (v_third ->> 'revision')::integer <> 3
-     OR (v_third ->> 'credentialsConfigured')::boolean IS DISTINCT FROM false THEN
+     OR (v_third ->> 'credentialsConfigured')::boolean IS DISTINCT FROM true THEN
     RAISE EXCEPTION 'SMTP credential clearing failed: %', v_third;
   END IF;
 
@@ -127,7 +127,7 @@ BEGIN
   IF eogp.get_organization_email_delivery_config(
     '22222222-2222-4222-8222-222222222222',
     'bbbbbbbb-2222-4222-8222-bbbbbbbbbbbb'
-  ) ->> 'credentialsConfigured' <> 'false' THEN
+  ) ->> 'credentialsConfigured' <> 'true' THEN
     RAISE EXCEPTION 'delivery configuration projection did not return the current head';
   END IF;
 
