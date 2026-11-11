@@ -816,7 +816,7 @@ test("staff inquiry inbox decrypts authorized projections and routes assignment,
 
   const conversion = await app.inject({
     method: "POST",
-    url: `/booking-inquiries/${inquiryId}/conversion`,
+    url: `/booking-inquiries/${inquiryId}/create-draft`,
     headers: { "idempotency-key": "convert-inquiry-0001" },
     payload: {},
   });
