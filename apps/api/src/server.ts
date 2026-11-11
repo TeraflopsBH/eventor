@@ -704,6 +704,28 @@ export function buildApi(dependencies: ApiDependencies): FastifyInstance {
   );
 
   server.post<{ Params: { campaignId: string }; Body: Record<string, never> }>(
+    "/event-notification-campaigns/:campaignId/cancel",
+    {
+      schema: {
+        params: campaignParams,
+        headers: idempotencyHeaders,
+        body: { type: "object", properties: {}, additionalProperties: false },
+      },
+    },
+    async (request, reply) => {
+      const principal = request.staffPrincipal!;
+      return withCommand(request, reply, "cancelQueuedEventNotificationCampaign",
+        { campaignId: request.params.campaignId }, async (client) => {
+          const result = await client.query<ResultRow>(
+            "SELECT eogp.cancel_queued_event_notification_campaign($1::uuid,$2::uuid,$3::uuid) AS result",
+            [principal.organizationId, request.params.campaignId, principal.membershipId],
+          );
+          return result.rows[0]?.result as Record<string, unknown>;
+        });
+    },
+  );
+
+  server.post<{ Params: { campaignId: string }; Body: Record<string, never> }>(
     "/event-notification-campaigns/:campaignId/queue",
     {
       schema: {
