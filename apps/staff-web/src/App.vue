@@ -61,6 +61,15 @@ type InquiryStatusCommand = "received" | "under_review" | "declined" | "spam";
 const inquiryStatusChoice = ref<InquiryStatusCommand | "">("");
 const inquiryStatusReason = ref("");
 const inquiryAnnotationText = ref("");
+const bookingDraftDetail = ref<import("./api").BookingDraftDetail | null>(null);
+const bookingDraftEditorOpen = ref(false);
+const bookingDraftValuesJson = ref("{}");
+const bookingDraftSpaceLinesJson = ref("[]");
+const bookingDraftResourceLinesJson = ref("[]");
+const bookingDraftRequestedStart = ref("");
+const bookingDraftRequestedEnd = ref("");
+const bookingDraftTimezone = ref("Europe/Sarajevo");
+const bookingDraftChangeReason = ref("");
 
 const selectedOrganization = computed(() =>
   principal.value?.memberships?.find((membership) => membership.selected)?.organizationName
@@ -77,6 +86,14 @@ const canEditInquiryAssignment = computed(() =>
 const canConvertInquiry = computed(() =>
   inquiryCapabilities.value.canConvert &&
   (inquiryDetail.value?.status === "received" || inquiryDetail.value?.status === "under_review"),
+);
+const canReadBookingDraft = computed(() =>
+  inquiryCapabilities.value.canReadDraft && Boolean(inquiryDetail.value?.bookingDraft),
+);
+const canManageBookingDraft = computed(() =>
+  inquiryCapabilities.value.canManageDraft &&
+  bookingDraftDetail.value?.status === "draft" &&
+  Boolean(bookingDraftDetail.value.currentRevision),
 );
 const inquiryStatusTargets = computed<InquiryStatusCommand[]>(() => {
   if (inquiryDetail.value?.status === "received") return ["under_review", "declined", "spam"];
@@ -142,7 +159,12 @@ function showError(error: unknown): void {
       inquiryRows.value = [];
       inquiryDetail.value = null;
       inquiryAssignees.value = [];
-      inquiryCapabilities.value = { canAssign: false, canManage: false, canAnnotate: false };
+      bookingDraftDetail.value = null;
+      bookingDraftEditorOpen.value = false;
+      inquiryCapabilities.value = {
+        canAssign: false, canManage: false, canAnnotate: false, canConvert: false,
+        canReadDraft: false, canManageDraft: false,
+      };
       pageError.value = "Your session has expired. Please sign in again.";
       return;
     }
@@ -541,6 +563,8 @@ async function openInquiry(item: BookingInquiryListItem): Promise<void> {
   selectedInquiryId.value = item.inquiryId;
   inquiryStatusReason.value = "";
   inquiryAnnotationText.value = "";
+  bookingDraftDetail.value = null;
+  bookingDraftEditorOpen.value = false;
   busy.value = true;
   try {
     await refreshInquiryDetailData();
@@ -634,6 +658,130 @@ async function saveInquiryConversion(): Promise<void> {
       : `This inquiry was already converted. Existing draft ID: ${result.data.draftId}.`;
   } catch (error) {
     showError(error);
+  } finally {
+    busy.value = false;
+  }
+}
+
+function populateBookingDraftEditor(draft: import("./api").BookingDraftDetail): void {
+  const revision = draft.currentRevision;
+  bookingDraftValuesJson.value = JSON.stringify(revision?.values ?? {}, null, 2);
+  bookingDraftSpaceLinesJson.value = JSON.stringify(
+    (revision?.spaceLines ?? []).map((line) => ({
+      venueSpaceId: line.venueSpaceId,
+      startsAt: line.startsAt,
+      endsAt: line.endsAt,
+      blockKind: line.blockKind,
+      ...(line.requestedCapacity === null ? {} : { requestedCapacity: line.requestedCapacity }),
+    })),
+    null,
+    2,
+  );
+  bookingDraftResourceLinesJson.value = JSON.stringify(
+    (revision?.resourceLines ?? []).map((line) => ({
+      resourceTypeId: line.resourceTypeId,
+      requestedQuantity: line.requestedQuantity,
+      values: line.values,
+    })),
+    null,
+    2,
+  );
+  bookingDraftRequestedStart.value = revision?.requestedStart ?? "";
+  bookingDraftRequestedEnd.value = revision?.requestedEnd ?? "";
+  bookingDraftTimezone.value = revision?.timezone ?? "Europe/Sarajevo";
+  bookingDraftChangeReason.value = "";
+}
+
+async function openBookingDraft(): Promise<void> {
+  const draftReference = inquiryDetail.value?.bookingDraft;
+  if (!draftReference || !inquiryCapabilities.value.canReadDraft) return;
+  clearMessages();
+  busy.value = true;
+  try {
+    const result = await api.getBookingDraft(draftReference.draftId);
+    bookingDraftDetail.value = result.data;
+    populateBookingDraftEditor(result.data);
+    bookingDraftEditorOpen.value = true;
+  } catch (error) {
+    showError(error);
+  } finally {
+    busy.value = false;
+  }
+}
+
+async function refreshBookingDraft(): Promise<void> {
+  const draftId = bookingDraftDetail.value?.draftId;
+  if (!draftId) return;
+  const result = await api.getBookingDraft(draftId);
+  bookingDraftDetail.value = result.data;
+  populateBookingDraftEditor(result.data);
+}
+
+async function saveBookingDraftRevision(): Promise<void> {
+  const draft = bookingDraftDetail.value;
+  const revision = draft?.currentRevision;
+  if (!draft || !revision || !canManageBookingDraft.value) return;
+
+  let values: Record<string, unknown>;
+  let spaceLines: Array<Record<string, unknown>>;
+  let resourceLines: Array<Record<string, unknown>>;
+  try {
+    const parsedValues: unknown = JSON.parse(bookingDraftValuesJson.value);
+    const parsedSpaces: unknown = JSON.parse(bookingDraftSpaceLinesJson.value);
+    const parsedResources: unknown = JSON.parse(bookingDraftResourceLinesJson.value);
+    if (!parsedValues || typeof parsedValues !== "object" || Array.isArray(parsedValues)) {
+      throw new Error("Values must be a JSON object.");
+    }
+    if (!Array.isArray(parsedSpaces) || !Array.isArray(parsedResources)) {
+      throw new Error("Space lines and resource lines must each be JSON arrays.");
+    }
+    values = parsedValues as Record<string, unknown>;
+    spaceLines = parsedSpaces as Array<Record<string, unknown>>;
+    resourceLines = parsedResources as Array<Record<string, unknown>>;
+  } catch (error) {
+    pageError.value = error instanceof Error ? error.message : "The draft JSON is invalid.";
+    return;
+  }
+  const reason = bookingDraftChangeReason.value.trim();
+  if (reason.length < 3) {
+    pageError.value = "Enter a change reason of at least 3 characters.";
+    return;
+  }
+  const nextRevision = draft.currentRevisionNumber + 1;
+  if (!window.confirm(
+    `Save these changes as immutable draft revision ${nextRevision}? Revision ${draft.currentRevisionNumber} will remain unchanged.`,
+  )) return;
+
+  clearMessages();
+  busy.value = true;
+  try {
+    const result = await api.createBookingDraftRevision(draft.draftId, {
+      expectedRevisionNumber: draft.currentRevisionNumber,
+      values,
+      requestedStart: bookingDraftRequestedStart.value.trim() || null,
+      requestedEnd: bookingDraftRequestedEnd.value.trim() || null,
+      timezone: bookingDraftTimezone.value.trim(),
+      spaceLines: spaceLines as Array<{
+        venueSpaceId: string;
+        startsAt: string;
+        endsAt: string;
+        blockKind: "setup" | "rehearsal" | "event_use" | "teardown" | "buffer";
+        requestedCapacity?: number;
+      }>,
+      resourceLines: resourceLines as Array<{
+        resourceTypeId: string;
+        requestedQuantity: number;
+        values?: Record<string, unknown>;
+      }>,
+      changeReason: reason,
+    });
+    await Promise.all([refreshBookingDraft(), refreshInquiryDetailData()]);
+    pageNotice.value = `Booking draft revision ${result.data.revisionNumber} created. Earlier revisions remain immutable.`;
+  } catch (error) {
+    showError(error);
+    if (error instanceof ApiError && error.status === 412) {
+      try { await refreshBookingDraft(); } catch { /* retain the original stale-revision message */ }
+    }
   } finally {
     busy.value = false;
   }
@@ -989,7 +1137,88 @@ onMounted(() => { void refreshSession(); });
                   Create booking draft
                 </button>
               </section>
+
+              <section v-if="inquiryDetail.bookingDraft" class="inquiry-card">
+                <div class="inquiry-card-heading">
+                  <h4>Booking draft</h4>
+                  <span class="pill pill-neutral">{{ inquiryDetail.bookingDraft.status }} · revision {{ inquiryDetail.bookingDraft.currentRevisionNumber }}</span>
+                </div>
+                <p class="fine-print">
+                  This draft is separate from the original inquiry. Its revisions are immutable; editing creates a new revision.
+                  No offer, availability hold or booking confirmation is implied.
+                </p>
+                <button
+                  v-if="canReadBookingDraft"
+                  class="button button-secondary"
+                  type="button"
+                  :disabled="busy"
+                  @click="openBookingDraft"
+                >
+                  Open booking draft
+                </button>
+                <p v-else class="fine-print">Your membership does not have permission to read this booking draft.</p>
+              </section>
             </div>
+
+            <section v-if="bookingDraftDetail && bookingDraftEditorOpen" class="inquiry-card booking-draft-editor">
+              <div class="inquiry-card-heading">
+                <div>
+                  <h4>Booking draft · {{ bookingDraftDetail.draftId.slice(0, 8) }}</h4>
+                  <p class="fine-print">Current revision {{ bookingDraftDetail.currentRevisionNumber }} · {{ bookingDraftDetail.status }}</p>
+                </div>
+                <button class="button button-quiet" type="button" :disabled="busy" @click="bookingDraftEditorOpen = false">Close</button>
+              </div>
+
+              <div v-if="bookingDraftDetail.revisionHistory.length" class="draft-revision-history">
+                <h5>Revision history</h5>
+                <ol class="history-list">
+                  <li v-for="history in bookingDraftDetail.revisionHistory" :key="history.revisionId">
+                    <strong>Revision {{ history.revisionNumber }}</strong>
+                    <span>{{ history.changeReason ?? "No change reason recorded" }}</span>
+                    <small>{{ history.createdByDisplayName }} · {{ formatInquiryDate(history.createdAt) }}</small>
+                  </li>
+                </ol>
+              </div>
+
+              <template v-if="canManageBookingDraft">
+                <p class="fine-print">
+                  Saving creates a new immutable revision. The previous revision is retained. If resource or space holds exist
+                  against the current revision, they must expire or be released before it can be revised.
+                </p>
+                <form class="draft-revision-form" @submit.prevent="saveBookingDraftRevision">
+                  <label>Values snapshot (JSON)
+                    <textarea v-model="bookingDraftValuesJson" rows="8" spellcheck="false"></textarea>
+                  </label>
+                  <div class="field-grid">
+                    <label>Requested start (ISO 8601)
+                      <input v-model="bookingDraftRequestedStart" type="text" maxlength="80" placeholder="2027-01-18T09:00:00+01:00" />
+                    </label>
+                    <label>Requested end (ISO 8601)
+                      <input v-model="bookingDraftRequestedEnd" type="text" maxlength="80" placeholder="2027-01-18T13:00:00+01:00" />
+                    </label>
+                    <label>Timezone
+                      <input v-model="bookingDraftTimezone" type="text" maxlength="80" required />
+                    </label>
+                  </div>
+                  <label>Space lines (JSON array)
+                    <textarea v-model="bookingDraftSpaceLinesJson" rows="5" spellcheck="false"></textarea>
+                  </label>
+                  <label>Resource lines (JSON array)
+                    <textarea v-model="bookingDraftResourceLinesJson" rows="5" spellcheck="false"></textarea>
+                  </label>
+                  <label>Change reason
+                    <textarea v-model="bookingDraftChangeReason" rows="2" maxlength="2000" required placeholder="Explain why this revision is being created…"></textarea>
+                  </label>
+                  <div class="form-actions">
+                    <button class="button button-primary" type="submit" :disabled="busy || bookingDraftChangeReason.trim().length < 3">
+                      Save as revision {{ bookingDraftDetail.currentRevisionNumber + 1 }}
+                    </button>
+                    <span class="fine-print">Revision {{ bookingDraftDetail.currentRevisionNumber }} stays unchanged.</span>
+                  </div>
+                </form>
+              </template>
+              <p v-else class="fine-print">This draft is read-only for your current membership, or is no longer editable in draft status.</p>
+            </section>
 
             <section class="inquiry-card">
               <div class="inquiry-card-heading">
