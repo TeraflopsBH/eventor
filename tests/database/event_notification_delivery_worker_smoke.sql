@@ -63,10 +63,12 @@ BEGIN
     RAISE EXCEPTION 'temporary SMTP 4xx failure did not schedule a retry';
   END IF;
 
+  SET LOCAL ROLE eventor_owner;
   UPDATE eogp.event_notification_delivery_attempts
      SET next_attempt_at=clock_timestamp()-interval '1 second'
    WHERE organization_id='22222222-2222-4222-8222-222222222222'
      AND campaign_id=v_campaign_id AND status='queued';
+  RESET ROLE;
 
   SELECT * INTO v_job
     FROM eogp.claim_next_email_delivery('22222222-2222-4222-8222-222222222222');
