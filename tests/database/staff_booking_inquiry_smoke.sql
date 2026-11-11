@@ -442,7 +442,11 @@ BEGIN
      OR has_table_privilege('eventor_runtime','eogp.booking_drafts','SELECT')
      OR has_table_privilege('eventor_runtime','eogp.booking_drafts','INSERT')
      OR has_table_privilege('eventor_runtime','eogp.booking_draft_revisions','SELECT')
-     OR has_table_privilege('eventor_runtime','eogp.booking_draft_revisions','INSERT') THEN
+     OR has_table_privilege('eventor_runtime','eogp.booking_draft_revisions','INSERT')
+     OR has_table_privilege('eventor_runtime','eogp.booking_draft_space_lines','INSERT')
+     OR has_table_privilege('eventor_runtime','eogp.booking_offers','INSERT')
+     OR has_table_privilege('eventor_runtime','eogp.booking_offer_revisions','INSERT')
+     OR has_table_privilege('eventor_runtime','eogp.booking_resource_lines','INSERT') THEN
     RAISE EXCEPTION 'runtime role has direct access to protected inquiry or draft source/history tables';
   END IF;
 
