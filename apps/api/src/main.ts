@@ -46,6 +46,23 @@ const allowedOrigins = required("EVENTOR_ALLOWED_ORIGINS")
 const fingerprintKey = requiredKey("EVENTOR_AUTH_FINGERPRINT_KEY");
 const privateFieldEncryptionKey = requiredKey("EVENTOR_FIELD_ENCRYPTION_KEY");
 const deliveryCredentialsEncryptionKey = requiredKey("EVENTOR_DELIVERY_CREDENTIALS_KEY");
+function optionalPublicApiBaseUrl(): string | undefined {
+  const raw = process.env.EVENTOR_PUBLIC_API_BASE_URL?.trim();
+  if (!raw) return undefined;
+  let parsed: URL;
+  try {
+    parsed = new URL(raw);
+  } catch {
+    throw new Error("EVENTOR_PUBLIC_API_BASE_URL must be a valid absolute HTTPS URL.");
+  }
+  if (parsed.protocol !== "https:" || parsed.username || parsed.password ||
+      parsed.search || parsed.hash) {
+    throw new Error("EVENTOR_PUBLIC_API_BASE_URL must use HTTPS and must not contain credentials, query parameters or a fragment.");
+  }
+  const path = parsed.pathname.replace(/\\/+$/, "");
+  return `${parsed.origin}${path === "/" ? "" : path}`;
+}
+
 const trustedProxyAddresses = (process.env.EVENTOR_TRUST_PROXY_CIDRS ?? "")
   .split(",")
   .map((value) => value.trim())
@@ -65,6 +82,7 @@ const app = buildApi({
   getCurrentPrincipal: (principal) => auth.getCurrentPrincipal(principal),
   privateFieldEncryptionKey,
   deliveryCredentialsEncryptionKey,
+  publicApiBaseUrl: optionalPublicApiBaseUrl(),
   trustedProxyAddresses,
 });
 
