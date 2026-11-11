@@ -711,11 +711,11 @@ BEGIN
   IF p_outcome NOT IN ('sent','failed','uncertain') THEN
     RAISE EXCEPTION 'unsupported delivery outcome' USING ERRCODE='22023';
   END IF;
-  IF p_outcome='failed' AND p_failure_code NOT IN (
+  IF p_outcome='failed' AND (p_failure_code IS NULL OR p_failure_code NOT IN (
     'SMTP_CONNECTION','SMTP_TIMEOUT','SMTP_4XX','SMTP_5XX','SMTP_TLS',
     'SMTP_TEMPLATE_INVALID','CONTACT_CIPHERTEXT_INVALID',
     'DELIVERY_CREDENTIALS_INVALID','SMTP_UNKNOWN'
-  ) THEN
+  )) THEN
     RAISE EXCEPTION 'unsupported SMTP failure classification' USING ERRCODE='22023';
   END IF;
 
