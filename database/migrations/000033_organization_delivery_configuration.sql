@@ -58,10 +58,8 @@ REVOKE ALL ON
   eogp.organization_delivery_config_revisions,
   eogp.organization_delivery_config_heads
 FROM PUBLIC, eventor_runtime, eventor_worker;
-GRANT SELECT ON
-  eogp.organization_delivery_config_revisions,
-  eogp.organization_delivery_config_heads
-TO eventor_runtime;
+-- Runtime access is through the SECURITY DEFINER projections below only.
+-- In particular, credential ciphertext is never directly selectable by the API role.
 
 CREATE FUNCTION eogp.get_organization_email_delivery_config(
   p_organization_id uuid,
