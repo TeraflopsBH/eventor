@@ -58,7 +58,7 @@ function isIntegerInRange(value: unknown, minimum: number, maximum: number): val
 }
 
 function isCalendarDate(value: string): boolean {
-  if (!/^\d{4}-\d{2}-\d{2}$/.test(value)) return false;
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(value) || Number(value.slice(0, 4)) < 1) return false;
   const parsed = new Date(`${value}T00:00:00.000Z`);
   return Number.isFinite(parsed.getTime()) && parsed.toISOString().slice(0, 10) === value;
 }
@@ -193,12 +193,6 @@ function parseSchema(fieldSchema: unknown): readonly PublicFormField[] {
   return fields;
 }
 
-function isEmptyAnswer(value: unknown): boolean {
-  return value === null || value === undefined ||
-    (typeof value === "string" && value.trim().length === 0) ||
-    (Array.isArray(value) && value.length === 0);
-}
-
 function validateFieldAnswer(field: PublicFormField, value: unknown): boolean {
   switch (field.type) {
     case "text":
@@ -258,9 +252,15 @@ export function validatePublicFormAnswers(fieldSchema: unknown, answers: unknown
 
   for (const field of fields) {
     const value = answers[field.code];
-    if (isEmptyAnswer(value)) {
+    const isMissing = value === null || value === undefined ||
+      (typeof value === "string" && value.trim().length === 0) ||
+      (Array.isArray(value) && value.length === 0 && field.type !== "multiselect");
+    if (isMissing) {
       if (field.required) throw new PublicFormAnswersError();
       continue;
+    }
+    if (field.type === "multiselect" && Array.isArray(value) && value.length === 0 && field.required) {
+      throw new PublicFormAnswersError();
     }
     if (!validateFieldAnswer(field, value)) throw new PublicFormAnswersError();
   }
