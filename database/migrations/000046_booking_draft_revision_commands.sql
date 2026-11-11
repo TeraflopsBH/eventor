@@ -409,7 +409,7 @@ DECLARE
   v_resource_type_id uuid;
   v_resource_code text;
   v_resource_name text;
-  v_resource_quantity numeric(12,3);
+  v_resource_quantity numeric;
   v_resource_values jsonb;
   v_line_index integer := 0;
 BEGIN
@@ -457,14 +457,20 @@ BEGIN
     RAISE EXCEPTION 'requested end must follow requested start'
       USING ERRCODE = '22023';
   END IF;
-  IF p_space_lines IS NULL OR jsonb_typeof(p_space_lines) <> 'array'
-     OR jsonb_array_length(p_space_lines) > 50 THEN
-    RAISE EXCEPTION 'spaceLines must be an array of at most 50 entries'
+  IF p_space_lines IS NULL OR jsonb_typeof(p_space_lines) <> 'array' THEN
+    RAISE EXCEPTION 'spaceLines must be an array'
       USING ERRCODE = '22023';
   END IF;
-  IF p_resource_lines IS NULL OR jsonb_typeof(p_resource_lines) <> 'array'
-     OR jsonb_array_length(p_resource_lines) > 100 THEN
-    RAISE EXCEPTION 'resourceLines must be an array of at most 100 entries'
+  IF jsonb_array_length(p_space_lines) > 50 THEN
+    RAISE EXCEPTION 'spaceLines cannot contain more than 50 entries'
+      USING ERRCODE = '22023';
+  END IF;
+  IF p_resource_lines IS NULL OR jsonb_typeof(p_resource_lines) <> 'array' THEN
+    RAISE EXCEPTION 'resourceLines must be an array'
+      USING ERRCODE = '22023';
+  END IF;
+  IF jsonb_array_length(p_resource_lines) > 100 THEN
+    RAISE EXCEPTION 'resourceLines cannot contain more than 100 entries'
       USING ERRCODE = '22023';
   END IF;
 
@@ -538,7 +544,7 @@ BEGIN
           THEN (v_line->>'requestedCapacity')::integer
         ELSE NULL
       END;
-    EXCEPTION WHEN invalid_text_representation OR datetime_field_overflow THEN
+    EXCEPTION WHEN invalid_text_representation OR invalid_datetime_format OR datetime_field_overflow THEN
       RAISE EXCEPTION 'space line % contains an invalid UUID, timestamp or integer', v_line_index
         USING ERRCODE = '22023';
     END;
@@ -586,14 +592,17 @@ BEGIN
     END IF;
     BEGIN
       v_resource_type_id := (v_line->>'resourceTypeId')::uuid;
-      v_resource_quantity := (v_line->>'requestedQuantity')::numeric(12,3);
+      v_resource_quantity := (v_line->>'requestedQuantity')::numeric;
     EXCEPTION WHEN invalid_text_representation OR numeric_value_out_of_range THEN
       RAISE EXCEPTION 'resource line % contains an invalid UUID or quantity', v_line_index
         USING ERRCODE = '22023';
     END;
     v_resource_values := coalesce(v_line->'values','{}'::jsonb);
     IF v_resource_type_id IS NULL OR v_resource_quantity IS NULL
-       OR v_resource_quantity <= 0 OR v_resource_quantity::text IN ('NaN','Infinity','-Infinity')
+       OR v_resource_quantity <= 0
+       OR v_resource_quantity::text IN ('NaN','Infinity','-Infinity')
+       OR v_resource_quantity >= 1000000000
+       OR scale(trim_scale(v_resource_quantity)) > 3
        OR jsonb_typeof(v_resource_values) <> 'object' THEN
       RAISE EXCEPTION 'resource line % has invalid required values', v_line_index
         USING ERRCODE = '22023';
