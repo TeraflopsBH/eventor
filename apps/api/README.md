@@ -12,6 +12,9 @@ This package contains the first deployable command API and a separate tenant-awa
 - `POST /event-change-requests/{requestId}/approve`
 - `POST /event-change-requests/{requestId}/reject`
 - `POST /event-change-requests/{requestId}/execute`
+- `GET /event-notification-campaigns?status=&limit=&offset=` — paginated list of campaigns visible to the current membership's event-level `event.notifications.preview` permission.
+- `GET /event-notification-campaigns/{campaignId}` — campaign delivery progress and recipient-level aggregate outcomes.
+- `GET /event-notification-campaigns/{campaignId}/deliveries?status=&limit=&offset=` — paginated attempt history with channel, pseudonymous recipient reference, attempt number, status, safe failure code and timestamps; no contact data or provider message references.
 - `GET /event-notification-campaigns/{campaignId}/review` — permission-gated review of recipient snapshots, channel/exclusion totals and the pinned template; contact values are never returned.
 - `POST /event-notification-campaigns/{campaignId}/confirm` — explicitly confirms the fixed audience snapshot. It does not queue or send messages.
 - `POST /event-notification-campaigns/{campaignId}/queue` — separate, explicit authorization to queue email delivery. Requires an enabled organization SMTP configuration and event-scoped send permission.
@@ -138,3 +141,4 @@ CI regenerates OpenAPI TypeScript declarations, runs strict TypeScript compilati
 - Implement an SMS provider adapter only when a concrete provider is selected; keep it optional and tenant-configurable.
 - Implement provider callbacks for final delivery/bounce status where supported. SMTP acceptance alone remains `sent`, not `delivered`.
 - Complete the rest of the OpenAPI operations and production runbooks for backup, recovery, network egress and secret rotation.
+\nAll campaign listing, progress, review and delivery-report projections require the event-scoped `event.notifications.preview` permission. Campaign list visibility is evaluated per event; a membership cannot enumerate campaigns for events it cannot preview. The delivery report intentionally omits recipient destination values, ciphertext, and provider message references. Pagination is bounded to 100 rows per page.
