@@ -660,7 +660,20 @@ BEGIN
     FOR UPDATE OF attempt SKIP LOCKED
     LIMIT 1;
 
-  IF NOT FOUND THEN RETURN; END IF;
+  IF NOT FOUND THEN
+    DELETE FROM eogp.email_delivery_tenant_queue queue
+     WHERE queue.organization_id=p_organization_id
+       AND NOT EXISTS (
+         SELECT 1
+           FROM eogp.event_notification_delivery_attempts attempt
+           JOIN eogp.event_notification_campaigns campaign
+             ON campaign.organization_id=attempt.organization_id AND campaign.id=attempt.campaign_id
+          WHERE attempt.organization_id=p_organization_id
+            AND campaign.status IN ('queued','sending')
+            AND attempt.status IN ('queued','sending')
+       );
+    RETURN;
+  END IF;
 
   UPDATE eogp.event_notification_delivery_attempts
      SET status='sending',attempted_at=clock_timestamp(),
@@ -796,9 +809,12 @@ BEGIN
 
   SELECT min(CASE WHEN status='queued' THEN next_attempt_at ELSE lease_expires_at END)
     INTO v_next_available
-    FROM eogp.event_notification_delivery_attempts
-   WHERE organization_id=p_organization_id AND campaign_id=v_campaign_id
-     AND status IN ('queued','sending');
+    FROM eogp.event_notification_delivery_attempts attempt
+    JOIN eogp.event_notification_campaigns campaign
+      ON campaign.organization_id=attempt.organization_id AND campaign.id=attempt.campaign_id
+   WHERE attempt.organization_id=p_organization_id
+     AND campaign.status IN ('queued','sending')
+     AND attempt.status IN ('queued','sending');
 
   IF v_pending=0 THEN
     v_final_status:=CASE
