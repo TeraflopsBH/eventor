@@ -222,7 +222,9 @@ async function sendClaimedEmail(
     return {
       outcome: classification.outcome,
       failureCode: classification.code,
-      messageReference: null,
+      // Keep the prepared provider reference on failures too. In particular,
+      // a DATA-stage timeout can be uncertain even though Resend accepted it.
+      messageReference: providerMessageReference,
     };
   }
 }
