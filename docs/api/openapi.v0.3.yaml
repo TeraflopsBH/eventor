@@ -1419,6 +1419,32 @@ paths:
         '409': { $ref: '#/components/responses/Conflict' }
         '422': { $ref: '#/components/responses/UnprocessableEntity' }
         '500': { $ref: '#/components/responses/InternalServerError' }
+  "/event-notification-campaigns/{campaignId}/cancel":
+    post:
+      tags: ["Event Notifications"]
+      operationId: cancelQueuedEventNotificationCampaign
+      summary: "Cancel a queued campaign before SMTP delivery starts"
+      description: "Requires event.notifications.send. Cancellation succeeds only while the campaign remains queued and no SMTP attempt has started. Queued attempts receive append-only suppression events and cannot be claimed by the worker. A campaign already sending or with an uncertain outcome cannot be cancelled."
+      security: [{ StaffSession: [], StaffCsrf: [] }]
+      parameters:
+        - $ref: '#/components/parameters/PCampaignId'
+        - $ref: '#/components/parameters/IdempotencyKey'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { type: object, additionalProperties: false }
+      responses:
+        '201':
+          description: "Queued campaign cancelled before delivery."
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/DataEnvelope' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '409': { $ref: '#/components/responses/Conflict' }
+        '422': { $ref: '#/components/responses/UnprocessableEntity' }
+        '500': { $ref: '#/components/responses/InternalServerError' }
   "/event-notification-campaigns/{campaignId}/queue":
     post:
       tags: ["Event Notifications"]
