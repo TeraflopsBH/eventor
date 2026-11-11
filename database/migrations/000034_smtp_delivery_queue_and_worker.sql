@@ -807,7 +807,7 @@ BEGIN
        ORDER BY attempt.recipient_id,attempt.attempt_number DESC
     ) latest;
 
-  SELECT min(CASE WHEN status='queued' THEN next_attempt_at ELSE lease_expires_at END)
+  SELECT min(CASE WHEN attempt.status='queued' THEN attempt.next_attempt_at ELSE attempt.lease_expires_at END)
     INTO v_next_available
     FROM eogp.event_notification_delivery_attempts attempt
     JOIN eogp.event_notification_campaigns campaign
