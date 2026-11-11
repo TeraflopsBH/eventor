@@ -107,18 +107,30 @@ CREATE TRIGGER booking_inquiry_initial_status_history
 AFTER INSERT ON eogp.booking_inquiries
 FOR EACH ROW EXECUTE FUNCTION eogp.record_initial_booking_inquiry_status();
 
-INSERT INTO eogp.booking_inquiry_status_history (
-  organization_id, inquiry_id, previous_status, new_status,
-  reason, actor_kind, actor_membership_id
-)
-SELECT inquiry.organization_id, inquiry.id, NULL, inquiry.status,
-       'migration_backfill', 'public', NULL
-  FROM eogp.booking_inquiries inquiry
- WHERE NOT EXISTS (
-   SELECT 1 FROM eogp.booking_inquiry_status_history history
-    WHERE history.organization_id = inquiry.organization_id
-      AND history.inquiry_id = inquiry.id
- );
+DO $backfill$
+DECLARE
+  v_organization_id uuid;
+BEGIN
+  FOR v_organization_id IN
+    SELECT DISTINCT organization_id FROM eogp.booking_inquiries ORDER BY organization_id
+  LOOP
+    PERFORM set_config('app.organization_id',v_organization_id::text,true);
+    INSERT INTO eogp.booking_inquiry_status_history (
+      organization_id, inquiry_id, previous_status, new_status,
+      reason, actor_kind, actor_membership_id
+    )
+    SELECT inquiry.organization_id, inquiry.id, NULL, inquiry.status,
+           'migration_backfill', 'public', NULL
+      FROM eogp.booking_inquiries inquiry
+     WHERE inquiry.organization_id = v_organization_id
+       AND NOT EXISTS (
+         SELECT 1 FROM eogp.booking_inquiry_status_history history
+          WHERE history.organization_id = inquiry.organization_id
+            AND history.inquiry_id = inquiry.id
+       );
+  END LOOP;
+END;
+$backfill$;
 
 -- These tables are immutable event records. All writes are mediated by
 -- SECURITY DEFINER commands which enforce membership permissions.
