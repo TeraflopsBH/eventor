@@ -116,6 +116,21 @@ const campaignDeliveryQuery = {
   },
   additionalProperties: false,
 } as const;
+const deliveryReconciliationBody = {
+  type: "object",
+  required: ["resolution", "reason"],
+  properties: {
+    resolution: { type: "string", enum: ["confirmed_sent", "confirmed_not_sent", "confirmed_delivered", "confirmed_bounced"] },
+    reason: { type: "string", minLength: 3, maxLength: 1000 },
+  },
+  additionalProperties: false,
+} as const;
+const deliveryRetryBody = {
+  type: "object",
+  required: ["reason"],
+  properties: { reason: { type: "string", minLength: 3, maxLength: 1000 } },
+  additionalProperties: false,
+} as const;
 const bookingParams = {
   type: "object", required: ["bookingId"],
   properties: { bookingId: { type: "string", pattern: uuidPattern } },
@@ -548,6 +563,58 @@ export function buildApi(dependencies: ApiDependencies): FastifyInstance {
       } finally {
         client.release();
       }
+    },
+  );
+
+  server.post<{
+    Params: { attemptId: string };
+    Body: { resolution: string; reason: string };
+  }>(
+    "/notification-delivery-attempts/:attemptId/reconcile",
+    {
+      schema: {
+        params: { type: "object", required: ["attemptId"], properties: { attemptId: { type: "string", pattern: uuidPattern } }, additionalProperties: false },
+        headers: idempotencyHeaders,
+        body: deliveryReconciliationBody,
+      },
+    },
+    async (request, reply) => {
+      const principal = request.staffPrincipal!;
+      return withCommand(request, reply, "reconcileNotificationDeliveryAttempt",
+        { attemptId: request.params.attemptId, resolution: request.body.resolution, reason: request.body.reason },
+        async (client) => {
+          const result = await client.query<ResultRow>(
+            "SELECT eogp.reconcile_notification_delivery_attempt($1::uuid,$2::uuid,$3::uuid,$4::text,$5::text) AS result",
+            [principal.organizationId, request.params.attemptId, principal.membershipId, request.body.resolution, request.body.reason],
+          );
+          return result.rows[0]?.result as Record<string, unknown>;
+        });
+    },
+  );
+
+  server.post<{
+    Params: { attemptId: string };
+    Body: { reason: string };
+  }>(
+    "/notification-delivery-attempts/:attemptId/retry",
+    {
+      schema: {
+        params: { type: "object", required: ["attemptId"], properties: { attemptId: { type: "string", pattern: uuidPattern } }, additionalProperties: false },
+        headers: idempotencyHeaders,
+        body: deliveryRetryBody,
+      },
+    },
+    async (request, reply) => {
+      const principal = request.staffPrincipal!;
+      return withCommand(request, reply, "retryFailedNotificationDeliveryAttempt",
+        { attemptId: request.params.attemptId, reason: request.body.reason },
+        async (client) => {
+          const result = await client.query<ResultRow>(
+            "SELECT eogp.retry_failed_notification_delivery_attempt($1::uuid,$2::uuid,$3::uuid,$4::text) AS result",
+            [principal.organizationId, request.params.attemptId, principal.membershipId, request.body.reason],
+          );
+          return result.rows[0]?.result as Record<string, unknown>;
+        });
     },
   );
 
