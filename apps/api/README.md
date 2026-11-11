@@ -7,6 +7,8 @@ This package contains the first deployable command API and a separate tenant-awa
 - `POST /auth/session` — Argon2id staff login bound to an active organization membership.
 - `DELETE /auth/session` — revoke the current database-backed session.
 - `GET /me` — return the current principal and active organization memberships.
+- `GET /public/organizations/{organizationSlug}/booking-forms/{formCode}` — public read of an active organization's latest published booking form.
+- `POST /public/organizations/{organizationSlug}/booking-inquiries` — accept an encrypted, idempotent booking inquiry using the published form revision.
 - `POST /bookings/{bookingId}/reservations/release`
 - `POST /events/{eventId}/change-requests`
 - `POST /event-change-requests/{requestId}/approve`
@@ -27,7 +29,13 @@ This package contains the first deployable command API and a separate tenant-awa
 - `POST /organization/delivery/email/resend-webhook/activate` — encrypt and activate the Resend Svix signing secret.
 - `POST /webhooks/resend/{endpointId}` — public, signed callback endpoint; staff session authentication is not used. Raw-body Svix verification is mandatory.
 
-All mutating staff routes require an idempotency key, an authenticated session, an allow-listed browser Origin and a valid CSRF token. Database commands enforce tenant and permission checks.
+All mutating staff routes require an idempotency key, an authenticated session, an allow-listed browser Origin and a valid CSRF token. Database commands enforce tenant and permission checks. The two public booking-intake routes above are the only anonymous application routes; the signed Resend webhook is separately authenticated with its provider signature.
+
+## Public booking inquiry intake
+
+The public form GET returns only an active organization's latest published revision. The POST requires the form code and revision ID returned by that endpoint, plus an `Idempotency-Key`. It stores requester name, email, phone, requested details and dynamic answers using the tenant-bound ECP1 AES-256-GCM contact codec. Raw source IPs and raw idempotency keys are not persisted; keyed fingerprints support an organization-scoped limit of ten accepted submissions per source per UTC hour and deterministic replay handling. Idempotent replays do not consume another rate-limit slot.
+
+Submitted values are bounded and encrypted, but are not yet validated against every field rule in the revision's dynamic `field_schema`. Attachment references are rejected until the upload workflow exists. A staff inquiry inbox, review/history, inquiry-to-draft conversion and booking offer/approval UI remain to be implemented.
 
 ## Organization-owned SMTP
 
@@ -103,7 +111,7 @@ Configure separate, cryptographically random 32-byte keys, base64-encoded in dep
 - `EVENTOR_DELIVERY_CREDENTIALS_KEY`
 - `EVENTOR_AUTH_FINGERPRINT_KEY`
 
-Never reuse one key for another purpose. Both API and worker require the delivery credential key; the worker also requires the contact encryption key. Key rotation requires an explicit re-encryption procedure. Replacing a key alone makes existing ciphertext unreadable.
+Never reuse one key for another purpose. The API requires all four keys; the notification worker requires the contact-encryption and delivery-credential keys. The public inquiry API uses the contact key for tenant-bound ECP1 encryption and the auth fingerprint key with a separate purpose tag for source/idempotency fingerprints. Key rotation requires an explicit re-encryption procedure. Replacing a key alone makes existing ciphertext unreadable.
 
 Both database connection URLs should use TLS with certificate and hostname verification in production (for example, PostgreSQL `sslmode=verify-full` with a trusted CA). Configure database passwords outside this repository.
 
@@ -146,7 +154,7 @@ npm run build
 npm run start:worker
 ```
 
-The worker requires `EVENTOR_WORKER_DATABASE_URL`, `EVENTOR_CONTACT_ENCRYPTION_KEY` and `EVENTOR_DELIVERY_CREDENTIALS_KEY`.
+The API requires `EVENTOR_RUNTIME_DATABASE_URL`, `EVENTOR_AUTH_DATABASE_URL`, `EVENTOR_ALLOWED_ORIGINS`, `EVENTOR_AUTH_FINGERPRINT_KEY`, `EVENTOR_FIELD_ENCRYPTION_KEY`, `EVENTOR_CONTACT_ENCRYPTION_KEY` and `EVENTOR_DELIVERY_CREDENTIALS_KEY`. The worker requires `EVENTOR_WORKER_DATABASE_URL`, `EVENTOR_CONTACT_ENCRYPTION_KEY` and `EVENTOR_DELIVERY_CREDENTIALS_KEY`.
 
 ## Tests
 
