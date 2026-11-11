@@ -208,6 +208,83 @@ export interface ResendWebhookConfiguration {
   updatedAt?: string | null;
 }
 
+export type BookingInquiryStatus =
+  | "received"
+  | "under_review"
+  | "converted"
+  | "declined"
+  | "withdrawn"
+  | "spam";
+
+export interface BookingInquiryListItem {
+  inquiryId: string;
+  publicReference: string;
+  status: BookingInquiryStatus;
+  formRevisionId: string;
+  requesterName: string;
+  requestedStart: string | null;
+  requestedEnd: string | null;
+  requestedTimezone: string | null;
+  assignedToMembershipId: string | null;
+  submittedAt: string;
+  updatedAt: string;
+}
+
+export interface BookingInquiryAnnotation {
+  annotationId: string;
+  annotation: string;
+  visibility: "internal";
+  actorMembershipId: string;
+  createdAt: string;
+}
+
+export interface BookingInquiryStatusHistoryItem {
+  previousStatus: string | null;
+  newStatus: string;
+  reason: string | null;
+  actorKind: "public" | "membership" | "system";
+  actorMembershipId: string | null;
+  occurredAt: string;
+}
+
+export interface BookingInquiryAssignmentHistoryItem {
+  previousAssigneeMembershipId: string | null;
+  newAssigneeMembershipId: string | null;
+  actorMembershipId: string;
+  occurredAt: string;
+}
+
+export interface BookingInquiryDetail extends BookingInquiryListItem {
+  fieldSchema: {
+    schemaVersion?: number;
+    fields: Array<{
+      code: string;
+      type: string;
+      label?: string;
+      options?: Array<{ value: string; label: string }>;
+    }>;
+  };
+  requesterEmail: string | null;
+  requesterPhone: string | null;
+  submittedValues: {
+    requested?: {
+      startAt: string | null;
+      endAt: string | null;
+      timezone: string;
+      spaceCodes: string[];
+    };
+    answers: Record<string, unknown>;
+  };
+  annotations: BookingInquiryAnnotation[];
+  statusHistory: BookingInquiryStatusHistoryItem[];
+  assignmentHistory: BookingInquiryAssignmentHistoryItem[];
+}
+
+export interface BookingInquiryAssignee {
+  membershipId: string;
+  displayName: string;
+}
+
 export interface PageMeta {
   limit: number;
   offset: number;
@@ -220,6 +297,43 @@ export const api = {
     request<Envelope<{ csrfToken: string; expiresAt: string }>>("/auth/session", { method: "POST", body }),
   me: () => request<Envelope<Principal>>("/me"),
   logout: () => request<void>("/auth/session", { method: "DELETE" }),
+  getBookingInquiryAssignees: (organizationId: string) =>
+    request<Envelope<BookingInquiryAssignee[]>>(
+      `/organizations/${encodeURIComponent(organizationId)}/booking-inquiry-assignees`,
+    ),
+  getBookingInquiries: (
+    organizationId: string,
+    options: { status?: string; assignedToMembershipId?: string; limit?: number; offset?: number } = {},
+  ) => {
+    const query = new URLSearchParams();
+    if (options.status) query.set("status", options.status);
+    if (options.assignedToMembershipId) query.set("assignedToMembershipId", options.assignedToMembershipId);
+    if (options.limit !== undefined) query.set("limit", String(options.limit));
+    if (options.offset !== undefined) query.set("offset", String(options.offset));
+    return request<Envelope<BookingInquiryListItem[]> & { meta: PageMeta }>(
+      `/organizations/${encodeURIComponent(organizationId)}/booking-inquiries${query.size ? `?${query.toString()}` : ""}`,
+    );
+  },
+  getBookingInquiry: (inquiryId: string) =>
+    request<Envelope<BookingInquiryDetail>>(`/booking-inquiries/${encodeURIComponent(inquiryId)}`),
+  assignBookingInquiry: (inquiryId: string, assignedToMembershipId: string | null) =>
+    request<Envelope<Record<string, unknown>>>(
+      `/booking-inquiries/${encodeURIComponent(inquiryId)}/assignment`,
+      { method: "POST", body: { assignedToMembershipId }, idempotent: true },
+    ),
+  changeBookingInquiryStatus: (
+    inquiryId: string,
+    body: { status: "received" | "under_review" | "declined" | "spam"; reason: string },
+  ) =>
+    request<Envelope<Record<string, unknown>>>(
+      `/booking-inquiries/${encodeURIComponent(inquiryId)}/status`,
+      { method: "POST", body, idempotent: true },
+    ),
+  addBookingInquiryAnnotation: (inquiryId: string, annotation: string) =>
+    request<Envelope<Record<string, unknown>>>(
+      `/booking-inquiries/${encodeURIComponent(inquiryId)}/annotations`,
+      { method: "POST", body: { annotation }, idempotent: true },
+    ),
   getEmailConfiguration: () => request<Envelope<EmailConfiguration | null>>("/organization/delivery/email/configuration"),
   saveEmailConfiguration: (body: Record<string, unknown>) =>
     request<Envelope<unknown>>("/organization/delivery/email/configuration", { method: "POST", body, idempotent: true }),
