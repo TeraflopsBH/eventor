@@ -472,6 +472,16 @@ BEGIN
     RAISE EXCEPTION 'draft revision command accepted a stale expected revision number';
   END IF;
 
+  IF (SELECT count(*) FROM eogp.audit_events
+       WHERE organization_id='a7000000-0000-4000-8000-000000000001'
+         AND actor_membership_id='a7200000-0000-4000-8000-000000000001'
+         AND action='booking.draft.revised'
+         AND aggregate_type='booking_draft'
+         AND aggregate_id=(v_conversion->>'draftId')::uuid
+         AND safe_metadata->>'revisionId'=v_new_revision->>'revisionId') <> 1 THEN
+    RAISE EXCEPTION 'draft successor revision audit event was missing, duplicated or incorrectly attributed';
+  END IF;
+
   IF EXISTS (
     SELECT 1 FROM eogp.booking_offers offer
      WHERE offer.organization_id='a7000000-0000-4000-8000-000000000001'
@@ -598,6 +608,10 @@ BEGIN
   END IF;
   IF NOT has_function_privilege(
     'eventor_runtime','eogp.convert_booking_inquiry_to_draft(uuid,uuid,uuid)','EXECUTE'
+  ) OR NOT has_function_privilege(
+    'eventor_runtime','eogp.get_booking_draft(uuid,uuid,uuid)','EXECUTE'
+  ) OR NOT has_function_privilege(
+    'eventor_runtime','eogp.create_booking_draft_revision(uuid,uuid,uuid,integer,bytea,timestamptz,timestamptz,text,jsonb,jsonb,text)','EXECUTE'
   ) OR NOT has_function_privilege(
     'eventor_runtime','eogp.assign_booking_inquiry(uuid,uuid,uuid,uuid)','EXECUTE'
   ) OR NOT has_function_privilege(
