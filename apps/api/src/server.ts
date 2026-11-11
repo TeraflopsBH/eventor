@@ -397,7 +397,7 @@ export function buildApi(dependencies: ApiDependencies): FastifyInstance {
   server.addHook("onRequest", async (request, reply) => {
     const pathname = request.url.split("?", 1)[0] ?? request.url;
     if (request.method === "GET" &&
-        /^\\/public\\/organizations\\/[^/]+\\/booking-forms\\/[^/]+$/.test(pathname)) {
+        /^\/public\/organizations\/[^/]+\/booking-forms\/[^/]+$/.test(pathname)) {
       // The only anonymous application read is the published public booking form.
       request.staffPrincipal = null;
       return;
