@@ -102,10 +102,7 @@ function formatInquiryAnswer(
 ): string {
   if (value === null || value === undefined || value === "") return "—";
   if (typeof value === "boolean") return value ? "Yes" : "No";
-  if (field?.type === "select" && typeof value === "string") {
-    return field.options?.find((option) => option.value === value)?.label ?? value;
-  }
-  if (field?.type === "multiselect" && typeof value === "string") {
+  if ((field?.type === "select" || field?.type === "multiselect") && typeof value === "string") {
     return field.options?.find((option) => option.value === value)?.label ?? value;
   }
   if (value && typeof value === "object") return JSON.stringify(value);
@@ -514,11 +511,7 @@ async function refreshInquiryDetailData(): Promise<void> {
   const result = await api.getBookingInquiry(selectedInquiryId.value);
   inquiryDetail.value = result.data;
   inquiryAssignmentChoice.value = result.data.assignedToMembershipId ?? "unassigned";
-  inquiryStatusChoice.value = result.data.status === "received"
-    ? "under_review"
-    : result.data.status === "under_review"
-      ? "declined"
-      : "";
+  inquiryStatusChoice.value = "";
 }
 
 async function loadInquiryList(offset = 0): Promise<void> {
@@ -942,6 +935,7 @@ onMounted(() => { void refreshSession(); });
                 <h4>Review status</h4>
                 <label>New status
                   <select v-model="inquiryStatusChoice">
+                    <option disabled value="">Choose next status…</option>
                     <option v-for="status in inquiryStatusTargets" :key="status" :value="status">
                       {{ status.replaceAll("_", " ") }}
                     </option>
