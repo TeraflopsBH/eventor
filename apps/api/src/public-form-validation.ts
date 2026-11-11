@@ -73,7 +73,7 @@ function isDateTime(value: string): boolean {
 
 function parseSchema(fieldSchema: unknown): readonly PublicFormField[] {
   if (!isRecord(fieldSchema)) throw new PublicFormSchemaError();
-  const version = fieldSchema.schemaVersion ?? 1;
+  const version = fieldSchema.schemaVersion === undefined ? 1 : fieldSchema.schemaVersion;
   if (version !== 1 || !Array.isArray(fieldSchema.fields) || fieldSchema.fields.length > 100) {
     throw new PublicFormSchemaError();
   }
