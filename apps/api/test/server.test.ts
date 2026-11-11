@@ -21,7 +21,8 @@ function makePool() {
   let reservationCalls = 0;
   let changeCalls = 0;
   let campaignReviewCalls = 0;
-  let campaignConfirmCalls = 0;\n  let deliveryConfigCalls = 0;
+  let campaignConfirmCalls = 0;
+  let deliveryConfigCalls = 0;
 
   const client = {
     async query(sql: string, values: unknown[] = []) {
@@ -142,7 +143,8 @@ function makePool() {
     get reservationCalls() { return reservationCalls; },
     get changeCalls() { return changeCalls; },
     get campaignReviewCalls() { return campaignReviewCalls; },
-    get campaignConfirmCalls() { return campaignConfirmCalls; },\n    get deliveryConfigCalls() { return deliveryConfigCalls; },
+    get campaignConfirmCalls() { return campaignConfirmCalls; },
+    get deliveryConfigCalls() { return deliveryConfigCalls; },
   };
 }
 
@@ -171,7 +173,8 @@ function makeApi(
       revokeStaffSession: async () => undefined,
       getCurrentPrincipal: async () => ({ ...principal, memberships: [] }),
     } : {}),
-    privateFieldEncryptionKey: options.encryptionKey ?? Buffer.alloc(32, 7),\n    deliveryCredentialsEncryptionKey: Buffer.alloc(32, 9),
+    privateFieldEncryptionKey: options.encryptionKey ?? Buffer.alloc(32, 7),
+    deliveryCredentialsEncryptionKey: Buffer.alloc(32, 9),
   });
 }
 
