@@ -1,7 +1,8 @@
 import Fastify, { type FastifyInstance, type FastifyReply, type FastifyRequest } from "fastify";
-import { createCipheriv, createHash, createHmac, randomBytes } from "node:crypto";
+import { createCipheriv, createHash, createHmac, randomBytes, randomUUID } from "node:crypto";
 import type { Pool, PoolClient, QueryResultRow } from "pg";
-import { decryptDeliveryCredentials, encryptDeliveryCredentials } from "./delivery-credentials-crypto.js";
+import { decryptDeliveryCredentialBundle, decryptDeliveryCredentials, encryptDeliveryCredentialBundle, encryptDeliveryCredentials } from "./delivery-credentials-crypto.js";
+import { verifyResendWebhookSignature } from "./resend-webhook.js";
 import { classifySmtpFailure, sendSmtpTestMessage, type SmtpSettings, type SmtpTransportFactory } from "./smtp-transport.js";
 import type { paths } from "./generated/openapi.js";
 import {
@@ -40,12 +41,13 @@ export interface ApiDependencies {
   readonly getCurrentPrincipal?: (principal: StaffPrincipal) => Promise<Record<string, unknown>>;
   readonly privateFieldEncryptionKey?: Buffer;
   readonly deliveryCredentialsEncryptionKey?: Buffer;
+  readonly publicApiBaseUrl?: string;
   readonly smtpTransportFactory?: SmtpTransportFactory;
   readonly trustedProxyAddresses?: readonly string[];
 }
 
 declare module "fastify" {
-  interface FastifyRequest { staffPrincipal: StaffPrincipal | null; }
+  interface FastifyRequest { staffPrincipal: StaffPrincipal | null; rawJsonBody: string | null; }
 }
 
 interface ApiProblem {
@@ -114,6 +116,21 @@ const campaignDeliveryQuery = {
     limit: { type: "integer", minimum: 1, maximum: 100, default: 50 },
     offset: { type: "integer", minimum: 0, maximum: 10000, default: 0 },
   },
+  additionalProperties: false,
+} as const;
+const resendWebhookActivateBody = {
+  type: "object",
+  required: ["endpointId", "signingSecret"],
+  properties: {
+    endpointId: { type: "string", pattern: uuidPattern },
+    signingSecret: { type: "string", minLength: 24, maxLength: 512, pattern: "^whsec_[A-Za-z0-9+/]+={0,2}$" },
+  },
+  additionalProperties: false,
+} as const;
+const resendWebhookParams = {
+  type: "object",
+  required: ["endpointId"],
+  properties: { endpointId: { type: "string", pattern: uuidPattern } },
   additionalProperties: false,
 } as const;
 const deliveryReconciliationBody = {
@@ -353,12 +370,27 @@ export function buildApi(dependencies: ApiDependencies): FastifyInstance {
       : false,
   });
   server.decorateRequest("staffPrincipal", null);
+  server.decorateRequest("rawJsonBody", null);
+  server.removeContentTypeParser("application/json");
+  server.addContentTypeParser("application/json", { parseAs: "string" }, (request, body, done) => {
+    request.rawJsonBody = body;
+    try {
+      done(null, JSON.parse(body) as unknown);
+    } catch (error) {
+      done(error as Error);
+    }
+  });
 
   // Login is the only unauthenticated staff route and still requires an exact
   // allow-listed Origin. All other routes derive identity from the opaque DB
   // session cookie; state-changing requests additionally require CSRF validation.
   server.addHook("onRequest", async (request, reply) => {
     const pathname = request.url.split("?", 1)[0];
+    if (request.method === "POST" &&
+        /^\\/webhooks\\/resend\\/[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89abAB][0-9a-f]{3}-[0-9a-f]{12}$/i.test(pathname)) {
+      // Provider callbacks authenticate with a signed Svix payload, not a staff session.
+      return;
+    }
     if (request.method === "POST" && pathname === "/auth/session") {
       if (!dependencies.verifyLoginOrigin || !dependencies.verifyLoginOrigin(request)) {
         return reply.code(403).send(safeProblem(request.id, 403, "ORIGIN_REJECTED", "The request origin could not be verified."));
@@ -1003,6 +1035,225 @@ export function buildApi(dependencies: ApiDependencies): FastifyInstance {
           return result.rows[0]?.result as Record<string, unknown>;
         },
       );
+    },
+  );
+
+  server.get("/organization/delivery/email/resend-webhook", async (request, reply) => {
+    const principal = request.staffPrincipal!;
+    const client = await dependencies.pool.connect();
+    try {
+      await client.query("BEGIN");
+      await client.query("SELECT set_config('app.organization_id',$1,true)", [principal.organizationId]);
+      const result = await client.query<ResultRow>(
+        "SELECT eogp.get_organization_resend_webhook_configuration($1::uuid,$2::uuid) AS result",
+        [principal.organizationId, principal.membershipId],
+      );
+      await client.query("COMMIT");
+      const data = result.rows[0]?.result as Record<string, unknown> | undefined;
+      const endpointId = typeof data?.endpointId === "string" ? data.endpointId : null;
+      return reply.code(200).send({
+        data: {
+          endpointId,
+          configured: data?.configured === true,
+          callbackUrl: endpointId && dependencies.publicApiBaseUrl
+            ? `${dependencies.publicApiBaseUrl}/webhooks/resend/${endpointId}`
+            : null,
+          updatedAt: data?.updatedAt ?? null,
+        },
+      });
+    } catch (error) {
+      try { await client.query("ROLLBACK"); } catch { /* preserve the original error */ }
+      throw databaseError(error);
+    } finally {
+      client.release();
+    }
+  });
+
+  server.post<{ Body: Record<string, never> }>(
+    "/organization/delivery/email/resend-webhook/prepare",
+    {
+      schema: {
+        headers: idempotencyHeaders,
+        body: { type: "object", properties: {}, additionalProperties: false },
+      },
+    },
+    async (request, reply) => {
+      if (!dependencies.publicApiBaseUrl) {
+        throw new ApiError(503, "PUBLIC_API_URL_NOT_CONFIGURED", "Set EVENTOR_PUBLIC_API_BASE_URL to the externally reachable HTTPS API base URL before configuring provider callbacks.");
+      }
+      const principal = request.staffPrincipal!;
+      const endpointId = randomUUID();
+      return withCommand(request, reply, "prepareOrganizationResendWebhook",
+        {}, async (client) => {
+          const result = await client.query<ResultRow>(
+            "SELECT eogp.prepare_organization_resend_webhook_endpoint($1::uuid,$2::uuid,$3::uuid) AS result",
+            [principal.organizationId, principal.membershipId, endpointId],
+          );
+          const data = result.rows[0]?.result as Record<string, unknown>;
+          return {
+            ...data,
+            callbackUrl: `${dependencies.publicApiBaseUrl}/webhooks/resend/${endpointId}`,
+          };
+        });
+    },
+  );
+
+  server.post<{
+    Body: { endpointId: string; signingSecret: string };
+  }>(
+    "/organization/delivery/email/resend-webhook/activate",
+    {
+      schema: {
+        headers: idempotencyHeaders,
+        body: resendWebhookActivateBody,
+      },
+    },
+    async (request, reply) => {
+      const key = dependencies.deliveryCredentialsEncryptionKey;
+      if (!key || key.length !== 32) {
+        throw new ApiError(503, "DELIVERY_CREDENTIAL_ENCRYPTION_UNAVAILABLE", "Delivery credential encryption is not configured.");
+      }
+      const principal = request.staffPrincipal!;
+      let encryptedSecret: Buffer;
+      try {
+        encryptedSecret = encryptDeliveryCredentialBundle(
+          { signingSecret: request.body.signingSecret },
+          key,
+          { organizationId: principal.organizationId, channel: "email" },
+        );
+      } catch {
+        throw new ApiError(422, "RESEND_SIGNING_SECRET_INVALID", "The Resend signing secret is invalid.");
+      }
+      return withCommand(request, reply, "activateOrganizationResendWebhook",
+        request.body, async (client) => {
+          const result = await client.query<ResultRow>(
+            "SELECT eogp.activate_organization_resend_webhook_endpoint($1::uuid,$2::uuid,$3::uuid,$4::bytea) AS result",
+            [principal.organizationId, principal.membershipId, request.body.endpointId, encryptedSecret],
+          );
+          return result.rows[0]?.result as Record<string, unknown>;
+        });
+    },
+  );
+
+  server.post<{ Params: { endpointId: string } }>(
+    "/webhooks/resend/:endpointId",
+    { schema: { params: resendWebhookParams } },
+    async (request, reply) => {
+      const rawBody = request.rawJsonBody;
+      if (typeof rawBody !== "string" || rawBody.length === 0) {
+        return reply.code(400).send({ error: "Invalid webhook body." });
+      }
+      const svixId = request.headers["svix-id"];
+      const svixTimestamp = request.headers["svix-timestamp"];
+      const svixSignature = request.headers["svix-signature"];
+      if (typeof svixId !== "string" || typeof svixTimestamp !== "string" ||
+          typeof svixSignature !== "string") {
+        return reply.code(401).send({ error: "Webhook signature is required." });
+      }
+
+      const resolver = await dependencies.pool.connect();
+      let resolved: Record<string, unknown> | undefined;
+      try {
+        await resolver.query("BEGIN");
+        const lookup = await resolver.query<ResultRow>(
+          "SELECT eogp.resolve_organization_resend_webhook_endpoint($1::uuid) AS result",
+          [request.params.endpointId],
+        );
+        resolved = lookup.rows[0]?.result as Record<string, unknown> | undefined;
+        await resolver.query("COMMIT");
+      } catch (error) {
+        try { await resolver.query("ROLLBACK"); } catch { /* preserve the original error */ }
+        request.log.error({ err: error }, "Resend webhook endpoint lookup failed");
+        return reply.code(503).send({ error: "Webhook endpoint temporarily unavailable." });
+      } finally {
+        resolver.release();
+      }
+
+      const organizationId = typeof resolved?.organizationId === "string"
+        ? resolved.organizationId : null;
+      const encryptedBase64 = typeof resolved?.signingSecretCiphertextBase64 === "string"
+        ? resolved.signingSecretCiphertextBase64 : null;
+      if (!organizationId || !encryptedBase64) {
+        return reply.code(404).send({ error: "Webhook endpoint not found." });
+      }
+
+      const encryptionKey = dependencies.deliveryCredentialsEncryptionKey;
+      if (!encryptionKey || encryptionKey.length !== 32) {
+        request.log.error("Resend webhook encryption key is unavailable");
+        return reply.code(503).send({ error: "Webhook endpoint temporarily unavailable." });
+      }
+      let signingSecret: string;
+      try {
+        const credentials = decryptDeliveryCredentialBundle(
+          Buffer.from(encryptedBase64, "base64"),
+          encryptionKey,
+          { organizationId, channel: "email" },
+        );
+        signingSecret = credentials.signingSecret ?? "";
+      } catch {
+        request.log.error("Resend webhook signing secret could not be decrypted");
+        return reply.code(503).send({ error: "Webhook endpoint temporarily unavailable." });
+      }
+
+      if (!verifyResendWebhookSignature({
+        payload: rawBody,
+        headers: { id: svixId, timestamp: svixTimestamp, signature: svixSignature },
+        signingSecret,
+      })) {
+        return reply.code(401).send({ error: "Invalid webhook signature." });
+      }
+
+      const payload = request.body as unknown;
+      if (!payload || typeof payload !== "object" || Array.isArray(payload)) {
+        return reply.code(400).send({ error: "Invalid webhook event." });
+      }
+      const event = payload as {
+        type?: unknown;
+        data?: { message_id?: unknown; to?: unknown };
+      };
+      if (event.type !== "email.delivered" && event.type !== "email.bounced") {
+        return reply.code(204).send();
+      }
+      const messageReference = event.data?.message_id;
+      const recipients = event.data?.to;
+      if (typeof messageReference !== "string" || messageReference.length < 3 ||
+          messageReference.length > 500 || /[\\r\\n\\0]/.test(messageReference) ||
+          !Array.isArray(recipients) || recipients.length !== 1 ||
+          typeof recipients[0] !== "string" || recipients[0].length < 3 ||
+          recipients[0].length > 320) {
+        return reply.code(400).send({ error: "Unsupported Resend email event shape." });
+      }
+
+      const outcome = event.type === "email.delivered" ? "delivered" : "bounced";
+      const payloadHash = createHash("sha256").update(rawBody, "utf8").digest("hex");
+      const client = await dependencies.pool.connect();
+      try {
+        await client.query("BEGIN");
+        await client.query("SELECT set_config('app.organization_id',$1,true)", [organizationId]);
+        const recorded = await client.query<ResultRow>(
+          "SELECT eogp.record_verified_resend_delivery_webhook($1::uuid,$2::uuid,$3::text,$4::text,$5::text,$6::text) AS result",
+          [organizationId, request.params.endpointId, svixId, messageReference, outcome, payloadHash],
+        );
+        await client.query("COMMIT");
+        const result = recorded.rows[0]?.result as { duplicate?: boolean; status?: string } | undefined;
+        return reply.code(200).send({
+          received: true,
+          duplicate: result?.duplicate === true,
+          status: result?.status ?? outcome,
+        });
+      } catch (error) {
+        try { await client.query("ROLLBACK"); } catch { /* preserve the original error */ }
+        const code = typeof error === "object" && error !== null && "code" in error
+          ? String((error as { code?: unknown }).code ?? "") : "";
+        if (code === "P0002") return reply.code(404).send({ error: "Delivery attempt not found." });
+        if (code === "55000" || code === "23505" || code === "22023" || code === "42501") {
+          return reply.code(409).send({ error: "Webhook event conflicts with the recorded delivery state." });
+        }
+        request.log.error({ err: error }, "Resend delivery event ingestion failed");
+        return reply.code(503).send({ error: "Webhook event could not be stored." });
+      } finally {
+        client.release();
+      }
     },
   );
 
