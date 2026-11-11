@@ -63,7 +63,9 @@ VALUES
   ('a7000000-0000-4000-8000-000000000001','a7300000-0000-4000-8000-000000000001','booking.inquiry.assign'),
   ('a7000000-0000-4000-8000-000000000001','a7300000-0000-4000-8000-000000000001','booking.inquiry.manage'),
   ('a7000000-0000-4000-8000-000000000001','a7300000-0000-4000-8000-000000000001','booking.inquiry.annotate'),
-  ('a7000000-0000-4000-8000-000000000001','a7300000-0000-4000-8000-000000000001','booking.inquiry.convert');
+  ('a7000000-0000-4000-8000-000000000001','a7300000-0000-4000-8000-000000000001','booking.inquiry.convert'),
+  ('a7000000-0000-4000-8000-000000000001','a7300000-0000-4000-8000-000000000001','booking.draft.read'),
+  ('a7000000-0000-4000-8000-000000000001','a7300000-0000-4000-8000-000000000001','booking.draft.manage');
 
 INSERT INTO eogp.user_role_grants (
   organization_id,membership_id,role_id,scope_kind,granted_by_membership_id
@@ -118,6 +120,10 @@ DECLARE
   v_conversion jsonb;
   v_conversion_replay jsonb;
   v_converted_detail jsonb;
+  v_draft_detail jsonb;
+  v_new_revision jsonb;
+  v_stale_revision_denied boolean := false;
+  v_draft_read_denied boolean := false;
   v_conversion_denied boolean := false;
   v_denied boolean := false;
   v_cross_tenant_denied boolean := false;
@@ -363,6 +369,107 @@ BEGIN
          AND aggregate_id=v_conversion_inquiry_id
          AND safe_metadata->>'draftId'=v_conversion->>'draftId') <> 1 THEN
     RAISE EXCEPTION 'conversion audit event was missing, duplicated or incorrectly attributed';
+  END IF;
+
+  -- Draft access requires a dedicated organization-scope grant; inquiry
+  -- read/convert permission alone does not imply draft access.
+  BEGIN
+    PERFORM eogp.get_booking_draft(
+      'a7000000-0000-4000-8000-000000000001',
+      (v_conversion->>'draftId')::uuid,
+      'a7200000-0000-4000-8000-000000000003'
+    );
+  EXCEPTION WHEN insufficient_privilege THEN
+    v_draft_read_denied := true;
+  END;
+  IF NOT v_draft_read_denied THEN
+    RAISE EXCEPTION 'membership without booking draft permission read a booking draft';
+  END IF;
+
+  v_draft_detail := eogp.get_booking_draft(
+    'a7000000-0000-4000-8000-000000000001',
+    (v_conversion->>'draftId')::uuid,
+    'a7200000-0000-4000-8000-000000000001'
+  );
+  IF v_draft_detail->>'draftId' <> v_conversion->>'draftId'
+     OR v_draft_detail->>'status' <> 'draft'
+     OR v_draft_detail->>'currentRevisionNumber' <> '1'
+     OR v_draft_detail->'currentRevision'->>'revisionNumber' <> '1'
+     OR v_draft_detail->'currentRevision'->'valuesSnapshot'->>'encryption' <> 'ECP1'
+     OR v_draft_detail->'currentRevision'->'valuesSnapshot'->>'ciphertextBase64' <> encode(v_ciphertext,'base64')
+     OR jsonb_array_length(v_draft_detail->'revisionHistory') <> 1 THEN
+    RAISE EXCEPTION 'permission-checked draft projection did not return the initial encrypted revision: %',v_draft_detail;
+  END IF;
+
+  v_new_revision := eogp.create_booking_draft_revision(
+    'a7000000-0000-4000-8000-000000000001',
+    (v_conversion->>'draftId')::uuid,
+    'a7200000-0000-4000-8000-000000000001',
+    1,
+    v_ciphertext,
+    '2027-01-19 09:00:00+01',
+    '2027-01-19 13:00:00+01',
+    'Europe/Sarajevo',
+    '[]'::jsonb,
+    '[]'::jsonb,
+    'Updated requested end time after follow-up with requester.'
+  );
+  IF v_new_revision->>'revisionNumber' <> '2'
+     OR v_new_revision->>'previousRevisionNumber' <> '1'
+     OR v_new_revision->>'status' <> 'draft'
+     OR v_new_revision->>'changed' <> 'true' THEN
+    RAISE EXCEPTION 'draft successor revision command returned an unexpected result: %',v_new_revision;
+  END IF;
+
+  IF (SELECT current_revision_number FROM eogp.booking_drafts
+       WHERE organization_id='a7000000-0000-4000-8000-000000000001'
+         AND id=(v_conversion->>'draftId')::uuid) <> 2
+     OR (SELECT requested_end FROM eogp.booking_draft_revisions
+          WHERE organization_id='a7000000-0000-4000-8000-000000000001'
+            AND draft_id=(v_conversion->>'draftId')::uuid
+            AND revision_number=1) <> '2027-01-19 12:00:00+01'::timestamptz
+     OR (SELECT requested_end FROM eogp.booking_draft_revisions
+          WHERE organization_id='a7000000-0000-4000-8000-000000000001'
+            AND draft_id=(v_conversion->>'draftId')::uuid
+            AND revision_number=2) <> '2027-01-19 13:00:00+01'::timestamptz
+     OR (SELECT count(*) FROM eogp.booking_draft_revisions
+          WHERE organization_id='a7000000-0000-4000-8000-000000000001'
+            AND draft_id=(v_conversion->>'draftId')::uuid) <> 2 THEN
+    RAISE EXCEPTION 'draft successor revision modified or lost its immutable predecessor';
+  END IF;
+
+  v_draft_detail := eogp.get_booking_draft(
+    'a7000000-0000-4000-8000-000000000001',
+    (v_conversion->>'draftId')::uuid,
+    'a7200000-0000-4000-8000-000000000001'
+  );
+  IF v_draft_detail->>'currentRevisionNumber' <> '2'
+     OR v_draft_detail->'currentRevision'->>'revisionId' <> v_new_revision->>'revisionId'
+     OR jsonb_array_length(v_draft_detail->'revisionHistory') <> 2
+     OR v_draft_detail->'currentRevision'->>'sourceFormRevisionId' <> 'a7500000-0000-4000-8000-000000000001'
+     OR v_draft_detail->'currentRevision'->'valuesSnapshot'->>'ciphertextBase64' <> encode(v_ciphertext,'base64') THEN
+    RAISE EXCEPTION 'draft projection did not return successor revision and full revision history: %',v_draft_detail;
+  END IF;
+
+  BEGIN
+    PERFORM eogp.create_booking_draft_revision(
+      'a7000000-0000-4000-8000-000000000001',
+      (v_conversion->>'draftId')::uuid,
+      'a7200000-0000-4000-8000-000000000001',
+      1,
+      v_ciphertext,
+      '2027-01-19 09:00:00+01',
+      '2027-01-19 14:00:00+01',
+      'Europe/Sarajevo',
+      '[]'::jsonb,
+      '[]'::jsonb,
+      'Attempt stale revision write.'
+    );
+  EXCEPTION WHEN SQLSTATE '40001' THEN
+    v_stale_revision_denied := true;
+  END;
+  IF NOT v_stale_revision_denied THEN
+    RAISE EXCEPTION 'draft revision command accepted a stale expected revision number';
   END IF;
 
   IF EXISTS (
