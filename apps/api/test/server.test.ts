@@ -72,6 +72,7 @@ function makePool() {
   let bookingInquiryAssignCalls = 0;
   let bookingInquiryStatusCalls = 0;
   let bookingInquiryAnnotationCalls = 0;
+  let bookingInquiryConversionCalls = 0;
   const deliveryTests = new Map<string, string>();
 
   const client = {
@@ -120,7 +121,19 @@ function makePool() {
       if (normalized.includes("eogp.get_booking_inquiry_capabilities(")) {
         bookingInquiryCapabilitiesCalls += 1;
         commandCalls.push({ sql: normalized, values });
-        return { rows: [{ result: { canAssign: true, canManage: true, canAnnotate: true } }], rowCount: 1 };
+        return { rows: [{ result: { canAssign: true, canManage: true, canAnnotate: true, canConvert: true } }], rowCount: 1 };
+      }
+      if (normalized.includes("eogp.convert_booking_inquiry_to_draft(")) {
+        bookingInquiryConversionCalls += 1;
+        commandCalls.push({ sql: normalized, values });
+        return { rows: [{ result: {
+          inquiryId: values[1],
+          draftId: "15151515-1515-4151-8151-151515151515",
+          revisionId: "16161616-1616-4161-8161-161616161616",
+          revisionNumber: 1,
+          status: "converted",
+          changed: true,
+        } }], rowCount: 1 };
       }
       if (normalized.includes("eogp.list_booking_inquiry_assignees(")) {
         bookingInquiryAssigneeRosterCalls += 1;
@@ -490,6 +503,7 @@ function makePool() {
     get bookingInquiryAssignCalls() { return bookingInquiryAssignCalls; },
     get bookingInquiryStatusCalls() { return bookingInquiryStatusCalls; },
     get bookingInquiryAnnotationCalls() { return bookingInquiryAnnotationCalls; },
+    get bookingInquiryConversionCalls() { return bookingInquiryConversionCalls; },
   };
 }
 
@@ -710,8 +724,8 @@ test("staff inquiry inbox decrypts authorized projections and routes assignment,
     url: `/organizations/${principal.organizationId}/booking-inquiry-capabilities`,
   });
   assert.equal(capabilities.statusCode, 200);
-  assert.deepEqual(capabilities.json<{ data: { canAssign: boolean; canManage: boolean; canAnnotate: boolean } }>().data, {
-    canAssign: true, canManage: true, canAnnotate: true,
+  assert.deepEqual(capabilities.json<{ data: { canAssign: boolean; canManage: boolean; canAnnotate: boolean; canConvert: boolean } }>().data, {
+    canAssign: true, canManage: true, canAnnotate: true, canConvert: true,
   });
   assert.equal(mock.bookingInquiryCapabilitiesCalls, 1);
 
@@ -799,6 +813,30 @@ test("staff inquiry inbox decrypts authorized projections and routes assignment,
   assert.equal(annotation.statusCode, 201);
   assert.equal(annotation.json<{ data: { visibility: string } }>().data.visibility, "internal");
   assert.equal(mock.bookingInquiryAnnotationCalls, 1);
+
+  const conversion = await app.inject({
+    method: "POST",
+    url: `/booking-inquiries/${inquiryId}/conversion`,
+    headers: { "idempotency-key": "convert-inquiry-0001" },
+    payload: {},
+  });
+  assert.equal(conversion.statusCode, 201);
+  assert.deepEqual(conversion.json<{ data: Record<string, unknown> }>().data, {
+    inquiryId,
+    draftId: "15151515-1515-4151-8151-151515151515",
+    revisionId: "16161616-1616-4161-8161-161616161616",
+    revisionNumber: 1,
+    status: "converted",
+    changed: true,
+  });
+  assert.equal(mock.bookingInquiryConversionCalls, 1);
+  const conversionCall = mock.commandCalls.find((call) => call.sql.includes("eogp.convert_booking_inquiry_to_draft("));
+  assert.ok(conversionCall);
+  assert.deepEqual(conversionCall.values, [
+    principal.organizationId,
+    inquiryId,
+    principal.membershipId,
+  ]);
 
   const anonymous = makeApi(mock.pool, { authenticated: false });
   t.after(async () => anonymous.close());
