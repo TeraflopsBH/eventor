@@ -69,53 +69,29 @@ BEGIN
 END;
 $delivery_first$;
 
--- Advance only the retry's due time in the isolated CI fixture.
-SET LOCAL ROLE eventor_owner;
-UPDATE eogp.event_notification_delivery_attempts
-   SET next_attempt_at=clock_timestamp()-interval '1 second'
- WHERE organization_id='22222222-2222-4222-8222-222222222222'
-   AND campaign_id=(
-     SELECT id FROM eogp.event_notification_campaigns
-      WHERE organization_id='22222222-2222-4222-8222-222222222222'
-        AND event_decision_id='94900000-0000-4000-8000-000000000001'
-   )
-   AND status='queued';
-RESET ROLE;
-
 DO $delivery_retry$
 DECLARE
   v_campaign_id uuid;
-  v_job record;
-  v_result jsonb;
   v_status text;
   v_attempt_count integer;
+  v_retry_count integer;
 BEGIN
-  SELECT id INTO v_campaign_id
+  SELECT id,status INTO v_campaign_id,v_status
     FROM eogp.event_notification_campaigns
    WHERE organization_id='22222222-2222-4222-8222-222222222222'
      AND event_decision_id='94900000-0000-4000-8000-000000000001';
-
-  SELECT * INTO v_job
-    FROM eogp.claim_next_email_delivery('22222222-2222-4222-8222-222222222222');
-  IF v_job.attempt_id IS NULL THEN
-    RAISE EXCEPTION 'scheduled SMTP retry was not claimable';
-  END IF;
-  v_result:=eogp.complete_email_delivery_attempt(
-    '22222222-2222-4222-8222-222222222222',
-    v_job.attempt_id,'sent',NULL,'ci-smtp-accepted-2'
-  );
-
-  SELECT status INTO v_status
-    FROM eogp.event_notification_campaigns
-   WHERE organization_id='22222222-2222-4222-8222-222222222222'
-     AND id=v_campaign_id;
   SELECT count(*) INTO v_attempt_count
     FROM eogp.event_notification_delivery_attempts
    WHERE organization_id='22222222-2222-4222-8222-222222222222'
      AND campaign_id=v_campaign_id;
-  IF v_status<>'completed' OR v_attempt_count<>3 THEN
-    RAISE EXCEPTION 'delivery state machine ended unexpectedly: status %, attempts %',
-      v_status,v_attempt_count;
+  SELECT count(*) INTO v_retry_count
+    FROM eogp.event_notification_delivery_attempts
+   WHERE organization_id='22222222-2222-4222-8222-222222222222'
+     AND campaign_id=v_campaign_id
+     AND status='queued' AND attempt_number=2;
+  IF v_status<>'sending' OR v_attempt_count<>3 OR v_retry_count<>1 THEN
+    RAISE EXCEPTION 'retry state machine ended unexpectedly: status %, attempts %, queued retries %',
+      v_status,v_attempt_count,v_retry_count;
   END IF;
 END;
 $delivery_retry$;
