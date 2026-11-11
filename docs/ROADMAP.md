@@ -1,6 +1,6 @@
 # Delivery roadmap
 
-This roadmap tracks the accepted Eventor product direction and implementation gates. PR #26 contains the first executable database/API contract draft; it remains unmerged pending review.
+This roadmap tracks the accepted Eventor product direction and implementation gates. PR #26 contains the initial PostgreSQL/OpenAPI baseline; PR #27 is a separate stacked remediation and application-foundation draft. Both remain open, unmerged drafts.
 
 ## Phase 0 — Repository and design baseline
 
@@ -18,21 +18,25 @@ This roadmap tracks the accepted Eventor product direction and implementation ga
 - [x] Produce an initial ordered PostgreSQL 18 migration draft and checksum runner.
 - [x] Produce canonical OpenAPI 3.1.1 v0.3 YAML from the route/security design.
 - [x] Add PostgreSQL integration/concurrency/RLS tests and pinned OpenAPI validation to the unified CI workflow.
-- [x] Pass the unified CI workflow end-to-end on PostgreSQL 18.6 and the canonical OpenAPI contract (latest PR run #42837964380 on head `ce9fd3d7e4889b713f36e1d93d1b40c3e0c609f2`; both jobs succeeded).
+- [x] Pass the unified three-job CI workflow on PostgreSQL 18.6, OpenAPI 3.1 and the initial staff-web build on PR #27 head `8c19c51b37a67f1cb1faf6f158d5db32e8c32d9e` ([run #43027314682](https://github.com/TeraflopsBH/eventor/actions/runs/43027314682)). This successful run predates migration 000039 and subsequent Resend uncertain-outcome changes; it does not validate the current PR #27 head.
 - [ ] Complete deeper schema/permission review, migration-upgrade/backup tests and route-level API contract tests before accepting the DDL.
 - [ ] Close Issues #2, #3, #13 and #17 only after their runtime/CI acceptance criteria pass.
 
 ## Phase 1 — Platform foundation
 
 - [ ] Monorepo workspace and build tooling.
-- [ ] Fastify API skeleton, configuration and health/readiness endpoints.
-- [ ] PostgreSQL migrations, connection management and transaction conventions (21-file migration draft and green PostgreSQL 18.6 CI are in draft PR #26; deployment is not started).
+- [x] Fastify API bootstrap, environment configuration, database pools and staff-session integration are present in PR #27.
+- [ ] Add unauthenticated liveness and dependency-aware readiness endpoints, plus operational health checks.
+- [x] A 39-file PostgreSQL 18 migration chain, least-privilege roles, checksum runner and transactional command conventions are present across PRs #26/#27. Fresh-database validation passed on the earlier PR #27 head; migration-upgrade, backup/restore and current-head CI validation remain open. No production deployment has started.
 - [ ] Shared contracts, validation and error model.
-- [ ] Authentication, sessions, authorization and audit foundation.
-- [ ] Organization, venue and event tenancy model.
+- [ ] Complete review of the implemented database-backed staff sessions, CSRF/origin checks, tenant-scoped authorization and audit boundaries; extend role/permission coverage to the remaining API operations.
+- [x] Organization, venue and event tenancy foundations and RLS migrations are present.
+- [ ] Complete runtime API projections and staff workflows for organization, venue and event administration.
 - [ ] CI checks and synthetic test fixtures.
 
 ## Phase 2 — Configurable venue booking
+
+**Next application vertical slice:** public booking inquiry intake, staff inquiry review/history, conversion to an editable booking draft, offer/approval and explicit confirmation with the existing reservation commands. Keep booking-only operation independent of optional event/guest capabilities.
 
 - [ ] Versioned form/catalogue/configuration management.
 - [ ] Public inquiry intake and spam/rate protections.
