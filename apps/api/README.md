@@ -7,6 +7,11 @@ This package contains the first deployable command API and a separate tenant-awa
 - `POST /auth/session` — Argon2id staff login bound to an active organization membership.
 - `DELETE /auth/session` — revoke the current database-backed session.
 - `GET /me` — return the current principal and active organization memberships.
+- `GET /organizations/{organizationId}/booking-inquiries?status=&assignedToMembershipId=&limit=&offset=` — permission-filtered inquiry inbox.
+- `GET /booking-inquiries/{inquiryId}` — decrypted inquiry detail, published field schema, internal annotations and status/assignment histories.
+- `POST /booking-inquiries/{inquiryId}/assignment` — assign or unassign an active organization member.
+- `POST /booking-inquiries/{inquiryId}/status` — change inquiry review status with an audit reason.
+- `POST /booking-inquiries/{inquiryId}/annotations` — append an internal-only staff note.
 - `GET /public/organizations/{organizationSlug}/booking-forms/{formCode}` — public read of an active organization's latest published booking form.
 - `POST /public/organizations/{organizationSlug}/booking-inquiries` — accept an encrypted, idempotent booking inquiry using the published form revision.
 - `POST /bookings/{bookingId}/reservations/release`
@@ -35,7 +40,13 @@ All mutating staff routes require an idempotency key, an authenticated session, 
 
 The public form GET returns only an active organization's latest published revision. The POST requires the form code and revision ID returned by that endpoint, plus an `Idempotency-Key`. It stores requester name, email, phone, requested details and dynamic answers using the tenant-bound ECP1 AES-256-GCM contact codec. Raw source IPs and raw idempotency keys are not persisted; keyed fingerprints support an organization-scoped limit of ten accepted submissions per source per UTC hour and deterministic replay handling. Idempotent replays do not consume another rate-limit slot.
 
-Submitted values are bounded and encrypted, but are not yet validated against every field rule in the revision's dynamic `field_schema`. Attachment references are rejected until the upload workflow exists. A staff inquiry inbox, review/history, inquiry-to-draft conversion and booking offer/approval UI remain to be implemented.
+Submitted values are bounded and encrypted, but are not yet validated against every field rule in the revision's dynamic `field_schema`. Attachment references are rejected until the upload workflow exists.
+
+## Staff inquiry review
+
+The inbox, detail, assignment, status and annotation routes require an authenticated staff session. Database SECURITY DEFINER projections and commands re-check active membership plus the `booking.inquiry.read`, `booking.inquiry.assign`, `booking.inquiry.manage` or `booking.inquiry.annotate` permission on an organization-scope role grant. Inquiries are not yet linked to a booking, so booking-specific role grants do not authorize inquiry access. Inquiry source and history tables are not directly accessible to the runtime database role. Contact fields and answers are decrypted only in the API after the permission-checked detail projection. Assignment and status changes append immutable histories and audit events. Staff annotations are append-only and internal-only; customer-visible annotations are not supported by these endpoints.
+
+The staff web inquiry interface, dynamic answer validation, inquiry-to-draft conversion and booking offer/approval workflow remain to be implemented.
 
 ## Organization-owned SMTP
 
@@ -170,6 +181,7 @@ CI regenerates OpenAPI TypeScript declarations, runs strict TypeScript compilati
 
 ## Remaining integration work
 
+- Build the staff inquiry inbox/detail and assignment/status/annotation interface; enforce dynamic field-schema validation before accepting submitted answers as trusted structured values; then implement inquiry-to-draft conversion, offer revisions/approval and booking confirmation.
 - Expand the staff UI to the remaining event, booking, venue and guest workflows.
 - Implement an SMS provider adapter only when a concrete provider is selected; keep it optional and tenant-configurable.
 - Extend provider-specific status handling only when another concrete provider is selected. Resend's raw-body signature verification, exact Message-ID correlation and delivered/bounced callbacks are implemented. SMTP acceptance alone remains `sent`, not `delivered`.
