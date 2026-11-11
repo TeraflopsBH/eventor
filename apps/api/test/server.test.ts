@@ -23,7 +23,11 @@ function makePool() {
   let changeCalls = 0;
   let campaignReviewCalls = 0;
   let campaignConfirmCalls = 0;
-  let deliveryConfigCalls = 0;\n  let deliveryTestBegins = 0;\n  let deliveryTestCompletions = 0;\n  let campaignQueueCalls = 0;\n  const deliveryTests = new Map<string, string>();
+  let deliveryConfigCalls = 0;
+  let deliveryTestBegins = 0;
+  let deliveryTestCompletions = 0;
+  let campaignQueueCalls = 0;
+  const deliveryTests = new Map<string, string>();
 
   const client = {
     async query(sql: string, values: unknown[] = []) {
@@ -184,7 +188,10 @@ function makePool() {
     get changeCalls() { return changeCalls; },
     get campaignReviewCalls() { return campaignReviewCalls; },
     get campaignConfirmCalls() { return campaignConfirmCalls; },
-    get deliveryConfigCalls() { return deliveryConfigCalls; },\n    get deliveryTestBegins() { return deliveryTestBegins; },\n    get deliveryTestCompletions() { return deliveryTestCompletions; },\n    get campaignQueueCalls() { return campaignQueueCalls; },
+    get deliveryConfigCalls() { return deliveryConfigCalls; },
+    get deliveryTestBegins() { return deliveryTestBegins; },
+    get deliveryTestCompletions() { return deliveryTestCompletions; },
+    get campaignQueueCalls() { return campaignQueueCalls; },
   };
 }
 
@@ -195,7 +202,8 @@ function makeApi(
     originValid?: boolean;
     encryptionKey?: Buffer;
     loginOriginValid?: boolean;
-    withSessionCallbacks?: boolean;\n    smtpTransportFactory?: SmtpTransportFactory;
+    withSessionCallbacks?: boolean;
+    smtpTransportFactory?: SmtpTransportFactory;
   } = {},
 ) {
   return buildApi({
@@ -214,7 +222,8 @@ function makeApi(
       getCurrentPrincipal: async () => ({ ...principal, memberships: [] }),
     } : {}),
     privateFieldEncryptionKey: options.encryptionKey ?? Buffer.alloc(32, 7),
-    deliveryCredentialsEncryptionKey: Buffer.alloc(32, 9),\n    smtpTransportFactory: options.smtpTransportFactory,
+    deliveryCredentialsEncryptionKey: Buffer.alloc(32, 9),
+    smtpTransportFactory: options.smtpTransportFactory,
   });
 }
 
