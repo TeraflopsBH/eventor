@@ -193,8 +193,15 @@ BEGIN
        WHERE organization_id=p_organization_id AND attempt_id=p_attempt_id
        ORDER BY created_at DESC,id DESC LIMIT 1
     ) event ON true;
-  IF v_current_status NOT IN ('uncertain','failed') THEN
-    RAISE EXCEPTION 'only uncertain or failed attempts can be reconciled'
+  IF v_current_status NOT IN ('uncertain','failed')
+     OR EXISTS (
+       SELECT 1 FROM eogp.event_notification_delivery_attempts later
+        WHERE later.organization_id=p_organization_id
+          AND later.campaign_id=v_attempt.campaign_id
+          AND later.recipient_id=v_attempt.recipient_id
+          AND later.attempt_number>v_attempt.attempt_number
+     ) THEN
+    RAISE EXCEPTION 'only the latest uncertain or failed attempt can be reconciled'
       USING ERRCODE='55000';
   END IF;
   v_target_status:=CASE p_resolution
