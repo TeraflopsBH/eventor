@@ -105,6 +105,8 @@ DECLARE
   v_inquiry_id uuid;
   v_public_reference text;
   v_list jsonb;
+  v_assignee_list jsonb;
+  v_assignee_denied boolean := false;
   v_detail jsonb;
   v_assigned jsonb;
   v_status jsonb;
@@ -144,6 +146,31 @@ BEGIN
      OR v_list->'items'->0->>'publicReference' <> v_public_reference
      OR v_list->'page'->>'total' <> '1' THEN
     RAISE EXCEPTION 'permission-filtered booking inquiry inbox did not return the submitted inquiry: %',v_list;
+  END IF;
+
+  v_assignee_list := eogp.list_booking_inquiry_assignees(
+    'a7000000-0000-4000-8000-000000000001',
+    'a7200000-0000-4000-8000-000000000001'
+  );
+  IF jsonb_array_length(v_assignee_list->'items') <> 3
+     OR NOT EXISTS (
+       SELECT 1 FROM jsonb_array_elements(v_assignee_list->'items') item
+        WHERE item->>'membershipId' = 'a7200000-0000-4000-8000-000000000002'
+          AND item->>'displayName' = 'Inquiry Assignee'
+     ) THEN
+    RAISE EXCEPTION 'permissioned inquiry assignee roster did not return active members only: %',v_assignee_list;
+  END IF;
+
+  BEGIN
+    PERFORM eogp.list_booking_inquiry_assignees(
+      'a7000000-0000-4000-8000-000000000001',
+      'a7200000-0000-4000-8000-000000000003'
+    );
+  EXCEPTION WHEN insufficient_privilege THEN
+    v_assignee_denied := true;
+  END;
+  IF NOT v_assignee_denied THEN
+    RAISE EXCEPTION 'membership without inquiry assignment permission accessed the assignee roster';
   END IF;
 
   v_detail := eogp.get_booking_inquiry(
@@ -291,6 +318,8 @@ BEGIN
     'eventor_runtime','eogp.list_booking_inquiries(uuid,uuid,text,uuid,integer,integer)','EXECUTE'
   ) OR NOT has_function_privilege(
     'eventor_runtime','eogp.get_booking_inquiry(uuid,uuid,uuid)','EXECUTE'
+  ) OR NOT has_function_privilege(
+    'eventor_runtime','eogp.list_booking_inquiry_assignees(uuid,uuid)','EXECUTE'
   ) THEN
     RAISE EXCEPTION 'runtime role cannot execute permission-filtered inquiry projections';
   END IF;
