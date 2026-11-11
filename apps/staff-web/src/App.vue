@@ -144,7 +144,7 @@ function emailConfigurationPayload(): Record<string, unknown> {
   };
   const username = emailForm.username.trim();
   const password = emailForm.password;
-  if (emailForm.authMode === "password" && (username || password)) {
+  if (!emailForm.clearCredentials && emailForm.authMode === "password" && (username || password)) {
     if (!username || !password) throw new Error("Enter both SMTP username and password, or leave both blank to retain the stored credentials.");
     body.credentials = { username, password };
   }
