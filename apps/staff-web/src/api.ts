@@ -278,6 +278,11 @@ export interface BookingInquiryDetail extends BookingInquiryListItem {
   annotations: BookingInquiryAnnotation[];
   statusHistory: BookingInquiryStatusHistoryItem[];
   assignmentHistory: BookingInquiryAssignmentHistoryItem[];
+  bookingDraft: {
+    draftId: string;
+    status: "draft" | "offered" | "confirmed" | "abandoned";
+    currentRevisionNumber: number;
+  } | null;
 }
 
 export interface BookingInquiryCapabilities {
@@ -285,6 +290,69 @@ export interface BookingInquiryCapabilities {
   canManage: boolean;
   canAnnotate: boolean;
   canConvert: boolean;
+  canReadDraft: boolean;
+  canManageDraft: boolean;
+}
+
+export interface BookingDraftSpaceLine {
+  spaceLineId: string;
+  venueSpaceId: string;
+  blockKind: "setup" | "rehearsal" | "event_use" | "teardown" | "buffer";
+  startsAt: string;
+  endsAt: string;
+  requestedCapacity: number | null;
+}
+
+export interface BookingDraftResourceLine {
+  resourceLineId: string;
+  resourceTypeId: string;
+  lineCode: string;
+  label: string;
+  requestedQuantity: number;
+  values: Record<string, unknown>;
+}
+
+export interface BookingDraftRevisionHistoryItem {
+  revisionId: string;
+  revisionNumber: number;
+  changeReason: string | null;
+  createdAt: string;
+  createdByMembershipId: string;
+  createdByDisplayName: string;
+}
+
+export interface BookingDraftDetail {
+  draftId: string;
+  sourceInquiryId: string | null;
+  status: "draft" | "offered" | "confirmed" | "abandoned";
+  currentRevisionNumber: number;
+  createdAt: string;
+  updatedAt: string;
+  currentRevision: {
+    revisionId: string;
+    revisionNumber: number;
+    sourceFormRevisionId: string | null;
+    fieldSchema: BookingInquiryDetail["fieldSchema"] | null;
+    values: Record<string, unknown>;
+    requestedStart: string | null;
+    requestedEnd: string | null;
+    timezone: string;
+    changeReason: string | null;
+    createdAt: string;
+    createdByMembershipId: string;
+    spaceLines: BookingDraftSpaceLine[];
+    resourceLines: BookingDraftResourceLine[];
+  } | null;
+  revisionHistory: BookingDraftRevisionHistoryItem[];
+}
+
+export interface BookingDraftRevisionResult {
+  draftId: string;
+  revisionId: string;
+  revisionNumber: number;
+  previousRevisionNumber: number;
+  status: "draft" | "offered" | "confirmed" | "abandoned";
+  changed: boolean;
 }
 
 export interface BookingInquiryConversion {
@@ -336,6 +404,35 @@ export const api = {
   },
   getBookingInquiry: (inquiryId: string) =>
     request<Envelope<BookingInquiryDetail>>(`/booking-inquiries/${encodeURIComponent(inquiryId)}`),
+  getBookingDraft: (draftId: string) =>
+    request<Envelope<BookingDraftDetail>>(`/booking-drafts/${encodeURIComponent(draftId)}`),
+  createBookingDraftRevision: (
+    draftId: string,
+    body: {
+      expectedRevisionNumber: number;
+      values: Record<string, unknown>;
+      requestedStart: string | null;
+      requestedEnd: string | null;
+      timezone: string;
+      spaceLines: Array<{
+        venueSpaceId: string;
+        startsAt: string;
+        endsAt: string;
+        blockKind: "setup" | "rehearsal" | "event_use" | "teardown" | "buffer";
+        requestedCapacity?: number;
+      }>;
+      resourceLines: Array<{
+        resourceTypeId: string;
+        requestedQuantity: number;
+        values?: Record<string, unknown>;
+      }>;
+      changeReason: string;
+    },
+  ) =>
+    request<Envelope<BookingDraftRevisionResult>>(
+      `/booking-drafts/${encodeURIComponent(draftId)}/revisions`,
+      { method: "POST", body, idempotent: true },
+    ),
   assignBookingInquiry: (inquiryId: string, assignedToMembershipId: string | null) =>
     request<Envelope<Record<string, unknown>>>(
       `/booking-inquiries/${encodeURIComponent(inquiryId)}/assignment`,
