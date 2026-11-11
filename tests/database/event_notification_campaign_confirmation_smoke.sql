@@ -14,10 +14,10 @@ BEGIN
     'bbbbbbbb-2222-4222-8222-bbbbbbbbbbbb'
   );
   IF v_review ->> 'status' <> 'previewed'
-     OR (v_review ->> 'recipientCount')::integer <> 2
-     OR (v_review ->> 'actualRecipientCount')::integer <> 2
+     OR (v_review ->> 'recipientCount')::integer <> 3
+     OR (v_review ->> 'actualRecipientCount')::integer <> 3
      OR (v_review ->> 'exclusionCount')::integer <> 1
-     OR jsonb_array_length(v_review -> 'recipients') <> 2 THEN
+     OR jsonb_array_length(v_review -> 'recipients') <> 3 THEN
     RAISE EXCEPTION 'campaign review projection is incomplete or inconsistent: %', v_review;
   END IF;
   IF v_review::text LIKE '%destination_ciphertext%'
