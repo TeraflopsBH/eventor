@@ -10,7 +10,8 @@ VALUES ('93900000-0000-4000-8000-000000000001',
 INSERT INTO eogp.role_permissions (organization_id, role_id, permission_code)
 VALUES
  ('22222222-2222-4222-8222-222222222222','93900000-0000-4000-8000-000000000001','event.notifications.preview'),
- ('22222222-2222-4222-8222-222222222222','93900000-0000-4000-8000-000000000001','event.notifications.send');
+ ('22222222-2222-4222-8222-222222222222','93900000-0000-4000-8000-000000000001','event.notifications.send'),
+ ('22222222-2222-4222-8222-222222222222','93900000-0000-4000-8000-000000000001','event.notifications.delivery.manage');
 
 INSERT INTO eogp.roles (id, organization_id, code, name, scope_kind)
 VALUES ('93900000-0000-4000-8000-000000000003',
