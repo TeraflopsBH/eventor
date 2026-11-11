@@ -2,7 +2,7 @@ import Fastify, { type FastifyInstance, type FastifyReply, type FastifyRequest }
 import { createCipheriv, createHash, createHmac, randomBytes, randomUUID } from "node:crypto";
 import type { Pool, PoolClient, QueryResultRow } from "pg";
 import { decryptDeliveryCredentialBundle, decryptDeliveryCredentials, encryptDeliveryCredentialBundle, encryptDeliveryCredentials } from "./delivery-credentials-crypto.js";
-import { encryptContactValue } from "./contact-crypto.js";
+import { decryptContactValue, encryptContactValue } from "./contact-crypto.js";
 import { verifyResendWebhookSignature } from "./resend-webhook.js";
 import { classifySmtpFailure, sendSmtpTestMessage, type SmtpSettings, type SmtpTransportFactory } from "./smtp-transport.js";
 import type { paths } from "./generated/openapi.js";
@@ -194,6 +194,52 @@ const campaignListQuery = {
   },
   additionalProperties: false,
 } as const;
+const inquiryParams = {
+  type: "object",
+  required: ["inquiryId"],
+  properties: { inquiryId: { type: "string", pattern: uuidPattern } },
+  additionalProperties: false,
+} as const;
+const organizationInquiryParams = {
+  type: "object",
+  required: ["organizationId"],
+  properties: { organizationId: { type: "string", pattern: uuidPattern } },
+  additionalProperties: false,
+} as const;
+const inquiryListQuery = {
+  type: "object",
+  properties: {
+    status: { type: "string", enum: ["received", "under_review", "converted", "declined", "withdrawn", "spam"] },
+    assignedToMembershipId: { type: "string", pattern: uuidPattern },
+    limit: { type: "integer", minimum: 1, maximum: 100, default: 25 },
+    offset: { type: "integer", minimum: 0, maximum: 10000, default: 0 },
+  },
+  additionalProperties: false,
+} as const;
+const inquiryAssignmentBody = {
+  type: "object",
+  required: ["assignedToMembershipId"],
+  properties: {
+    assignedToMembershipId: { type: ["string", "null"], pattern: uuidPattern },
+  },
+  additionalProperties: false,
+} as const;
+const inquiryStatusBody = {
+  type: "object",
+  required: ["status", "reason"],
+  properties: {
+    status: { type: "string", enum: ["received", "under_review", "declined", "spam"] },
+    reason: { type: "string", minLength: 3, maxLength: 1000 },
+  },
+  additionalProperties: false,
+} as const;
+const inquiryAnnotationBody = {
+  type: "object",
+  required: ["annotation"],
+  properties: { annotation: { type: "string", minLength: 1, maxLength: 4000 } },
+  additionalProperties: false,
+} as const;
+
 const campaignDeliveryQuery = {
   type: "object",
   properties: {
@@ -380,6 +426,61 @@ function assertBoundedAnswerValues(value: unknown): void {
     throw new ApiError(413, "PUBLIC_FORM_ANSWERS_TOO_LARGE", "The submitted form answers exceed the allowed size.");
   }
 }
+function decryptInquiryCiphertext(
+  value: unknown,
+  key: Buffer | undefined,
+  organizationId: string,
+  contactKind: "email" | "phone" | "other",
+): string | null {
+  if (value === null || value === undefined) return null;
+  if (typeof value !== "string" || !key || key.length !== 32) {
+    throw new ApiError(503, "INQUIRY_CONTACT_DECRYPTION_UNAVAILABLE", "Inquiry contact decryption is not configured.");
+  }
+  try {
+    return decryptContactValue(Buffer.from(value, "base64"), key, { organizationId, contactKind });
+  } catch {
+    throw new ApiError(500, "INQUIRY_CONTACT_DECRYPTION_FAILED", "Stored inquiry contact data could not be decrypted.");
+  }
+}
+function decryptInquiryListItem(value: unknown, key: Buffer | undefined, organizationId: string): Record<string, unknown> {
+  if (!value || typeof value !== "object" || Array.isArray(value)) {
+    throw new ApiError(500, "INQUIRY_PROJECTION_INVALID", "The inquiry projection is invalid.");
+  }
+  const record = value as Record<string, unknown>;
+  const { requesterNameCiphertextBase64, ...safe } = record;
+  return {
+    ...safe,
+    requesterName: decryptInquiryCiphertext(requesterNameCiphertextBase64, key, organizationId, "other"),
+  };
+}
+function decryptInquiryDetail(value: unknown, key: Buffer | undefined, organizationId: string): Record<string, unknown> {
+  if (!value || typeof value !== "object" || Array.isArray(value)) {
+    throw new ApiError(500, "INQUIRY_PROJECTION_INVALID", "The inquiry projection is invalid.");
+  }
+  const record = value as Record<string, unknown>;
+  const {
+    requesterNameCiphertextBase64,
+    requesterEmailCiphertextBase64,
+    requesterPhoneCiphertextBase64,
+    submittedValuesCiphertextBase64,
+    ...safe
+  } = record;
+  const encryptedSubmission = decryptInquiryCiphertext(submittedValuesCiphertextBase64, key, organizationId, "other");
+  let submittedValues: unknown;
+  try {
+    submittedValues = encryptedSubmission === null ? null : JSON.parse(encryptedSubmission);
+  } catch {
+    throw new ApiError(500, "INQUIRY_SUBMISSION_DECRYPTION_FAILED", "Stored inquiry answers could not be decoded.");
+  }
+  return {
+    ...safe,
+    requesterName: decryptInquiryCiphertext(requesterNameCiphertextBase64, key, organizationId, "other"),
+    requesterEmail: decryptInquiryCiphertext(requesterEmailCiphertextBase64, key, organizationId, "email"),
+    requesterPhone: decryptInquiryCiphertext(requesterPhoneCiphertextBase64, key, organizationId, "phone"),
+    submittedValues,
+  };
+}
+
 function encryptPrivateText(value: string, key: Buffer | undefined): Buffer {
   if (!key || key.length !== 32) {
     throw new ApiError(503, "PRIVATE_FIELD_ENCRYPTION_UNAVAILABLE", "Private event-reason encryption is not configured.");
@@ -845,6 +946,166 @@ export function buildApi(dependencies: ApiDependencies): FastifyInstance {
     return reply.code(200).send({ data });
   });
 
+
+  server.get<{
+    Params: { organizationId: string };
+    Querystring: { status?: string; assignedToMembershipId?: string; limit?: number; offset?: number };
+  }>(
+    "/organizations/:organizationId/booking-inquiries",
+    { schema: { params: organizationInquiryParams, querystring: inquiryListQuery } },
+    async (request, reply) => {
+      const principal = request.staffPrincipal!;
+      if (request.params.organizationId !== principal.organizationId) {
+        throw new ApiError(403, "FORBIDDEN", "The requested organization is not the active membership organization.");
+      }
+      const limit = request.query.limit ?? 25;
+      const offset = request.query.offset ?? 0;
+      const client = await dependencies.pool.connect();
+      try {
+        await client.query("BEGIN");
+        await client.query("SELECT set_config('app.organization_id',$1,true)", [principal.organizationId]);
+        const result = await client.query<ResultRow>(
+          "SELECT eogp.list_booking_inquiries($1::uuid,$2::uuid,$3::text,$4::uuid,$5::integer,$6::integer) AS result",
+          [
+            principal.organizationId,
+            principal.membershipId,
+            request.query.status ?? null,
+            request.query.assignedToMembershipId ?? null,
+            limit,
+            offset,
+          ],
+        );
+        await client.query("COMMIT");
+        const projection = result.rows[0]?.result as {
+          items?: unknown[];
+          page?: { total?: number };
+        } | undefined;
+        const key = dependencies.contactEncryptionKey;
+        const items = (projection?.items ?? []).map((item) =>
+          decryptInquiryListItem(item, key, principal.organizationId)
+        );
+        return reply.code(200).send({
+          data: items,
+          meta: { limit, offset, totalCount: projection?.page?.total ?? 0 },
+        });
+      } catch (error) {
+        try { await client.query("ROLLBACK"); } catch { /* preserve the read error */ }
+        throw databaseError(error);
+      } finally {
+        client.release();
+      }
+    },
+  );
+
+  server.get<{ Params: { inquiryId: string } }>(
+    "/booking-inquiries/:inquiryId",
+    { schema: { params: inquiryParams } },
+    async (request, reply) => {
+      const principal = request.staffPrincipal!;
+      const client = await dependencies.pool.connect();
+      try {
+        await client.query("BEGIN");
+        await client.query("SELECT set_config('app.organization_id',$1,true)", [principal.organizationId]);
+        const result = await client.query<ResultRow>(
+          "SELECT eogp.get_booking_inquiry($1::uuid,$2::uuid,$3::uuid) AS result",
+          [principal.organizationId, request.params.inquiryId, principal.membershipId],
+        );
+        await client.query("COMMIT");
+        return reply.code(200).send({
+          data: decryptInquiryDetail(result.rows[0]?.result, dependencies.contactEncryptionKey, principal.organizationId),
+        });
+      } catch (error) {
+        try { await client.query("ROLLBACK"); } catch { /* preserve the read error */ }
+        throw databaseError(error);
+      } finally {
+        client.release();
+      }
+    },
+  );
+
+  server.post<{
+    Params: { inquiryId: string };
+    Body: { assignedToMembershipId: string | null };
+  }>(
+    "/booking-inquiries/:inquiryId/assignment",
+    {
+      schema: {
+        params: inquiryParams,
+        headers: idempotencyHeaders,
+        body: inquiryAssignmentBody,
+      },
+    },
+    async (request, reply) => {
+      const principal = request.staffPrincipal!;
+      return withCommand(
+        request, reply, "assignBookingInquiry",
+        { inquiryId: request.params.inquiryId, assignedToMembershipId: request.body.assignedToMembershipId },
+        async (client) => {
+          const result = await client.query<ResultRow>(
+            "SELECT eogp.assign_booking_inquiry($1::uuid,$2::uuid,$3::uuid,$4::uuid) AS result",
+            [principal.organizationId, request.params.inquiryId, principal.membershipId, request.body.assignedToMembershipId],
+          );
+          return result.rows[0]?.result as Record<string, unknown>;
+        },
+      );
+    },
+  );
+
+  server.post<{
+    Params: { inquiryId: string };
+    Body: { status: string; reason: string };
+  }>(
+    "/booking-inquiries/:inquiryId/status",
+    {
+      schema: {
+        params: inquiryParams,
+        headers: idempotencyHeaders,
+        body: inquiryStatusBody,
+      },
+    },
+    async (request, reply) => {
+      const principal = request.staffPrincipal!;
+      return withCommand(
+        request, reply, "changeBookingInquiryStatus",
+        { inquiryId: request.params.inquiryId, status: request.body.status, reason: request.body.reason },
+        async (client) => {
+          const result = await client.query<ResultRow>(
+            "SELECT eogp.change_booking_inquiry_status($1::uuid,$2::uuid,$3::uuid,$4::text,$5::text) AS result",
+            [principal.organizationId, request.params.inquiryId, principal.membershipId, request.body.status, request.body.reason],
+          );
+          return result.rows[0]?.result as Record<string, unknown>;
+        },
+      );
+    },
+  );
+
+  server.post<{
+    Params: { inquiryId: string };
+    Body: { annotation: string };
+  }>(
+    "/booking-inquiries/:inquiryId/annotations",
+    {
+      schema: {
+        params: inquiryParams,
+        headers: idempotencyHeaders,
+        body: inquiryAnnotationBody,
+      },
+    },
+    async (request, reply) => {
+      const principal = request.staffPrincipal!;
+      return withCommand(
+        request, reply, "addBookingInquiryAnnotation",
+        { inquiryId: request.params.inquiryId, annotation: request.body.annotation },
+        async (client) => {
+          const result = await client.query<ResultRow>(
+            "SELECT eogp.add_booking_inquiry_annotation($1::uuid,$2::uuid,$3::uuid,$4::text) AS result",
+            [principal.organizationId, request.params.inquiryId, principal.membershipId, request.body.annotation],
+          );
+          return result.rows[0]?.result as Record<string, unknown>;
+        },
+      );
+    },
+  );
 
   server.get<{
     Querystring: { status?: string; limit?: number; offset?: number };
