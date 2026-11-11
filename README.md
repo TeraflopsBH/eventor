@@ -6,7 +6,7 @@ Eventor is a self-hosted, API-first platform that can be used for venue booking/
 
 The first reference deployment is planned for **Gazi Husrev-beg's Library (GHB), Sarajevo**. The product is being designed as a reusable organization- and venue-aware platform rather than a one-off GHB application.
 
-> **Project status:** accepted design baseline; 41 PostgreSQL 18 migrations, the canonical OpenAPI v0.3 contract, a Fastify staff API/notification-worker foundation and the first Vue 3 staff-web slice are present on draft PR #27. Migrations 000040–000041 and the Fastify API now expose a published public booking form and accept encrypted, idempotent, rate-limited anonymous inquiries. Staff inquiry review, dynamic field-schema validation, booking-draft/offer workflows and the wider venue-booking application remain incomplete. The latest fully green three-job CI run (#43027314682) predates migrations 000039–000041; runs for later heads are not yet successful validations.
+> **Project status:** accepted design baseline; 42 PostgreSQL 18 migrations, the canonical OpenAPI v0.3 contract, a Fastify staff API/notification-worker foundation and the first Vue 3 staff-web slice are present on draft PR #27. Migrations 000040–000041 provide published-form retrieval and encrypted, idempotent, rate-limited public inquiry submission. Migration 000042 and the API now add a permissioned staff inquiry inbox/detail, assignment, review-status changes, internal annotations and immutable history. Dynamic field-schema validation, inquiry-to-draft conversion, offers and the wider venue-booking application remain incomplete. The latest fully green CI run predates migrations 000039–000042; current branch runs are queued and are not yet validation.
 
 ## Product goals
 
@@ -48,7 +48,7 @@ Directories will be introduced as their corresponding implementation work begins
 
 ## Development status
 
-The accepted design baseline now has 41 ordered PostgreSQL migrations, a canonical OpenAPI v0.3 contract, a Fastify staff API plus notification workers, and an initial Vue staff workspace for authentication, organization SMTP configuration and notification campaigns. PR #27 adds public published-form retrieval and encrypted, idempotent, rate-limited inquiry submission. Staff inquiry review, field-schema validation, booking drafts/offers and the wider staff workflows remain outstanding. The latest fully green three-job CI run (#43027314682) predates migrations 000039–000041; the current PR #27 line has not yet received successful end-to-end validation. No production database deployment has been established.
+The accepted design baseline now has 42 ordered PostgreSQL migrations, a canonical OpenAPI v0.3 contract, a Fastify staff API plus notification workers, and an initial Vue staff workspace for authentication, organization SMTP configuration and notification campaigns. PR #27 adds public published-form retrieval, encrypted/idempotent/rate-limited inquiry submission, and the staff inquiry inbox with permission-checked detail, assignment, status, internal notes and immutable histories. Dynamic field-schema validation, inquiry-to-draft conversion and booking offers remain outstanding. The latest fully green three-job CI run (#43027314682) predates migrations 000039–000042; current branch runs are queued, so the current PR #27 line has not yet received successful end-to-end validation. No production database deployment has been established.
 
 ## Security and data handling
 
