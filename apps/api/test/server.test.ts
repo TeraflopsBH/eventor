@@ -30,8 +30,17 @@ const inquiryPhoneCiphertext = encryptContactValue(
 const inquiryValuesCiphertext = encryptContactValue(
   JSON.stringify({
     requested: { timezone: "Europe/Sarajevo", spaceCodes: ["MAIN-HALL"] },
-    answers: { event_date: "2027-01-18", estimated_guests: 120 },
+    answers: { event_date: "2027-01-18", event_name: "Community Lecture", estimated_guests: 120 },
   }),
+  inquiryTestContactKey,
+  { organizationId: principal.organizationId, contactKind: "other" },
+).toString("base64");
+const bookingDraftValues = {
+  requested: { timezone: "Europe/Sarajevo", spaceCodes: ["MAIN-HALL"] },
+  answers: { event_date: "2027-01-18", event_name: "Community Lecture", estimated_guests: 120 },
+};
+const bookingDraftValuesCiphertext = encryptContactValue(
+  JSON.stringify(bookingDraftValues),
   inquiryTestContactKey,
   { organizationId: principal.organizationId, contactKind: "other" },
 ).toString("base64");
@@ -73,6 +82,8 @@ function makePool() {
   let bookingInquiryStatusCalls = 0;
   let bookingInquiryAnnotationCalls = 0;
   let bookingInquiryConversionCalls = 0;
+  let bookingDraftGetCalls = 0;
+  let bookingDraftRevisionCalls = 0;
   const deliveryTests = new Map<string, string>();
 
   const client = {
@@ -121,7 +132,66 @@ function makePool() {
       if (normalized.includes("eogp.get_booking_inquiry_capabilities(")) {
         bookingInquiryCapabilitiesCalls += 1;
         commandCalls.push({ sql: normalized, values });
-        return { rows: [{ result: { canAssign: true, canManage: true, canAnnotate: true, canConvert: true } }], rowCount: 1 };
+        return { rows: [{ result: {
+          canAssign: true, canManage: true, canAnnotate: true, canConvert: true,
+          canReadDraft: true, canManageDraft: true,
+        } }], rowCount: 1 };
+      }
+      if (normalized.includes("eogp.get_booking_draft(")) {
+        bookingDraftGetCalls += 1;
+        commandCalls.push({ sql: normalized, values });
+        return { rows: [{ result: {
+          draftId: "15151515-1515-4151-8151-151515151515",
+          sourceInquiryId: "14141414-1414-4141-8141-141414141414",
+          status: "draft",
+          currentRevisionNumber: 1,
+          createdAt: "2026-11-12T10:00:00.000Z",
+          updatedAt: "2026-11-12T10:00:00.000Z",
+          currentRevision: {
+            revisionId: "16161616-1616-4161-8161-161616161616",
+            revisionNumber: 1,
+            sourceFormRevisionId: "12121212-1212-4121-8121-121212121212",
+            fieldSchema: { fields: [
+              { code: "event_date", type: "date", required: true },
+              { code: "event_name", type: "text", required: true, minLength: 2, maxLength: 120 },
+              { code: "estimated_guests", type: "number", required: true, integer: true, min: 1, max: 5000 },
+            ] },
+            valuesSnapshot: {
+              schemaVersion: 1,
+              encryption: "ECP1",
+              contactKind: "other",
+              ciphertextBase64: bookingDraftValuesCiphertext,
+            },
+            requestedStart: "2027-01-18T09:00:00.000Z",
+            requestedEnd: "2027-01-18T12:00:00.000Z",
+            timezone: "Europe/Sarajevo",
+            changeReason: "converted_from_public_inquiry",
+            createdAt: "2026-11-12T10:00:00.000Z",
+            createdByMembershipId: principal.membershipId,
+            spaceLines: [],
+            resourceLines: [],
+          },
+          revisionHistory: [{
+            revisionId: "16161616-1616-4161-8161-161616161616",
+            revisionNumber: 1,
+            changeReason: "converted_from_public_inquiry",
+            createdAt: "2026-11-12T10:00:00.000Z",
+            createdByMembershipId: principal.membershipId,
+            createdByDisplayName: "Jane Operator",
+          }],
+        } }], rowCount: 1 };
+      }
+      if (normalized.includes("eogp.create_booking_draft_revision(")) {
+        bookingDraftRevisionCalls += 1;
+        commandCalls.push({ sql: normalized, values });
+        return { rows: [{ result: {
+          draftId: values[1],
+          revisionId: "17171717-1717-4171-8171-171717171717",
+          revisionNumber: 2,
+          previousRevisionNumber: 1,
+          status: "draft",
+          changed: true,
+        } }], rowCount: 1 };
       }
       if (normalized.includes("eogp.convert_booking_inquiry_to_draft(")) {
         bookingInquiryConversionCalls += 1;
@@ -504,6 +574,8 @@ function makePool() {
     get bookingInquiryStatusCalls() { return bookingInquiryStatusCalls; },
     get bookingInquiryAnnotationCalls() { return bookingInquiryAnnotationCalls; },
     get bookingInquiryConversionCalls() { return bookingInquiryConversionCalls; },
+    get bookingDraftGetCalls() { return bookingDraftGetCalls; },
+    get bookingDraftRevisionCalls() { return bookingDraftRevisionCalls; },
   };
 }
 
@@ -724,8 +796,12 @@ test("staff inquiry inbox decrypts authorized projections and routes assignment,
     url: `/organizations/${principal.organizationId}/booking-inquiry-capabilities`,
   });
   assert.equal(capabilities.statusCode, 200);
-  assert.deepEqual(capabilities.json<{ data: { canAssign: boolean; canManage: boolean; canAnnotate: boolean; canConvert: boolean } }>().data, {
+  assert.deepEqual(capabilities.json<{ data: {
+    canAssign: boolean; canManage: boolean; canAnnotate: boolean; canConvert: boolean;
+    canReadDraft: boolean; canManageDraft: boolean;
+  } }>().data, {
     canAssign: true, canManage: true, canAnnotate: true, canConvert: true,
+    canReadDraft: true, canManageDraft: true,
   });
   assert.equal(mock.bookingInquiryCapabilitiesCalls, 1);
 
@@ -847,6 +923,77 @@ test("staff inquiry inbox decrypts authorized projections and routes assignment,
   assert.equal(replay.statusCode, 201);
   assert.deepEqual(replay.json(), conversion.json());
   assert.equal(mock.bookingInquiryConversionCalls, 1);
+
+  const draftId = "15151515-1515-4151-8151-151515151515";
+  const draft = await app.inject({
+    method: "GET",
+    url: `/booking-drafts/${draftId}`,
+  });
+  assert.equal(draft.statusCode, 200);
+  const draftData = draft.json<{
+    data: {
+      draftId: string;
+      currentRevisionNumber: number;
+      currentRevision: { values: Record<string, unknown>; revisionNumber: number };
+    };
+  }>().data;
+  assert.equal(draftData.draftId, draftId);
+  assert.equal(draftData.currentRevisionNumber, 1);
+  assert.deepEqual(draftData.currentRevision.values, bookingDraftValues);
+  assert.equal(mock.bookingDraftGetCalls, 1);
+
+  const revisionBody = {
+    expectedRevisionNumber: 1,
+    values: {
+      requested: { timezone: "Europe/Sarajevo", spaceCodes: ["MAIN-HALL"] },
+      answers: { event_date: "2027-01-18", event_name: "Updated Community Lecture", estimated_guests: 150 },
+    },
+    requestedStart: "2027-01-18T09:00:00.000Z",
+    requestedEnd: "2027-01-18T13:00:00.000Z",
+    timezone: "Europe/Sarajevo",
+    spaceLines: [],
+    resourceLines: [],
+    changeReason: "Updated event title, guest estimate and requested end time.",
+  };
+  const revision = await app.inject({
+    method: "POST",
+    url: `/booking-drafts/${draftId}/revisions`,
+    headers: { "idempotency-key": "draft-revision-0001" },
+    payload: revisionBody,
+  });
+  assert.equal(revision.statusCode, 201);
+  assert.deepEqual(revision.json<{ data: Record<string, unknown> }>().data, {
+    draftId,
+    revisionId: "17171717-1717-4171-8171-171717171717",
+    revisionNumber: 2,
+    previousRevisionNumber: 1,
+    status: "draft",
+    changed: true,
+  });
+  assert.equal(mock.bookingDraftGetCalls, 2);
+  assert.equal(mock.bookingDraftRevisionCalls, 1);
+  const revisionCall = mock.commandCalls.find((call) => call.sql.includes("eogp.create_booking_draft_revision("));
+  assert.ok(revisionCall);
+  assert.deepEqual(revisionCall.values.slice(0, 4), [
+    principal.organizationId, draftId, principal.membershipId, 1,
+  ]);
+  assert.ok(Buffer.isBuffer(revisionCall.values[4]));
+  assert.equal(
+    decryptContactValue(revisionCall.values[4] as Buffer, inquiryTestContactKey, {
+      organizationId: principal.organizationId,
+      contactKind: "other",
+    }),
+    JSON.stringify(revisionBody.values),
+  );
+  const revisionReplay = await app.inject({
+    method: "POST",
+    url: `/booking-drafts/${draftId}/revisions`,
+    headers: { "idempotency-key": "draft-revision-0001" },
+    payload: revisionBody,
+  });
+  assert.equal(revisionReplay.statusCode, 201);
+  assert.deepEqual(revisionReplay.json(), revision.json());
+  assert.equal(mock.bookingDraftRevisionCalls, 1);
 
   const anonymous = makeApi(mock.pool, { authenticated: false });
   t.after(async () => anonymous.close());
