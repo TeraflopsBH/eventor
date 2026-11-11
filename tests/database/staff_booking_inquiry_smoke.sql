@@ -168,8 +168,8 @@ BEGIN
        SELECT 1 FROM jsonb_array_elements(v_assignee_list->'items') item
         WHERE item->>'membershipId' = 'a7200000-0000-4000-8000-000000000002'
           AND item->>'displayName' = 'Inquiry Assignee'
-     ) THEN
-    RAISE EXCEPTION 'permissioned inquiry assignee roster did not return active members only: %',v_assignee_list;
+     ) OR v_assignee_list::text ILIKE '%@example.test%' THEN
+    RAISE EXCEPTION 'permissioned inquiry assignee roster did not return active members only or exposed contact data: %',v_assignee_list;
   END IF;
 
   BEGIN
