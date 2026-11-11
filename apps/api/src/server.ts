@@ -100,6 +100,15 @@ const campaignParams = {
   properties: { campaignId: { type: "string", pattern: uuidPattern } },
   additionalProperties: false,
 } as const;
+const publicBookingFormParams = {
+  type: "object",
+  required: ["organizationSlug", "formCode"],
+  properties: {
+    organizationSlug: { type: "string", minLength: 2, maxLength: 80, pattern: "^[A-Za-z0-9][A-Za-z0-9-]*$" },
+    formCode: { type: "string", minLength: 2, maxLength: 80, pattern: "^[A-Za-z0-9][A-Za-z0-9_-]*$" },
+  },
+  additionalProperties: false,
+} as const;
 const campaignListQuery = {
   type: "object",
   properties: {
@@ -387,6 +396,12 @@ export function buildApi(dependencies: ApiDependencies): FastifyInstance {
   // session cookie; state-changing requests additionally require CSRF validation.
   server.addHook("onRequest", async (request, reply) => {
     const pathname = request.url.split("?", 1)[0] ?? request.url;
+    if (request.method === "GET" &&
+        /^\\/public\\/organizations\\/[^/]+\\/booking-forms\\/[^/]+$/.test(pathname)) {
+      // The only anonymous application read is the published public booking form.
+      request.staffPrincipal = null;
+      return;
+    }
     if (request.method === "POST" &&
         pathname.startsWith("/webhooks/resend/") &&
         /^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89abAB][0-9a-f]{3}-[0-9a-f]{12}$/i.test(pathname.slice("/webhooks/resend/".length))) {
@@ -442,6 +457,36 @@ export function buildApi(dependencies: ApiDependencies): FastifyInstance {
     const response = await runIdempotentCommand(dependencies, principal, operationId, key, body, command);
     return reply.code(response.status).send(response.body);
   };
+
+  server.get<{
+    Params: { organizationSlug: string; formCode: string };
+  }>(
+    "/public/organizations/:organizationSlug/booking-forms/:formCode",
+    { schema: { params: publicBookingFormParams } },
+    async (request, reply) => {
+      const client = await dependencies.pool.connect();
+      try {
+        const result = await client.query<ResultRow>(
+          "SELECT eogp.get_published_public_booking_form($1::text,$2::text) AS result",
+          [request.params.organizationSlug, request.params.formCode],
+        );
+        const data = result.rows[0]?.result;
+        if (!data || typeof data !== "object" || Array.isArray(data)) {
+          return reply.code(404).send(
+            safeProblem(request.id, 404, "PUBLIC_BOOKING_FORM_NOT_FOUND", "The requested booking form is not available."),
+          );
+        }
+        return reply
+          .header("cache-control", "public, max-age=60")
+          .code(200)
+          .send({ data });
+      } catch (error) {
+        throw databaseError(error);
+      } finally {
+        client.release();
+      }
+    },
+  );
 
   server.post<{ Body: SessionCreateBody }>(
     "/auth/session",
