@@ -39,7 +39,7 @@ When behind a reverse proxy, configure `EVENTOR_TRUST_PROXY_CIDRS` with only the
 
 ## Environment
 
-Copy `.env.example` into your deployment's secret/configuration system and supply real values. The checked-in example contains placeholders only.
+Copy `.env.example` into your deployment's secret/configuration system and supply real values. The checked-in example contains placeholders only. Configure `EVENTOR_DELIVERY_CREDENTIALS_KEY` as a separate base64-encoded cryptographically random 32-byte key; it must differ from the field, contact and authentication-fingerprint keys.
 
 Both database connection URLs should use TLS with certificate and hostname verification in production (for example, PostgreSQL `sslmode=verify-full` with a trusted CA). Configure database passwords outside this repository.
 
@@ -71,7 +71,7 @@ The contact registry stores email/phone values in `person_contact_points.encrypt
 
 Existing ciphertext without the `ECP1` envelope is legacy/unknown format and is deliberately rejected by this codec. Do not attempt fallback decryption or send it. Before enabling delivery, migrate or re-enter legacy contacts through an approved source format, verify them, and ensure their consent is still `permitted`. Key rotation requires an explicit re-encryption migration with old and new keys; replacing the key alone makes existing values unreadable.
 
-## Notification outbox behavior
+## Organization-owned delivery configuration\n\nSMTP configuration is tenant-scoped and versioned. Migration `000033` stores sanitized SMTP settings in an immutable revision, with a separate current-revision pointer. Changes are permission-gated by `organization.delivery.manage` and audited. SMTP credentials use the `EDC1` AES-256-GCM envelope with authenticated organization/channel context and a dedicated `EVENTOR_DELIVERY_CREDENTIALS_KEY`; credential ciphertext is not selectable by the runtime role and is never returned by configuration projections. Updating non-secret settings preserves existing credentials unless an explicit clear/replace operation is requested.\n\nOnly `smtp` is currently accepted for the email channel. TLS must be either STARTTLS or implicit TLS; insecure transport is rejected. SMS remains an optional future channel and no SMS provider or delivery path is enabled. This configuration foundation does not send test messages or deliver campaigns. The authenticated API management routes and SMTP connection/test workflow are the next integration step.\n\n## Notification outbox behavior
 
 The organizer's event-change command writes a transactional outbox event. The worker:
 
