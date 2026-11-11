@@ -256,7 +256,11 @@ function makePool() {
           assignedToMembershipId: "cccccccc-2222-4222-8222-cccccccccccc",
           submittedAt: "2026-11-11T12:00:00.000Z",
           updatedAt: "2026-11-11T12:15:00.000Z",
-          bookingDraft: null,
+          bookingDraft: bookingInquiryConversionCalls > 0 ? {
+            draftId: "15151515-1515-4151-8151-151515151515",
+            status: "draft",
+            currentRevisionNumber: 1,
+          } : null,
           annotations: [{
             annotationId: "15151515-1515-4151-8151-151515151515",
             annotation: "Call to confirm setup access.",
@@ -941,6 +945,7 @@ test("staff inquiry inbox decrypts authorized projections and routes assignment,
   assert.equal(draftData.draftId, draftId);
   assert.equal(draftData.currentRevisionNumber, 1);
   assert.deepEqual(draftData.currentRevision.values, bookingDraftValues);
+  assert.equal("valuesSnapshot" in (draftData.currentRevision as unknown as Record<string, unknown>), false);
   assert.equal(mock.bookingDraftGetCalls, 1);
 
   const revisionBody = {
@@ -979,12 +984,21 @@ test("staff inquiry inbox decrypts authorized projections and routes assignment,
     principal.organizationId, draftId, principal.membershipId, 1,
   ]);
   assert.ok(Buffer.isBuffer(revisionCall.values[4]));
+  const expectedRevisionValues = {
+    ...revisionBody.values,
+    requested: {
+      ...revisionBody.values.requested,
+      startAt: revisionBody.requestedStart,
+      endAt: revisionBody.requestedEnd,
+      timezone: revisionBody.timezone,
+    },
+  };
   assert.equal(
     decryptContactValue(revisionCall.values[4] as Buffer, inquiryTestContactKey, {
       organizationId: principal.organizationId,
       contactKind: "other",
     }),
-    JSON.stringify(revisionBody.values),
+    JSON.stringify(expectedRevisionValues),
   );
   const revisionReplay = await app.inject({
     method: "POST",
@@ -995,6 +1009,16 @@ test("staff inquiry inbox decrypts authorized projections and routes assignment,
   assert.equal(revisionReplay.statusCode, 201);
   assert.deepEqual(revisionReplay.json(), revision.json());
   assert.equal(mock.bookingDraftRevisionCalls, 1);
+
+  const convertedInquiry = await app.inject({
+    method: "GET",
+    url: `/booking-inquiries/${inquiryId}`,
+  });
+  assert.equal(convertedInquiry.statusCode, 200);
+  assert.equal(
+    convertedInquiry.json<{ data: { bookingDraft: { draftId: string; status: string; currentRevisionNumber: number } | null } }>().data.bookingDraft?.draftId,
+    draftId,
+  );
 
   const anonymous = makeApi(mock.pool, { authenticated: false });
   t.after(async () => anonymous.close());
