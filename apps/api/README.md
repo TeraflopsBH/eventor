@@ -8,6 +8,8 @@ This package contains the first deployable command API and a separate tenant-awa
 - `DELETE /auth/session` — revoke the current database-backed session.
 - `GET /me` — return the current principal and active organization memberships.
 - `GET /organizations/{organizationId}/booking-inquiries?status=&assignedToMembershipId=&limit=&offset=` — permission-filtered inquiry inbox.
+- `GET /organizations/{organizationId}/booking-inquiry-capabilities` — read the active membership's assignment, status-management and annotation permission flags.
+- `GET /organizations/{organizationId}/booking-inquiry-assignees` — assignment-permission-gated active membership roster with display names only; no email or contact data.
 - `GET /booking-inquiries/{inquiryId}` — decrypted inquiry detail, published field schema, internal annotations and status/assignment histories.
 - `POST /booking-inquiries/{inquiryId}/assignment` — assign or unassign an active organization member.
 - `POST /booking-inquiries/{inquiryId}/status` — change inquiry review status with an audit reason.
@@ -48,7 +50,9 @@ Requester name, email, phone, requested details and validated dynamic answers ar
 
 The inbox, detail, assignment, status and annotation routes require an authenticated staff session. Database SECURITY DEFINER projections and commands re-check active membership plus the `booking.inquiry.read`, `booking.inquiry.assign`, `booking.inquiry.manage` or `booking.inquiry.annotate` permission on an organization-scope role grant. Inquiries are not yet linked to a booking, so booking-specific role grants do not authorize inquiry access. Inquiry source and history tables are not directly accessible to the runtime database role. Contact fields and answers are decrypted only in the API after the permission-checked detail projection. Assignment and status changes append immutable histories and audit events. Staff annotations are append-only and internal-only; customer-visible annotations are not supported by these endpoints.
 
-The staff web inquiry interface, inquiry-to-draft conversion and booking offer/approval workflow remain to be implemented.
+The inquiry capability projection requires `booking.inquiry.read` and reports separate `canAssign`, `canManage` and `canAnnotate` flags. The roster endpoint additionally requires `booking.inquiry.assign`, and returns only active same-organization membership IDs and display names. The UI hides unavailable controls, but every write continues to re-check authorization inside the database SECURITY DEFINER command.
+
+The Vue staff workspace now provides a permission-aware inquiry inbox/detail, active-member assignment, review-status transitions, internal-note creation and status/assignment history. Inquiry-to-draft conversion and the booking offer/approval workflow remain to be implemented.
 
 ## Organization-owned SMTP
 
@@ -183,7 +187,7 @@ CI regenerates OpenAPI TypeScript declarations, runs strict TypeScript compilati
 
 ## Remaining integration work
 
-- Build the staff inquiry inbox/detail and assignment/status/annotation interface; then implement inquiry-to-draft conversion, offer revisions/approval and booking confirmation.
+- Implement inquiry-to-draft conversion, offer revisions/approval and booking confirmation.
 - Expand the staff UI to the remaining event, booking, venue and guest workflows.
 - Implement an SMS provider adapter only when a concrete provider is selected; keep it optional and tenant-configurable.
 - Extend provider-specific status handling only when another concrete provider is selected. Resend's raw-body signature verification, exact Message-ID correlation and delivered/bounced callbacks are implemented. SMTP acceptance alone remains `sent`, not `delivered`.
