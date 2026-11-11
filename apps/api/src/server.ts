@@ -1079,7 +1079,7 @@ export function buildApi(dependencies: ApiDependencies): FastifyInstance {
   server.post<{
     Params: { inquiryId: string };
   }>(
-    "/booking-inquiries/:inquiryId/conversion",
+    "/booking-inquiries/:inquiryId/create-draft",
     {
       schema: {
         params: inquiryParams,
