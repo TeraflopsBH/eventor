@@ -1,7 +1,9 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 import {
+  decryptDeliveryCredentialBundle,
   decryptDeliveryCredentials,
+  encryptDeliveryCredentialBundle,
   encryptDeliveryCredentials,
 } from "../src/delivery-credentials-crypto.js";
 
@@ -28,6 +30,15 @@ test("delivery credentials cannot be moved to another organization", () => {
     ...context,
     organizationId: "33333333-3333-4333-8333-333333333333",
   }));
+});
+
+test("EDC1 supports provider-neutral SMS credential bundles with channel binding", () => {
+  const smsContext = { ...context, channel: "sms" as const };
+  const bundle = { apiToken: "provider-secret", accountId: "account-42" };
+  const encrypted = encryptDeliveryCredentialBundle(bundle, key, smsContext);
+  assert.equal(encrypted.subarray(0, 4).toString("ascii"), "EDC1");
+  assert.deepEqual(decryptDeliveryCredentialBundle(encrypted, key, smsContext), bundle);
+  assert.throws(() => decryptDeliveryCredentialBundle(encrypted, key, context));
 });
 
 test("delivery credentials cannot be moved between email and SMS channels", () => {
