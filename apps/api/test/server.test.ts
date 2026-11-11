@@ -79,7 +79,7 @@ function makePool() {
         return { rows: [], rowCount: 0 };
       }
       if (normalized.startsWith("SELECT set_config(")) return { rows: [], rowCount: 1 };
-      if (normalized.includes("eogp.get_published_public_booking_form(")) {
+      if (normalized.includes("eogp.get_published_public_booking_form(") || normalized.includes("eogp.get_public_booking_form_revision(")) {
         publicBookingFormCalls += 1;
         commandCalls.push({ sql: normalized, values });
         return { rows: [{ result: {
@@ -92,7 +92,11 @@ function makePool() {
           formRevisionId: "12121212-1212-4121-8121-121212121212",
           revisionNumber: 3,
           locale: "bs-BA",
-          fieldSchema: { fields: [{ code: "event_date", type: "date", required: true }] },
+          fieldSchema: { fields: [
+            { code: "event_date", type: "date", required: true },
+            { code: "event_name", type: "text", required: true, minLength: 2, maxLength: 120 },
+            { code: "estimated_guests", type: "number", required: true, integer: true, min: 1, max: 5000 },
+          ] },
           publishedAt: "2026-11-11T12:00:00.000Z",
         } }], rowCount: 1 };
       }
@@ -134,7 +138,11 @@ function makePool() {
           publicReference: "INQ-1234567890ABCDEF",
           status: "under_review",
           formRevisionId: "12121212-1212-4121-8121-121212121212",
-          fieldSchema: { fields: [{ code: "event_date", type: "date", required: true }] },
+          fieldSchema: { fields: [
+            { code: "event_date", type: "date", required: true },
+            { code: "event_name", type: "text", required: true, minLength: 2, maxLength: 120 },
+            { code: "estimated_guests", type: "number", required: true, integer: true, min: 1, max: 5000 },
+          ] },
           requesterNameCiphertextBase64: inquiryNameCiphertext,
           requesterEmailCiphertextBase64: inquiryEmailCiphertext,
           requesterPhoneCiphertextBase64: inquiryPhoneCiphertext,
@@ -561,6 +569,27 @@ test("public booking intake exposes only published forms and stores anonymous in
   assert.equal(submitData.status, "received");
   assert.equal(submitData.replayed, false);
   assert.equal(mock.publicBookingFormCalls, 2);
+  assert.equal(mock.publicBookingInquiryCalls, 1);
+  const exactRevisionCall = mock.commandCalls.find((call) => call.sql.includes("eogp.get_public_booking_form_revision("));
+  assert.ok(exactRevisionCall);
+  assert.deepEqual(exactRevisionCall.values, ["ghb", "venue-rental", form.formRevisionId]);
+
+  const invalidAnswerRequests: Array<Record<string, unknown>> = [
+    { ...inquiryBody.answers, event_name: undefined },
+    { ...inquiryBody.answers, estimated_guests: "120" },
+    { ...inquiryBody.answers, room_layout: "unpublished-value" },
+    { ...inquiryBody.answers, internal_price_override: 0 },
+  ];
+  for (const [index, answers] of invalidAnswerRequests.entries()) {
+    const invalid = await app.inject({
+      method: "POST",
+      url: "/public/organizations/ghb/booking-inquiries",
+      headers: { "idempotency-key": `anonymous-inquiry-invalid-${index + 1}` },
+      payload: { ...inquiryBody, answers },
+    });
+    assert.equal(invalid.statusCode, 422);
+    assert.equal(invalid.json<{ code: string }>().code, "PUBLIC_FORM_ANSWERS_INVALID");
+  }
   assert.equal(mock.publicBookingInquiryCalls, 1);
 
   const submissionCall = mock.commandCalls.find((call) => call.sql.includes("eogp.submit_public_booking_inquiry("));
