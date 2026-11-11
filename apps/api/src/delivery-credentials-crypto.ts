@@ -12,7 +12,7 @@ export interface SmtpCredentials {
 
 export interface DeliveryCredentialContext {
   readonly organizationId: string;
-  readonly channel: "email";
+  readonly channel: "email" | "sms";
 }
 
 const MAGIC = Buffer.from("EDC1", "ascii");
@@ -30,7 +30,7 @@ function aad(context: DeliveryCredentialContext): Buffer {
   if (!/^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/.test(organizationId)) {
     throw new TypeError("A valid organization UUID is required for delivery credential encryption.");
   }
-  if (context.channel !== "email") {
+  if (context.channel !== "email" && context.channel !== "sms") {
     throw new TypeError("Unsupported delivery credential channel.");
   }
   return Buffer.from(
