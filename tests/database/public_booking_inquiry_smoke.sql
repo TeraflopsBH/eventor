@@ -39,6 +39,21 @@ INSERT INTO eogp.booking_form_revisions (
   clock_timestamp()
 );
 
+
+INSERT INTO eogp.booking_form_revisions (
+  id,organization_id,form_definition_id,revision_number,locale,
+  field_schema,state,published_at
+) VALUES (
+  'a6000000-0000-4000-8000-000000000002',
+  'a4000000-0000-4000-8000-000000000001',
+  'a5000000-0000-4000-8000-000000000001',
+  2,
+  'bs-BA',
+  '{"schemaVersion":1,"fields":[{"code":"event_date","type":"date","required":true},{"code":"event_name","type":"text","required":true}]}'::jsonb,
+  'published',
+  clock_timestamp()
+);
+
 DO $test$
 DECLARE
   v_first jsonb;
@@ -47,6 +62,8 @@ DECLARE
   v_unpublished jsonb;
   v_limited jsonb;
   v_result jsonb;
+  v_revision_projection jsonb;
+  v_missing_revision jsonb;
   v_inquiry_id uuid;
   v_public_reference text;
   v_count integer;
@@ -59,6 +76,24 @@ DECLARE
   v_request_i text;
   i integer;
 BEGIN
+  SELECT eogp.get_public_booking_form_revision(
+    'ci-public-inquiry','venue-rental',
+    'a6000000-0000-4000-8000-000000000001'
+  ) INTO v_revision_projection;
+  IF v_revision_projection IS NULL
+     OR v_revision_projection->>'formRevisionId' IS DISTINCT FROM 'a6000000-0000-4000-8000-000000000001'
+     OR v_revision_projection->'fieldSchema'->'fields'->0->>'code' IS DISTINCT FROM 'event_date' THEN
+    RAISE EXCEPTION 'exact previously published form revision was not projected: %',v_revision_projection;
+  END IF;
+
+  SELECT eogp.get_public_booking_form_revision(
+    'ci-public-inquiry','venue-rental',
+    'a6000000-0000-4000-8000-000000000099'
+  ) INTO v_missing_revision;
+  IF v_missing_revision IS NOT NULL THEN
+    RAISE EXCEPTION 'unknown public form revision was exposed: %',v_missing_revision;
+  END IF;
+
   -- A first submission creates one encrypted inquiry and one idempotency record.
   SELECT eogp.submit_public_booking_inquiry(
     'ci-public-inquiry','venue-rental',
@@ -186,8 +221,12 @@ BEGIN
     'eventor_runtime',
     'eogp.submit_public_booking_inquiry(text,text,uuid,text,text,text,bytea,bytea,text,bytea,text,bytea,timestamptz,timestamptz,text)',
     'EXECUTE'
+  ) OR NOT has_function_privilege(
+    'eventor_runtime',
+    'eogp.get_public_booking_form_revision(text,text,uuid)',
+    'EXECUTE'
   ) THEN
-    RAISE EXCEPTION 'runtime role cannot execute the restricted public inquiry command';
+    RAISE EXCEPTION 'runtime role cannot execute the restricted public inquiry projection/command';
   END IF;
 END;
 $test$;
