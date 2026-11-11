@@ -1,6 +1,6 @@
 # Eventor staff web
 
-Vue 3 + TypeScript + Vite staff workspace for the currently implemented authentication, organization email-delivery and event-notification campaign API routes.
+Vue 3 + TypeScript + Vite staff workspace for authentication, organization email delivery and event-notification operations.
 
 ## Development
 
@@ -14,16 +14,18 @@ npm run dev
 
 The Vite development server listens on port 5173. Requests to `/api/*` are proxied to `http://127.0.0.1:8080` by default, with the `/api` prefix removed. Set `EVENTOR_API_PROXY_TARGET` to override the API origin.
 
-For a different same-origin API prefix or reverse-proxy path at build/runtime, set `VITE_API_BASE_URL` (default: `/api`). The browser uses credentialed same-origin requests; deploy the staff UI and API behind the same HTTPS origin so the API's `__Host-` Secure session and CSRF cookies work as designed. The API's `EVENTOR_ALLOWED_ORIGINS` must include the staff UI origin exactly.
+For a different same-origin API prefix or reverse-proxy path at build/runtime, set `VITE_API_BASE_URL` (default: `/api`). Deploy the staff UI and API behind the same HTTPS origin so the API's `__Host-` Secure session and CSRF cookies work as designed. The API's `EVENTOR_ALLOWED_ORIGINS` must include the staff UI origin exactly.
 
 ## Implemented UI
 
 - Staff sign-in, session restoration through `GET /me`, and server-side logout.
 - Organization SMTP settings with write-only credentials, configuration revision status and explicit test email.
-- Campaign review by UUID, recipient/channel/exclusion counts, immutable template snapshot, explicit confirmation, separate queue authorization and pre-send cancellation.
-- API-enforced authorization and CSRF checks; the UI does not make security decisions.
+- Permission-filtered, paginated campaign list with event, purpose, status and recipient counts.
+- Campaign review with recipient/channel/exclusion counts and immutable template snapshot, explicit confirmation, separate queue authorization and pre-send cancellation.
+- Campaign progress aggregates and a paginated, status-filterable delivery-attempt report with retry indicators, safe failure codes and timestamps.
+- API-enforced event permission and CSRF checks; the UI does not make security decisions. Delivery projections never expose recipient contact values or provider message references.
 
-The API currently exposes campaign review by ID but no campaign-list endpoint. Until one is implemented, staff must obtain the campaign UUID from the authorized workflow and enter it here. The screen deliberately does not expose recipient names, email addresses or phone numbers.
+Campaigns are listed only when the current membership has event-scoped preview permission. Provider callbacks and final inbox-delivery reconciliation are not yet implemented; SMTP acceptance remains distinct from confirmed delivery.
 
 ## Delivery semantics
 
