@@ -2,6 +2,7 @@ import Fastify, { type FastifyInstance, type FastifyReply, type FastifyRequest }
 import { createCipheriv, createHash, createHmac, randomBytes, randomUUID } from "node:crypto";
 import type { Pool, PoolClient, QueryResultRow } from "pg";
 import { decryptDeliveryCredentialBundle, decryptDeliveryCredentials, encryptDeliveryCredentialBundle, encryptDeliveryCredentials } from "./delivery-credentials-crypto.js";
+import { encryptContactValue } from "./contact-crypto.js";
 import { verifyResendWebhookSignature } from "./resend-webhook.js";
 import { classifySmtpFailure, sendSmtpTestMessage, type SmtpSettings, type SmtpTransportFactory } from "./smtp-transport.js";
 import type { paths } from "./generated/openapi.js";
@@ -40,6 +41,8 @@ export interface ApiDependencies {
   readonly revokeStaffSession?: (principal: StaffPrincipal) => Promise<void>;
   readonly getCurrentPrincipal?: (principal: StaffPrincipal) => Promise<Record<string, unknown>>;
   readonly privateFieldEncryptionKey?: Buffer;
+  readonly contactEncryptionKey?: Buffer;
+  readonly publicInquiryFingerprintKey?: Buffer;
   readonly deliveryCredentialsEncryptionKey?: Buffer;
   readonly publicApiBaseUrl?: string;
   readonly smtpTransportFactory?: SmtpTransportFactory;
@@ -79,6 +82,23 @@ interface CommandResponse {
 }
 type Command = (client: PoolClient) => Promise<Record<string, unknown>>;
 
+interface PublicBookingInquiryBody {
+  readonly formRevisionId: string;
+  readonly requester: {
+    readonly displayName: string;
+    readonly email?: string;
+    readonly phone?: string;
+  };
+  readonly requested: {
+    readonly startAt?: string;
+    readonly endAt?: string;
+    readonly timezone?: string;
+    readonly spaceCodes?: readonly string[];
+  };
+  readonly answers: Record<string, unknown>;
+  readonly attachmentReferences?: readonly string[];
+}
+
 const uuidPattern = "^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}$";
 const idempotencyHeaders = {
   type: "object", required: ["idempotency-key"],
@@ -106,6 +126,60 @@ const publicBookingFormParams = {
   properties: {
     organizationSlug: { type: "string", minLength: 2, maxLength: 80, pattern: "^[A-Za-z0-9][A-Za-z0-9-]*$" },
     formCode: { type: "string", minLength: 2, maxLength: 80, pattern: "^[A-Za-z0-9][A-Za-z0-9_-]*$" },
+  },
+  additionalProperties: false,
+} as const;
+const publicBookingInquiryParams = {
+  type: "object",
+  required: ["organizationSlug"],
+  properties: {
+    organizationSlug: { type: "string", minLength: 2, maxLength: 80, pattern: "^[A-Za-z0-9][A-Za-z0-9-]*$" },
+  },
+  additionalProperties: false,
+} as const;
+const publicBookingInquiryHeaders = {
+  type: "object",
+  required: ["idempotency-key"],
+  properties: {
+    "idempotency-key": { type: "string", minLength: 8, maxLength: 200 },
+  },
+  additionalProperties: true,
+} as const;
+const publicBookingInquiryBody = {
+  type: "object",
+  required: ["formRevisionId", "requester", "requested", "answers"],
+  properties: {
+    formRevisionId: { type: "string", pattern: uuidPattern },
+    requester: {
+      type: "object",
+      required: ["displayName"],
+      properties: {
+        displayName: { type: "string", minLength: 1, maxLength: 250 },
+        email: { type: "string", format: "email", maxLength: 320 },
+        phone: { type: "string", maxLength: 50 },
+      },
+      additionalProperties: false,
+    },
+    requested: {
+      type: "object",
+      properties: {
+        startAt: { type: "string", format: "date-time" },
+        endAt: { type: "string", format: "date-time" },
+        timezone: { type: "string", minLength: 1, maxLength: 80 },
+        spaceCodes: {
+          type: "array",
+          maxItems: 50,
+          items: { type: "string", minLength: 1, maxLength: 80 },
+        },
+      },
+      additionalProperties: false,
+    },
+    answers: { type: "object", maxProperties: 100, additionalProperties: true },
+    attachmentReferences: {
+      type: "array",
+      maxItems: 20,
+      items: { type: "string", minLength: 1, maxLength: 200 },
+    },
   },
   additionalProperties: false,
 } as const;
@@ -256,6 +330,54 @@ function requestHash(value: unknown, key?: Buffer): string {
     .digest();
   return createHmac("sha256", idempotencyKey).update(canonical).digest("hex");
 }
+function publicInquiryFingerprint(key: Buffer | undefined, purpose: string, value: string): string {
+  if (!key || key.length !== 32) {
+    throw new ApiError(503, "PUBLIC_INQUIRY_SECURITY_NOT_CONFIGURED", "Public inquiry protection is not configured.");
+  }
+  return createHmac("sha256", key)
+    .update(`eventor:public-booking-inquiry:${purpose}:v1\\0`, "utf8")
+    .update(value, "utf8")
+    .digest("hex");
+}
+
+function assertBoundedAnswerValues(value: unknown): void {
+  let nodes = 0;
+  const visit = (current: unknown, depth: number): void => {
+    nodes += 1;
+    if (nodes > 3000 || depth > 8) {
+      throw new ApiError(422, "PUBLIC_FORM_ANSWERS_TOO_COMPLEX", "The submitted form answers are too complex.");
+    }
+    if (typeof current === "string") {
+      if (current.length > 5000) {
+        throw new ApiError(422, "PUBLIC_FORM_ANSWER_TOO_LONG", "A submitted form answer is too long.");
+      }
+      return;
+    }
+    if (Array.isArray(current)) {
+      if (current.length > 250) {
+        throw new ApiError(422, "PUBLIC_FORM_ANSWER_TOO_LARGE", "A submitted form answer contains too many items.");
+      }
+      for (const item of current) visit(item, depth + 1);
+      return;
+    }
+    if (current !== null && typeof current === "object") {
+      const entries = Object.entries(current as Record<string, unknown>);
+      if (entries.length > 100) {
+        throw new ApiError(422, "PUBLIC_FORM_ANSWER_TOO_LARGE", "A submitted form answer contains too many properties.");
+      }
+      for (const [key, item] of entries) {
+        if (key.length > 100 || ["__proto__", "prototype", "constructor"].includes(key)) {
+          throw new ApiError(422, "PUBLIC_FORM_ANSWER_KEY_INVALID", "A submitted form answer contains an unsupported field name.");
+        }
+        visit(item, depth + 1);
+      }
+    }
+  };
+  visit(value, 0);
+  if (Buffer.byteLength(JSON.stringify(value), "utf8") > 32 * 1024) {
+    throw new ApiError(413, "PUBLIC_FORM_ANSWERS_TOO_LARGE", "The submitted form answers exceed the allowed size.");
+  }
+}
 function encryptPrivateText(value: string, key: Buffer | undefined): Buffer {
   if (!key || key.length !== 32) {
     throw new ApiError(503, "PRIVATE_FIELD_ENCRYPTION_UNAVAILABLE", "Private event-reason encryption is not configured.");
@@ -396,9 +518,12 @@ export function buildApi(dependencies: ApiDependencies): FastifyInstance {
   // session cookie; state-changing requests additionally require CSRF validation.
   server.addHook("onRequest", async (request, reply) => {
     const pathname = request.url.split("?", 1)[0] ?? request.url;
-    if (request.method === "GET" &&
-        /^\/public\/organizations\/[^/]+\/booking-forms\/[^/]+$/.test(pathname)) {
-      // The only anonymous application read is the published public booking form.
+    const publicBookingFormRead = request.method === "GET" &&
+      /^\/public\/organizations\/[^/]+\/booking-forms\/[^/]+$/.test(pathname);
+    const publicBookingInquiryWrite = request.method === "POST" &&
+      /^\/public\/organizations\/[^/]+\/booking-inquiries$/.test(pathname);
+    if (publicBookingFormRead || publicBookingInquiryWrite) {
+      // These two public intake operations are the only anonymous application routes.
       request.staffPrincipal = null;
       return;
     }
@@ -480,6 +605,176 @@ export function buildApi(dependencies: ApiDependencies): FastifyInstance {
           .header("cache-control", "public, max-age=60")
           .code(200)
           .send({ data });
+      } catch (error) {
+        throw databaseError(error);
+      } finally {
+        client.release();
+      }
+    },
+  );
+
+  server.post<{
+    Params: { organizationSlug: string };
+    Body: PublicBookingInquiryBody;
+  }>(
+    "/public/organizations/:organizationSlug/booking-inquiries",
+    {
+      bodyLimit: 64 * 1024,
+      schema: {
+        params: publicBookingInquiryParams,
+        headers: publicBookingInquiryHeaders,
+        body: publicBookingInquiryBody,
+      },
+    },
+    async (request, reply) => {
+      const idempotencyKey = request.headers["idempotency-key"];
+      if (typeof idempotencyKey !== "string" || idempotencyKey.length < 8 || idempotencyKey.length > 200) {
+        throw new ApiError(400, "IDEMPOTENCY_KEY_REQUIRED", "A valid Idempotency-Key header is required.");
+      }
+      const contactKey = dependencies.contactEncryptionKey;
+      const fingerprintKey = dependencies.publicInquiryFingerprintKey;
+      if (!contactKey || contactKey.length !== 32 || !fingerprintKey || fingerprintKey.length !== 32) {
+        throw new ApiError(503, "PUBLIC_INQUIRY_SECURITY_NOT_CONFIGURED", "Public inquiry protection is not configured.");
+      }
+
+      const body = request.body;
+      assertBoundedAnswerValues(body.answers);
+      if (body.attachmentReferences && body.attachmentReferences.length > 0) {
+        throw new ApiError(422, "PUBLIC_INQUIRY_ATTACHMENTS_UNAVAILABLE", "Attachments are not supported by this public form yet.");
+      }
+
+      const requesterName = body.requester.displayName.trim();
+      if (!requesterName) {
+        throw new ApiError(400, "REQUESTER_NAME_REQUIRED", "A requester name is required.");
+      }
+      const requesterEmail = body.requester.email?.trim() || null;
+      const requesterPhone = body.requester.phone?.trim() || null;
+      const requestedStart = body.requested.startAt ? new Date(body.requested.startAt) : null;
+      const requestedEnd = body.requested.endAt ? new Date(body.requested.endAt) : null;
+      if ((requestedStart && Number.isNaN(requestedStart.getTime())) ||
+          (requestedEnd && Number.isNaN(requestedEnd.getTime())) ||
+          (requestedStart && requestedEnd && requestedEnd <= requestedStart)) {
+        throw new ApiError(422, "REQUESTED_TIME_INVALID", "The requested end must be later than the requested start.");
+      }
+
+      const client = await dependencies.pool.connect();
+      try {
+        const formResult = await client.query<ResultRow>(
+          "SELECT eogp.get_published_public_booking_form($1::text,$2::text) AS result",
+          [request.params.organizationSlug, "venue-rental"],
+        );
+        const form = formResult.rows[0]?.result;
+        if (!form || typeof form !== "object" || Array.isArray(form)) {
+          return reply.code(404).send(
+            safeProblem(request.id, 404, "PUBLIC_BOOKING_FORM_NOT_FOUND", "The requested booking form is not available."),
+          );
+        }
+        const formProjection = form as Record<string, unknown>;
+        const organizationId = formProjection.organizationId;
+        const defaultTimezone = formProjection.defaultTimezone;
+        if (typeof organizationId !== "string" || typeof defaultTimezone !== "string") {
+          throw new ApiError(500, "PUBLIC_BOOKING_FORM_INVALID", "The published booking form could not be loaded.");
+        }
+
+        const submittedValues = {
+          requested: {
+            startAt: requestedStart?.toISOString() ?? null,
+            endAt: requestedEnd?.toISOString() ?? null,
+            timezone: body.requested.timezone?.trim() || defaultTimezone,
+            spaceCodes: body.requested.spaceCodes ?? [],
+          },
+          answers: body.answers,
+        };
+        const submittedValuesCiphertext = encryptContactValue(
+          JSON.stringify(submittedValues),
+          contactKey,
+          { organizationId, contactKind: "other" },
+        );
+        const requesterNameCiphertext = encryptContactValue(
+          requesterName,
+          contactKey,
+          { organizationId, contactKind: "other" },
+        );
+        const emailHash = requesterEmail
+          ? publicInquiryFingerprint(contactKey, "requester-email", requesterEmail.toLowerCase())
+          : null;
+        const emailCiphertext = requesterEmail
+          ? encryptContactValue(requesterEmail, contactKey, { organizationId, contactKind: "email" })
+          : null;
+        const phoneHash = requesterPhone
+          ? publicInquiryFingerprint(contactKey, "requester-phone", requesterPhone)
+          : null;
+        const phoneCiphertext = requesterPhone
+          ? encryptContactValue(requesterPhone, contactKey, { organizationId, contactKind: "phone" })
+          : null;
+        const sourceFingerprint = publicInquiryFingerprint(
+          fingerprintKey,
+          "source",
+          request.ip || request.socket.remoteAddress || "unknown",
+        );
+        const keyFingerprint = publicInquiryFingerprint(fingerprintKey, "idempotency-key", idempotencyKey);
+        const payloadFingerprint = publicInquiryFingerprint(
+          fingerprintKey,
+          "request",
+          stableJson({ organizationSlug: request.params.organizationSlug, body }),
+        );
+        const submitted = await client.query<ResultRow>(
+          "SELECT eogp.submit_public_booking_inquiry($1::text,$2::text,$3::uuid,$4::text,$5::text,$6::text,$7::bytea,$8::bytea,$9::text,$10::bytea,$11::text,$12::bytea,$13::timestamptz,$14::timestamptz,$15::text) AS result",
+          [
+            request.params.organizationSlug,
+            typeof formProjection.formCode === "string" ? formProjection.formCode : "venue-rental",
+            body.formRevisionId,
+            sourceFingerprint,
+            keyFingerprint,
+            payloadFingerprint,
+            submittedValuesCiphertext,
+            requesterNameCiphertext,
+            emailHash,
+            emailCiphertext,
+            phoneHash,
+            phoneCiphertext,
+            requestedStart,
+            requestedEnd,
+            submittedValues.requested.timezone,
+          ],
+        );
+        const result = submitted.rows[0]?.result;
+        if (!result || typeof result !== "object" || Array.isArray(result)) {
+          throw new ApiError(500, "PUBLIC_INQUIRY_SUBMISSION_FAILED", "The inquiry could not be submitted.");
+        }
+        const outcome = result as Record<string, unknown>;
+        if (outcome.rateLimited === true) {
+          const retryAfter = Math.max(1, Math.min(3600, Number(outcome.retryAfterSeconds) || 3600));
+          return reply
+            .header("cache-control", "no-store")
+            .header("retry-after", String(retryAfter))
+            .code(429)
+            .send(safeProblem(request.id, 429, "PUBLIC_INQUIRY_RATE_LIMITED", "Too many inquiries were submitted. Please try again later."));
+        }
+        if (outcome.idempotencyConflict === true) {
+          return reply.code(409).send(
+            safeProblem(request.id, 409, "IDEMPOTENCY_KEY_REUSED", "This idempotency key was already used with a different request."),
+          );
+        }
+        if (outcome.formUnavailable === true) {
+          return reply.code(409).send(
+            safeProblem(request.id, 409, "PUBLIC_FORM_REVISION_UNAVAILABLE", "The published form changed or is no longer available. Reload it and try again."),
+          );
+        }
+        if (typeof outcome.inquiryId !== "string" || typeof outcome.publicReference !== "string") {
+          throw new ApiError(500, "PUBLIC_INQUIRY_SUBMISSION_FAILED", "The inquiry could not be submitted.");
+        }
+        return reply
+          .header("cache-control", "no-store")
+          .code(201)
+          .send({
+            data: {
+              inquiryId: outcome.inquiryId,
+              publicReference: outcome.publicReference,
+              status: outcome.status,
+              replayed: outcome.replayed === true,
+            },
+          });
       } catch (error) {
         throw databaseError(error);
       } finally {
