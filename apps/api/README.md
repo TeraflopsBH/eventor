@@ -1,6 +1,6 @@
-# Eventor API and notification worker
+# Eventor API and notification delivery worker
 
-This package now contains the first deployable command API bootstrap and a separate event-notification campaign-preparation worker. It remains an application foundation, not the complete staff product or delivery system.
+This package contains the first deployable command API and a separate tenant-aware notification worker. It is an application foundation, not the complete staff product or delivery system.
 
 ## API commands
 
@@ -12,38 +12,97 @@ This package now contains the first deployable command API bootstrap and a separ
 - `POST /event-change-requests/{requestId}/approve`
 - `POST /event-change-requests/{requestId}/reject`
 - `POST /event-change-requests/{requestId}/execute`
-- `GET /event-notification-campaigns/{campaignId}/review` — permission-gated review of the recipient snapshot, channel/exclusion totals and pinned template; contact values are never returned.
-- `POST /event-notification-campaigns/{campaignId}/confirm` — event-scoped send permission, audit attribution and idempotency; confirms the fixed snapshot but deliberately does not queue delivery.\n- `GET /organization/delivery/email/configuration` — read safe SMTP settings and whether credentials are configured; never returns credentials.\n- `POST /organization/delivery/email/configuration` — create an immutable SMTP configuration revision; requires an idempotency key and organization-level delivery-management permission.
+- `GET /event-notification-campaigns/{campaignId}/review` — permission-gated review of recipient snapshots, channel/exclusion totals and the pinned template; contact values are never returned.
+- `POST /event-notification-campaigns/{campaignId}/confirm` — explicitly confirms the fixed audience snapshot. It does not queue or send messages.
+- `POST /event-notification-campaigns/{campaignId}/queue` — separate, explicit authorization to queue email delivery. Requires an enabled organization SMTP configuration and event-scoped send permission.
+- `GET /organization/delivery/email/configuration` — read safe SMTP settings and credential/test status; never returns credentials.
+- `POST /organization/delivery/email/configuration` — create a new immutable SMTP configuration revision. Credentials are write-only.
+- `POST /organization/delivery/email/test` — verify the current SMTP connection and send one explicitly requested test message to the supplied address. A successful test enables that exact configuration revision.
 
-The command handlers call permission-gated PostgreSQL functions rather than performing ad-hoc table writes.
+All mutating staff routes require an idempotency key, an authenticated session, an allow-listed browser Origin and a valid CSRF token. Database commands enforce tenant and permission checks.
 
-## Database roles and credentials
+## Organization-owned SMTP
 
-The API uses two independent pools:
+SMTP settings are tenant-scoped and versioned. Each organization controls its host, port, TLS mode, authentication mode, sender identity and reply-to address. Only STARTTLS and implicit TLS are accepted; certificate validation is always enabled. SMTP credentials are encrypted with AES-256-GCM using the separate `EVENTOR_DELIVERY_CREDENTIALS_KEY`, an EDC1 envelope and organization/channel-bound authenticated context.
+
+A configuration revision is not enabled merely by saving it. An authorized administrator must explicitly request a test email. The API verifies the connection, sends a test message only to the requested address, then enables that exact current revision if it has not been superseded. Replaying the same idempotency key does not send a second test message. Changing SMTP settings creates a new revision and disables delivery until that new revision is tested.
+
+SMTP is a network egress capability. Production deployments must apply outbound firewall policy so the API and worker can reach only approved SMTP destinations and ports. Do not expose the worker to unrestricted internal networks or cloud metadata endpoints. TLS certificate and hostname verification must remain enabled.
+
+## Campaign delivery lifecycle
+
+1. The event-change transaction creates an outbox request.
+2. The preparation worker builds a `previewed` campaign with an immutable audience and contact snapshot. It does not send anything.
+3. An authorized organizer reviews the campaign and explicitly confirms it.
+4. A separately authorized user explicitly queues it. The queue command pins the current, successfully tested SMTP configuration revision and creates one delivery-attempt record per recipient.
+5. The delivery worker processes only queued email attempts. It decrypts contact and SMTP credentials immediately before submission and never logs addresses, ciphertext or credentials.
+
+A queued campaign continues to use the exact SMTP revision pinned when it was queued. Updating the organization's current SMTP settings affects future queue actions, not already authorized campaigns. Canceling an already queued campaign is a separate operational action and must be completed before delivery begins if sending is to be prevented.
+
+The worker records SMTP acceptance as `sent`; it does not claim that the recipient read or even received the message. Temporary connection and SMTP 4xx failures are retried with bounded exponential backoff (up to five attempts). Permanent 5xx and configuration/template errors are not automatically retried. If the connection fails at the SMTP DATA stage and acceptance is ambiguous, the attempt is marked `uncertain` and is not automatically resent, to avoid duplicate messages. Expired in-flight leases are also marked uncertain for operator reconciliation.
+
+SMS recipients are recorded as suppressed with `SMS_CHANNEL_NOT_CONFIGURED`. No SMS provider is integrated or called. SMTP acceptance and delivery attempts never modify RSVP, invitation or attendance history, and notification failure never rolls back an event cancellation or postponement.
+
+### Notification template placeholders
+
+The first plain-text SMTP renderer supports only these placeholders:
+
+- `{{event.title}}`
+- `{{event.code}}`
+- `{{event.status}}`
+- `{{event.startsAt}}`
+- `{{event.endsAt}}`
+- `{{event.timezone}}`
+- `{{decision.kind}}`
+- `{{campaign.purpose}}`
+
+Unknown placeholders fail the recipient attempt safely; they are not evaluated as code or HTML. Template content is plain text in this delivery implementation.
+
+## Database roles and keys
+
+The API uses two independent database pools:
 
 - `eventor_runtime` for tenant-scoped application commands.
-- `eventor_auth` for global identity lookup, password-hash verification, login throttling and opaque session storage. This role cannot read venue/business tables and does not have `BYPASSRLS`.
+- `eventor_auth` for global identity lookup, password-hash verification, login throttling and opaque session storage.
 
-The notification worker connects separately as `eventor_worker`. Do not run API or worker processes with the migration/owner credentials.
+The notification worker connects separately as `eventor_worker`. Do not run API or worker processes with migration/owner credentials. The worker can discover only tenant IDs and can read SMTP/contact ciphertext only through narrowly scoped delivery functions; it cannot directly select delivery configuration tables.
 
-## Staff session security
+Configure separate, cryptographically random 32-byte keys, base64-encoded in deployment secrets:
 
-- Passwords are verified as Argon2id PHC hashes. New hashes use the library defaults; successful logins rehash when the configured parameters are outdated.
-- The session cookie is a random 256-bit opaque token named `__Host-eventor_session`, marked `Secure`, `HttpOnly`, `SameSite=Strict` and `Path=/`. Only its SHA-256 hash is stored in PostgreSQL.
-- A separate random CSRF token is held in a readable `__Host-eventor_csrf` cookie and returned to the same-origin client at login. State-changing requests must send the matching `X-CSRF-Token` header. The server checks the allow-listed `Origin` and validates the CSRF token hash against the active session.
-- Sessions are bound to a specific user, organization and active membership. Revocation, user disablement, membership suspension/revocation and organization suspension are checked on authentication.
-- Login failures are throttled in PostgreSQL using HMAC fingerprints of the normalized email and request source. Configure a dedicated 32-byte fingerprint key.
-- Do not put secrets in logs. Configure exact origins; wildcards are rejected.
+- `EVENTOR_FIELD_ENCRYPTION_KEY`
+- `EVENTOR_CONTACT_ENCRYPTION_KEY`
+- `EVENTOR_DELIVERY_CREDENTIALS_KEY`
+- `EVENTOR_AUTH_FINGERPRINT_KEY`
 
-When behind a reverse proxy, configure `EVENTOR_TRUST_PROXY_CIDRS` with only the proxy addresses/CIDRs you control. Without that setting Fastify uses the direct peer IP for login throttling. Do not trust arbitrary forwarded headers.
-
-## Environment
-
-Copy `.env.example` into your deployment's secret/configuration system and supply real values. The checked-in example contains placeholders only. Configure `EVENTOR_DELIVERY_CREDENTIALS_KEY` as a separate base64-encoded cryptographically random 32-byte key; it must differ from the field, contact and authentication-fingerprint keys.
+Never reuse one key for another purpose. Both API and worker require the delivery credential key; the worker also requires the contact encryption key. Key rotation requires an explicit re-encryption procedure. Replacing a key alone makes existing ciphertext unreadable.
 
 Both database connection URLs should use TLS with certificate and hostname verification in production (for example, PostgreSQL `sslmode=verify-full` with a trusted CA). Configure database passwords outside this repository.
 
-Start the API after building:
+## Contact-value encryption contract
+
+The contact registry stores email/phone values in `person_contact_points.encrypted_value`. Use the shared `src/contact-crypto.ts` codec:
+
+- Format: `ECP1` magic bytes, a fresh 12-byte nonce, a 16-byte AES-256-GCM authentication tag, then ciphertext.
+- Key: dedicated `EVENTOR_CONTACT_ENCRYPTION_KEY`.
+- Key derivation: HMAC-SHA-256 domain separation with `eventor:contact-point-encryption:v1`.
+- Authenticated context: tenant UUID and contact kind (`email`, `phone`, `postal` or `other`).
+
+Existing ciphertext without the ECP1 envelope is legacy/unknown format and is deliberately rejected. Do not attempt fallback decryption or send it. Before enabling delivery, migrate or re-enter legacy contacts through an approved source format, verify them, and ensure consent is still `permitted`.
+
+## Staff session security
+
+- Passwords are verified as Argon2id PHC hashes. Successful logins rehash outdated parameters.
+- The session cookie is a random 256-bit opaque token named `__Host-eventor_session`, marked `Secure`, `HttpOnly`, `SameSite=Strict` and `Path=/`. Only its SHA-256 hash is stored.
+- A separate CSRF token is held in a readable `__Host-eventor_csrf` cookie and returned to the same-origin client at login. State-changing requests must send the matching `X-CSRF-Token` header.
+- Sessions are bound to a specific user, organization and active membership.
+- Login failures are throttled using HMAC fingerprints of normalized email and request source.
+- Configure exact allow-listed origins. Do not put secrets in logs.
+
+When behind a reverse proxy, configure `EVENTOR_TRUST_PROXY_CIDRS` with only proxy addresses/CIDRs you control. Do not trust arbitrary forwarded headers.
+
+## Run
+
+Build and start the API:
 
 ```sh
 npm install
@@ -51,56 +110,30 @@ npm run build
 npm start
 ```
 
-Start the notification worker as a separate process:
+Start the worker as a separate process:
 
 ```sh
 npm run build
 npm run start:worker
 ```
 
-## Contact-value encryption contract
+The worker requires `EVENTOR_WORKER_DATABASE_URL`, `EVENTOR_CONTACT_ENCRYPTION_KEY` and `EVENTOR_DELIVERY_CREDENTIALS_KEY`.
 
-The contact registry stores email/phone values in `person_contact_points.encrypted_value`. New application code must use the shared `src/contact-crypto.ts` codec rather than inventing an envelope or reusing the private-event-reason encryption domain.
-
-- Format: `ECP1` magic bytes, a fresh 12-byte nonce, a 16-byte AES-256-GCM authentication tag, then ciphertext.
-- Key: a dedicated, cryptographically random 32-byte `EVENTOR_CONTACT_ENCRYPTION_KEY`, base64-encoded in deployment configuration. It must differ from the field-encryption and authentication-fingerprint keys.
-- Key derivation: HMAC-SHA-256 domain separation with the `eventor:contact-point-encryption:v1` label.
-- Authenticated context: tenant UUID and contact kind (`email`, `phone`, `postal`, or `other`). Moving ciphertext to another tenant or contact kind fails authentication.
-- The normalized contact hash remains a separate lookup value; it is not encryption key material.
-- Ciphertext is never logged or returned by review APIs. Decryption belongs only in the isolated delivery process immediately before provider submission.
-
-Existing ciphertext without the `ECP1` envelope is legacy/unknown format and is deliberately rejected by this codec. Do not attempt fallback decryption or send it. Before enabling delivery, migrate or re-enter legacy contacts through an approved source format, verify them, and ensure their consent is still `permitted`. Key rotation requires an explicit re-encryption migration with old and new keys; replacing the key alone makes existing values unreadable.
-
-## Organization-owned delivery configuration\n\nSMTP configuration is tenant-scoped and versioned. Migration `000033` stores sanitized SMTP settings in an immutable revision, with a separate current-revision pointer. Changes are permission-gated by `organization.delivery.manage` and audited. SMTP credentials use the `EDC1` AES-256-GCM envelope with authenticated organization/channel context and a dedicated `EVENTOR_DELIVERY_CREDENTIALS_KEY`; credential ciphertext is not selectable by the runtime role and is never returned by configuration projections. Updating non-secret settings preserves existing credentials unless an explicit clear/replace operation is requested.\n\nOnly `smtp` is currently accepted for the email channel. TLS must be either STARTTLS or implicit TLS; insecure transport is rejected. SMS remains an optional future channel and no SMS provider or delivery path is enabled. This configuration foundation does not send test messages or deliver campaigns. The authenticated configuration read/write routes are implemented. SMTP connection testing and actual delivery remain separate steps; configuration writes do not contact the configured host.\n\n## Notification outbox behavior
-
-The organizer's event-change command writes a transactional outbox event. The worker:
-
-1. Discovers only tenant IDs for the `event.change.notification_requested` topic.
-2. Sets transaction-local tenant context before reading that tenant's outbox or event data.
-3. Resolves the audience from the selected rule (accepted/tentative, active invitees, previously invited or explicit custom participation IDs).
-4. Copies only verified, permitted email/phone contact snapshots from the organizer's contact registry. The stored contact ciphertext is copied as ciphertext; the worker does not decrypt it or log addresses.
-5. Records exclusions where no verified, permitted contact exists.
-6. Creates a `previewed` event notification campaign with a published purpose-matched template and the recipient count. The organizer can review the campaign through the staff API and explicitly confirm it with the event-scoped notification-send permission. Confirmation validates the current event decision, recipient-count consistency and active published template, then records the confirming membership in audit history. It does not queue delivery.
-
-Worker processing is transactional, row-locked with `SKIP LOCKED`, idempotent at the outbox/campaign level, and retryable with bounded exponential backoff. After 12 failed attempts, the event is dead-lettered for operator review.
-
-**The worker does not send email or SMS.** No delivery attempts are created and no campaign is marked as sent or delivered. A delivery-provider adapter, callback processing and failure/retry management remain separate work. A failed or delayed message never rolls back the event cancellation/postponement.
-
-## OpenAPI types and tests
+## Tests
 
 From this directory:
 
 ```sh
 npm install --no-package-lock
-npm run typecheck
 npm test
 ```
 
-`npm run generate:openapi` generates TypeScript declarations from `docs/api/openapi.v0.3.yaml`. CI regenerates these before strict compilation and route tests.
+CI regenerates OpenAPI TypeScript declarations, runs strict TypeScript compilation and API tests, applies checksum-verified PostgreSQL migrations, and exercises tenant isolation, SMTP configuration, explicit queueing, worker claims and retry-state transitions.
 
 ## Remaining integration work
 
-- Connect the staff frontend to login, CSRF token handling, `/me` and the implemented command routes.
-- Implement the actual delivery-provider adapter, provider callbacks and failure/retry management; provider callbacks must update per-recipient attempts without rewriting RSVP/attendance history or the event decision.
-- Implement the rest of the OpenAPI operations.
-- Complete production secret provisioning, database TLS/network policy, proxy configuration, backups/recovery, monitoring and operational runbooks.
+- Connect the staff frontend to login, CSRF handling, campaign review/confirmation/queueing and SMTP settings/test routes.
+- Add operator UI for uncertain outcomes, permanent failures and campaign cancellation before delivery.
+- Implement an SMS provider adapter only when a concrete provider is selected; keep it optional and tenant-configurable.
+- Implement provider callbacks for final delivery/bounce status where supported. SMTP acceptance alone remains `sent`, not `delivered`.
+- Complete the rest of the OpenAPI operations and production runbooks for backup, recovery, network egress and secret rotation.
