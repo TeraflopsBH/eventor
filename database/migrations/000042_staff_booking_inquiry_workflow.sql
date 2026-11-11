@@ -90,6 +90,10 @@ SECURITY DEFINER
 SET search_path = pg_catalog, eogp
 AS $function$
 BEGIN
+  IF eogp.current_organization_id() IS DISTINCT FROM NEW.organization_id THEN
+    RAISE EXCEPTION 'inquiry tenant context mismatch' USING ERRCODE = '42501';
+  END IF;
+
   INSERT INTO eogp.booking_inquiry_status_history (
     organization_id, inquiry_id, previous_status, new_status,
     reason, actor_kind, actor_membership_id
@@ -378,6 +382,7 @@ SET search_path = pg_catalog, eogp
 AS $function$
 DECLARE
   v_previous_assignee uuid;
+  v_status text;
 BEGIN
   PERFORM eogp.assert_booking_inquiry_permission(
     p_organization_id, p_actor_membership_id, 'booking.inquiry.assign'
@@ -393,13 +398,18 @@ BEGIN
       USING ERRCODE = '22023';
   END IF;
 
-  SELECT assigned_to_membership_id INTO v_previous_assignee
+  SELECT assigned_to_membership_id, status
+    INTO v_previous_assignee, v_status
     FROM eogp.booking_inquiries
    WHERE organization_id = p_organization_id
      AND id = p_inquiry_id
    FOR UPDATE;
   IF NOT FOUND THEN
     RAISE EXCEPTION 'booking inquiry not found' USING ERRCODE = 'P0002';
+  END IF;
+  IF v_status NOT IN ('received','under_review') THEN
+    RAISE EXCEPTION 'only open booking inquiries can be assigned'
+      USING ERRCODE = '55000';
   END IF;
 
   IF v_previous_assignee IS NOT DISTINCT FROM p_assigned_to_membership_id THEN
