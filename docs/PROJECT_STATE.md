@@ -1,7 +1,7 @@
 # Project state
 
-**Status:** accepted product/domain design baseline; 32-migration PostgreSQL 18 implementation across draft PRs #26/#27; canonical OpenAPI v0.3 contract and first Fastify command module implemented on PR #27; PostgreSQL 18.6, OpenAPI and API-route CI validation in progress; staff-session/CSRF integration, campaign-preparation worker and organizer campaign review/confirmation now implemented; provider delivery and production-readiness reviews remain open  
-**Last updated:** 2026-11-10  
+**Status:** accepted product/domain design baseline; 35-migration PostgreSQL 18 implementation, canonical OpenAPI v0.3, Fastify staff API/workers and initial Vue 3 staff web on draft PR #27; PostgreSQL 18.6, OpenAPI, API and staff-web CI validation configured; SMTP delivery worker and explicit campaign queue/cancel lifecycle implemented; production-readiness review remains open  
+**Last updated:** 2026-11-11  
 **Implementation status:** database migrations and API contract exist in draft PR #26; PR #27 contains a tested Fastify command API, database-backed staff sessions and campaign review/confirmation, plus a separate preparation worker. No production database deployment has been established.
 
 ## Product
@@ -139,7 +139,7 @@ The accepted initial scope and acceptance scenarios are in [MVP Scope v0.1](prod
 
 ## API contract review
 
-The imported OpenAPI v0.2 contract passed YAML parsing and local structural checks (36 paths, 46 operations, unique operation IDs, 172 resolved local references); that historical check was not a full OpenAPI semantic validation. The canonical v0.3 contract is [`docs/api/openapi.v0.3.yaml`](api/openapi.v0.3.yaml) and is validated in CI by the strict Eventor structural/security validator, the pinned OpenAPI 3.1.1 validator and Redocly lint. It currently contains 106 paths and 123 operations. The first API command routes, database-backed Argon2id staff sessions, CSRF/origin validation, OpenAPI TypeScript declaration generation, route tests and a tenant-aware campaign-preparation worker are implemented on PR #27. The staff frontend, remaining OpenAPI operations, delivery-provider integration and full production readiness remain open under Issues #3, #17 and #21. Campaign review/confirmation is now implemented on PR #27; confirmation is audited and does not queue delivery.
+The imported OpenAPI v0.2 contract passed YAML parsing and local structural checks (36 paths, 46 operations, unique operation IDs, 172 resolved local references); that historical check was not a full OpenAPI semantic validation. The canonical v0.3 contract is [`docs/api/openapi.v0.3.yaml`](api/openapi.v0.3.yaml) and is validated in CI by the strict Eventor structural/security validator, the pinned OpenAPI 3.1.1 validator and Redocly lint. It currently contains 106 paths and 123 operations. The first API command routes, database-backed Argon2id staff sessions, CSRF/origin validation, OpenAPI TypeScript declaration generation, route tests and tenant-aware notification preparation/delivery workers are implemented on PR #27. An initial Vue 3 + TypeScript + Vite staff workspace now provides login/session restoration/logout, tenant SMTP configuration with write-only credentials and test email, and campaign review/confirmation/queue/pre-send cancellation. The staff UI currently loads a campaign by UUID because no campaign-list endpoint exists; attempt-level delivery status/reconciliation is also not yet exposed by the API. Remaining OpenAPI operations, delivery-provider callbacks, broader staff application workflows and production readiness remain open under Issues #3, #17 and #21. Campaign confirmation remains distinct from queueing.
 
 ## Imported design artifacts and reconciliation
 
@@ -157,8 +157,8 @@ The separate v0.2 booking SQL addendum duplicates all 22 booking/configuration t
 
 1. Complete a deeper review of the v0.3 DDL, RLS policies, actor attribution, cross-organization access boundaries and full constraint-test matrix.
 2. Add migration-upgrade and backup/restore validation; current CI proves fresh-database installation, not recovery readiness.
-3. Integrate the API module with the actual staff session store and CSRF/origin middleware; expand route-level coverage across remaining OpenAPI operations and consume generated types from the staff client.
-4. Implement the provider-neutral email/SMS delivery adapter, provider callback processing and delivery retries. The worker prepares a previewed recipient snapshot; an authorized organizer can review and confirm it, but confirmation intentionally does not queue or send guest messages.
+3. Expand the initial staff web beyond authentication, SMTP settings and campaign authorization; add a campaign listing and delivery-attempt status/reconciliation API projection before implementing those screens.
+4. Add provider callbacks where supported so final delivery/bounce states can be distinguished from SMTP acceptance; implement an SMS provider only after selecting and reviewing a concrete provider adapter.
 5. Begin the remaining application foundation and venue-booking vertical slice only after database/API review; confirm GHB-specific inventory, capacities, pricing, cancellation terms, approval thresholds and operating policies before production seeding.
 
 ## Open questions / validation gates
