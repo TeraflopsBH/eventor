@@ -565,6 +565,87 @@ paths:
         '422': { $ref: '#/components/responses/UnprocessableEntity' }
         '429': { $ref: '#/components/responses/TooManyRequests' }
         '500': { $ref: '#/components/responses/InternalServerError' }
+  "/booking-inquiries/{inquiryId}/assignment":
+    post:
+      tags: ["Booking Administration"]
+      operationId: assignBookingInquiry
+      summary: "Assign or unassign an inquiry to an active organization member"
+      security: [{ StaffSession: [], StaffCsrf: [] }]
+      parameters:
+        - $ref: '#/components/parameters/PInquiryId'
+        - $ref: '#/components/parameters/IdempotencyKey'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/BookingInquiryAssignmentRequest' }
+      responses:
+        '201':
+          description: "Assignment command completed."
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/DataEnvelope' }
+        '400': { $ref: '#/components/responses/BadRequest' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '404': { $ref: '#/components/responses/NotFound' }
+        '409': { $ref: '#/components/responses/Conflict' }
+        '422': { $ref: '#/components/responses/UnprocessableEntity' }
+        '500': { $ref: '#/components/responses/InternalServerError' }
+  "/booking-inquiries/{inquiryId}/status":
+    post:
+      tags: ["Booking Administration"]
+      operationId: changeBookingInquiryStatus
+      summary: "Change an inquiry's staff review status with an audit reason"
+      security: [{ StaffSession: [], StaffCsrf: [] }]
+      parameters:
+        - $ref: '#/components/parameters/PInquiryId'
+        - $ref: '#/components/parameters/IdempotencyKey'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/BookingInquiryStatusRequest' }
+      responses:
+        '201':
+          description: "Status command completed."
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/DataEnvelope' }
+        '400': { $ref: '#/components/responses/BadRequest' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '404': { $ref: '#/components/responses/NotFound' }
+        '409': { $ref: '#/components/responses/Conflict' }
+        '422': { $ref: '#/components/responses/UnprocessableEntity' }
+        '500': { $ref: '#/components/responses/InternalServerError' }
+  "/booking-inquiries/{inquiryId}/annotations":
+    post:
+      tags: ["Booking Administration"]
+      operationId: addBookingInquiryAnnotation
+      summary: "Append an internal-only annotation to an inquiry"
+      security: [{ StaffSession: [], StaffCsrf: [] }]
+      parameters:
+        - $ref: '#/components/parameters/PInquiryId'
+        - $ref: '#/components/parameters/IdempotencyKey'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/BookingInquiryAnnotationRequest' }
+      responses:
+        '201':
+          description: "Annotation appended."
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/DataEnvelope' }
+        '400': { $ref: '#/components/responses/BadRequest' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '404': { $ref: '#/components/responses/NotFound' }
+        '409': { $ref: '#/components/responses/Conflict' }
+        '422': { $ref: '#/components/responses/UnprocessableEntity' }
+        '500': { $ref: '#/components/responses/InternalServerError' }
   "/booking-inquiries/{inquiryId}/create-draft":
     post:
       tags: ["Booking Administration"]
@@ -2902,6 +2983,20 @@ paths:
       security: [{ StaffSession: [] }]
       parameters:
         - $ref: '#/components/parameters/POrganizationId'
+        - name: status
+          in: query
+          schema:
+            type: string
+            enum: [received, under_review, converted, declined, withdrawn, spam]
+        - name: assignedToMembershipId
+          in: query
+          schema: { type: string, format: uuid }
+        - name: limit
+          in: query
+          schema: { type: integer, minimum: 1, maximum: 100, default: 25 }
+        - name: offset
+          in: query
+          schema: { type: integer, minimum: 0, maximum: 10000, default: 0 }
       responses:
         '200':
           description: "Successful response."
@@ -4259,6 +4354,34 @@ components:
       properties:
         initialNote: { type: string, maxLength: 4000 }
         ownerMembershipId: { type: string, format: uuid }
+      additionalProperties: false
+    BookingInquiryAssignmentRequest:
+      type: object
+      required: [assignedToMembershipId]
+      properties:
+        assignedToMembershipId:
+          type: [string, "null"]
+          format: uuid
+          description: Set to null to unassign the inquiry.
+      additionalProperties: false
+    BookingInquiryStatusRequest:
+      type: object
+      required: [status, reason]
+      properties:
+        status:
+          type: string
+          enum: [received, under_review, declined, spam]
+        reason: { type: string, minLength: 3, maxLength: 1000 }
+      additionalProperties: false
+    BookingInquiryAnnotationRequest:
+      type: object
+      required: [annotation]
+      properties:
+        annotation:
+          type: string
+          minLength: 1
+          maxLength: 4000
+          description: Internal-only staff note. Customer-visible notes are not supported by this endpoint.
       additionalProperties: false
     BookingDraftRevisionRequest:
       type: object
