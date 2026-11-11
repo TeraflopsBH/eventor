@@ -663,6 +663,7 @@ SET search_path=pg_catalog,eogp
 AS $function$
 DECLARE
   v_attempt record;
+  v_campaign_id uuid;
   v_expired record;
   v_next_available timestamptz;
   v_campaign_rows integer;
@@ -710,31 +711,34 @@ BEGIN
           AND coalesce(latest.status,attempt.status) IN ('queued','sending')
      );
 
-  SELECT attempt.id AS attempt_id,attempt.organization_id,attempt.campaign_id,
-         attempt.recipient_id,campaign.event_id,campaign.template_revision_id,
-         campaign.delivery_config_revision_id
-    INTO v_attempt
-    FROM eogp.event_notification_delivery_attempts attempt
-    JOIN eogp.event_notification_campaigns campaign
-      ON campaign.organization_id=attempt.organization_id AND campaign.id=attempt.campaign_id
-    JOIN eogp.event_notification_recipients recipient
-      ON recipient.organization_id=attempt.organization_id AND recipient.campaign_id=attempt.campaign_id
-     AND recipient.id=attempt.recipient_id
-    WHERE attempt.organization_id=p_organization_id
-      AND attempt.status='queued' AND attempt.next_attempt_at<=clock_timestamp()
-      AND campaign.status IN ('queued','sending')
-      AND recipient.channel='email'
-      AND NOT EXISTS (
-        SELECT 1 FROM eogp.event_notification_delivery_attempt_events event
-         WHERE event.organization_id=attempt.organization_id AND event.attempt_id=attempt.id
-      )
-      AND NOT EXISTS (
-        SELECT 1 FROM eogp.event_notification_delivery_attempt_claims claim
-         WHERE claim.organization_id=attempt.organization_id AND claim.attempt_id=attempt.id
-      )
-    ORDER BY attempt.next_attempt_at,attempt.id
-    FOR UPDATE OF attempt SKIP LOCKED
-    LIMIT 1;
+  SELECT campaign.id INTO v_campaign_id
+    FROM eogp.event_notification_campaigns campaign
+   WHERE campaign.organization_id=p_organization_id
+     AND campaign.status IN ('queued','sending')
+     AND EXISTS (
+       SELECT 1
+         FROM eogp.event_notification_delivery_attempts attempt
+         JOIN eogp.event_notification_recipients recipient
+           ON recipient.organization_id=attempt.organization_id
+          AND recipient.campaign_id=attempt.campaign_id
+          AND recipient.id=attempt.recipient_id
+        WHERE attempt.organization_id=campaign.organization_id
+          AND attempt.campaign_id=campaign.id
+          AND attempt.status='queued'
+          AND attempt.next_attempt_at<=clock_timestamp()
+          AND recipient.channel='email'
+          AND NOT EXISTS (
+            SELECT 1 FROM eogp.event_notification_delivery_attempt_events event
+             WHERE event.organization_id=attempt.organization_id AND event.attempt_id=attempt.id
+          )
+          AND NOT EXISTS (
+            SELECT 1 FROM eogp.event_notification_delivery_attempt_claims claim
+             WHERE claim.organization_id=attempt.organization_id AND claim.attempt_id=attempt.id
+          )
+     )
+   ORDER BY campaign.queued_at,campaign.id
+   FOR UPDATE OF campaign SKIP LOCKED
+   LIMIT 1;
 
   IF NOT FOUND THEN
     SELECT min(CASE WHEN coalesce(latest.status,attempt.status)='queued'
@@ -761,6 +765,37 @@ BEGIN
          SET available_at=v_next_available
        WHERE organization_id=p_organization_id;
     END IF;
+    RETURN;
+  END IF;
+
+  SELECT attempt.id AS attempt_id,attempt.organization_id,attempt.campaign_id,
+         attempt.recipient_id,campaign.event_id,campaign.template_revision_id,
+         campaign.delivery_config_revision_id
+    INTO v_attempt
+    FROM eogp.event_notification_delivery_attempts attempt
+    JOIN eogp.event_notification_campaigns campaign
+      ON campaign.organization_id=attempt.organization_id AND campaign.id=attempt.campaign_id
+    JOIN eogp.event_notification_recipients recipient
+      ON recipient.organization_id=attempt.organization_id AND recipient.campaign_id=attempt.campaign_id
+     AND recipient.id=attempt.recipient_id
+    WHERE attempt.organization_id=p_organization_id
+      AND attempt.campaign_id=v_campaign_id
+      AND attempt.status='queued' AND attempt.next_attempt_at<=clock_timestamp()
+      AND campaign.status IN ('queued','sending')
+      AND recipient.channel='email'
+      AND NOT EXISTS (
+        SELECT 1 FROM eogp.event_notification_delivery_attempt_events event
+         WHERE event.organization_id=attempt.organization_id AND event.attempt_id=attempt.id
+      )
+      AND NOT EXISTS (
+        SELECT 1 FROM eogp.event_notification_delivery_attempt_claims claim
+         WHERE claim.organization_id=attempt.organization_id AND claim.attempt_id=attempt.id
+      )
+    ORDER BY attempt.next_attempt_at,attempt.id
+    FOR UPDATE OF attempt SKIP LOCKED
+    LIMIT 1;
+
+  IF NOT FOUND THEN
     RETURN;
   END IF;
 
