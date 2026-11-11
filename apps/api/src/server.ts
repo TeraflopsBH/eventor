@@ -985,7 +985,7 @@ export function buildApi(dependencies: ApiDependencies): FastifyInstance {
         );
         await client.query("COMMIT");
         return reply.code(200).send({ data: result.rows[0]?.result ?? {
-          canAssign: false, canManage: false, canAnnotate: false,
+          canAssign: false, canManage: false, canAnnotate: false, canConvert: false,
         } });
       } catch (error) {
         try { await client.query("ROLLBACK"); } catch { /* preserve the read error */ }
@@ -1073,6 +1073,32 @@ export function buildApi(dependencies: ApiDependencies): FastifyInstance {
       } finally {
         client.release();
       }
+    },
+  );
+
+  server.post<{
+    Params: { inquiryId: string };
+  }>(
+    "/booking-inquiries/:inquiryId/conversion",
+    {
+      schema: {
+        params: inquiryParams,
+        headers: idempotencyHeaders,
+      },
+    },
+    async (request, reply) => {
+      const principal = request.staffPrincipal!;
+      return withCommand(
+        request, reply, "convertBookingInquiryToDraft",
+        { inquiryId: request.params.inquiryId },
+        async (client) => {
+          const result = await client.query<ResultRow>(
+            "SELECT eogp.convert_booking_inquiry_to_draft($1::uuid,$2::uuid,$3::uuid) AS result",
+            [principal.organizationId, request.params.inquiryId, principal.membershipId],
+          );
+          return result.rows[0]?.result as Record<string, unknown>;
+        },
+      );
     },
   );
 
