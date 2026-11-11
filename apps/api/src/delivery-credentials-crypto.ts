@@ -142,7 +142,7 @@ export function encryptDeliveryCredentials(
     throw new TypeError("SMTP credentials must be bound to the email channel.");
   }
   validateSmtpCredentials(credentials);
-  return encryptDeliveryCredentialBundle(credentials, masterKey, context);
+  return encryptDeliveryCredentialBundle({ username: credentials.username, password: credentials.password }, masterKey, context);
 }
 
 export function decryptDeliveryCredentials(
