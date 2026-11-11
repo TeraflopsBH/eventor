@@ -67,6 +67,8 @@ function makePool() {
   let publicBookingInquiryCalls = 0;
   let bookingInquiryListCalls = 0;
   let bookingInquiryGetCalls = 0;
+  let bookingInquiryCapabilitiesCalls = 0;
+  let bookingInquiryAssigneeRosterCalls = 0;
   let bookingInquiryAssignCalls = 0;
   let bookingInquiryStatusCalls = 0;
   let bookingInquiryAnnotationCalls = 0;
@@ -114,6 +116,19 @@ function makePool() {
           status: "received",
           replayed: false,
         } }], rowCount: 1 };
+      }
+      if (normalized.includes("eogp.get_booking_inquiry_capabilities(")) {
+        bookingInquiryCapabilitiesCalls += 1;
+        commandCalls.push({ sql: normalized, values });
+        return { rows: [{ result: { canAssign: true, canManage: true, canAnnotate: true } }], rowCount: 1 };
+      }
+      if (normalized.includes("eogp.list_booking_inquiry_assignees(")) {
+        bookingInquiryAssigneeRosterCalls += 1;
+        commandCalls.push({ sql: normalized, values });
+        return { rows: [{ result: { items: [
+          { membershipId: principal.membershipId, displayName: "Jane Operator" },
+          { membershipId: "cccccccc-2222-4222-8222-cccccccccccc", displayName: "Alex Assignee" },
+        ] } }], rowCount: 1 };
       }
       if (normalized.includes("eogp.list_booking_inquiries(")) {
         bookingInquiryListCalls += 1;
@@ -470,6 +485,8 @@ function makePool() {
     get publicBookingInquiryCalls() { return publicBookingInquiryCalls; },
     get bookingInquiryListCalls() { return bookingInquiryListCalls; },
     get bookingInquiryGetCalls() { return bookingInquiryGetCalls; },
+    get bookingInquiryCapabilitiesCalls() { return bookingInquiryCapabilitiesCalls; },
+    get bookingInquiryAssigneeRosterCalls() { return bookingInquiryAssigneeRosterCalls; },
     get bookingInquiryAssignCalls() { return bookingInquiryAssignCalls; },
     get bookingInquiryStatusCalls() { return bookingInquiryStatusCalls; },
     get bookingInquiryAnnotationCalls() { return bookingInquiryAnnotationCalls; },
@@ -687,6 +704,27 @@ test("staff inquiry inbox decrypts authorized projections and routes assignment,
   const mock = makePool();
   const app = makeApi(mock.pool);
   t.after(async () => app.close());
+
+  const capabilities = await app.inject({
+    method: "GET",
+    url: `/organizations/${principal.organizationId}/booking-inquiry-capabilities`,
+  });
+  assert.equal(capabilities.statusCode, 200);
+  assert.deepEqual(capabilities.json<{ data: BookingInquiryCapabilities }>().data, {
+    canAssign: true, canManage: true, canAnnotate: true,
+  });
+  assert.equal(mock.bookingInquiryCapabilitiesCalls, 1);
+
+  const roster = await app.inject({
+    method: "GET",
+    url: `/organizations/${principal.organizationId}/booking-inquiry-assignees`,
+  });
+  assert.equal(roster.statusCode, 200);
+  assert.deepEqual(roster.json<{ data: Array<{ membershipId: string; displayName: string }> }>().data[1], {
+    membershipId: "cccccccc-2222-4222-8222-cccccccccccc",
+    displayName: "Alex Assignee",
+  });
+  assert.equal(mock.bookingInquiryAssigneeRosterCalls, 1);
 
   const list = await app.inject({
     method: "GET",
