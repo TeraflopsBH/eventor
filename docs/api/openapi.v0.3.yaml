@@ -491,7 +491,8 @@ paths:
     get:
       tags: ["Booking Administration"]
       operationId: getBookingDraft
-      summary: "Read a booking draft and its current revision"
+      summary: "Read a booking draft and its revision history"
+      description: "Requires booking.draft.read or booking.draft.manage from an active organization-scope grant. The database returns only the current revision and revision metadata; the API decrypts the ECP1 values snapshot only after the permission-checked projection."
       security: [{ StaffSession: [] }]
       parameters:
         - $ref: '#/components/parameters/PDraftId'
@@ -500,7 +501,7 @@ paths:
           description: "Successful response."
           content:
             application/json:
-              schema: { $ref: '#/components/schemas/DataEnvelope' }
+              schema: { $ref: '#/components/schemas/BookingDraftResponse' }
         '400': { $ref: '#/components/responses/BadRequest' }
         '401': { $ref: '#/components/responses/Unauthorized' }
         '403': { $ref: '#/components/responses/Forbidden' }
@@ -515,7 +516,8 @@ paths:
     post:
       tags: ["Booking Administration"]
       operationId: createBookingDraftRevision
-      summary: "Create a new immutable booking draft revision"
+      summary: "Create an immutable successor revision of a booking draft"
+      description: "Requires booking.draft.manage from an active organization-scope grant. The draft must remain in draft status and expectedRevisionNumber must equal its current revision. Values are encrypted with ECP1 before persistence. A stale revision, active space/resource holds on the previous revision, or unavailable venue/resource reference is rejected. Existing revisions and their child lines are never updated or deleted."
       security: [{ StaffSession: [], StaffCsrf: [] }]
       parameters:
         - $ref: '#/components/parameters/PDraftId'
@@ -530,7 +532,7 @@ paths:
           description: "Successful response."
           content:
             application/json:
-              schema: { $ref: '#/components/schemas/DataEnvelope' }
+              schema: { $ref: '#/components/schemas/BookingDraftRevisionResponse' }
         '400': { $ref: '#/components/responses/BadRequest' }
         '401': { $ref: '#/components/responses/Unauthorized' }
         '403': { $ref: '#/components/responses/Forbidden' }
@@ -4476,21 +4478,113 @@ components:
           maxLength: 4000
           description: Internal-only staff note. Customer-visible notes are not supported by this endpoint.
       additionalProperties: false
+    BookingDraftResponse:
+      type: object
+      required: [data]
+      properties:
+        data:
+          type: object
+          required: [draftId, status, currentRevisionNumber, createdAt, updatedAt, currentRevision, revisionHistory]
+          properties:
+            draftId: { type: string, format: uuid }
+            sourceInquiryId: { type: [string, "null"], format: uuid }
+            status: { type: string, enum: [draft, offered, confirmed, abandoned] }
+            currentRevisionNumber: { type: integer, minimum: 0 }
+            createdAt: { type: string, format: date-time }
+            updatedAt: { type: string, format: date-time }
+            currentRevision:
+              oneOf:
+                - type: "null"
+                - type: object
+                  required: [revisionId, revisionNumber, values, requestedStart, requestedEnd, timezone, changeReason, createdAt, createdByMembershipId, spaceLines, resourceLines]
+                  properties:
+                    revisionId: { type: string, format: uuid }
+                    revisionNumber: { type: integer, minimum: 1 }
+                    sourceFormRevisionId: { type: [string, "null"], format: uuid }
+                    fieldSchema: { type: [object, "null"] , additionalProperties: true }
+                    values: { type: object, additionalProperties: true }
+                    requestedStart: { type: [string, "null"], format: date-time }
+                    requestedEnd: { type: [string, "null"], format: date-time }
+                    timezone: { type: string }
+                    changeReason: { type: [string, "null"] }
+                    createdAt: { type: string, format: date-time }
+                    createdByMembershipId: { type: string, format: uuid }
+                    spaceLines:
+                      type: array
+                      items:
+                        type: object
+                        required: [spaceLineId, venueSpaceId, blockKind, startsAt, endsAt, requestedCapacity]
+                        properties:
+                          spaceLineId: { type: string, format: uuid }
+                          venueSpaceId: { type: string, format: uuid }
+                          blockKind: { type: string, enum: [setup, rehearsal, event_use, teardown, buffer] }
+                          startsAt: { type: string, format: date-time }
+                          endsAt: { type: string, format: date-time }
+                          requestedCapacity: { type: [integer, "null"], minimum: 0 }
+                        additionalProperties: false
+                    resourceLines:
+                      type: array
+                      items:
+                        type: object
+                        required: [resourceLineId, resourceTypeId, lineCode, label, requestedQuantity, values]
+                        properties:
+                          resourceLineId: { type: string, format: uuid }
+                          resourceTypeId: { type: string, format: uuid }
+                          lineCode: { type: string }
+                          label: { type: string }
+                          requestedQuantity: { type: number }
+                          values: { type: object, additionalProperties: true }
+                        additionalProperties: false
+                  additionalProperties: false
+            revisionHistory:
+              type: array
+              items:
+                type: object
+                required: [revisionId, revisionNumber, createdAt, createdByMembershipId, createdByDisplayName]
+                properties:
+                  revisionId: { type: string, format: uuid }
+                  revisionNumber: { type: integer, minimum: 1 }
+                  changeReason: { type: [string, "null"] }
+                  createdAt: { type: string, format: date-time }
+                  createdByMembershipId: { type: string, format: uuid }
+                  createdByDisplayName: { type: string }
+                additionalProperties: false
+          additionalProperties: false
+      additionalProperties: false
+    BookingDraftRevisionResponse:
+      type: object
+      required: [data]
+      properties:
+        data:
+          type: object
+          required: [draftId, revisionId, revisionNumber, previousRevisionNumber, status, changed]
+          properties:
+            draftId: { type: string, format: uuid }
+            revisionId: { type: string, format: uuid }
+            revisionNumber: { type: integer, minimum: 1 }
+            previousRevisionNumber: { type: integer, minimum: 0 }
+            status: { type: string, enum: [draft, offered, confirmed, abandoned] }
+            changed: { type: boolean }
+          additionalProperties: false
+      additionalProperties: false
     BookingDraftRevisionRequest:
       type: object
-      required: [values]
+      required: [expectedRevisionNumber, values, requestedStart, requestedEnd, timezone, spaceLines, resourceLines, changeReason]
       properties:
-        values: { type: object, additionalProperties: true }
-        requestedStart: { type: string, format: date-time }
-        requestedEnd: { type: string, format: date-time }
-        timezone: { type: string }
+        expectedRevisionNumber: { type: integer, minimum: 0 }
+        values: { type: object, maxProperties: 100, additionalProperties: true }
+        requestedStart: { type: [string, "null"], format: date-time }
+        requestedEnd: { type: [string, "null"], format: date-time }
+        timezone: { type: string, minLength: 1, maxLength: 80 }
         spaceLines:
           type: array
+          maxItems: 50
           items: { $ref: '#/components/schemas/SpaceLineRequest' }
         resourceLines:
           type: array
+          maxItems: 100
           items: { $ref: '#/components/schemas/ResourceLineRequest' }
-        changeReason: { type: string, maxLength: 2000 }
+        changeReason: { type: string, minLength: 3, maxLength: 2000 }
       additionalProperties: false
     SpaceLineRequest:
       type: object
