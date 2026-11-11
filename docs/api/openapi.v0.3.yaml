@@ -3013,6 +3013,25 @@ paths:
         '422': { $ref: '#/components/responses/UnprocessableEntity' }
         '429': { $ref: '#/components/responses/TooManyRequests' }
         '500': { $ref: '#/components/responses/InternalServerError' }
+  "/organizations/{organizationId}/booking-inquiry-capabilities":
+    get:
+      tags: ["Booking Administration"]
+      operationId: getBookingInquiryCapabilities
+      summary: "Read the current membership's inquiry action capabilities"
+      description: "Requires booking.inquiry.read. Returns permission flags for assignment, status management and internal annotations."
+      security: [{ StaffSession: [] }]
+      parameters:
+        - $ref: '#/components/parameters/POrganizationId'
+      responses:
+        '200':
+          description: "Current membership inquiry capabilities."
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/BookingInquiryCapabilitiesResponse' }
+        '400': { $ref: '#/components/responses/BadRequest' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '500': { $ref: '#/components/responses/InternalServerError' }
   "/organizations/{organizationId}/booking-inquiry-assignees":
     get:
       tags: ["Booking Administration"]
@@ -4388,6 +4407,19 @@ components:
       properties:
         initialNote: { type: string, maxLength: 4000 }
         ownerMembershipId: { type: string, format: uuid }
+      additionalProperties: false
+    BookingInquiryCapabilitiesResponse:
+      type: object
+      required: [data]
+      properties:
+        data:
+          type: object
+          required: [canAssign, canManage, canAnnotate]
+          properties:
+            canAssign: { type: boolean }
+            canManage: { type: boolean }
+            canAnnotate: { type: boolean }
+          additionalProperties: false
       additionalProperties: false
     BookingInquiryAssigneeListResponse:
       type: object
