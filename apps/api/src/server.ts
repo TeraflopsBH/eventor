@@ -1,6 +1,7 @@
 import Fastify, { type FastifyInstance, type FastifyReply, type FastifyRequest } from "fastify";
 import { createCipheriv, createHash, createHmac, randomBytes } from "node:crypto";
 import type { Pool, PoolClient, QueryResultRow } from "pg";
+import { encryptDeliveryCredentials } from "./delivery-credentials-crypto.js";
 import type { paths } from "./generated/openapi.js";
 import {
   clearStaffSessionCookies,
@@ -20,6 +21,7 @@ type ReservationReleaseBody = JsonRequestBody<"/bookings/{bookingId}/reservation
 type EventChangeBody = JsonRequestBody<"/events/{eventId}/change-requests", "post">;
 type EventChangeDecisionBody = JsonRequestBody<"/event-change-requests/{requestId}/approve", "post">;
 type EventChangeExecutionBody = JsonRequestBody<"/event-change-requests/{requestId}/execute", "post">;
+type EmailDeliveryConfigBody = JsonRequestBody<"/organization/delivery/email/configuration", "post">;
 
 export type StaffAuthenticator = (request: FastifyRequest) => Promise<StaffPrincipal | null>;
 export type MutationOriginVerifier = (request: FastifyRequest, principal: StaffPrincipal) => Promise<boolean>;
@@ -35,6 +37,7 @@ export interface ApiDependencies {
   readonly revokeStaffSession?: (principal: StaffPrincipal) => Promise<void>;
   readonly getCurrentPrincipal?: (principal: StaffPrincipal) => Promise<Record<string, unknown>>;
   readonly privateFieldEncryptionKey?: Buffer;
+  readonly deliveryCredentialsEncryptionKey?: Buffer;
   readonly trustedProxyAddresses?: readonly string[];
 }
 
@@ -95,6 +98,31 @@ const campaignParams = {
 const bookingParams = {
   type: "object", required: ["bookingId"],
   properties: { bookingId: { type: "string", pattern: uuidPattern } },
+  additionalProperties: false,
+} as const;
+const emailDeliveryConfigBody = {
+  type: "object",
+  required: ["host", "port", "transportSecurity", "authMode", "senderEmail"],
+  properties: {
+    host: { type: "string", minLength: 1, maxLength: 253 },
+    port: { type: "integer", minimum: 1, maximum: 65535 },
+    transportSecurity: { type: "string", enum: ["starttls", "implicit_tls"] },
+    authMode: { type: "string", enum: ["none", "password"] },
+    senderEmail: { type: "string", format: "email", maxLength: 320 },
+    senderName: { type: "string", maxLength: 200 },
+    replyTo: { type: "string", format: "email", maxLength: 320 },
+    connectionTimeoutMs: { type: "integer", minimum: 1000, maximum: 60000 },
+    credentials: {
+      type: "object",
+      required: ["username", "password"],
+      properties: {
+        username: { type: "string", minLength: 1, maxLength: 320 },
+        password: { type: "string", minLength: 1, maxLength: 4096 },
+      },
+      additionalProperties: false,
+    },
+    clearCredentials: { type: "boolean" },
+  },
   additionalProperties: false,
 } as const;
 const reasonBody = {
@@ -560,6 +588,85 @@ export function buildApi(dependencies: ApiDependencies): FastifyInstance {
         );
         return result.rows[0]?.result as Record<string, unknown>;
       });
+    },
+  );
+
+
+  server.get("/organization/delivery/email/configuration", async (request, reply) => {
+    const principal = request.staffPrincipal!;
+    const client = await dependencies.pool.connect();
+    try {
+      await client.query("BEGIN");
+      await client.query("SELECT set_config('app.organization_id',$1,true)", [principal.organizationId]);
+      const result = await client.query<ResultRow>(
+        "SELECT eogp.get_organization_email_delivery_config($1::uuid,$2::uuid) AS result",
+        [principal.organizationId, principal.membershipId],
+      );
+      await client.query("COMMIT");
+      return reply.code(200).send({ data: result.rows[0]?.result ?? null });
+    } catch (error) {
+      try { await client.query("ROLLBACK"); } catch { /* preserve the query error */ }
+      throw databaseError(error);
+    } finally {
+      client.release();
+    }
+  });
+
+  server.post<{ Body: EmailDeliveryConfigBody }>(
+    "/organization/delivery/email/configuration",
+    { schema: { headers: idempotencyHeaders, body: emailDeliveryConfigBody } },
+    async (request, reply) => {
+      const body = request.body;
+      if (body.credentials && body.authMode !== "password") {
+        throw new ApiError(422, "SMTP_CREDENTIALS_NOT_ALLOWED", "Credentials can be supplied only with password authentication.");
+      }
+      if (body.clearCredentials && body.credentials) {
+        throw new ApiError(422, "SMTP_CREDENTIALS_CONFLICT", "Credentials cannot be replaced and cleared together.");
+      }
+      let encryptedCredentials: Buffer | null = null;
+      if (body.credentials) {
+        const key = dependencies.deliveryCredentialsEncryptionKey;
+        if (!key || key.length !== 32) {
+          throw new ApiError(503, "DELIVERY_CREDENTIAL_ENCRYPTION_UNAVAILABLE", "Delivery credential encryption is not configured.");
+        }
+        encryptedCredentials = encryptDeliveryCredentials(
+          body.credentials,
+          key,
+          { organizationId: request.staffPrincipal!.organizationId, channel: "email" },
+        );
+      }
+      const clearCredentials = body.clearCredentials ?? body.authMode === "none";
+      const principal = request.staffPrincipal!;
+      return withCommand(
+        request,
+        reply,
+        "configureOrganizationEmailDelivery",
+        body,
+        async (client) => {
+          const settings = {
+            host: body.host,
+            port: body.port,
+            transportSecurity: body.transportSecurity,
+            authMode: body.authMode,
+            senderEmail: body.senderEmail,
+            senderName: body.senderName ?? "",
+            replyTo: body.replyTo ?? "",
+            connectionTimeoutMs: body.connectionTimeoutMs ?? 15000,
+          };
+          const result = await client.query<ResultRow>(
+            "SELECT eogp.set_organization_email_delivery_config($1::uuid,$2::uuid,$3::jsonb,$4::bytea,$5::boolean,$6::boolean) AS result",
+            [
+              principal.organizationId,
+              principal.membershipId,
+              JSON.stringify(settings),
+              encryptedCredentials,
+              Boolean(body.credentials),
+              clearCredentials,
+            ],
+          );
+          return result.rows[0]?.result as Record<string, unknown>;
+        },
+      );
     },
   );
 
