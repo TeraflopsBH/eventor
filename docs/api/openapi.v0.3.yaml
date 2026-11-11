@@ -4602,7 +4602,7 @@ components:
       required: [resourceTypeId, requestedQuantity]
       properties:
         resourceTypeId: { type: string, format: uuid }
-        requestedQuantity: { type: number, exclusiveMinimum: 0 }
+        requestedQuantity: { type: number, exclusiveMinimum: 0, maximum: 999999999.999 }
         values: { type: object, additionalProperties: true }
     BookingOfferCreateRequest:
       type: object
@@ -5257,7 +5257,7 @@ components:
       required: [resourceTypeId, requestedQuantity]
       properties:
         resourceTypeId: { type: string, format: uuid }
-        requestedQuantity: { type: number, exclusiveMinimum: 0 }
+        requestedQuantity: { type: number, exclusiveMinimum: 0, maximum: 999999999.999 }
         values: { type: object, additionalProperties: true }
     BookingOfferCreateRequest:
       type: object
