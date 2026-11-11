@@ -7,8 +7,10 @@ info:
     Successor contract aligned with ADR 0004-0006 and the v0.3 domain designs.
     Booking-only venue workflows do not require events or guest data. Cross-organization
     access is grant-scoped, organizer guest data remains organizer-owned, and booking
-    cancellation is independent of event cancellation. This contract describes the
-    intended API boundary; route implementation and runtime contract tests are pending.
+    cancellation is independent of event cancellation. Implemented routes include staff
+    authentication, selected event and booking commands, notification campaign
+    review/confirmation/queueing, and tenant-scoped SMTP configuration and test delivery.
+    Other contract operations remain pending.
 tags:
   - name: Authentication
   - name: Authorization
