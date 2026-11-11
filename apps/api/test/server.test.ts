@@ -31,6 +31,8 @@ function makePool() {
   let deliveryTestCompletions = 0;
   let campaignQueueCalls = 0;
   let campaignCancelCalls = 0;
+  let deliveryReconcileCalls = 0;
+  let deliveryRetryCalls = 0;
   const deliveryTests = new Map<string, string>();
 
   const client = {
@@ -181,6 +183,16 @@ function makePool() {
           campaignId: values[1], status: "cancelled", suppressedAttempts: 2,
         } }], rowCount: 1 };
       }
+      if (normalized.includes("eogp.reconcile_notification_delivery_attempt(")) {
+        deliveryReconcileCalls += 1;
+        commandCalls.push({ sql: normalized, values });
+        return { rows: [{ result: { attemptId: values[1], previousStatus: "uncertain", status: "sent", campaignStatus: "partial" } }], rowCount: 1 };
+      }
+      if (normalized.includes("eogp.retry_failed_notification_delivery_attempt(")) {
+        deliveryRetryCalls += 1;
+        commandCalls.push({ sql: normalized, values });
+        return { rows: [{ result: { attemptId: "95200000-0000-4000-8000-000000000001", previousAttemptId: values[1], attemptNumber: 2, status: "queued" } }], rowCount: 1 };
+      }
       if (normalized.includes("eogp.get_organization_email_delivery_config(")) {
         return { rows: [{ result: {
           channel: "email", provider: "smtp", revision: 2,
@@ -252,6 +264,8 @@ function makePool() {
     get deliveryTestCompletions() { return deliveryTestCompletions; },
     get campaignQueueCalls() { return campaignQueueCalls; },
     get campaignCancelCalls() { return campaignCancelCalls; },
+    get deliveryReconcileCalls() { return deliveryReconcileCalls; },
+    get deliveryRetryCalls() { return deliveryRetryCalls; },
   };
 }
 
@@ -552,6 +566,50 @@ test("campaign progress and delivery report expose only operational attempt meta
   assert.equal(mock.campaignDeliveryListCalls, 1);
   assert.equal(mock.commandCalls[1]?.values[2], principal.membershipId);
   assert.equal(mock.commandCalls[1]?.values[3], "failed");
+});
+
+test("delivery reconciliation is an idempotent permission-gated operator command", async (t) => {
+  const mock = makePool();
+  const app = makeApi(mock.pool);
+  t.after(async () => app.close());
+  const attemptId = "95000000-0000-4000-8000-000000000001";
+  const payload = { resolution: "confirmed_sent", reason: "Provider dashboard confirms SMTP acceptance." };
+  const headers = { "idempotency-key": "delivery-reconcile-0001" };
+  const first = await app.inject({
+    method: "POST", url: `/notification-delivery-attempts/${attemptId}/reconcile`,
+    headers, payload,
+  });
+  assert.equal(first.statusCode, 201);
+  assert.equal(first.json<{ data: { status: string } }>().data.status, "sent");
+  assert.equal(mock.deliveryReconcileCalls, 1);
+  assert.equal(mock.commandCalls[0]?.values[0], principal.organizationId);
+  assert.equal(mock.commandCalls[0]?.values[1], attemptId);
+  assert.equal(mock.commandCalls[0]?.values[2], principal.membershipId);
+  const replay = await app.inject({
+    method: "POST", url: `/notification-delivery-attempts/${attemptId}/reconcile`,
+    headers, payload,
+  });
+  assert.equal(replay.statusCode, 201);
+  assert.equal(mock.deliveryReconcileCalls, 1);
+});
+
+test("operator delivery retry is a separate reasoned and idempotent command", async (t) => {
+  const mock = makePool();
+  const app = makeApi(mock.pool);
+  t.after(async () => app.close());
+  const attemptId = "95000000-0000-4000-8000-000000000001";
+  const payload = { reason: "Operator verified the remote server did not accept the message." };
+  const headers = { "idempotency-key": "delivery-retry-0001" };
+  const response = await app.inject({
+    method: "POST", url: `/notification-delivery-attempts/${attemptId}/retry`,
+    headers, payload,
+  });
+  assert.equal(response.statusCode, 201);
+  assert.equal(response.json<{ data: { status: string; attemptNumber: number } }>().data.status, "queued");
+  assert.equal(mock.deliveryRetryCalls, 1);
+  assert.equal(mock.commandCalls[0]?.values[0], principal.organizationId);
+  assert.equal(mock.commandCalls[0]?.values[1], attemptId);
+  assert.equal(mock.commandCalls[0]?.values[2], principal.membershipId);
 });
 
 test("campaign review returns a restricted snapshot projection through the permission-gated database function", async (t) => {
