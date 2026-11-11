@@ -4412,12 +4412,14 @@ components:
       properties:
         data:
           type: object
-          required: [canAssign, canManage, canAnnotate, canConvert]
+          required: [canAssign, canManage, canAnnotate, canConvert, canReadDraft, canManageDraft]
           properties:
             canAssign: { type: boolean }
             canManage: { type: boolean }
             canAnnotate: { type: boolean }
             canConvert: { type: boolean }
+            canReadDraft: { type: boolean }
+            canManageDraft: { type: boolean }
           additionalProperties: false
       additionalProperties: false
     BookingInquiryConversionResponse:
@@ -5224,19 +5226,22 @@ components:
       additionalProperties: false
     BookingDraftRevisionRequest:
       type: object
-      required: [values]
+      required: [expectedRevisionNumber, values, requestedStart, requestedEnd, timezone, spaceLines, resourceLines, changeReason]
       properties:
-        values: { type: object, additionalProperties: true }
-        requestedStart: { type: string, format: date-time }
-        requestedEnd: { type: string, format: date-time }
-        timezone: { type: string }
+        expectedRevisionNumber: { type: integer, minimum: 0 }
+        values: { type: object, maxProperties: 100, additionalProperties: true }
+        requestedStart: { type: [string, "null"], format: date-time }
+        requestedEnd: { type: [string, "null"], format: date-time }
+        timezone: { type: string, minLength: 1, maxLength: 80 }
         spaceLines:
           type: array
+          maxItems: 50
           items: { $ref: '#/components/schemas/SpaceLineRequest' }
         resourceLines:
           type: array
+          maxItems: 100
           items: { $ref: '#/components/schemas/ResourceLineRequest' }
-        changeReason: { type: string, maxLength: 2000 }
+        changeReason: { type: string, minLength: 3, maxLength: 2000 }
       additionalProperties: false
     SpaceLineRequest:
       type: object
