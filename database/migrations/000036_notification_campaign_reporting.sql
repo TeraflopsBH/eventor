@@ -209,7 +209,8 @@ BEGIN
            coalesce(last_event.status,attempt.status) AS status,
            last_event.failure_code,last_event.provider_name,
            first_sending.created_at AS sending_at,
-           last_event.created_at AS completed_at,
+           CASE WHEN last_event.status IN ('sent','failed','uncertain','suppressed','delivered','bounced')
+                THEN last_event.created_at ELSE NULL END AS completed_at,
            EXISTS (
              SELECT 1 FROM eogp.event_notification_delivery_attempts later
               WHERE later.organization_id=attempt.organization_id
