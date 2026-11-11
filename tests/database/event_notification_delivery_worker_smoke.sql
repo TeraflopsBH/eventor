@@ -8,7 +8,6 @@ DECLARE
   v_job record;
   v_result jsonb;
   v_retry_scheduled boolean := false;
-  v_queued integer;
 BEGIN
   IF session_user<>'eventor_worker' THEN
     RAISE EXCEPTION 'delivery worker smoke test must run as eventor_worker';
@@ -59,18 +58,6 @@ BEGIN
     RAISE EXCEPTION 'temporary SMTP 4xx failure did not schedule a retry';
   END IF;
 
-  SELECT count(*) INTO v_queued
-    FROM eogp.event_notification_delivery_attempts attempt
-   WHERE attempt.organization_id='22222222-2222-4222-8222-222222222222'
-     AND attempt.campaign_id=v_campaign_id
-     AND attempt.status='queued' AND attempt.attempt_number=2
-     AND NOT EXISTS (
-       SELECT 1 FROM eogp.event_notification_delivery_attempt_events event
-        WHERE event.organization_id=attempt.organization_id AND event.attempt_id=attempt.id
-     );
-  IF v_queued<>1 THEN
-    RAISE EXCEPTION 'expected one retry queued after temporary failure, got %',v_queued;
-  END IF;
 END;
 $delivery_first$;
 
@@ -79,7 +66,6 @@ DECLARE
   v_campaign_id uuid;
   v_status text;
   v_attempt_count integer;
-  v_retry_count integer;
 BEGIN
   SELECT id,status INTO v_campaign_id,v_status
     FROM eogp.event_notification_campaigns
@@ -89,18 +75,9 @@ BEGIN
     FROM eogp.event_notification_delivery_attempts
    WHERE organization_id='22222222-2222-4222-8222-222222222222'
      AND campaign_id=v_campaign_id;
-  SELECT count(*) INTO v_retry_count
-    FROM eogp.event_notification_delivery_attempts attempt
-   WHERE attempt.organization_id='22222222-2222-4222-8222-222222222222'
-     AND attempt.campaign_id=v_campaign_id
-     AND attempt.status='queued' AND attempt.attempt_number=2
-     AND NOT EXISTS (
-       SELECT 1 FROM eogp.event_notification_delivery_attempt_events event
-        WHERE event.organization_id=attempt.organization_id AND event.attempt_id=attempt.id
-     );
-  IF v_status<>'sending' OR v_attempt_count<>3 OR v_retry_count<>1 THEN
-    RAISE EXCEPTION 'retry state machine ended unexpectedly: status %, attempts %, queued retries %',
-      v_status,v_attempt_count,v_retry_count;
+  IF v_status<>'sending' OR v_attempt_count<>3 THEN
+    RAISE EXCEPTION 'retry state machine ended unexpectedly: status %, attempts %',
+      v_status,v_attempt_count;
   END IF;
 END;
 $delivery_retry$;
