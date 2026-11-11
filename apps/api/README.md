@@ -15,6 +15,7 @@ This package contains the first deployable command API and a separate tenant-awa
 - `GET /event-notification-campaigns/{campaignId}/review` — permission-gated review of recipient snapshots, channel/exclusion totals and the pinned template; contact values are never returned.
 - `POST /event-notification-campaigns/{campaignId}/confirm` — explicitly confirms the fixed audience snapshot. It does not queue or send messages.
 - `POST /event-notification-campaigns/{campaignId}/queue` — separate, explicit authorization to queue email delivery. Requires an enabled organization SMTP configuration and event-scoped send permission.
+- `POST /event-notification-campaigns/{campaignId}/cancel` — cancel a queued campaign before any SMTP attempt starts; appends suppression events and removes its pending work.
 - `GET /organization/delivery/email/configuration` — read safe SMTP settings and credential/test status; never returns credentials.
 - `POST /organization/delivery/email/configuration` — create a new immutable SMTP configuration revision. Credentials are write-only.
 - `POST /organization/delivery/email/test` — verify the current SMTP connection and send one explicitly requested test message to the supplied address. A successful test enables that exact configuration revision.
@@ -37,7 +38,7 @@ SMTP is a network egress capability. Production deployments must apply outbound 
 4. A separately authorized user explicitly queues it. The queue command pins the current, successfully tested SMTP configuration revision and creates one delivery-attempt record per recipient.
 5. The delivery worker processes only queued email attempts. It decrypts contact and SMTP credentials immediately before submission and never logs addresses, ciphertext or credentials.
 
-A queued campaign continues to use the exact SMTP revision pinned when it was queued. Updating the organization's current SMTP settings affects future queue actions, not already authorized campaigns. The staff API does not yet expose a campaign hold/cancel command; treat queueing as an irreversible authorization to send and queue only when ready.
+A queued campaign continues to use the exact SMTP revision pinned when it was queued. Updating the organization's current SMTP settings affects future queue actions, not already authorized campaigns. A queued campaign can be cancelled only before the worker claims its first attempt. Once sending has started, cancellation is rejected; already accepted or uncertain SMTP messages cannot be recalled.
 
 The worker records SMTP acceptance as `sent`; it does not claim that the recipient read or even received the message. Temporary connection and SMTP 4xx failures are retried with bounded exponential backoff (up to five attempts). Permanent 5xx and configuration/template errors are not automatically retried. If the connection fails at the SMTP DATA stage and acceptance is ambiguous, the attempt is marked `uncertain` and is not automatically resent, to avoid duplicate messages. Expired in-flight leases are also marked uncertain for operator reconciliation.
 
