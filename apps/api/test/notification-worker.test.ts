@@ -66,6 +66,11 @@ test("notification worker sets tenant context and commits one batch per tenant",
     campaignPreviewsPrepared: 2,
     deferred: 2,
     deadLettered: 0,
+    emailAttempts: 0,
+    emailSent: 0,
+    emailFailed: 0,
+    emailUncertain: 0,
+    emailRetriesScheduled: 0,
   });
   assert.equal(mock.released.length, 2);
   assert.equal(
