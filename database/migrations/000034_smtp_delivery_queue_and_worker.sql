@@ -61,8 +61,8 @@ BEGIN
      OR v_port NOT BETWEEN 1 AND 65535
      OR v_security NOT IN ('starttls','implicit_tls')
      OR v_auth_mode NOT IN ('none','password')
-     OR v_sender !~ '^[^[:space:]<>@]+@[^[:space:]<>@]+\\.[^[:space:]<>@]+$'
-     OR (v_reply_to <> '' AND v_reply_to !~ '^[^[:space:]<>@]+@[^[:space:]<>@]+\\.[^[:space:]<>@]+$')
+     OR v_sender !~ '^[^[:space:]<>@]+@[^[:space:]<>@]+\.[^[:space:]<>@]+$'
+     OR (v_reply_to <> '' AND v_reply_to !~ '^[^[:space:]<>@]+@[^[:space:]<>@]+\.[^[:space:]<>@]+$')
      OR coalesce((p_settings ->> 'connectionTimeoutMs')::integer,15000) NOT BETWEEN 1000 AND 60000
      OR length(coalesce(p_settings ->> 'senderName','')) > 200 THEN
     RAISE EXCEPTION 'SMTP settings failed validation' USING ERRCODE = '22023';
