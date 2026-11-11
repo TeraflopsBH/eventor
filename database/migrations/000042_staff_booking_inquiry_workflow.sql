@@ -27,7 +27,7 @@ CREATE TABLE eogp.booking_inquiry_status_history (
     new_status text NOT NULL
       CHECK (new_status IN ('received','under_review','converted','declined','withdrawn','spam')),
     reason text,
-    actor_kind text NOT NULL CHECK (actor_kind IN ('public','membership')),
+    actor_kind text NOT NULL CHECK (actor_kind IN ('public','membership','system')),
     actor_membership_id uuid,
     occurred_at timestamptz NOT NULL DEFAULT clock_timestamp(),
     UNIQUE (organization_id, id),
@@ -123,7 +123,7 @@ BEGIN
       reason, actor_kind, actor_membership_id
     )
     SELECT inquiry.organization_id, inquiry.id, NULL, inquiry.status,
-           'migration_backfill', 'public', NULL
+           'migration_backfill', 'system', NULL
       FROM eogp.booking_inquiries inquiry
      WHERE inquiry.organization_id = v_organization_id
        AND NOT EXISTS (
