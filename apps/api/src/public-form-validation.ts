@@ -253,8 +253,7 @@ export function validatePublicFormAnswers(fieldSchema: unknown, answers: unknown
   for (const field of fields) {
     const value = answers[field.code];
     const isMissing = value === null || value === undefined ||
-      (typeof value === "string" && value.trim().length === 0) ||
-      (Array.isArray(value) && value.length === 0 && field.type !== "multiselect");
+      (typeof value === "string" && value.trim().length === 0);
     if (isMissing) {
       if (field.required) throw new PublicFormAnswersError();
       continue;
