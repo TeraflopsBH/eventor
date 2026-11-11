@@ -81,16 +81,9 @@ BEGIN
     v_reconcile jsonb;
     v_retry jsonb;
   BEGIN
-    SELECT attempt.id INTO v_uncertain_attempt_id
-      FROM eogp.event_notification_delivery_attempts attempt
-      LEFT JOIN LATERAL (
-        SELECT status FROM eogp.event_notification_delivery_attempt_events
-         WHERE organization_id=attempt.organization_id AND attempt_id=attempt.id
-         ORDER BY created_at DESC,id DESC LIMIT 1
-      ) latest ON true
-     WHERE attempt.organization_id='22222222-2222-4222-8222-222222222222'
-       AND attempt.campaign_id=v_campaign_id
-       AND coalesce(latest.status,attempt.status)='uncertain'
+    SELECT (item->>'attemptId')::uuid INTO v_uncertain_attempt_id
+      FROM jsonb_array_elements(v_deliveries->'items') item
+     WHERE item->>'status'='uncertain'
      LIMIT 1;
     IF v_uncertain_attempt_id IS NULL THEN
       RAISE EXCEPTION 'uncertain attempt fixture is missing';
