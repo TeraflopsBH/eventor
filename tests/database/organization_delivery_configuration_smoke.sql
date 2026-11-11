@@ -9,6 +9,11 @@ DECLARE
   v_third jsonb;
   v_invalid_rejected boolean := false;
   v_count integer;
+  v_test jsonb;
+  v_enabled jsonb;
+  v_queue jsonb;
+  v_campaign_id uuid;
+  v_queued integer;
 BEGIN
   IF has_table_privilege(current_user, 'eogp.organization_delivery_config_revisions', 'SELECT')
      OR has_table_privilege(current_user, 'eogp.organization_delivery_config_revisions', 'INSERT')
@@ -126,13 +131,6 @@ BEGIN
     RAISE EXCEPTION 'delivery configuration projection did not return the current head';
   END IF;
 
-  DECLARE
-    v_test jsonb;
-    v_enabled jsonb;
-    v_queue jsonb;
-    v_campaign_id uuid;
-    v_queued integer;
-  BEGIN
     v_test := eogp.begin_organization_email_delivery_test(
       '22222222-2222-4222-8222-222222222222',
       'bbbbbbbb-2222-4222-8222-bbbbbbbbbbbb',
@@ -178,7 +176,6 @@ BEGIN
     IF v_queued <> 2 THEN
       RAISE EXCEPTION 'expected two queued SMTP attempts, got %',v_queued;
     END IF;
-  END;
 
 END;
 $delivery$;
