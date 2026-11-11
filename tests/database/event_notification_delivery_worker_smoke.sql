@@ -60,9 +60,14 @@ BEGIN
   END IF;
 
   SELECT count(*) INTO v_queued
-    FROM eogp.event_notification_delivery_attempts
-   WHERE organization_id='22222222-2222-4222-8222-222222222222'
-     AND campaign_id=v_campaign_id AND status='queued';
+    FROM eogp.event_notification_delivery_attempts attempt
+   WHERE attempt.organization_id='22222222-2222-4222-8222-222222222222'
+     AND attempt.campaign_id=v_campaign_id
+     AND attempt.status='queued' AND attempt.attempt_number=2
+     AND NOT EXISTS (
+       SELECT 1 FROM eogp.event_notification_delivery_attempt_events event
+        WHERE event.organization_id=attempt.organization_id AND event.attempt_id=attempt.id
+     );
   IF v_queued<>1 THEN
     RAISE EXCEPTION 'expected one retry queued after temporary failure, got %',v_queued;
   END IF;
