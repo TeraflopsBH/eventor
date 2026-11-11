@@ -144,7 +144,7 @@ CI regenerates OpenAPI TypeScript declarations, runs strict TypeScript compilati
 ## Remaining integration work
 
 - Connect the staff frontend to login, CSRF handling, campaign review/confirmation/queueing and SMTP settings/test routes.
-- Add operator UI for uncertain outcomes, permanent failures and campaign cancellation before delivery.
+- Expand the staff UI to the remaining event, booking, venue and guest workflows.
 - Implement an SMS provider adapter only when a concrete provider is selected; keep it optional and tenant-configurable.
 - Implement provider callbacks for final delivery/bounce status where supported. SMTP acceptance alone remains `sent`, not `delivered`.
 - Complete the rest of the OpenAPI operations and production runbooks for backup, recovery, network egress and secret rotation.
