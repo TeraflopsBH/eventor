@@ -44,6 +44,7 @@ const allowedOrigins = required("EVENTOR_ALLOWED_ORIGINS")
   .map((origin) => origin.trim())
   .filter(Boolean);
 const fingerprintKey = requiredKey("EVENTOR_AUTH_FINGERPRINT_KEY");
+const publicInquiryFingerprintKey = requiredKey("EVENTOR_PUBLIC_INQUIRY_FINGERPRINT_KEY");
 const privateFieldEncryptionKey = requiredKey("EVENTOR_FIELD_ENCRYPTION_KEY");
 const contactEncryptionKey = requiredKey("EVENTOR_CONTACT_ENCRYPTION_KEY");
 const deliveryCredentialsEncryptionKey = requiredKey("EVENTOR_DELIVERY_CREDENTIALS_KEY");
@@ -85,7 +86,7 @@ const app = buildApi({
   getCurrentPrincipal: (principal) => auth.getCurrentPrincipal(principal),
   privateFieldEncryptionKey,
   contactEncryptionKey,
-  publicInquiryFingerprintKey: fingerprintKey,
+  publicInquiryFingerprintKey,
   deliveryCredentialsEncryptionKey,
   ...(publicApiBaseUrl ? { publicApiBaseUrl } : {}),
   trustedProxyAddresses,
