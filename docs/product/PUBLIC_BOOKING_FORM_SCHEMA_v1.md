@@ -93,7 +93,7 @@ String fields may define integer `minLength` and `maxLength` values from 0 throu
 
 ## Answer semantics
 
-The `answers` object is keyed by field `code`. Unknown keys are rejected rather than silently stored. Every required field must have a value. For non-checkbox fields, `null`, an empty string (including whitespace-only text), an omitted property and an empty array are treated as unanswered. A required checkbox is only satisfied by `true`; `false` is an explicit negative answer and does not satisfy a required acknowledgement.
+The `answers` object is keyed by field `code`. Unknown keys are rejected rather than silently stored. Every required field must have a value. For any field, `null`, an empty string (including whitespace-only text) and an omitted property are treated as unanswered. An optional field may be omitted; a required field may not. An empty array is a submitted multiselect value and is checked against `minItems` / `maxItems`; it does not bypass those bounds. Arrays supplied to any non-multiselect field are rejected as a type mismatch. A required multiselect must contain at least one selected value. A required checkbox is only satisfied by `true`; `false` is an explicit negative answer and does not satisfy a required acknowledgement.
 
 Optional fields may be omitted. If a value is supplied, it must match the declared JSON type and every constraint for that field. Numeric strings are not numbers. Choice answers must use the option values from the exact submitted revision; labels are not accepted in place of values.
 
