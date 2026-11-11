@@ -98,6 +98,24 @@ const campaignParams = {
   properties: { campaignId: { type: "string", pattern: uuidPattern } },
   additionalProperties: false,
 } as const;
+const campaignListQuery = {
+  type: "object",
+  properties: {
+    status: { type: "string", enum: ["draft", "previewed", "confirmed", "queued", "sending", "completed", "partial", "failed", "cancelled"] },
+    limit: { type: "integer", minimum: 1, maximum: 100, default: 25 },
+    offset: { type: "integer", minimum: 0, maximum: 10000, default: 0 },
+  },
+  additionalProperties: false,
+} as const;
+const campaignDeliveryQuery = {
+  type: "object",
+  properties: {
+    status: { type: "string", enum: ["queued", "sending", "sent", "delivered", "failed", "bounced", "uncertain", "suppressed"] },
+    limit: { type: "integer", minimum: 1, maximum: 100, default: 50 },
+    offset: { type: "integer", minimum: 0, maximum: 10000, default: 0 },
+  },
+  additionalProperties: false,
+} as const;
 const bookingParams = {
   type: "object", required: ["bookingId"],
   properties: { bookingId: { type: "string", pattern: uuidPattern } },
@@ -436,6 +454,102 @@ export function buildApi(dependencies: ApiDependencies): FastifyInstance {
     return reply.code(200).send({ data });
   });
 
+
+  server.get<{
+    Querystring: { status?: string; limit?: number; offset?: number };
+  }>(
+    "/event-notification-campaigns",
+    { schema: { querystring: campaignListQuery } },
+    async (request, reply) => {
+      const principal = request.staffPrincipal!;
+      const limit = request.query.limit ?? 25;
+      const offset = request.query.offset ?? 0;
+      const client = await dependencies.pool.connect();
+      try {
+        await client.query("BEGIN");
+        await client.query("SELECT set_config('app.organization_id',$1,true)", [principal.organizationId]);
+        const result = await client.query<ResultRow>(
+          "SELECT eogp.list_event_notification_campaigns($1::uuid,$2::uuid,$3::text,$4::integer,$5::integer) AS result",
+          [principal.organizationId, principal.membershipId, request.query.status ?? null, limit, offset],
+        );
+        await client.query("COMMIT");
+        const projection = result.rows[0]?.result as {
+          items?: unknown[];
+          page?: { total?: number };
+        } | undefined;
+        return reply.code(200).send({
+          data: projection?.items ?? [],
+          meta: { limit, offset, totalCount: projection?.page?.total ?? 0 },
+        });
+      } catch (error) {
+        try { await client.query("ROLLBACK"); } catch { /* preserve the read error */ }
+        throw databaseError(error);
+      } finally {
+        client.release();
+      }
+    },
+  );
+
+  server.get<{ Params: { campaignId: string } }>(
+    "/event-notification-campaigns/:campaignId",
+    { schema: { params: campaignParams } },
+    async (request, reply) => {
+      const principal = request.staffPrincipal!;
+      const client = await dependencies.pool.connect();
+      try {
+        await client.query("BEGIN");
+        await client.query("SELECT set_config('app.organization_id',$1,true)", [principal.organizationId]);
+        const result = await client.query<ResultRow>(
+          "SELECT eogp.get_event_notification_campaign_progress($1::uuid,$2::uuid,$3::uuid) AS result",
+          [principal.organizationId, request.params.campaignId, principal.membershipId],
+        );
+        await client.query("COMMIT");
+        return reply.code(200).send({ data: result.rows[0]?.result ?? null });
+      } catch (error) {
+        try { await client.query("ROLLBACK"); } catch { /* preserve the read error */ }
+        throw databaseError(error);
+      } finally {
+        client.release();
+      }
+    },
+  );
+
+  server.get<{
+    Params: { campaignId: string };
+    Querystring: { status?: string; limit?: number; offset?: number };
+  }>(
+    "/event-notification-campaigns/:campaignId/deliveries",
+    { schema: { params: campaignParams, querystring: campaignDeliveryQuery } },
+    async (request, reply) => {
+      const principal = request.staffPrincipal!;
+      const limit = request.query.limit ?? 50;
+      const offset = request.query.offset ?? 0;
+      const client = await dependencies.pool.connect();
+      try {
+        await client.query("BEGIN");
+        await client.query("SELECT set_config('app.organization_id',$1,true)", [principal.organizationId]);
+        const result = await client.query<ResultRow>(
+          "SELECT eogp.list_event_notification_campaign_deliveries($1::uuid,$2::uuid,$3::uuid,$4::text,$5::integer,$6::integer) AS result",
+          [principal.organizationId, request.params.campaignId, principal.membershipId, request.query.status ?? null, limit, offset],
+        );
+        await client.query("COMMIT");
+        const projection = result.rows[0]?.result as {
+          items?: unknown[];
+          page?: { total?: number };
+          counts?: Record<string, number>;
+        } | undefined;
+        return reply.code(200).send({
+          data: projection?.items ?? [],
+          meta: { limit, offset, totalCount: projection?.page?.total ?? 0, counts: projection?.counts ?? {} },
+        });
+      } catch (error) {
+        try { await client.query("ROLLBACK"); } catch { /* preserve the read error */ }
+        throw databaseError(error);
+      } finally {
+        client.release();
+      }
+    },
+  );
 
   server.get<{ Params: { campaignId: string } }>(
     "/event-notification-campaigns/:campaignId/review",
