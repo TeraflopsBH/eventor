@@ -6,6 +6,15 @@ function required(name: string): string {
   if (!value) throw new Error(`Missing required environment variable: ${name}`);
   return value;
 }
+function requiredKey(name: string): Buffer {
+  const encoded = required(name);
+  if (!/^(?:[A-Za-z0-9+/]{4})*(?:[A-Za-z0-9+/]{2}==|[A-Za-z0-9+/]{3}=)?$/.test(encoded)) {
+    throw new Error(`${name} must be base64-encoded.`);
+  }
+  const key = Buffer.from(encoded, "base64");
+  if (key.length !== 32) throw new Error(`${name} must decode to exactly 32 bytes.`);
+  return key;
+}
 function positiveInteger(name: string, fallback: number, max: number): number {
   const raw = process.env[name];
   if (!raw) return fallback;
@@ -15,6 +24,9 @@ function positiveInteger(name: string, fallback: number, max: number): number {
   }
   return value;
 }
+
+const contactEncryptionKey = requiredKey("EVENTOR_CONTACT_ENCRYPTION_KEY");
+const deliveryCredentialsEncryptionKey = requiredKey("EVENTOR_DELIVERY_CREDENTIALS_KEY");
 
 const pool = new Pool({
   connectionString: required("EVENTOR_WORKER_DATABASE_URL"),
@@ -44,6 +56,8 @@ try {
     maxTenantsPerPoll: positiveInteger("EVENTOR_WORKER_TENANT_LIMIT", 100, 1000),
     idlePollMs: positiveInteger("EVENTOR_WORKER_IDLE_POLL_MS", 3000, 60000),
     errorPollMs: positiveInteger("EVENTOR_WORKER_ERROR_POLL_MS", 5000, 60000),
+    contactEncryptionKey,
+    deliveryCredentialsEncryptionKey,
     onBatch: (totals) => {
       process.stdout.write(JSON.stringify({
         level: "info",
