@@ -54,6 +54,8 @@ const inquiryCapabilities = ref<BookingInquiryCapabilities>({
   canManage: false,
   canAnnotate: false,
   canConvert: false,
+  canReadDraft: false,
+  canManageDraft: false,
 });
 const selectedInquiryId = ref("");
 const inquiryAssignmentChoice = ref("unassigned");
@@ -246,7 +248,13 @@ async function signOut(): Promise<void> {
     inquiryRows.value = [];
     inquiryDetail.value = null;
     inquiryAssignees.value = [];
-    inquiryCapabilities.value = { canAssign: false, canManage: false, canAnnotate: false };
+    bookingDraftDetail.value = null;
+    bookingDraftEditorOpen.value = false;
+    selectedInquiryId.value = "";
+    inquiryCapabilities.value = {
+      canAssign: false, canManage: false, canAnnotate: false, canConvert: false,
+      canReadDraft: false, canManageDraft: false,
+    };
     pageNotice.value = "You have been signed out.";
   } catch (error) {
     showError(error);
