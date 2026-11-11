@@ -44,6 +44,21 @@ BEGIN
     RAISE EXCEPTION 'successful SMTP acceptance was not recorded';
   END IF;
 
+  v_result:=eogp.record_verified_notification_provider_event(
+    '22222222-2222-4222-8222-222222222222','smtp','ci-provider-event-1',
+    v_job.attempt_id,'ci-smtp-accepted-1','delivered',repeat('a',64)
+  );
+  IF v_result->>'status'<>'delivered' OR (v_result->>'duplicate')::boolean THEN
+    RAISE EXCEPTION 'verified provider delivery event was not recorded';
+  END IF;
+  v_result:=eogp.record_verified_notification_provider_event(
+    '22222222-2222-4222-8222-222222222222','smtp','ci-provider-event-1',
+    v_job.attempt_id,'ci-smtp-accepted-1','delivered',repeat('a',64)
+  );
+  IF NOT (v_result->>'duplicate')::boolean THEN
+    RAISE EXCEPTION 'duplicate provider callback was not idempotent';
+  END IF;
+
   SELECT * INTO v_job
     FROM eogp.claim_next_email_delivery('22222222-2222-4222-8222-222222222222');
   IF v_job.attempt_id IS NULL THEN
@@ -51,11 +66,11 @@ BEGIN
   END IF;
   v_result:=eogp.complete_email_delivery_attempt(
     '22222222-2222-4222-8222-222222222222',
-    v_job.attempt_id,'failed','SMTP_4XX',NULL
+    v_job.attempt_id,'uncertain','SMTP_UNKNOWN',NULL
   );
   v_retry_scheduled:=(v_result->>'retryScheduled')::boolean;
-  IF NOT v_retry_scheduled THEN
-    RAISE EXCEPTION 'temporary SMTP 4xx failure did not schedule a retry';
+  IF v_retry_scheduled THEN
+    RAISE EXCEPTION 'uncertain SMTP outcome must never schedule an automatic retry';
   END IF;
 
 END;
@@ -75,8 +90,8 @@ BEGIN
     FROM eogp.event_notification_delivery_attempts
    WHERE organization_id='22222222-2222-4222-8222-222222222222'
      AND campaign_id=v_campaign_id;
-  IF v_status<>'sending' OR v_attempt_count<>3 THEN
-    RAISE EXCEPTION 'retry state machine ended unexpectedly: status %, attempts %',
+  IF v_status<>'partial' OR v_attempt_count<>2 THEN
+    RAISE EXCEPTION 'delivery state machine ended unexpectedly: status %, attempts %',
       v_status,v_attempt_count;
   END IF;
 END;
