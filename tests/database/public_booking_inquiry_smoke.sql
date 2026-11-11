@@ -69,9 +69,11 @@ BEGIN
     NULL,NULL,'Europe/Sarajevo'
   ) INTO v_first;
 
-  IF v_first->>'status' <> 'received'
-     OR v_first->>'replayed' <> 'false'
-     OR v_first->>'publicReference' !~ '^INQ-[0-9A-F]{16}$' THEN
+  IF v_first IS NULL
+     OR v_first->>'status' IS DISTINCT FROM 'received'
+     OR v_first->>'replayed' IS DISTINCT FROM 'false'
+     OR v_first->>'inquiryId' IS NULL
+     OR coalesce(v_first->>'publicReference','') !~ '^INQ-[0-9A-F]{16}$' THEN
     RAISE EXCEPTION 'first public inquiry submission returned an unexpected result: %',v_first;
   END IF;
 
@@ -88,9 +90,9 @@ BEGIN
     NULL,NULL,'Europe/Sarajevo'
   ) INTO v_replay;
 
-  IF v_replay->>'replayed' <> 'true'
-     OR (v_replay->>'inquiryId')::uuid <> v_inquiry_id
-     OR v_replay->>'publicReference' <> v_public_reference THEN
+  IF v_replay->>'replayed' IS DISTINCT FROM 'true'
+     OR (v_replay->>'inquiryId')::uuid IS DISTINCT FROM v_inquiry_id
+     OR v_replay->>'publicReference' IS DISTINCT FROM v_public_reference THEN
     RAISE EXCEPTION 'idempotent inquiry replay did not return the original result: %',v_replay;
   END IF;
 
@@ -104,7 +106,7 @@ BEGIN
     NULL,NULL,'Europe/Sarajevo'
   ) INTO v_conflict;
 
-  IF v_conflict->>'idempotencyConflict' <> 'true' THEN
+  IF v_conflict->>'idempotencyConflict' IS DISTINCT FROM 'true' THEN
     RAISE EXCEPTION 'idempotency key reuse with a different payload was not rejected: %',v_conflict;
   END IF;
 
@@ -118,7 +120,7 @@ BEGIN
     NULL,NULL,'Europe/Sarajevo'
   ) INTO v_unpublished;
 
-  IF v_unpublished->>'formUnavailable' <> 'true' THEN
+  IF v_unpublished->>'formUnavailable' IS DISTINCT FROM 'true' THEN
     RAISE EXCEPTION 'unknown/unpublished form revision was accepted: %',v_unpublished;
   END IF;
 
@@ -135,8 +137,8 @@ BEGIN
       NULL,NULL,'Europe/Sarajevo'
     ) INTO v_result;
 
-    IF v_result->>'status' <> 'received'
-       OR v_result->>'replayed' <> 'false' THEN
+    IF v_result->>'status' IS DISTINCT FROM 'received'
+       OR v_result->>'replayed' IS DISTINCT FROM 'false' THEN
       RAISE EXCEPTION 'submission % was not accepted before the hourly limit: %',i,v_result;
     END IF;
   END LOOP;
@@ -151,8 +153,8 @@ BEGIN
     NULL,NULL,'Europe/Sarajevo'
   ) INTO v_limited;
 
-  IF v_limited->>'rateLimited' <> 'true'
-     OR (v_limited->>'retryAfterSeconds')::integer < 1 THEN
+  IF v_limited->>'rateLimited' IS DISTINCT FROM 'true'
+     OR coalesce((v_limited->>'retryAfterSeconds')::integer,0) < 1 THEN
     RAISE EXCEPTION 'eleventh inquiry from the same source was not rate-limited: %',v_limited;
   END IF;
 
