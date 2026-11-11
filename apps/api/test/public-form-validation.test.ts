@@ -89,6 +89,7 @@ test("public form v1 enforces value types, ranges, formats and pinned option mem
     { ...valid, room_layout: "conference" },
     { ...valid, accept_terms: false },
     { ...valid, contact_email: "not-an-email" },
+    { ...valid, optional_note: [] },
     { ...valid, equipment: ["projector", "projector"] },
     { ...valid, equipment: ["unpublished-option"] },
   ];
