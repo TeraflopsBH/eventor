@@ -143,9 +143,8 @@ CI regenerates OpenAPI TypeScript declarations, runs strict TypeScript compilati
 
 ## Remaining integration work
 
-- Connect the staff frontend to login, CSRF handling, campaign review/confirmation/queueing and SMTP settings/test routes.
 - Expand the staff UI to the remaining event, booking, venue and guest workflows.
 - Implement an SMS provider adapter only when a concrete provider is selected; keep it optional and tenant-configurable.
-- Implement provider callbacks for final delivery/bounce status where supported. SMTP acceptance alone remains `sent`, not `delivered`.
+- Implement a provider-specific callback adapter after selecting a provider. The normalized inbox is ready, but callback signature verification and provider-message-reference resolution belong to that adapter. SMTP acceptance alone remains `sent`, not `delivered`.
 - Complete the rest of the OpenAPI operations and production runbooks for backup, recovery, network egress and secret rotation.
 \nAll campaign listing, progress, review and delivery-report projections require the event-scoped `event.notifications.preview` permission. Campaign list visibility is evaluated per event; a membership cannot enumerate campaigns for events it cannot preview. The delivery report intentionally omits recipient destination values, ciphertext, and provider message references. Pagination is bounded to 100 rows per page.
