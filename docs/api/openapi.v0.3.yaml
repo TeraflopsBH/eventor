@@ -3013,6 +3013,25 @@ paths:
         '422': { $ref: '#/components/responses/UnprocessableEntity' }
         '429': { $ref: '#/components/responses/TooManyRequests' }
         '500': { $ref: '#/components/responses/InternalServerError' }
+  "/organizations/{organizationId}/booking-inquiry-assignees":
+    get:
+      tags: ["Booking Administration"]
+      operationId: listBookingInquiryAssignees
+      summary: "List active organization members available for inquiry assignment"
+      description: "Requires booking.inquiry.assign. Returns membership IDs and display names only; email addresses and other personal details are not exposed."
+      security: [{ StaffSession: [] }]
+      parameters:
+        - $ref: '#/components/parameters/POrganizationId'
+      responses:
+        '200':
+          description: "Active assignee roster."
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/BookingInquiryAssigneeListResponse' }
+        '400': { $ref: '#/components/responses/BadRequest' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '500': { $ref: '#/components/responses/InternalServerError' }
   "/organizations/{organizationId}/bookings":
     get:
       tags: ["Booking Administration"]
@@ -4369,6 +4388,20 @@ components:
       properties:
         initialNote: { type: string, maxLength: 4000 }
         ownerMembershipId: { type: string, format: uuid }
+      additionalProperties: false
+    BookingInquiryAssigneeListResponse:
+      type: object
+      required: [data]
+      properties:
+        data:
+          type: array
+          items:
+            type: object
+            required: [membershipId, displayName]
+            properties:
+              membershipId: { type: string, format: uuid }
+              displayName: { type: string }
+            additionalProperties: false
       additionalProperties: false
     BookingInquiryAssignmentRequest:
       type: object
