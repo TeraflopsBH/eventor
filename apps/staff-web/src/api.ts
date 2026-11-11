@@ -280,6 +280,12 @@ export interface BookingInquiryDetail extends BookingInquiryListItem {
   assignmentHistory: BookingInquiryAssignmentHistoryItem[];
 }
 
+export interface BookingInquiryCapabilities {
+  canAssign: boolean;
+  canManage: boolean;
+  canAnnotate: boolean;
+}
+
 export interface BookingInquiryAssignee {
   membershipId: string;
   displayName: string;
@@ -297,6 +303,10 @@ export const api = {
     request<Envelope<{ csrfToken: string; expiresAt: string }>>("/auth/session", { method: "POST", body }),
   me: () => request<Envelope<Principal>>("/me"),
   logout: () => request<void>("/auth/session", { method: "DELETE" }),
+  getBookingInquiryCapabilities: (organizationId: string) =>
+    request<Envelope<BookingInquiryCapabilities>>(
+      `/organizations/${encodeURIComponent(organizationId)}/booking-inquiry-capabilities`,
+    ),
   getBookingInquiryAssignees: (organizationId: string) =>
     request<Envelope<BookingInquiryAssignee[]>>(
       `/organizations/${encodeURIComponent(organizationId)}/booking-inquiry-assignees`,
