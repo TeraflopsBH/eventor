@@ -547,6 +547,7 @@ async function refreshInquiryListData(offset = inquiryOffset.value): Promise<voi
   inquiryMeta.value = list.meta;
   inquiryOffset.value = offset;
   inquiryCapabilities.value = capabilities.data;
+  if (!capabilities.data.canReadDraft) clearBookingDraftState();
   inquiryAssignees.value = capabilities.data.canAssign
     ? (await api.getBookingInquiryAssignees(organizationId)).data
     : [];
@@ -556,6 +557,7 @@ async function refreshInquiryDetailData(): Promise<void> {
   if (!selectedInquiryId.value) return;
   const result = await api.getBookingInquiry(selectedInquiryId.value);
   inquiryDetail.value = result.data;
+  if (!result.data.bookingDraft) clearBookingDraftState();
   inquiryAssignmentChoice.value = result.data.assignedToMembershipId ?? "unassigned";
   inquiryStatusChoice.value = "";
 }
