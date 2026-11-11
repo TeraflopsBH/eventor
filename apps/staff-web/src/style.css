@@ -107,7 +107,7 @@ dt { color: var(--muted); }
 dd { margin: 0; overflow-wrap: anywhere; }
 .mono { font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size: 10px; }
 .template-subject { color: #f1c49e; font-size: 12px; font-weight: 700; overflow-wrap: anywhere; }
-.template-body { white-space: pre-wrap; overflow-wrap: anywhere; font: 11px/1.65 inherit; color: #c9c9c9; max-height: 260px; overflow: auto; }
+.template-body { white-space: pre-wrap; overflow-wrap: anywhere; font-family: inherit; font-size: 11px; line-height: 1.65; color: #c9c9c9; max-height: 260px; overflow: auto; }
 .exclusion-card { margin-top: 14px; }
 .reason-list { display: grid; gap: 8px; }
 .reason-list > div { display: flex; justify-content: space-between; color: var(--muted); font-size: 11px; }
