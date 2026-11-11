@@ -250,7 +250,7 @@ BEGIN
     UPDATE eogp.event_notification_campaigns
        SET status=v_campaign_status,delivery_completed_at=coalesce(delivery_completed_at,clock_timestamp())
      WHERE organization_id=p_organization_id AND id=v_campaign.id
-       AND status IN ('queued','sending','completed','partial','failed');
+       AND status IN ('queued','sending');
   END IF;
 
   RETURN jsonb_build_object('attemptId',p_attempt_id,'previousStatus',v_current_status,
