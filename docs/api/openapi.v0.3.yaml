@@ -31,6 +31,7 @@ tags:
   - name: Event Cancellation
   - name: Event Scheduling
   - name: Event Notifications
+  - name: Organization Delivery
   - name: Allocation
   - name: Check-in
   - name: Event Readiness
@@ -151,6 +152,46 @@ paths:
         '412': { $ref: '#/components/responses/PreconditionFailed' }
         '422': { $ref: '#/components/responses/UnprocessableEntity' }
         '429': { $ref: '#/components/responses/TooManyRequests' }
+        '500': { $ref: '#/components/responses/InternalServerError' }
+  "/organization/delivery/email/configuration":
+    get:
+      tags: ["Organization Delivery"]
+      operationId: getOrganizationEmailDeliveryConfiguration
+      summary: "Read the current organization's SMTP configuration"
+      security: [{ StaffSession: [] }]
+      responses:
+        '200':
+          description: "Safe configuration projection; credentials are never returned."
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/DataEnvelope' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '500': { $ref: '#/components/responses/InternalServerError' }
+    post:
+      tags: ["Organization Delivery"]
+      operationId: configureOrganizationEmailDelivery
+      summary: "Create a new version of the organization's SMTP configuration"
+      description: "Requires organization.delivery.manage. SMTP credentials are write-only, encrypted by the API and never returned. STARTTLS or implicit TLS is required. This operation configures settings only; it does not send a test message or deliver campaigns."
+      security: [{ StaffSession: [], StaffCsrf: [] }]
+      parameters:
+        - $ref: '#/components/parameters/IdempotencyKey'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/OrganizationEmailDeliveryConfigRequest' }
+      responses:
+        '201':
+          description: "A new immutable configuration revision was created."
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/DataEnvelope' }
+        '400': { $ref: '#/components/responses/BadRequest' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '409': { $ref: '#/components/responses/Conflict' }
+        '422': { $ref: '#/components/responses/UnprocessableEntity' }
         '500': { $ref: '#/components/responses/InternalServerError' }
   "/auth/session":
     delete:
@@ -3768,6 +3809,27 @@ components:
       properties:
         reason: { type: string, minLength: 3, maxLength: 2000 }
         reasonCode: { type: string, maxLength: 100 }
+    OrganizationEmailDeliveryConfigRequest:
+      type: object
+      required: [host, port, transportSecurity, authMode, senderEmail]
+      additionalProperties: false
+      properties:
+        host: { type: string, minLength: 1, maxLength: 253 }
+        port: { type: integer, minimum: 1, maximum: 65535 }
+        transportSecurity: { type: string, enum: [starttls, implicit_tls] }
+        authMode: { type: string, enum: [none, password] }
+        senderEmail: { type: string, format: email, maxLength: 320 }
+        senderName: { type: string, maxLength: 200 }
+        replyTo: { type: string, format: email, maxLength: 320 }
+        connectionTimeoutMs: { type: integer, minimum: 1000, maximum: 60000, default: 15000 }
+        credentials:
+          type: object
+          required: [username, password]
+          additionalProperties: false
+          properties:
+            username: { type: string, minLength: 1, maxLength: 320 }
+            password: { type: string, minLength: 1, maxLength: 4096, writeOnly: true }
+        clearCredentials: { type: boolean, default: false }
     SessionCreateRequest:
       type: object
       required: [email, password, organizationSlug]
