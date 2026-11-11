@@ -150,6 +150,64 @@ export interface CampaignReview {
   confirmedAt: string | null;
 }
 
+export interface CampaignListItem {
+  campaignId: string;
+  eventId: string;
+  purpose: string;
+  audienceKind: string;
+  status: string;
+  recipientCount: number | null;
+  actualRecipientCount: number;
+  createdAt: string;
+  confirmedAt: string | null;
+  queuedAt: string | null;
+  deliveryStartedAt: string | null;
+  deliveryCompletedAt: string | null;
+}
+
+export interface CampaignProgress {
+  campaignId: string;
+  eventId: string;
+  status: string;
+  purpose: string;
+  recipientCount: number;
+  attemptCount: number;
+  deliveryCounts: {
+    queued: number;
+    sending: number;
+    sent: number;
+    failed: number;
+    uncertain: number;
+    suppressed: number;
+  };
+  createdAt: string;
+  confirmedAt: string | null;
+  queuedAt: string | null;
+  deliveryStartedAt: string | null;
+  deliveryCompletedAt: string | null;
+}
+
+export interface DeliveryAttempt {
+  attemptId: string;
+  recipientReference: string;
+  channel: string;
+  attemptNumber: number;
+  status: string;
+  failureCode: string | null;
+  provider: string | null;
+  queuedForAt: string;
+  sendingAt: string | null;
+  completedAt: string | null;
+  retryScheduled: boolean;
+}
+
+export interface PageMeta {
+  limit: number;
+  offset: number;
+  totalCount: number;
+  counts?: Record<string, number>;
+}
+
 export const api = {
   login: (body: { email: string; password: string; organizationSlug: string }) =>
     request<Envelope<{ csrfToken: string; expiresAt: string }>>("/auth/session", { method: "POST", body }),
@@ -162,6 +220,26 @@ export const api = {
     request<Envelope<{ status?: string; messageId?: string }>>("/organization/delivery/email/test", {
       method: "POST", body: { recipient }, idempotent: true,
     }),
+  getCampaigns: (options: { status?: string; limit?: number; offset?: number } = {}) => {
+    const query = new URLSearchParams();
+    if (options.status) query.set("status", options.status);
+    if (options.limit !== undefined) query.set("limit", String(options.limit));
+    if (options.offset !== undefined) query.set("offset", String(options.offset));
+    return request<Envelope<CampaignListItem[]> & { meta: PageMeta }>(
+      `/event-notification-campaigns${query.size ? `?${query.toString()}` : ""}`,
+    );
+  },
+  getCampaignProgress: (campaignId: string) =>
+    request<Envelope<CampaignProgress>>(`/event-notification-campaigns/${encodeURIComponent(campaignId)}`),
+  getCampaignDeliveries: (campaignId: string, options: { status?: string; limit?: number; offset?: number } = {}) => {
+    const query = new URLSearchParams();
+    if (options.status) query.set("status", options.status);
+    if (options.limit !== undefined) query.set("limit", String(options.limit));
+    if (options.offset !== undefined) query.set("offset", String(options.offset));
+    return request<Envelope<DeliveryAttempt[]> & { meta: PageMeta }>(
+      `/event-notification-campaigns/${encodeURIComponent(campaignId)}/deliveries${query.size ? `?${query.toString()}` : ""}`,
+    );
+  },
   getCampaignReview: (campaignId: string) =>
     request<Envelope<CampaignReview>>(`/event-notification-campaigns/${encodeURIComponent(campaignId)}/review`),
   confirmCampaign: (campaignId: string) =>
