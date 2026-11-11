@@ -62,7 +62,8 @@ VALUES
   ('a7000000-0000-4000-8000-000000000001','a7300000-0000-4000-8000-000000000001','booking.inquiry.read'),
   ('a7000000-0000-4000-8000-000000000001','a7300000-0000-4000-8000-000000000001','booking.inquiry.assign'),
   ('a7000000-0000-4000-8000-000000000001','a7300000-0000-4000-8000-000000000001','booking.inquiry.manage'),
-  ('a7000000-0000-4000-8000-000000000001','a7300000-0000-4000-8000-000000000001','booking.inquiry.annotate');
+  ('a7000000-0000-4000-8000-000000000001','a7300000-0000-4000-8000-000000000001','booking.inquiry.annotate'),
+  ('a7000000-0000-4000-8000-000000000001','a7300000-0000-4000-8000-000000000001','booking.inquiry.convert');
 
 INSERT INTO eogp.user_role_grants (
   organization_id,membership_id,role_id,scope_kind,granted_by_membership_id
@@ -112,6 +113,12 @@ DECLARE
   v_assigned jsonb;
   v_status jsonb;
   v_annotation jsonb;
+  v_conversion_submitted jsonb;
+  v_conversion_inquiry_id uuid;
+  v_conversion jsonb;
+  v_conversion_replay jsonb;
+  v_converted_detail jsonb;
+  v_conversion_denied boolean := false;
   v_denied boolean := false;
   v_cross_tenant_denied boolean := false;
   v_invalid_transition_denied boolean := false;
@@ -155,7 +162,8 @@ BEGIN
   );
   IF v_capabilities->>'canAssign' IS DISTINCT FROM 'true'
      OR v_capabilities->>'canManage' IS DISTINCT FROM 'true'
-     OR v_capabilities->>'canAnnotate' IS DISTINCT FROM 'true' THEN
+     OR v_capabilities->>'canAnnotate' IS DISTINCT FROM 'true'
+     OR v_capabilities->>'canConvert' IS DISTINCT FROM 'true' THEN
     RAISE EXCEPTION 'inquiry capabilities projection did not reflect the granted permissions: %',v_capabilities;
   END IF;
 
@@ -241,6 +249,115 @@ BEGIN
     RAISE EXCEPTION 'booking inquiry history projections did not reflect the commands: %',v_detail;
   END IF;
 
+  -- Use a second inquiry to verify conversion independently from the
+  -- assignment/status/terminal-state tests above.
+  v_conversion_submitted := eogp.submit_public_booking_inquiry(
+    'ci-staff-inquiry',
+    'venue-rental',
+    'a7500000-0000-4000-8000-000000000001',
+    repeat('d',64),
+    repeat('e',64),
+    repeat('f',64),
+    v_ciphertext,
+    v_ciphertext,
+    NULL,NULL,NULL,NULL,
+    '2027-01-19 09:00:00+01',
+    '2027-01-19 12:00:00+01',
+    'Europe/Sarajevo'
+  );
+  v_conversion_inquiry_id := (v_conversion_submitted->>'inquiryId')::uuid;
+
+  BEGIN
+    PERFORM eogp.convert_booking_inquiry_to_draft(
+      'a7000000-0000-4000-8000-000000000001',
+      v_conversion_inquiry_id,
+      'a7200000-0000-4000-8000-000000000003'
+    );
+  EXCEPTION WHEN insufficient_privilege THEN
+    v_conversion_denied := true;
+  END;
+  IF NOT v_conversion_denied THEN
+    RAISE EXCEPTION 'membership without inquiry conversion permission converted an inquiry';
+  END IF;
+
+  v_conversion := eogp.convert_booking_inquiry_to_draft(
+    'a7000000-0000-4000-8000-000000000001',
+    v_conversion_inquiry_id,
+    'a7200000-0000-4000-8000-000000000001'
+  );
+  IF v_conversion->>'status' <> 'converted'
+     OR v_conversion->>'changed' <> 'true'
+     OR v_conversion->>'revisionNumber' <> '1'
+     OR v_conversion->>'draftId' IS NULL
+     OR v_conversion->>'revisionId' IS NULL THEN
+    RAISE EXCEPTION 'inquiry conversion did not create draft revision 1: %',v_conversion;
+  END IF;
+
+  IF NOT EXISTS (
+    SELECT 1
+      FROM eogp.booking_drafts draft
+      JOIN eogp.booking_draft_revisions revision
+        ON revision.organization_id = draft.organization_id
+       AND revision.draft_id = draft.id
+       AND revision.revision_number = 1
+     WHERE draft.organization_id = 'a7000000-0000-4000-8000-000000000001'
+       AND draft.id = (v_conversion->>'draftId')::uuid
+       AND draft.source_inquiry_id = v_conversion_inquiry_id
+       AND draft.status = 'draft'
+       AND draft.current_revision_number = 1
+       AND revision.id = (v_conversion->>'revisionId')::uuid
+       AND revision.source_form_revision_id = 'a7500000-0000-4000-8000-000000000001'
+       AND revision.requested_start = '2027-01-19 09:00:00+01'::timestamptz
+       AND revision.requested_end = '2027-01-19 12:00:00+01'::timestamptz
+       AND revision.timezone_name = 'Europe/Sarajevo'
+       AND revision.values_snapshot->>'encryption' = 'ECP1'
+       AND revision.values_snapshot->>'contactKind' = 'other'
+       AND revision.values_snapshot->>'ciphertextBase64' = encode(v_ciphertext,'base64')
+       AND revision.values_snapshot->>'schemaVersion' = '1'
+  ) THEN
+    RAISE EXCEPTION 'draft revision did not preserve the source inquiry metadata and encrypted submission';
+  END IF;
+
+  IF (SELECT status FROM eogp.booking_inquiries
+       WHERE organization_id='a7000000-0000-4000-8000-000000000001'
+         AND id=v_conversion_inquiry_id) <> 'converted' THEN
+    RAISE EXCEPTION 'source inquiry status was not converted';
+  END IF;
+
+  v_converted_detail := eogp.get_booking_inquiry(
+    'a7000000-0000-4000-8000-000000000001',
+    v_conversion_inquiry_id,
+    'a7200000-0000-4000-8000-000000000001'
+  );
+  IF v_converted_detail->>'status' <> 'converted'
+     OR jsonb_array_length(v_converted_detail->'statusHistory') <> 2
+     OR v_converted_detail->'statusHistory'->1->>'newStatus' <> 'converted'
+     OR v_converted_detail->'statusHistory'->1->>'actorKind' <> 'membership' THEN
+    RAISE EXCEPTION 'conversion did not append the attributed inquiry status history: %',v_converted_detail;
+  END IF;
+
+  v_conversion_replay := eogp.convert_booking_inquiry_to_draft(
+    'a7000000-0000-4000-8000-000000000001',
+    v_conversion_inquiry_id,
+    'a7200000-0000-4000-8000-000000000001'
+  );
+  IF v_conversion_replay->>'changed' <> 'false'
+     OR v_conversion_replay->>'draftId' <> v_conversion->>'draftId'
+     OR v_conversion_replay->>'revisionId' <> v_conversion->>'revisionId'
+     OR (SELECT count(*) FROM eogp.booking_draft_revisions
+          WHERE organization_id='a7000000-0000-4000-8000-000000000001'
+            AND draft_id=(v_conversion->>'draftId')::uuid) <> 1 THEN
+    RAISE EXCEPTION 'replayed inquiry conversion created duplicate draft state: %',v_conversion_replay;
+  END IF;
+
+  IF EXISTS (
+    SELECT 1 FROM eogp.booking_offers offer
+     WHERE offer.organization_id='a7000000-0000-4000-8000-000000000001'
+       AND offer.draft_id=(v_conversion->>'draftId')::uuid
+  ) THEN
+    RAISE EXCEPTION 'inquiry conversion unexpectedly created an offer';
+  END IF;
+
   BEGIN
     UPDATE eogp.booking_inquiry_status_history
        SET reason='attempted history mutation'
@@ -321,8 +438,12 @@ BEGIN
   IF has_table_privilege('eventor_runtime','eogp.booking_inquiries','SELECT')
      OR has_table_privilege('eventor_runtime','eogp.booking_inquiry_annotations','INSERT')
      OR has_table_privilege('eventor_runtime','eogp.booking_inquiry_status_history','SELECT')
-     OR has_table_privilege('eventor_runtime','eogp.booking_inquiry_assignment_history','INSERT') THEN
-    RAISE EXCEPTION 'runtime role has direct access to protected inquiry source/history tables';
+     OR has_table_privilege('eventor_runtime','eogp.booking_inquiry_assignment_history','INSERT')
+     OR has_table_privilege('eventor_runtime','eogp.booking_drafts','SELECT')
+     OR has_table_privilege('eventor_runtime','eogp.booking_drafts','INSERT')
+     OR has_table_privilege('eventor_runtime','eogp.booking_draft_revisions','SELECT')
+     OR has_table_privilege('eventor_runtime','eogp.booking_draft_revisions','INSERT') THEN
+    RAISE EXCEPTION 'runtime role has direct access to protected inquiry or draft source/history tables';
   END IF;
 
   IF NOT has_function_privilege(
@@ -337,6 +458,8 @@ BEGIN
     RAISE EXCEPTION 'runtime role cannot execute permission-filtered inquiry projections';
   END IF;
   IF NOT has_function_privilege(
+    'eventor_runtime','eogp.convert_booking_inquiry_to_draft(uuid,uuid,uuid)','EXECUTE'
+  ) OR NOT has_function_privilege(
     'eventor_runtime','eogp.assign_booking_inquiry(uuid,uuid,uuid,uuid)','EXECUTE'
   ) OR NOT has_function_privilege(
     'eventor_runtime','eogp.change_booking_inquiry_status(uuid,uuid,uuid,text,text)','EXECUTE'
