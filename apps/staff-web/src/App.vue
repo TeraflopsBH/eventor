@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { computed, onMounted, reactive, ref } from "vue";
-import { api, ApiError, type CampaignReview, type CampaignProgress, type CampaignListItem, type DeliveryAttempt, type PageMeta, type EmailConfiguration, type Principal } from "./api";
+import { api, ApiError, type CampaignReview, type CampaignProgress, type CampaignListItem, type DeliveryAttempt, type PageMeta, type EmailConfiguration, type ResendWebhookConfiguration, type Principal } from "./api";
 
 const principal = ref<Principal | null>(null);
 const loadingSession = ref(true);
@@ -26,6 +26,9 @@ const emailForm = reactive({
   clearCredentials: false,
 });
 const testRecipient = ref("");
+const resendWebhook = ref<ResendWebhookConfiguration | null>(null);
+const resendWebhookSigningSecret = ref("");
+const isResendSmtp = computed(() => emailForm.host.trim().toLowerCase() === "smtp.resend.com");
 
 const campaignId = ref("");
 const campaign = ref<CampaignReview | null>(null);
@@ -59,6 +62,7 @@ function showError(error: unknown): void {
     if (error.status === 401) {
       principal.value = null;
       configuration.value = null;
+      resendWebhook.value = null;
       campaign.value = null;
       pageError.value = "Your session has expired. Please sign in again.";
       return;
@@ -74,8 +78,12 @@ function showError(error: unknown): void {
 }
 
 async function loadConfiguration(): Promise<void> {
-  const result = await api.getEmailConfiguration();
+  const [result, webhook] = await Promise.all([
+    api.getEmailConfiguration(),
+    api.getResendWebhookConfiguration(),
+  ]);
   configuration.value = result.data;
+  resendWebhook.value = webhook.data;
   const settings = result.data?.settings;
   if (settings) {
     emailForm.host = settings.host;
@@ -132,6 +140,7 @@ async function signOut(): Promise<void> {
     await api.logout();
     principal.value = null;
     configuration.value = null;
+    resendWebhook.value = null;
     campaign.value = null;
     pageNotice.value = "You have been signed out.";
   } catch (error) {
@@ -190,6 +199,67 @@ async function sendTest(): Promise<void> {
     showError(error);
   } finally {
     busy.value = false;
+  }
+}
+
+async function prepareResendWebhook(): Promise<void> {
+  clearMessages();
+  if (!isResendSmtp.value) {
+    pageError.value = "Set the SMTP host to smtp.resend.com before preparing the Resend callback.";
+    return;
+  }
+  if (!window.confirm("Prepare a new Resend callback URL? This replaces the previous Eventor endpoint and disables its previous signing secret.")) return;
+  busy.value = true;
+  try {
+    const result = await api.prepareResendWebhook();
+    resendWebhook.value = {
+      endpointId: result.data.endpointId,
+      configured: false,
+      callbackUrl: result.data.callbackUrl,
+    };
+    resendWebhookSigningSecret.value = "";
+    pageNotice.value = "Callback URL prepared. Add it as a Resend webhook for email.delivered and email.bounced, then paste the generated whsec_ signing secret below.";
+  } catch (error) {
+    showError(error);
+  } finally {
+    busy.value = false;
+  }
+}
+
+async function activateResendWebhook(): Promise<void> {
+  clearMessages();
+  const endpointId = resendWebhook.value?.endpointId;
+  const secret = resendWebhookSigningSecret.value.trim();
+  if (!endpointId || !resendWebhook.value?.callbackUrl) {
+    pageError.value = "Prepare the callback URL first.";
+    return;
+  }
+  if (!/^whsec_[A-Za-z0-9+/]+={0,2}$/.test(secret) || secret.length < 24) {
+    pageError.value = "Paste the Resend webhook signing secret beginning with whsec_.";
+    return;
+  }
+  busy.value = true;
+  try {
+    await api.activateResendWebhook(endpointId, secret);
+    resendWebhookSigningSecret.value = "";
+    await loadConfiguration();
+    pageNotice.value = "Resend callback signature verification is enabled. Delivered and bounced events can now update matching attempts.";
+  } catch (error) {
+    showError(error);
+  } finally {
+    busy.value = false;
+  }
+}
+
+async function copyResendWebhookUrl(): Promise<void> {
+  const url = resendWebhook.value?.callbackUrl;
+  if (!url) return;
+  try {
+    await navigator.clipboard.writeText(url);
+    pageNotice.value = "Resend callback URL copied.";
+    pageError.value = "";
+  } catch {
+    pageError.value = "Clipboard access was denied. Select and copy the callback URL manually.";
   }
 }
 
@@ -457,6 +527,30 @@ onMounted(() => { void refreshSession(); });
           </form>
           <p class="fine-print">A successful test enables only the tested current configuration revision. Saving any later revision requires another successful test.</p>
           <p class="fine-print">“Sent” means accepted by the SMTP server, not confirmed delivered to an inbox.</p>
+          <div v-if="isResendSmtp" class="resend-webhook-box">
+            <div class="resend-webhook-heading">
+              <div>
+                <h4>Resend delivery callbacks</h4>
+                <p class="fine-print">Signed provider events update the matching delivery attempt.</p>
+              </div>
+              <span class="pill" :class="resendWebhook?.configured ? 'pill-success' : 'pill-warning'">{{ resendWebhook?.configured ? "Signature verified" : "Not configured" }}</span>
+            </div>
+            <button class="button button-secondary" type="button" :disabled="busy" @click="prepareResendWebhook">Prepare / replace callback URL</button>
+            <template v-if="resendWebhook?.callbackUrl">
+              <label>Public callback URL
+                <input :value="resendWebhook.callbackUrl" type="url" readonly />
+              </label>
+              <button class="button button-quiet" type="button" @click="copyResendWebhookUrl">Copy callback URL</button>
+              <p class="fine-print">In Resend, create a webhook for exactly these events: <code>email.delivered</code> and <code>email.bounced</code>. Paste the signing secret shown by Resend below. Do not select open/click tracking events for this endpoint.</p>
+              <label>Resend webhook signing secret
+                <input v-model="resendWebhookSigningSecret" type="password" autocomplete="off" maxlength="512" placeholder="whsec_…" />
+              </label>
+              <button class="button button-primary full-width" type="button" :disabled="busy || !resendWebhookSigningSecret.trim()" @click="activateResendWebhook">
+                {{ resendWebhook?.configured ? "Replace signing secret" : "Activate signed callbacks" }}
+              </button>
+            </template>
+            <p class="fine-print">Eventor stores the signing secret encrypted. The callback URL is only a routing identifier; every callback must also pass Svix signature and timestamp verification.</p>
+          </div>
         </aside>
       </section>
 
