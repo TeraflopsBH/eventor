@@ -6,7 +6,7 @@ Eventor is a self-hosted, API-first platform that can be used for venue booking/
 
 The first reference deployment is planned for **Gazi Husrev-beg's Library (GHB), Sarajevo**. The product is being designed as a reusable organization- and venue-aware platform rather than a one-off GHB application.
 
-> **Project status:** accepted design baseline; PostgreSQL 18.6 migrations, canonical OpenAPI v0.3, Fastify staff API/worker and the first Vue 3 staff-web slice are implemented and CI-validated on draft PR #27. The full booking/event application, remaining API operations and production deployment are not yet complete.
+> **Project status:** accepted design baseline; 36 PostgreSQL migrations targeting 18.6, canonical OpenAPI v0.3, Fastify staff API/worker and the first Vue 3 staff-web slice are implemented and CI-validated on draft PR #27. The full booking/event application, remaining API operations and production deployment are not yet complete.
 
 ## Product goals
 
@@ -48,7 +48,7 @@ Directories will be introduced as their corresponding implementation work begins
 
 ## Development status
 
-The initial design baseline is being consolidated from the product blueprint and implementation design. Database schemas and API specifications are design artifacts until validated by automated checks and implemented migrations. Do not treat them as deployed or production-ready.
+The accepted design baseline now has 36 ordered PostgreSQL migrations, a canonical OpenAPI v0.3 contract, a Fastify API/worker foundation and an initial Vue staff workspace. These are under review on draft PR #27; no production database deployment has been established, and the full booking/event product remains incomplete.
 
 ## Security and data handling
 
