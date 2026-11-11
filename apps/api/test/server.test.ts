@@ -27,6 +27,7 @@ function makePool() {
   let deliveryTestBegins = 0;
   let deliveryTestCompletions = 0;
   let campaignQueueCalls = 0;
+  let campaignCancelCalls = 0;
   const deliveryTests = new Map<string, string>();
 
   const client = {
@@ -125,6 +126,13 @@ function makePool() {
           emailRecipientCount: 2, smsSuppressedCount: 1,
         } }], rowCount: 1 };
       }
+      if (normalized.includes("eogp.cancel_queued_event_notification_campaign(")) {
+        campaignCancelCalls += 1;
+        commandCalls.push({ sql: normalized, values });
+        return { rows: [{ result: {
+          campaignId: values[1], status: "cancelled", suppressedAttempts: 2,
+        } }], rowCount: 1 };
+      }
       if (normalized.includes("eogp.get_organization_email_delivery_config(")) {
         return { rows: [{ result: {
           channel: "email", provider: "smtp", revision: 2,
@@ -192,6 +200,7 @@ function makePool() {
     get deliveryTestBegins() { return deliveryTestBegins; },
     get deliveryTestCompletions() { return deliveryTestCompletions; },
     get campaignQueueCalls() { return campaignQueueCalls; },
+    get campaignCancelCalls() { return campaignCancelCalls; },
   };
 }
 
@@ -626,4 +635,29 @@ test("campaign queueing is an explicit idempotent command", async (t) => {
   });
   assert.equal(replay.statusCode, 201);
   assert.equal(mock.campaignQueueCalls, 1);
+});
+
+test("queued notification campaign can be cancelled before delivery starts", async (t) => {
+  const mock = makePool();
+  const app = makeApi(mock.pool);
+  t.after(async () => app.close());
+  const headers = { "idempotency-key": "cancel-campaign-0001" };
+  const first = await app.inject({
+    method: "POST",
+    url: "/event-notification-campaigns/94900000-0000-4000-8000-000000000001/cancel",
+    headers,
+    payload: {},
+  });
+  assert.equal(first.statusCode, 201);
+  assert.equal(first.json<{ data: { status: string; suppressedAttempts: number } }>().data.status, "cancelled");
+  assert.equal(first.json<{ data: { suppressedAttempts: number } }>().data.suppressedAttempts, 2);
+  assert.equal(mock.campaignCancelCalls, 1);
+  const replay = await app.inject({
+    method: "POST",
+    url: "/event-notification-campaigns/94900000-0000-4000-8000-000000000001/cancel",
+    headers,
+    payload: {},
+  });
+  assert.equal(replay.statusCode, 201);
+  assert.equal(mock.campaignCancelCalls, 1);
 });
