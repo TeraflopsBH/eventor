@@ -50,6 +50,7 @@ DECLARE
   v_inquiry_id uuid;
   v_public_reference text;
   v_count integer;
+  v_total integer;
   v_ciphertext bytea := decode('45435031' || repeat('00',29),'hex');
   v_source text := repeat('a',64);
   v_key text := repeat('b',64);
@@ -155,18 +156,13 @@ BEGIN
     RAISE EXCEPTION 'eleventh inquiry from the same source was not rate-limited: %',v_limited;
   END IF;
 
-  SELECT count(*) INTO v_count
+  SELECT count(*), coalesce(sum(request_count),0)::integer
+    INTO v_count, v_total
     FROM eogp.public_booking_submission_rate_limits
    WHERE organization_id='a4000000-0000-4000-8000-000000000001'
-     AND source_fingerprint=v_source
-     AND window_started_at=date_trunc('hour',clock_timestamp() AT TIME ZONE 'UTC') AT TIME ZONE 'UTC';
+     AND source_fingerprint=v_source;
 
-  IF v_count <> 1 OR NOT EXISTS (
-    SELECT 1 FROM eogp.public_booking_submission_rate_limits
-     WHERE organization_id='a4000000-0000-4000-8000-000000000001'
-       AND source_fingerprint=v_source
-       AND request_count=10
-  ) THEN
+  IF v_count <> 1 OR v_total <> 10 THEN
     RAISE EXCEPTION 'hourly source limit was not stored as exactly ten accepted submissions';
   END IF;
 
