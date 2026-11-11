@@ -387,7 +387,8 @@ export function buildApi(dependencies: ApiDependencies): FastifyInstance {
   server.addHook("onRequest", async (request, reply) => {
     const pathname = request.url.split("?", 1)[0];
     if (request.method === "POST" &&
-        /^\\/webhooks\\/resend\\/[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89abAB][0-9a-f]{3}-[0-9a-f]{12}$/i.test(pathname)) {
+        pathname.startsWith("/webhooks/resend/") &&
+        /^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89abAB][0-9a-f]{3}-[0-9a-f]{12}$/i.test(pathname.slice("/webhooks/resend/".length))) {
       // Provider callbacks authenticate with a signed Svix payload, not a staff session.
       return;
     }
