@@ -1,8 +1,12 @@
 import assert from "node:assert/strict";
+import { createHmac } from "node:crypto";
 import test from "node:test";
 import type { Pool, PoolClient } from "pg";
 import { buildApi, type StaffPrincipal } from "../src/server.js";
+import { encryptDeliveryCredentialBundle } from "../src/delivery-credentials-crypto.js";
 import type { SmtpTransportFactory } from "../src/smtp-transport.js";
+
+const resendWebhookSigningSecret = `whsec_${Buffer.from("eventor-resend-webhook-test-secret-32-bytes").toString("base64")}`;
 
 const principal: StaffPrincipal = {
   userId: "bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb",
@@ -33,6 +37,10 @@ function makePool() {
   let campaignCancelCalls = 0;
   let deliveryReconcileCalls = 0;
   let deliveryRetryCalls = 0;
+  let resendWebhookPrepareCalls = 0;
+  let resendWebhookActivateCalls = 0;
+  let resendWebhookResolveCalls = 0;
+  let resendWebhookRecordCalls = 0;
   const deliveryTests = new Map<string, string>();
 
   const client = {
@@ -193,6 +201,37 @@ function makePool() {
         commandCalls.push({ sql: normalized, values });
         return { rows: [{ result: { attemptId: "95200000-0000-4000-8000-000000000001", previousAttemptId: values[1], attemptNumber: 2, status: "queued" } }], rowCount: 1 };
       }
+      if (normalized.includes("eogp.get_organization_resend_webhook_configuration(")) {
+        commandCalls.push({ sql: normalized, values });
+        return { rows: [{ result: { endpointId: "95300000-0000-4000-8000-000000000001", configured: true, updatedAt: "2026-11-11T12:00:00.000Z" } }], rowCount: 1 };
+      }
+      if (normalized.includes("eogp.prepare_organization_resend_webhook_endpoint(")) {
+        resendWebhookPrepareCalls += 1;
+        commandCalls.push({ sql: normalized, values });
+        return { rows: [{ result: { endpointId: values[2], enabled: false } }], rowCount: 1 };
+      }
+      if (normalized.includes("eogp.activate_organization_resend_webhook_endpoint(")) {
+        resendWebhookActivateCalls += 1;
+        commandCalls.push({ sql: normalized, values });
+        return { rows: [{ result: { endpointId: values[2], enabled: true, updatedAt: "2026-11-11T12:00:00.000Z" } }], rowCount: 1 };
+      }
+      if (normalized.includes("eogp.resolve_organization_resend_webhook_endpoint(")) {
+        resendWebhookResolveCalls += 1;
+        const ciphertext = encryptDeliveryCredentialBundle(
+          { signingSecret: resendWebhookSigningSecret },
+          Buffer.alloc(32, 9),
+          { organizationId: principal.organizationId, channel: "email" },
+        );
+        return { rows: [{ result: {
+          organizationId: principal.organizationId,
+          signingSecretCiphertextBase64: ciphertext.toString("base64"),
+        } }], rowCount: 1 };
+      }
+      if (normalized.includes("eogp.record_verified_resend_delivery_webhook(")) {
+        resendWebhookRecordCalls += 1;
+        commandCalls.push({ sql: normalized, values });
+        return { rows: [{ result: { accepted: true, duplicate: false, attemptId: "95000000-0000-4000-8000-000000000001", status: values[4] } }], rowCount: 1 };
+      }
       if (normalized.includes("eogp.get_organization_email_delivery_config(")) {
         return { rows: [{ result: {
           channel: "email", provider: "smtp", revision: 2,
@@ -266,6 +305,10 @@ function makePool() {
     get campaignCancelCalls() { return campaignCancelCalls; },
     get deliveryReconcileCalls() { return deliveryReconcileCalls; },
     get deliveryRetryCalls() { return deliveryRetryCalls; },
+    get resendWebhookPrepareCalls() { return resendWebhookPrepareCalls; },
+    get resendWebhookActivateCalls() { return resendWebhookActivateCalls; },
+    get resendWebhookResolveCalls() { return resendWebhookResolveCalls; },
+    get resendWebhookRecordCalls() { return resendWebhookRecordCalls; },
   };
 }
 
@@ -278,6 +321,7 @@ function makeApi(
     loginOriginValid?: boolean;
     withSessionCallbacks?: boolean;
     smtpTransportFactory?: SmtpTransportFactory;
+    publicApiBaseUrl?: string;
   } = {},
 ) {
   return buildApi({
@@ -297,6 +341,7 @@ function makeApi(
     } : {}),
     privateFieldEncryptionKey: options.encryptionKey ?? Buffer.alloc(32, 7),
     deliveryCredentialsEncryptionKey: Buffer.alloc(32, 9),
+    publicApiBaseUrl: options.publicApiBaseUrl ?? "https://eventor.example.test/api",
     ...(options.smtpTransportFactory ? { smtpTransportFactory: options.smtpTransportFactory } : {}),
   });
 }
@@ -516,6 +561,111 @@ test("staff login rejects requests without the configured browser origin", async
   assert.equal(login.json().code, "ORIGIN_REJECTED");
 });
 
+
+test("Resend webhook endpoint configuration returns a callback URL and stores its signing secret encrypted", async (t) => {
+  const mock = makePool();
+  const app = makeApi(mock.pool);
+  t.after(async () => app.close());
+
+  const current = await app.inject({
+    method: "GET",
+    url: "/organization/delivery/email/resend-webhook",
+  });
+  assert.equal(current.statusCode, 200);
+  assert.equal(current.json<{ data: { configured: boolean; callbackUrl: string } }>().data.configured, true);
+  assert.equal(current.json<{ data: { callbackUrl: string } }>().data.callbackUrl,
+    "https://eventor.example.test/api/webhooks/resend/95300000-0000-4000-8000-000000000001");
+
+  const prepared = await app.inject({
+    method: "POST",
+    url: "/organization/delivery/email/resend-webhook/prepare",
+    headers: { "idempotency-key": "resend-webhook-prepare-01" },
+    payload: {},
+  });
+  assert.equal(prepared.statusCode, 201);
+  assert.equal(prepared.json<{ data: { callbackUrl: string; enabled: boolean } }>().data.enabled, false);
+  assert.match(prepared.json<{ data: { callbackUrl: string } }>().data.callbackUrl, /^https:\/\/eventor\.example\.test\/api\/webhooks\/resend\//);
+  assert.equal(mock.resendWebhookPrepareCalls, 1);
+
+  const endpointId = "95300000-0000-4000-8000-000000000001";
+  const activated = await app.inject({
+    method: "POST",
+    url: "/organization/delivery/email/resend-webhook/activate",
+    headers: { "idempotency-key": "resend-webhook-activate-01" },
+    payload: { endpointId, signingSecret: resendWebhookSigningSecret },
+  });
+  assert.equal(activated.statusCode, 201);
+  assert.equal(activated.json<{ data: { enabled: boolean } }>().data.enabled, true);
+  assert.equal(mock.resendWebhookActivateCalls, 1);
+  const ciphertext = mock.commandCalls.find(call => call.sql.includes("activate_organization_resend_webhook_endpoint"))?.values[3] as Buffer;
+  assert.ok(Buffer.isBuffer(ciphertext));
+  assert.equal(ciphertext.subarray(0, 4).toString("ascii"), "EDC1");
+  assert.notEqual(ciphertext.toString("utf8"), resendWebhookSigningSecret);
+});
+
+test("public Resend webhook accepts a valid signature without a staff session and records the normalized delivery event", async (t) => {
+  const mock = makePool();
+  const app = makeApi(mock.pool, { authenticated: false });
+  t.after(async () => app.close());
+  const endpointId = "95300000-0000-4000-8000-000000000001";
+  const svixId = "msg_01JRESEND000000000000000001";
+  const timestamp = String(Math.floor(Date.now() / 1000));
+  const raw = JSON.stringify({
+    type: "email.delivered",
+    created_at: "2026-11-11T12:00:00.000Z",
+    data: {
+      email_id: "f53e1234-1234-4234-8234-123456789012",
+      message_id: "<eventor-attempt-1@example.test>",
+      to: ["guest@example.test"],
+    },
+  });
+  const signature = createHmac("sha256", Buffer.from(resendWebhookSigningSecret.slice(6), "base64"))
+    .update(`${svixId}.${timestamp}.${raw}`, "utf8")
+    .digest("base64");
+  const response = await app.inject({
+    method: "POST",
+    url: `/webhooks/resend/${endpointId}`,
+    headers: {
+      "content-type": "application/json",
+      "svix-id": svixId,
+      "svix-timestamp": timestamp,
+      "svix-signature": `v1,${signature}`,
+    },
+    payload: raw,
+  });
+  assert.equal(response.statusCode, 200);
+  assert.equal(response.json<{ status: string; duplicate: boolean }>().status, "delivered");
+  assert.equal(mock.resendWebhookResolveCalls, 1);
+  assert.equal(mock.resendWebhookRecordCalls, 1);
+  const call = mock.commandCalls.find(item => item.sql.includes("record_verified_resend_delivery_webhook"));
+  assert.equal(call?.values[0], principal.organizationId);
+  assert.equal(call?.values[1], endpointId);
+  assert.equal(call?.values[2], svixId);
+  assert.equal(call?.values[3], "<eventor-attempt-1@example.test>");
+  assert.equal(call?.values[4], "delivered");
+});
+
+test("public Resend webhook rejects forged signatures before delivery-event ingestion", async (t) => {
+  const mock = makePool();
+  const app = makeApi(mock.pool, { authenticated: false });
+  t.after(async () => app.close());
+  const timestamp = String(Math.floor(Date.now() / 1000));
+  const raw = JSON.stringify({ type: "email.bounced", data: { message_id: "<eventor-attempt-2@example.test>", to: ["guest@example.test"] } });
+  const response = await app.inject({
+    method: "POST",
+    url: "/webhooks/resend/95300000-0000-4000-8000-000000000001",
+    headers: {
+      "content-type": "application/json",
+      "svix-id": "msg_01JRESEND000000000000000002",
+      "svix-timestamp": timestamp,
+      "svix-signature": "v1,AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA=",
+    },
+    payload: raw,
+  });
+  assert.equal(response.statusCode, 401);
+  assert.equal(mock.resendWebhookResolveCalls, 1);
+  assert.equal(mock.resendWebhookRecordCalls, 0);
+});
 
 test("campaign list applies pagination and returns only the database permission projection", async (t) => {
   const mock = makePool();
