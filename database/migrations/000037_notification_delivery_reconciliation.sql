@@ -258,6 +258,93 @@ BEGIN
 END;
 $function$;
 
+-- A controlled retry is a new send authorization. Permit only this narrow
+-- terminal-to-queued transition, with the retrying membership attributed.
+CREATE OR REPLACE FUNCTION eogp.guard_event_notification_campaign_update()
+RETURNS trigger
+LANGUAGE plpgsql
+SET search_path=pg_catalog
+AS $function$
+BEGIN
+  IF current_user='eventor_worker'
+     AND OLD.status='previewed' AND NEW.status='previewed'
+     AND (to_jsonb(NEW)-'recipient_count')=(to_jsonb(OLD)-'recipient_count') THEN
+    RETURN NEW;
+  END IF;
+
+  IF current_user='eventor_owner' AND OLD.status='previewed' AND NEW.status='confirmed'
+     AND (to_jsonb(NEW)-ARRAY[
+       'status','confirmed_by_organization_id','confirmed_by_membership_id',
+       'confirmed_by_grant_owner_organization_id','confirmed_by_collaboration_grant_id','confirmed_at'
+     ])=(to_jsonb(OLD)-ARRAY[
+       'status','confirmed_by_organization_id','confirmed_by_membership_id',
+       'confirmed_by_grant_owner_organization_id','confirmed_by_collaboration_grant_id','confirmed_at'
+     ])
+     AND NEW.confirmed_by_organization_id IS NOT NULL
+     AND NEW.confirmed_by_membership_id IS NOT NULL
+     AND NEW.confirmed_at IS NOT NULL THEN
+    RETURN NEW;
+  END IF;
+
+  IF current_user='eventor_owner' AND OLD.status='confirmed' AND NEW.status='queued'
+     AND (to_jsonb(NEW)-ARRAY[
+       'status','delivery_config_revision_id','queued_by_organization_id',
+       'queued_by_membership_id','queued_at'
+     ])=(to_jsonb(OLD)-ARRAY[
+       'status','delivery_config_revision_id','queued_by_organization_id',
+       'queued_by_membership_id','queued_at'
+     ])
+     AND NEW.delivery_config_revision_id IS NOT NULL
+     AND NEW.queued_by_organization_id IS NOT NULL
+     AND NEW.queued_by_membership_id IS NOT NULL
+     AND NEW.queued_at IS NOT NULL THEN
+    RETURN NEW;
+  END IF;
+
+  IF current_user='eventor_owner' AND OLD.status IN ('completed','partial','failed')
+     AND NEW.status='queued'
+     AND (to_jsonb(NEW)-ARRAY[
+       'status','queued_by_organization_id','queued_by_membership_id','queued_at',
+       'delivery_completed_at'
+     ])=(to_jsonb(OLD)-ARRAY[
+       'status','queued_by_organization_id','queued_by_membership_id','queued_at',
+       'delivery_completed_at'
+     ])
+     AND NEW.queued_by_organization_id IS NOT NULL
+     AND NEW.queued_by_membership_id IS NOT NULL
+     AND NEW.queued_at IS NOT NULL
+     AND NEW.delivery_completed_at IS NULL THEN
+    RETURN NEW;
+  END IF;
+
+  IF current_user='eventor_owner' AND OLD.status='queued' AND NEW.status='cancelled'
+     AND (to_jsonb(NEW)-ARRAY[
+       'status','cancelled_at','cancelled_by_organization_id',
+       'cancelled_by_membership_id','delivery_completed_at'
+     ])=(to_jsonb(OLD)-ARRAY[
+       'status','cancelled_at','cancelled_by_organization_id',
+       'cancelled_by_membership_id','delivery_completed_at'
+     ])
+     AND NEW.cancelled_at IS NOT NULL
+     AND NEW.cancelled_by_organization_id IS NOT NULL
+     AND NEW.cancelled_by_membership_id IS NOT NULL
+     AND NEW.delivery_completed_at IS NOT NULL THEN
+    RETURN NEW;
+  END IF;
+
+  IF current_user='eventor_owner'
+     AND OLD.status IN ('queued','sending')
+     AND NEW.status IN ('sending','completed','partial','failed')
+     AND (to_jsonb(NEW)-ARRAY['status','delivery_started_at','delivery_completed_at'])
+       =(to_jsonb(OLD)-ARRAY['status','delivery_started_at','delivery_completed_at']) THEN
+    RETURN NEW;
+  END IF;
+
+  RAISE EXCEPTION 'notification campaign transition is not authorized'
+    USING ERRCODE='55000';
+END;
+$function$;
+
 CREATE FUNCTION eogp.retry_failed_notification_delivery_attempt(
   p_organization_id uuid,
   p_attempt_id uuid,
@@ -324,7 +411,11 @@ BEGIN
   ) RETURNING id INTO v_new_attempt_id;
 
   UPDATE eogp.event_notification_campaigns
-     SET status='queued',delivery_completed_at=NULL
+     SET status='queued',
+         queued_by_organization_id=p_organization_id,
+         queued_by_membership_id=p_actor_membership_id,
+         queued_at=clock_timestamp(),
+         delivery_completed_at=NULL
    WHERE organization_id=p_organization_id AND id=v_campaign.id
      AND status IN ('completed','partial','failed','queued');
   INSERT INTO eogp.email_delivery_tenant_queue(organization_id,available_at)
