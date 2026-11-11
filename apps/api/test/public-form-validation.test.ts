@@ -98,11 +98,38 @@ test("public form v1 enforces value types, ranges, formats and pinned option mem
   }
 });
 
+test("multiselect item bounds apply to submitted empty arrays while omitted optional fields remain optional", () => {
+  const schema = {
+    schemaVersion: 1,
+    fields: [{
+      code: "equipment",
+      type: "multiselect",
+      required: false,
+      minItems: 1,
+      maxItems: 2,
+      options: [
+        { value: "projector", label: "Projector" },
+        { value: "microphone", label: "Microphone" },
+      ],
+    }],
+  };
+
+  assert.doesNotThrow(() => validatePublicFormAnswers(schema, {}));
+  assert.throws(() => validatePublicFormAnswers(schema, { equipment: [] }), PublicFormAnswersError);
+  assert.throws(() => validatePublicFormAnswers({
+    ...schema,
+    fields: [{ ...schema.fields[0], required: true, minItems: 0 }],
+  }, { equipment: [] }), PublicFormAnswersError);
+});
+
 test("public form schema validation fails closed on unsupported or ambiguous definitions", () => {
   const invalidSchemas: unknown[] = [
     null,
     {},
     { schemaVersion: 2, fields: [] },
+    { schemaVersion: null, fields: [] },
+    { schemaVersion: 1, fields: [], unexpected: true },
+    { fields: [{ code: "event_date", type: "text", pattern: ".*" }] },
     { fields: [{ code: "event_date", type: "unknown" }] },
     { fields: [
       { code: "event_date", type: "date" },
