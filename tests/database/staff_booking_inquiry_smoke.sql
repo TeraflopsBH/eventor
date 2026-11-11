@@ -105,6 +105,7 @@ DECLARE
   v_inquiry_id uuid;
   v_public_reference text;
   v_list jsonb;
+  v_capabilities jsonb;
   v_assignee_list jsonb;
   v_assignee_denied boolean := false;
   v_detail jsonb;
@@ -146,6 +147,16 @@ BEGIN
      OR v_list->'items'->0->>'publicReference' <> v_public_reference
      OR v_list->'page'->>'total' <> '1' THEN
     RAISE EXCEPTION 'permission-filtered booking inquiry inbox did not return the submitted inquiry: %',v_list;
+  END IF;
+
+  v_capabilities := eogp.get_booking_inquiry_capabilities(
+    'a7000000-0000-4000-8000-000000000001',
+    'a7200000-0000-4000-8000-000000000001'
+  );
+  IF v_capabilities->>'canAssign' IS DISTINCT FROM 'true'
+     OR v_capabilities->>'canManage' IS DISTINCT FROM 'true'
+     OR v_capabilities->>'canAnnotate' IS DISTINCT FROM 'true' THEN
+    RAISE EXCEPTION 'inquiry capabilities projection did not reflect the granted permissions: %',v_capabilities;
   END IF;
 
   v_assignee_list := eogp.list_booking_inquiry_assignees(
@@ -320,6 +331,8 @@ BEGIN
     'eventor_runtime','eogp.get_booking_inquiry(uuid,uuid,uuid)','EXECUTE'
   ) OR NOT has_function_privilege(
     'eventor_runtime','eogp.list_booking_inquiry_assignees(uuid,uuid)','EXECUTE'
+  ) OR NOT has_function_privilege(
+    'eventor_runtime','eogp.get_booking_inquiry_capabilities(uuid,uuid)','EXECUTE'
   ) THEN
     RAISE EXCEPTION 'runtime role cannot execute permission-filtered inquiry projections';
   END IF;
