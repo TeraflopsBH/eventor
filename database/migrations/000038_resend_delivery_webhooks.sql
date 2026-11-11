@@ -2,6 +2,16 @@
 -- The endpoint UUID is a routing identifier, not an authentication secret.
 -- The Svix signature over the raw request body is the authentication boundary.
 
+-- Public routing identifiers are intentionally stored separately from
+-- tenant-protected signing secrets. This directory contains no credentials.
+CREATE TABLE eogp.resend_webhook_endpoint_routes (
+  endpoint_id uuid PRIMARY KEY,
+  organization_id uuid NOT NULL UNIQUE REFERENCES eogp.organizations(id),
+  enabled boolean NOT NULL DEFAULT false,
+  updated_at timestamptz NOT NULL DEFAULT clock_timestamp()
+);
+REVOKE ALL ON eogp.resend_webhook_endpoint_routes FROM PUBLIC,eventor_runtime,eventor_worker;
+
 CREATE TABLE eogp.organization_resend_webhook_endpoints (
   id uuid PRIMARY KEY,
   organization_id uuid NOT NULL UNIQUE REFERENCES eogp.organizations(id),
@@ -65,6 +75,14 @@ BEGIN
         created_by_membership_id=EXCLUDED.created_by_membership_id,
         updated_at=clock_timestamp();
 
+  INSERT INTO eogp.resend_webhook_endpoint_routes(
+    endpoint_id,organization_id,enabled,updated_at
+  ) VALUES (p_endpoint_id,p_organization_id,false,clock_timestamp())
+  ON CONFLICT (organization_id) DO UPDATE
+    SET endpoint_id=EXCLUDED.endpoint_id,
+        enabled=false,
+        updated_at=clock_timestamp();
+
   INSERT INTO eogp.audit_events(
     organization_id,actor_organization_id,actor_membership_id,actor_kind,
     action,aggregate_type,aggregate_id,safe_metadata
@@ -118,6 +136,14 @@ BEGIN
          updated_at=clock_timestamp()
    WHERE organization_id=p_organization_id AND id=p_endpoint_id;
 
+  UPDATE eogp.resend_webhook_endpoint_routes
+     SET enabled=true,updated_at=clock_timestamp()
+   WHERE organization_id=p_organization_id AND endpoint_id=p_endpoint_id;
+  IF NOT FOUND THEN
+    RAISE EXCEPTION 'Resend callback routing entry is missing'
+      USING ERRCODE='55000';
+  END IF;
+
   INSERT INTO eogp.audit_events(
     organization_id,actor_organization_id,actor_membership_id,actor_kind,
     action,aggregate_type,aggregate_id,safe_metadata
@@ -166,17 +192,32 @@ $function$;
 CREATE FUNCTION eogp.resolve_organization_resend_webhook_endpoint(
   p_endpoint_id uuid
 ) RETURNS jsonb
-LANGUAGE sql
+LANGUAGE plpgsql
 SECURITY DEFINER
 SET search_path=pg_catalog,eogp
 AS $function$
+DECLARE
+  v_organization_id uuid;
+  v_result jsonb;
+BEGIN
+  -- Resolve the public routing ID from the no-secret directory first, then
+  -- set the verified tenant context before touching the RLS-protected secret.
+  SELECT organization_id INTO v_organization_id
+    FROM eogp.resend_webhook_endpoint_routes
+   WHERE endpoint_id=p_endpoint_id AND enabled=true;
+  IF NOT FOUND THEN RETURN NULL; END IF;
+
+  PERFORM set_config('app.organization_id',v_organization_id::text,true);
   SELECT jsonb_build_object(
     'organizationId',organization_id,
     'signingSecretCiphertextBase64',encode(signing_secret_ciphertext,'base64')
-  )
+  ) INTO v_result
     FROM eogp.organization_resend_webhook_endpoints
-   WHERE id=p_endpoint_id AND enabled=true
-$function$;
+   WHERE organization_id=v_organization_id
+     AND id=p_endpoint_id AND enabled=true;
+  RETURN v_result;
+END;
+
 
 -- Called by the API only after Svix signature and timestamp verification.
 -- Recipient addresses and raw payloads are not stored. The exact RFC Message-ID
