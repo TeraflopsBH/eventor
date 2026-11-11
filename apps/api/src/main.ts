@@ -64,6 +64,7 @@ const app = buildApi({
   revokeStaffSession: (principal) => auth.revokeStaffSession(principal),
   getCurrentPrincipal: (principal) => auth.getCurrentPrincipal(principal),
   privateFieldEncryptionKey,
+  deliveryCredentialsEncryptionKey,
   trustedProxyAddresses,
 });
 
