@@ -85,10 +85,14 @@ BEGIN
    WHERE organization_id='22222222-2222-4222-8222-222222222222'
      AND campaign_id=v_campaign_id;
   SELECT count(*) INTO v_retry_count
-    FROM eogp.event_notification_delivery_attempts
-   WHERE organization_id='22222222-2222-4222-8222-222222222222'
-     AND campaign_id=v_campaign_id
-     AND status='queued' AND attempt_number=2;
+    FROM eogp.event_notification_delivery_attempts attempt
+   WHERE attempt.organization_id='22222222-2222-4222-8222-222222222222'
+     AND attempt.campaign_id=v_campaign_id
+     AND attempt.status='queued' AND attempt.attempt_number=2
+     AND NOT EXISTS (
+       SELECT 1 FROM eogp.event_notification_delivery_attempt_events event
+        WHERE event.organization_id=attempt.organization_id AND event.attempt_id=attempt.id
+     );
   IF v_status<>'sending' OR v_attempt_count<>3 OR v_retry_count<>1 THEN
     RAISE EXCEPTION 'retry state machine ended unexpectedly: status %, attempts %, queued retries %',
       v_status,v_attempt_count,v_retry_count;
