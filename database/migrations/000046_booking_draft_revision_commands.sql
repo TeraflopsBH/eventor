@@ -209,7 +209,20 @@ BEGIN
     'assignedToMembershipId', inquiry.assigned_to_membership_id,
     'submittedAt', inquiry.submitted_at,
     'updatedAt', inquiry.updated_at,
-    'bookingDraft', (
+    'bookingDraft', CASE WHEN EXISTS (
+      SELECT 1
+        FROM eogp.user_role_grants user_grant
+        JOIN eogp.role_permissions role_permission
+          ON role_permission.organization_id = user_grant.organization_id
+         AND role_permission.role_id = user_grant.role_id
+       WHERE user_grant.organization_id = inquiry.organization_id
+         AND user_grant.membership_id = p_actor_membership_id
+         AND user_grant.scope_kind = 'organization'
+         AND user_grant.revoked_at IS NULL
+         AND (user_grant.expires_at IS NULL OR user_grant.expires_at > clock_timestamp())
+         AND role_permission.permission_code IN ('booking.draft.read','booking.draft.manage')
+       FOR SHARE OF user_grant, role_permission
+    ) THEN (
       SELECT jsonb_build_object(
         'draftId', draft.id,
         'status', draft.status,
@@ -218,7 +231,7 @@ BEGIN
         FROM eogp.booking_drafts draft
        WHERE draft.organization_id = inquiry.organization_id
          AND draft.source_inquiry_id = inquiry.id
-    ),
+    ) ELSE NULL END,
     'annotations', (
       SELECT coalesce(jsonb_agg(jsonb_build_object(
         'annotationId', annotation.id,
