@@ -384,6 +384,49 @@ CREATE INDEX event_notification_delivery_ready_idx
   ON eogp.event_notification_delivery_attempts(organization_id,next_attempt_at,id)
   WHERE status='queued';
 
+-- Attempts and attempt events are append-only. A separate short-lived claim
+-- table coordinates workers without rewriting the delivery history.
+CREATE TABLE eogp.event_notification_delivery_attempt_events (
+  id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+  organization_id uuid NOT NULL,
+  attempt_id uuid NOT NULL,
+  status text NOT NULL CHECK (status IN ('sending','sent','failed','uncertain')),
+  provider_name text,
+  provider_message_reference text,
+  failure_code text,
+  created_at timestamptz NOT NULL DEFAULT clock_timestamp(),
+  UNIQUE (organization_id,id),
+  FOREIGN KEY (organization_id,attempt_id)
+    REFERENCES eogp.event_notification_delivery_attempts(organization_id,id)
+);
+ALTER TABLE eogp.event_notification_delivery_attempt_events ENABLE ROW LEVEL SECURITY;
+ALTER TABLE eogp.event_notification_delivery_attempt_events FORCE ROW LEVEL SECURITY;
+CREATE POLICY event_notification_delivery_attempt_events_tenant
+  ON eogp.event_notification_delivery_attempt_events
+  USING (organization_id=eogp.current_organization_id())
+  WITH CHECK (organization_id=eogp.current_organization_id());
+REVOKE ALL ON eogp.event_notification_delivery_attempt_events FROM PUBLIC,eventor_runtime,eventor_worker;
+CREATE TRIGGER event_notification_delivery_attempt_events_append_only_guard
+  BEFORE UPDATE OR DELETE ON eogp.event_notification_delivery_attempt_events
+  FOR EACH ROW EXECUTE FUNCTION eogp.reject_append_only_mutation();
+
+CREATE TABLE eogp.event_notification_delivery_attempt_claims (
+  organization_id uuid NOT NULL,
+  attempt_id uuid NOT NULL,
+  claimed_at timestamptz NOT NULL DEFAULT clock_timestamp(),
+  lease_expires_at timestamptz NOT NULL,
+  PRIMARY KEY (organization_id,attempt_id),
+  FOREIGN KEY (organization_id,attempt_id)
+    REFERENCES eogp.event_notification_delivery_attempts(organization_id,id)
+);
+ALTER TABLE eogp.event_notification_delivery_attempt_claims ENABLE ROW LEVEL SECURITY;
+ALTER TABLE eogp.event_notification_delivery_attempt_claims FORCE ROW LEVEL SECURITY;
+CREATE POLICY event_notification_delivery_attempt_claims_tenant
+  ON eogp.event_notification_delivery_attempt_claims
+  USING (organization_id=eogp.current_organization_id())
+  WITH CHECK (organization_id=eogp.current_organization_id());
+REVOKE ALL ON eogp.event_notification_delivery_attempt_claims FROM PUBLIC,eventor_runtime,eventor_worker;
+
 -- A minimal cross-tenant discovery index. The worker can see only tenant IDs
 -- and due times, never campaign contents or recipient/contact data.
 CREATE TABLE eogp.email_delivery_tenant_queue (
@@ -618,7 +661,10 @@ LANGUAGE plpgsql
 SECURITY DEFINER
 SET search_path=pg_catalog,eogp
 AS $function$
-DECLARE v_attempt record;
+DECLARE
+  v_attempt record;
+  v_expired record;
+  v_next_available timestamptz;
 BEGIN
   IF session_user<>'eventor_worker'
      OR eogp.current_organization_id() IS DISTINCT FROM p_organization_id THEN
@@ -626,20 +672,41 @@ BEGIN
       USING ERRCODE='42501';
   END IF;
 
-  UPDATE eogp.event_notification_delivery_attempts
-     SET status='uncertain',failure_code='SMTP_UNKNOWN',lease_expires_at=NULL
-   WHERE organization_id=p_organization_id
-     AND status='sending' AND lease_expires_at<clock_timestamp();
+  -- A process that died while talking to SMTP leaves an ambiguous result.
+  -- Expire its lease into the immutable history; never auto-send it again.
+  FOR v_expired IN
+    SELECT claim.organization_id,claim.attempt_id,attempt.campaign_id
+      FROM eogp.event_notification_delivery_attempt_claims claim
+      JOIN eogp.event_notification_delivery_attempts attempt
+        ON attempt.organization_id=claim.organization_id AND attempt.id=claim.attempt_id
+     WHERE claim.organization_id=p_organization_id
+       AND claim.lease_expires_at<=clock_timestamp()
+     FOR UPDATE OF claim SKIP LOCKED
+  LOOP
+    INSERT INTO eogp.event_notification_delivery_attempt_events(
+      organization_id,attempt_id,status,provider_name,failure_code
+    ) VALUES (
+      p_organization_id,v_expired.attempt_id,'uncertain','smtp','SMTP_UNKNOWN'
+    );
+    DELETE FROM eogp.event_notification_delivery_attempt_claims
+     WHERE organization_id=p_organization_id AND attempt_id=v_expired.attempt_id;
+  END LOOP;
 
   UPDATE eogp.event_notification_campaigns campaign
      SET status='partial',delivery_completed_at=clock_timestamp()
    WHERE campaign.organization_id=p_organization_id
      AND campaign.status='sending'
      AND NOT EXISTS (
-       SELECT 1 FROM eogp.event_notification_delivery_attempts attempt
+       SELECT 1
+         FROM eogp.event_notification_delivery_attempts attempt
+         LEFT JOIN LATERAL (
+           SELECT event.status FROM eogp.event_notification_delivery_attempt_events event
+            WHERE event.organization_id=attempt.organization_id AND event.attempt_id=attempt.id
+            ORDER BY event.created_at DESC,event.id DESC LIMIT 1
+         ) latest ON true
         WHERE attempt.organization_id=campaign.organization_id
           AND attempt.campaign_id=campaign.id
-          AND attempt.status IN ('queued','sending')
+          AND coalesce(latest.status,attempt.status) IN ('queued','sending')
      );
 
   SELECT attempt.id AS attempt_id,attempt.organization_id,attempt.campaign_id,
@@ -656,47 +723,79 @@ BEGIN
       AND attempt.status='queued' AND attempt.next_attempt_at<=clock_timestamp()
       AND campaign.status IN ('queued','sending')
       AND recipient.channel='email'
+      AND NOT EXISTS (
+        SELECT 1 FROM eogp.event_notification_delivery_attempt_events event
+         WHERE event.organization_id=attempt.organization_id AND event.attempt_id=attempt.id
+      )
+      AND NOT EXISTS (
+        SELECT 1 FROM eogp.event_notification_delivery_attempt_claims claim
+         WHERE claim.organization_id=attempt.organization_id AND claim.attempt_id=attempt.id
+      )
     ORDER BY attempt.next_attempt_at,attempt.id
     FOR UPDATE OF attempt SKIP LOCKED
     LIMIT 1;
 
   IF NOT FOUND THEN
-    DELETE FROM eogp.email_delivery_tenant_queue queue
-     WHERE queue.organization_id=p_organization_id
-       AND NOT EXISTS (
-         SELECT 1
-           FROM eogp.event_notification_delivery_attempts attempt
-           JOIN eogp.event_notification_campaigns campaign
-             ON campaign.organization_id=attempt.organization_id AND campaign.id=attempt.campaign_id
-          WHERE attempt.organization_id=p_organization_id
-            AND campaign.status IN ('queued','sending')
-            AND attempt.status IN ('queued','sending')
-       );
+    SELECT min(CASE WHEN coalesce(latest.status,attempt.status)='queued'
+                    THEN attempt.next_attempt_at ELSE claim.lease_expires_at END)
+      INTO v_next_available
+      FROM eogp.event_notification_delivery_attempts attempt
+      JOIN eogp.event_notification_campaigns campaign
+        ON campaign.organization_id=attempt.organization_id AND campaign.id=attempt.campaign_id
+      LEFT JOIN eogp.event_notification_delivery_attempt_claims claim
+        ON claim.organization_id=attempt.organization_id AND claim.attempt_id=attempt.id
+      LEFT JOIN LATERAL (
+        SELECT event.status FROM eogp.event_notification_delivery_attempt_events event
+         WHERE event.organization_id=attempt.organization_id AND event.attempt_id=attempt.id
+         ORDER BY event.created_at DESC,event.id DESC LIMIT 1
+      ) latest ON true
+     WHERE attempt.organization_id=p_organization_id
+       AND campaign.status IN ('queued','sending')
+       AND coalesce(latest.status,attempt.status) IN ('queued','sending');
+    IF v_next_available IS NULL THEN
+      DELETE FROM eogp.email_delivery_tenant_queue
+       WHERE organization_id=p_organization_id;
+    ELSE
+      UPDATE eogp.email_delivery_tenant_queue
+         SET available_at=v_next_available
+       WHERE organization_id=p_organization_id;
+    END IF;
     RETURN;
   END IF;
 
-  UPDATE eogp.event_notification_delivery_attempts
-     SET status='sending',attempted_at=clock_timestamp(),
-         lease_expires_at=clock_timestamp()+interval '5 minutes'
-   WHERE organization_id=p_organization_id AND id=v_attempt.attempt_id;
+  INSERT INTO eogp.event_notification_delivery_attempt_claims(
+    organization_id,attempt_id,lease_expires_at
+  ) VALUES (
+    p_organization_id,v_attempt.attempt_id,clock_timestamp()+interval '5 minutes'
+  );
+  INSERT INTO eogp.event_notification_delivery_attempt_events(
+    organization_id,attempt_id,status,provider_name
+  ) VALUES (p_organization_id,v_attempt.attempt_id,'sending','smtp');
 
   UPDATE eogp.event_notification_campaigns
      SET status='sending',delivery_started_at=coalesce(delivery_started_at,clock_timestamp())
    WHERE organization_id=p_organization_id AND id=v_attempt.campaign_id
      AND status='queued';
 
-  UPDATE eogp.email_delivery_tenant_queue queue
-     SET available_at=coalesce((
-       SELECT min(CASE WHEN attempt.status='queued' THEN attempt.next_attempt_at
-                       ELSE attempt.lease_expires_at END)
-         FROM eogp.event_notification_delivery_attempts attempt
-         JOIN eogp.event_notification_campaigns campaign
-           ON campaign.organization_id=attempt.organization_id AND campaign.id=attempt.campaign_id
-        WHERE attempt.organization_id=p_organization_id
-          AND campaign.status IN ('queued','sending')
-          AND attempt.status IN ('queued','sending')
-     ),clock_timestamp()+interval '5 minutes')
-   WHERE queue.organization_id=p_organization_id;
+  SELECT min(CASE WHEN coalesce(latest.status,attempt.status)='queued'
+                  THEN attempt.next_attempt_at ELSE claim.lease_expires_at END)
+    INTO v_next_available
+    FROM eogp.event_notification_delivery_attempts attempt
+    JOIN eogp.event_notification_campaigns campaign
+      ON campaign.organization_id=attempt.organization_id AND campaign.id=attempt.campaign_id
+    LEFT JOIN eogp.event_notification_delivery_attempt_claims claim
+      ON claim.organization_id=attempt.organization_id AND claim.attempt_id=attempt.id
+    LEFT JOIN LATERAL (
+      SELECT event.status FROM eogp.event_notification_delivery_attempt_events event
+       WHERE event.organization_id=attempt.organization_id AND event.attempt_id=attempt.id
+       ORDER BY event.created_at DESC,event.id DESC LIMIT 1
+    ) latest ON true
+   WHERE attempt.organization_id=p_organization_id
+     AND campaign.status IN ('queued','sending')
+     AND coalesce(latest.status,attempt.status) IN ('queued','sending');
+  UPDATE eogp.email_delivery_tenant_queue
+     SET available_at=coalesce(v_next_available,clock_timestamp()+interval '5 minutes')
+   WHERE organization_id=p_organization_id;
 
   RETURN QUERY
   SELECT v_attempt.attempt_id,campaign.id,recipient.id,
@@ -766,20 +865,27 @@ BEGIN
     RAISE EXCEPTION 'unsupported SMTP failure classification' USING ERRCODE='22023';
   END IF;
 
-  SELECT * INTO v_attempt FROM eogp.event_notification_delivery_attempts
-   WHERE organization_id=p_organization_id AND id=p_attempt_id FOR UPDATE;
-  IF NOT FOUND OR v_attempt.status<>'sending' THEN
+  SELECT attempt.* INTO v_attempt
+    FROM eogp.event_notification_delivery_attempts attempt
+    JOIN eogp.event_notification_delivery_attempt_claims claim
+      ON claim.organization_id=attempt.organization_id AND claim.attempt_id=attempt.id
+   WHERE attempt.organization_id=p_organization_id AND attempt.id=p_attempt_id
+     AND claim.lease_expires_at>clock_timestamp()
+   FOR UPDATE OF attempt,claim;
+  IF NOT FOUND THEN
     RAISE EXCEPTION 'delivery attempt is not actively claimed' USING ERRCODE='55000';
   END IF;
   v_campaign_id:=v_attempt.campaign_id;
 
-  UPDATE eogp.event_notification_delivery_attempts
-     SET status=p_outcome,
-         provider_name='smtp',
-         provider_message_reference=left(p_provider_reference,500),
-         failure_code=CASE WHEN p_outcome='sent' THEN NULL ELSE coalesce(p_failure_code,'SMTP_UNKNOWN') END,
-         lease_expires_at=NULL
-   WHERE organization_id=p_organization_id AND id=p_attempt_id;
+  INSERT INTO eogp.event_notification_delivery_attempt_events(
+    organization_id,attempt_id,status,provider_name,provider_message_reference,failure_code
+  ) VALUES (
+    p_organization_id,p_attempt_id,p_outcome,'smtp',
+    left(p_provider_reference,500),
+    CASE WHEN p_outcome='sent' THEN NULL ELSE coalesce(p_failure_code,'SMTP_UNKNOWN') END
+  );
+  DELETE FROM eogp.event_notification_delivery_attempt_claims
+   WHERE organization_id=p_organization_id AND attempt_id=p_attempt_id;
 
   v_retry := p_outcome='failed'
     AND p_failure_code IN ('SMTP_CONNECTION','SMTP_TIMEOUT','SMTP_4XX')
@@ -801,20 +907,34 @@ BEGIN
          count(*) FILTER (WHERE latest.status='uncertain')
     INTO v_pending,v_sent,v_failed,v_uncertain
     FROM (
-      SELECT DISTINCT ON (attempt.recipient_id) attempt.status
+      SELECT DISTINCT ON (attempt.recipient_id)
+             coalesce(last_event.status,attempt.status) AS status
         FROM eogp.event_notification_delivery_attempts attempt
+        LEFT JOIN LATERAL (
+          SELECT event.status FROM eogp.event_notification_delivery_attempt_events event
+           WHERE event.organization_id=attempt.organization_id AND event.attempt_id=attempt.id
+           ORDER BY event.created_at DESC,event.id DESC LIMIT 1
+        ) last_event ON true
        WHERE attempt.organization_id=p_organization_id AND attempt.campaign_id=v_campaign_id
        ORDER BY attempt.recipient_id,attempt.attempt_number DESC
     ) latest;
 
-  SELECT min(CASE WHEN attempt.status='queued' THEN attempt.next_attempt_at ELSE attempt.lease_expires_at END)
+  SELECT min(CASE WHEN coalesce(latest.status,attempt.status)='queued'
+                  THEN attempt.next_attempt_at ELSE claim.lease_expires_at END)
     INTO v_next_available
     FROM eogp.event_notification_delivery_attempts attempt
     JOIN eogp.event_notification_campaigns campaign
       ON campaign.organization_id=attempt.organization_id AND campaign.id=attempt.campaign_id
+    LEFT JOIN eogp.event_notification_delivery_attempt_claims claim
+      ON claim.organization_id=attempt.organization_id AND claim.attempt_id=attempt.id
+    LEFT JOIN LATERAL (
+      SELECT event.status FROM eogp.event_notification_delivery_attempt_events event
+       WHERE event.organization_id=attempt.organization_id AND event.attempt_id=attempt.id
+       ORDER BY event.created_at DESC,event.id DESC LIMIT 1
+    ) latest ON true
    WHERE attempt.organization_id=p_organization_id
      AND campaign.status IN ('queued','sending')
-     AND attempt.status IN ('queued','sending');
+     AND coalesce(latest.status,attempt.status) IN ('queued','sending');
 
   IF v_pending=0 THEN
     v_final_status:=CASE
