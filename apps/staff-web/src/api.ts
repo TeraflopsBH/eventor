@@ -351,7 +351,7 @@ export const api = {
     ),
   convertBookingInquiryToDraft: (inquiryId: string) =>
     request<Envelope<BookingInquiryConversion>>(
-      `/booking-inquiries/${encodeURIComponent(inquiryId)}/conversion`,
+      `/booking-inquiries/${encodeURIComponent(inquiryId)}/create-draft`,
       { method: "POST", body: {}, idempotent: true },
     ),
   addBookingInquiryAnnotation: (inquiryId: string, annotation: string) =>
