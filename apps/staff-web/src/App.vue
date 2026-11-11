@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { computed, onMounted, reactive, ref } from "vue";
-import { api, ApiError, type CampaignReview, type EmailConfiguration, type EmailSettings, type Principal } from "./api";
+import { api, ApiError, type CampaignReview, type EmailConfiguration, type Principal } from "./api";
 
 const principal = ref<Principal | null>(null);
 const loadingSession = ref(true);
