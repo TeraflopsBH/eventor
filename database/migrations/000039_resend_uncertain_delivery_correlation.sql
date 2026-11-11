@@ -378,6 +378,157 @@ BEGIN
 END;
 $function$;
 
+-- Keep lock acquisition consistent across claim, SMTP completion and
+-- provider webhook handling: campaign first, then attempt/claim.
+CREATE OR REPLACE FUNCTION eogp.complete_email_delivery_attempt(
+  p_organization_id uuid,
+  p_attempt_id uuid,
+  p_outcome text,
+  p_failure_code text DEFAULT NULL,
+  p_provider_reference text DEFAULT NULL
+) RETURNS jsonb
+LANGUAGE plpgsql
+SECURITY DEFINER
+SET search_path=pg_catalog,eogp
+AS $function$
+DECLARE
+  v_attempt eogp.event_notification_delivery_attempts%ROWTYPE;
+  v_campaign_id uuid;
+  v_retry boolean := false;
+  v_pending integer;
+  v_sent integer;
+  v_failed integer;
+  v_uncertain integer;
+  v_final_status text;
+  v_next_available timestamptz;
+BEGIN
+  IF session_user<>'eventor_worker'
+     OR eogp.current_organization_id() IS DISTINCT FROM p_organization_id THEN
+    RAISE EXCEPTION 'delivery completion requires worker role and matching tenant context'
+      USING ERRCODE='42501';
+  END IF;
+  IF p_outcome NOT IN ('sent','failed','uncertain') THEN
+    RAISE EXCEPTION 'unsupported delivery outcome' USING ERRCODE='22023';
+  END IF;
+  IF p_outcome='failed' AND (p_failure_code IS NULL OR p_failure_code NOT IN (
+    'SMTP_CONNECTION','SMTP_TIMEOUT','SMTP_4XX','SMTP_5XX','SMTP_TLS',
+    'SMTP_TEMPLATE_INVALID','CONTACT_CIPHERTEXT_INVALID',
+    'DELIVERY_CREDENTIALS_INVALID','SMTP_UNKNOWN'
+  )) THEN
+    RAISE EXCEPTION 'unsupported SMTP failure classification' USING ERRCODE='22023';
+  END IF;
+
+  SELECT campaign_id INTO v_campaign_id
+    FROM eogp.event_notification_delivery_attempts
+   WHERE organization_id=p_organization_id AND id=p_attempt_id;
+  IF NOT FOUND THEN
+    RAISE EXCEPTION 'delivery attempt not found' USING ERRCODE='P0002';
+  END IF;
+  PERFORM 1 FROM eogp.event_notification_campaigns
+   WHERE organization_id=p_organization_id AND id=v_campaign_id FOR UPDATE;
+  IF NOT FOUND THEN
+    RAISE EXCEPTION 'notification campaign not found' USING ERRCODE='P0002';
+  END IF;
+
+  SELECT attempt.* INTO v_attempt
+    FROM eogp.event_notification_delivery_attempts attempt
+    JOIN eogp.event_notification_delivery_attempt_claims claim
+      ON claim.organization_id=attempt.organization_id AND claim.attempt_id=attempt.id
+   WHERE attempt.organization_id=p_organization_id AND attempt.id=p_attempt_id
+     AND claim.lease_expires_at>clock_timestamp()
+   FOR UPDATE OF attempt,claim;
+  IF NOT FOUND THEN
+    RAISE EXCEPTION 'delivery attempt is not actively claimed' USING ERRCODE='55000';
+  END IF;
+
+  INSERT INTO eogp.event_notification_delivery_attempt_events(
+    organization_id,attempt_id,status,provider_name,provider_message_reference,failure_code
+  ) VALUES (
+    p_organization_id,p_attempt_id,p_outcome,'smtp',
+    left(p_provider_reference,500),
+    CASE WHEN p_outcome='sent' THEN NULL ELSE coalesce(p_failure_code,'SMTP_UNKNOWN') END
+  );
+  DELETE FROM eogp.event_notification_delivery_attempt_claims
+   WHERE organization_id=p_organization_id AND attempt_id=p_attempt_id;
+
+  v_retry := p_outcome='failed'
+    AND p_failure_code IN ('SMTP_CONNECTION','SMTP_TIMEOUT','SMTP_4XX')
+    AND v_attempt.attempt_number<5;
+
+  IF v_retry THEN
+    INSERT INTO eogp.event_notification_delivery_attempts(
+      organization_id,campaign_id,recipient_id,attempt_number,status,next_attempt_at
+    ) VALUES (
+      p_organization_id,v_attempt.campaign_id,v_attempt.recipient_id,
+      v_attempt.attempt_number+1,'queued',
+      clock_timestamp()+make_interval(secs=>least(3600,60*(2^least(v_attempt.attempt_number,5))::integer))
+    );
+  END IF;
+
+  SELECT count(*) FILTER (WHERE latest.status IN ('queued','sending')),
+         count(*) FILTER (WHERE latest.status IN ('sent','delivered')),
+         count(*) FILTER (WHERE latest.status IN ('failed','bounced')),
+         count(*) FILTER (WHERE latest.status='uncertain')
+    INTO v_pending,v_sent,v_failed,v_uncertain
+    FROM (
+      SELECT DISTINCT ON (attempt.recipient_id)
+             coalesce(last_event.status,attempt.status) AS status
+        FROM eogp.event_notification_delivery_attempts attempt
+        LEFT JOIN LATERAL (
+          SELECT event.status FROM eogp.event_notification_delivery_attempt_events event
+           WHERE event.organization_id=attempt.organization_id AND event.attempt_id=attempt.id
+           ORDER BY event.created_at DESC,event.id DESC LIMIT 1
+        ) last_event ON true
+       WHERE attempt.organization_id=p_organization_id AND attempt.campaign_id=v_campaign_id
+       ORDER BY attempt.recipient_id,attempt.attempt_number DESC
+    ) latest;
+
+  SELECT min(CASE WHEN coalesce(latest.status,attempt.status)='queued'
+                  THEN attempt.next_attempt_at ELSE claim.lease_expires_at END)
+    INTO v_next_available
+    FROM eogp.event_notification_delivery_attempts attempt
+    JOIN eogp.event_notification_campaigns campaign
+      ON campaign.organization_id=attempt.organization_id AND campaign.id=attempt.campaign_id
+    LEFT JOIN eogp.event_notification_delivery_attempt_claims claim
+      ON claim.organization_id=attempt.organization_id AND claim.attempt_id=attempt.id
+    LEFT JOIN LATERAL (
+      SELECT event.status FROM eogp.event_notification_delivery_attempt_events event
+       WHERE event.organization_id=attempt.organization_id AND event.attempt_id=attempt.id
+       ORDER BY event.created_at DESC,event.id DESC LIMIT 1
+    ) latest ON true
+   WHERE attempt.organization_id=p_organization_id
+     AND campaign.status IN ('queued','sending')
+     AND coalesce(latest.status,attempt.status) IN ('queued','sending');
+
+  IF v_pending=0 THEN
+    v_final_status:=CASE
+      WHEN v_failed=0 AND v_uncertain=0 THEN 'completed'
+      WHEN v_sent>0 OR v_uncertain>0 THEN 'partial'
+      ELSE 'failed'
+    END;
+    UPDATE eogp.event_notification_campaigns
+       SET status=v_final_status,delivery_completed_at=clock_timestamp()
+     WHERE organization_id=p_organization_id AND id=v_campaign_id
+       AND status IN ('queued','sending');
+  END IF;
+
+  IF v_next_available IS NULL THEN
+    DELETE FROM eogp.email_delivery_tenant_queue
+     WHERE organization_id=p_organization_id;
+  ELSE
+    INSERT INTO eogp.email_delivery_tenant_queue(organization_id,available_at)
+    VALUES (p_organization_id,v_next_available)
+    ON CONFLICT (organization_id) DO UPDATE
+      SET available_at=EXCLUDED.available_at;
+  END IF;
+
+  RETURN jsonb_build_object(
+    'attemptId',p_attempt_id,'outcome',p_outcome,'retryScheduled',v_retry,
+    'campaignStatus',coalesce(v_final_status,'sending')
+  );
+END;
+$function$;
+
 REVOKE ALL ON FUNCTION eogp.record_verified_resend_delivery_webhook(uuid,uuid,text,text,text,text) FROM PUBLIC;
 GRANT EXECUTE ON FUNCTION eogp.record_verified_resend_delivery_webhook(uuid,uuid,text,text,text,text)
   TO eventor_runtime;
