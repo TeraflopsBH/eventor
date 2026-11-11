@@ -48,7 +48,7 @@ Directories will be introduced as their corresponding implementation work begins
 
 ## Development status
 
-The accepted design baseline now has 37 ordered PostgreSQL migrations, a canonical OpenAPI v0.3 contract, a Fastify API/worker foundation and an initial Vue staff workspace. These are under review on draft PR #27; no production database deployment has been established, and the full booking/event product remains incomplete.
+The accepted design baseline now has 38 ordered PostgreSQL migrations, a canonical OpenAPI v0.3 contract, a Fastify API/worker foundation and an initial Vue staff workspace. These are under review on draft PR #27; no production database deployment has been established, and the full booking/event product remains incomplete.
 
 ## Security and data handling
 
