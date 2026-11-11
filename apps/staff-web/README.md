@@ -20,6 +20,7 @@ For a different same-origin API prefix or reverse-proxy path at build/runtime, s
 
 - Staff sign-in, session restoration through `GET /me`, and server-side logout.
 - Organization SMTP settings with write-only credentials, configuration revision status and explicit test email.
+- Optional Resend callback setup: prepare the public endpoint, activate the encrypted Svix signing secret, and process signed delivered/bounced events.
 - Permission-filtered, paginated campaign list with event, purpose, status and recipient counts.
 - Campaign review with recipient/channel/exclusion counts and immutable template snapshot, explicit confirmation, separate queue authorization and pre-send cancellation.
 - Campaign progress aggregates and a paginated, status-filterable delivery-attempt report with retry indicators, safe failure codes and timestamps.
@@ -27,8 +28,8 @@ For a different same-origin API prefix or reverse-proxy path at build/runtime, s
 - Separate operator-authorized retries for eligible failed attempts; the API creates a new attempt and enforces permissions and retry limits.
 - API-enforced event permission and CSRF checks; the UI does not make security decisions. Delivery projections never expose recipient contact values or provider message references.
 
-Campaigns are listed only when the current membership has event-scoped preview permission. The database has a provider-neutral normalized callback inbox, but a provider-specific signature-verifying adapter is still required before callbacks can be accepted in production. SMTP acceptance remains distinct from confirmed delivery.
+Campaigns are listed only when the current membership has event-scoped preview permission. Resend callbacks are accepted only after the signing secret has been activated and the exact raw-body Svix signature passes verification. SMTP acceptance remains distinct from recipient-mail-server delivery and inbox placement.
 
 ## Delivery semantics
 
-A successful SMTP test enables only the configuration revision tested. Saving a new revision requires a new test. Campaign confirmation does not queue or send. Queueing is a separate explicit action. Cancellation is possible only while a campaign is still queued and before the first worker claim. SMTP `sent` records server acceptance, not inbox delivery. SMS is not configured and remains suppressed. Uncertain submissions are never automatically retried; an operator must reconcile the outcome before any retry.
+A successful SMTP test enables only the configuration revision tested. Saving a new revision requires a new test. Campaign confirmation does not queue or send. Queueing is a separate explicit action. Cancellation is possible only while a campaign is still queued and before the first worker claim. SMTP `sent` records server acceptance, not inbox delivery. SMS is not configured and remains suppressed. Uncertain submissions are never automatically retried; an operator must reconcile the outcome before any retry. Resend's `email.delivery_delayed` event is intentionally non-terminal while the provider continues its own retries.
