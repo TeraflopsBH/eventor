@@ -76,6 +76,9 @@ VALUES
   'bbbbbbbb-2222-4222-8222-bbbbbbbbbbbb'),
  ('94200000-0000-4000-8000-000000000003',
   '22222222-2222-4222-8222-222222222222','Worker','PreviouslyInvited','Worker Previously Invited',
+  'bbbbbbbb-2222-4222-8222-bbbbbbbbbbbb'),
+ ('94200000-0000-4000-8000-000000000004',
+  '22222222-2222-4222-8222-222222222222','Worker','ResendUncertain','Worker Resend Uncertain',
   'bbbbbbbb-2222-4222-8222-bbbbbbbbbbbb');
 
 INSERT INTO eogp.event_participations
@@ -95,6 +98,11 @@ VALUES
   '22222222-2222-4222-8222-222222222222',
   '94000000-0000-4000-8000-000000000001',
   '94200000-0000-4000-8000-000000000003','eligible',
+  'bbbbbbbb-2222-4222-8222-bbbbbbbbbbbb'),
+ ('94300000-0000-4000-8000-000000000004',
+  '22222222-2222-4222-8222-222222222222',
+  '94000000-0000-4000-8000-000000000001',
+  '94200000-0000-4000-8000-000000000004','eligible',
   'bbbbbbbb-2222-4222-8222-bbbbbbbbbbbb');
 
 INSERT INTO eogp.person_contact_points
@@ -112,7 +120,11 @@ VALUES
  ('94400000-0000-4000-8000-000000000003',
   '22222222-2222-4222-8222-222222222222',
   '94200000-0000-4000-8000-000000000003',
-  'email',repeat('c',64),decode('090a0b0c','hex'),true,true,'permitted');
+  'email',repeat('c',64),decode('090a0b0c','hex'),true,true,'permitted'),
+ ('94400000-0000-4000-8000-000000000004',
+  '22222222-2222-4222-8222-222222222222',
+  '94200000-0000-4000-8000-000000000004',
+  'email',repeat('d',64),decode('0d0e0f10','hex'),true,true,'permitted');
 
 INSERT INTO eogp.invitations
   (id, organization_id, event_id, participation_id, status,
@@ -137,7 +149,12 @@ VALUES
   '22222222-2222-4222-8222-222222222222',
   '94000000-0000-4000-8000-000000000001',
   '94300000-0000-4000-8000-000000000003',
-  'draft',0,NULL,'bbbbbbbb-2222-4222-8222-bbbbbbbbbbbb');
+  'draft',0,NULL,'bbbbbbbb-2222-4222-8222-bbbbbbbbbbbb'),
+ ('94500000-0000-4000-8000-000000000005',
+  '22222222-2222-4222-8222-222222222222',
+  '94000000-0000-4000-8000-000000000001',
+  '94300000-0000-4000-8000-000000000004',
+  'active',1,clock_timestamp(),'bbbbbbbb-2222-4222-8222-bbbbbbbbbbbb');
 
 INSERT INTO eogp.notification_templates
   (id, organization_id, code, purpose, status)
