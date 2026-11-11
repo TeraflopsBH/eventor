@@ -139,6 +139,8 @@ jobs:
         run: psql "$MIGRATOR_URL" -X -v ON_ERROR_STOP=1 -f tests/database/public_booking_form_smoke.sql
       - name: Verify rate-limited, idempotent public inquiry submission
         run: psql "$MIGRATOR_URL" -X -v ON_ERROR_STOP=1 -f tests/database/public_booking_inquiry_smoke.sql
+      - name: Verify permissioned staff booking inquiry workflow
+        run: psql "$MIGRATOR_URL" -X -v ON_ERROR_STOP=1 -f tests/database/staff_booking_inquiry_smoke.sql
 
 
       - name: Seed synthetic identities through authentication role
