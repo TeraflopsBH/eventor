@@ -123,6 +123,7 @@ DECLARE
   v_cross_tenant_denied boolean := false;
   v_invalid_transition_denied boolean := false;
   v_terminal_assignment_denied boolean := false;
+  v_terminal_conversion_denied boolean := false;
   v_append_only_denied boolean := false;
   v_ciphertext bytea := decode('45435031' || repeat('00',29),'hex');
 BEGIN
@@ -420,6 +421,19 @@ BEGIN
   END;
   IF NOT v_terminal_assignment_denied THEN
     RAISE EXCEPTION 'terminal inquiry was incorrectly assignable';
+  END IF;
+
+  BEGIN
+    PERFORM eogp.convert_booking_inquiry_to_draft(
+      'a7000000-0000-4000-8000-000000000001',
+      v_inquiry_id,
+      'a7200000-0000-4000-8000-000000000001'
+    );
+  EXCEPTION WHEN SQLSTATE '55000' THEN
+    v_terminal_conversion_denied := true;
+  END;
+  IF NOT v_terminal_conversion_denied THEN
+    RAISE EXCEPTION 'declined inquiry was incorrectly convertible to a booking draft';
   END IF;
 
   BEGIN
