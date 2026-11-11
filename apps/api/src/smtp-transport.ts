@@ -26,7 +26,6 @@ export interface SmtpSendResult {
 export interface SmtpTransport {
   verify(): Promise<boolean>;
   sendMail(message: {
-    from: { name: string; address: string };
     to: string;
     replyTo?: string;
     subject: string;
