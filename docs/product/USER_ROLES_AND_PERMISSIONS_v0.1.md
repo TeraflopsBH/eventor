@@ -74,6 +74,8 @@ Role presets are defaults; the permission catalogue and booking/event policy det
 | Organizer event | Event owner/admin may initiate cancellation or postponement | Event approver/owner under organizer policy | Designated event operator; guest campaign send permission is separately checked |
 | Delegated guest communications | Named collaborator/operator may prepare the assigned campaign | Organizer's policy/approval rules still apply unless explicitly delegated | Only the assigned event/audience/action projection; no general guest-list access |
 
+For the implemented staff inquiry workflow, the fine-grained permissions are `booking.inquiry.read`, `booking.inquiry.assign`, `booking.inquiry.manage` and `booking.inquiry.annotate`. These are checked against active organization-scope role grants while an inquiry has not yet been converted into a booking. A booking-scoped grant does not authorize access to an unlinked inquiry. Customer-visible notes and external requester actions require separate capability workflows.
+
 Suggested fine-grained permissions (names to align with the successor catalogue) include `booking.cancellation.request`, `booking.cancellation.review`, `booking.cancellation.approve`, `booking.cancellation.execute`, `booking.cancellation.override`, `event.cancellation.initiate`, `event.cancellation.approve`, `event.cancellation.execute`, `event.postponement.manage` and `event.cancellation.notifications.send`.
 
 Approval and execution may be separated to enforce dual control. Self-approval is disallowed for configured high-risk cancellation or commercial exceptions unless a documented organization policy explicitly permits it. Technical platform administration does not imply business cancellation authority.
