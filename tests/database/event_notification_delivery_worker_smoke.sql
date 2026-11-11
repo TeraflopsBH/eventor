@@ -1,0 +1,98 @@
+\set ON_ERROR_STOP on
+BEGIN;
+SET LOCAL app.organization_id='22222222-2222-4222-8222-222222222222';
+
+DO $delivery$
+DECLARE
+  v_campaign_id uuid;
+  v_job record;
+  v_result jsonb;
+  v_claims integer := 0;
+  v_retry_scheduled boolean := false;
+  v_status text;
+  v_attempt_count integer;
+BEGIN
+  IF session_user<>'eventor_worker' THEN
+    RAISE EXCEPTION 'delivery worker smoke test must run as eventor_worker';
+  END IF;
+  IF has_table_privilege(current_user,'eogp.organization_delivery_config_revisions','SELECT')
+     OR has_table_privilege(current_user,'eogp.organization_delivery_config_heads','SELECT') THEN
+    RAISE EXCEPTION 'worker must not directly read SMTP configuration or credentials';
+  END IF;
+
+  SELECT id INTO v_campaign_id
+    FROM eogp.event_notification_campaigns
+   WHERE organization_id='22222222-2222-4222-8222-222222222222'
+     AND event_decision_id='94900000-0000-4000-8000-000000000001';
+  IF NOT EXISTS (
+    SELECT 1 FROM eogp.discover_pending_email_delivery_tenants()
+     WHERE organization_id='22222222-2222-4222-8222-222222222222'
+  ) THEN
+    RAISE EXCEPTION 'queued delivery tenant was not discoverable';
+  END IF;
+
+  SELECT * INTO v_job
+    FROM eogp.claim_next_email_delivery('22222222-2222-4222-8222-222222222222');
+  IF v_job.attempt_id IS NULL OR v_job.destination_ciphertext IS NULL
+     OR v_job.smtp_settings->>'host'<>'smtp.example.test'
+     OR v_job.sender_email<>'events@example.test'
+     OR v_job.subject_template IS NULL THEN
+    RAISE EXCEPTION 'worker claim did not return the required encrypted SMTP job';
+  END IF;
+  v_claims:=v_claims+1;
+  v_result:=eogp.complete_email_delivery_attempt(
+    '22222222-2222-4222-8222-222222222222',
+    v_job.attempt_id,'sent',NULL,'ci-smtp-accepted-1'
+  );
+  IF v_result->>'outcome'<>'sent' THEN
+    RAISE EXCEPTION 'successful SMTP acceptance was not recorded';
+  END IF;
+
+  SELECT * INTO v_job
+    FROM eogp.claim_next_email_delivery('22222222-2222-4222-8222-222222222222');
+  IF v_job.attempt_id IS NULL THEN
+    RAISE EXCEPTION 'second queued recipient was not claimable';
+  END IF;
+  v_claims:=v_claims+1;
+  v_result:=eogp.complete_email_delivery_attempt(
+    '22222222-2222-4222-8222-222222222222',
+    v_job.attempt_id,'failed','SMTP_4XX',NULL
+  );
+  v_retry_scheduled:=(v_result->>'retryScheduled')::boolean;
+  IF NOT v_retry_scheduled THEN
+    RAISE EXCEPTION 'temporary SMTP 4xx failure did not schedule a retry';
+  END IF;
+
+  UPDATE eogp.event_notification_delivery_attempts
+     SET next_attempt_at=clock_timestamp()-interval '1 second'
+   WHERE organization_id='22222222-2222-4222-8222-222222222222'
+     AND campaign_id=v_campaign_id AND status='queued';
+
+  SELECT * INTO v_job
+    FROM eogp.claim_next_email_delivery('22222222-2222-4222-8222-222222222222');
+  IF v_job.attempt_id IS NULL THEN
+    RAISE EXCEPTION 'scheduled SMTP retry was not claimable';
+  END IF;
+  v_claims:=v_claims+1;
+  v_result:=eogp.complete_email_delivery_attempt(
+    '22222222-2222-4222-8222-222222222222',
+    v_job.attempt_id,'sent',NULL,'ci-smtp-accepted-2'
+  );
+
+  SELECT status INTO v_status
+    FROM eogp.event_notification_campaigns
+   WHERE organization_id='22222222-2222-4222-8222-222222222222'
+     AND id=v_campaign_id;
+  SELECT count(*) INTO v_attempt_count
+    FROM eogp.event_notification_delivery_attempts
+   WHERE organization_id='22222222-2222-4222-8222-222222222222'
+     AND campaign_id=v_campaign_id;
+  IF v_status<>'completed' OR v_claims<>3 OR v_attempt_count<>3 THEN
+    RAISE EXCEPTION 'delivery state machine ended unexpectedly: status %, claims %, attempts %',
+      v_status,v_claims,v_attempt_count;
+  END IF;
+END;
+$delivery$;
+COMMIT;
+
+\echo 'SMTP delivery worker state-machine smoke tests passed.'
