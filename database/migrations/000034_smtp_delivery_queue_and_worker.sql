@@ -381,7 +381,7 @@ ALTER TABLE eogp.event_notification_delivery_attempts
   ADD COLUMN lease_expires_at timestamptz;
 
 CREATE INDEX event_notification_delivery_ready_idx
-  ON eogp.event_notification_delivery_attempts(organization_id,next_attempt_at,created_at)
+  ON eogp.event_notification_delivery_attempts(organization_id,next_attempt_at,id)
   WHERE status='queued';
 
 CREATE OR REPLACE FUNCTION eogp.guard_event_notification_campaign_update()
@@ -615,13 +615,9 @@ BEGIN
     JOIN eogp.event_notification_recipients recipient
       ON recipient.organization_id=attempt.organization_id AND recipient.campaign_id=attempt.campaign_id
      AND recipient.id=attempt.recipient_id
-    JOIN eogp.organization_delivery_config_heads head
-      ON head.organization_id=campaign.organization_id AND head.channel='email'
-     AND head.delivery_enabled=true
     WHERE attempt.organization_id=p_organization_id
       AND attempt.status='queued' AND attempt.next_attempt_at<=clock_timestamp()
       AND campaign.status IN ('queued','sending')
-      AND campaign.delivery_config_revision_id=head.revision_id
       AND recipient.channel='email'
     ORDER BY attempt.next_attempt_at,attempt.created_at,attempt.id
     FOR UPDATE OF attempt SKIP LOCKED
