@@ -1219,7 +1219,7 @@ export function buildApi(dependencies: ApiDependencies): FastifyInstance {
       const messageReference = event.data?.message_id;
       const recipients = event.data?.to;
       if (typeof messageReference !== "string" || messageReference.length < 3 ||
-          messageReference.length > 500 || /[\\r\\n\\0]/.test(messageReference) ||
+          messageReference.length > 500 || /[\r\n\0]/.test(messageReference) ||
           !Array.isArray(recipients) || recipients.length !== 1 ||
           typeof recipients[0] !== "string" || recipients[0].length < 3 ||
           recipients[0].length > 320) {
