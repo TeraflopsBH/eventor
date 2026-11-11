@@ -67,6 +67,30 @@ VALUES
   ('a7000000-0000-4000-8000-000000000001','a7300000-0000-4000-8000-000000000001','booking.draft.read'),
   ('a7000000-0000-4000-8000-000000000001','a7300000-0000-4000-8000-000000000001','booking.draft.manage');
 
+INSERT INTO eogp.roles (id,organization_id,code,name,scope_kind)
+VALUES (
+  'a7300000-0000-4000-8000-000000000002',
+  'a7000000-0000-4000-8000-000000000001',
+  'inquiry-reader',
+  'Inquiry Reader',
+  'organization'
+);
+INSERT INTO eogp.role_permissions (organization_id,role_id,permission_code)
+VALUES (
+  'a7000000-0000-4000-8000-000000000001',
+  'a7300000-0000-4000-8000-000000000002',
+  'booking.inquiry.read'
+);
+INSERT INTO eogp.user_role_grants (
+  organization_id,membership_id,role_id,scope_kind,granted_by_membership_id
+) VALUES (
+  'a7000000-0000-4000-8000-000000000001',
+  'a7200000-0000-4000-8000-000000000002',
+  'a7300000-0000-4000-8000-000000000002',
+  'organization',
+  'a7200000-0000-4000-8000-000000000001'
+);
+
 INSERT INTO eogp.user_role_grants (
   organization_id,membership_id,role_id,scope_kind,granted_by_membership_id
 ) VALUES (
@@ -170,7 +194,9 @@ BEGIN
   IF v_capabilities->>'canAssign' IS DISTINCT FROM 'true'
      OR v_capabilities->>'canManage' IS DISTINCT FROM 'true'
      OR v_capabilities->>'canAnnotate' IS DISTINCT FROM 'true'
-     OR v_capabilities->>'canConvert' IS DISTINCT FROM 'true' THEN
+     OR v_capabilities->>'canConvert' IS DISTINCT FROM 'true'
+     OR v_capabilities->>'canReadDraft' IS DISTINCT FROM 'true'
+     OR v_capabilities->>'canManageDraft' IS DISTINCT FROM 'true' THEN
     RAISE EXCEPTION 'inquiry capabilities projection did not reflect the granted permissions: %',v_capabilities;
   END IF;
 
@@ -386,7 +412,16 @@ BEGIN
     RAISE EXCEPTION 'membership without booking draft permission read a booking draft';
   END IF;
 
-  v_draft_detail := eogp.get_booking_draft(
+  v_converted_detail := eogp.get_booking_inquiry(
+    'a7000000-0000-4000-8000-000000000001',
+    v_conversion_inquiry_id,
+    'a7200000-0000-4000-8000-000000000002'
+  );
+  IF v_converted_detail->'bookingDraft' IS DISTINCT FROM 'null'::jsonb THEN
+    RAISE EXCEPTION 'inquiry-only reader was shown a booking draft reference without draft permission: %',v_converted_detail->'bookingDraft';
+  END IF;
+
+    v_draft_detail := eogp.get_booking_draft(
     'a7000000-0000-4000-8000-000000000001',
     (v_conversion->>'draftId')::uuid,
     'a7200000-0000-4000-8000-000000000001'
