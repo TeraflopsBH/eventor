@@ -45,6 +45,7 @@ const allowedOrigins = required("EVENTOR_ALLOWED_ORIGINS")
   .filter(Boolean);
 const fingerprintKey = requiredKey("EVENTOR_AUTH_FINGERPRINT_KEY");
 const privateFieldEncryptionKey = requiredKey("EVENTOR_FIELD_ENCRYPTION_KEY");
+const contactEncryptionKey = requiredKey("EVENTOR_CONTACT_ENCRYPTION_KEY");
 const deliveryCredentialsEncryptionKey = requiredKey("EVENTOR_DELIVERY_CREDENTIALS_KEY");
 function optionalPublicApiBaseUrl(): string | undefined {
   const raw = process.env.EVENTOR_PUBLIC_API_BASE_URL?.trim();
@@ -83,6 +84,8 @@ const app = buildApi({
   revokeStaffSession: (principal) => auth.revokeStaffSession(principal),
   getCurrentPrincipal: (principal) => auth.getCurrentPrincipal(principal),
   privateFieldEncryptionKey,
+  contactEncryptionKey,
+  publicInquiryFingerprintKey: fingerprintKey,
   deliveryCredentialsEncryptionKey,
   ...(publicApiBaseUrl ? { publicApiBaseUrl } : {}),
   trustedProxyAddresses,
