@@ -337,7 +337,7 @@ function publicInquiryFingerprint(key: Buffer | undefined, purpose: string, valu
     throw new ApiError(503, "PUBLIC_INQUIRY_SECURITY_NOT_CONFIGURED", "Public inquiry protection is not configured.");
   }
   return createHmac("sha256", key)
-    .update(`eventor:public-booking-inquiry:${purpose}:v1\\0`, "utf8")
+    .update(`eventor:public-booking-inquiry:${purpose}:v1\\x00`, "utf8")
     .update(value, "utf8")
     .digest("hex");
 }
