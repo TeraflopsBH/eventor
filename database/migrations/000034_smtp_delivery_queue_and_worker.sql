@@ -384,6 +384,26 @@ CREATE INDEX event_notification_delivery_ready_idx
   ON eogp.event_notification_delivery_attempts(organization_id,next_attempt_at,id)
   WHERE status='queued';
 
+-- A minimal cross-tenant discovery index. The worker can see only tenant IDs
+-- and due times, never campaign contents or recipient/contact data.
+CREATE TABLE eogp.email_delivery_tenant_queue (
+  organization_id uuid NOT NULL REFERENCES eogp.organizations(id),
+  available_at timestamptz NOT NULL DEFAULT clock_timestamp(),
+  PRIMARY KEY (organization_id)
+);
+ALTER TABLE eogp.email_delivery_tenant_queue ENABLE ROW LEVEL SECURITY;
+ALTER TABLE eogp.email_delivery_tenant_queue FORCE ROW LEVEL SECURITY;
+CREATE POLICY email_delivery_queue_tenant
+  ON eogp.email_delivery_tenant_queue
+  USING (organization_id=eogp.current_organization_id())
+  WITH CHECK (organization_id=eogp.current_organization_id());
+CREATE POLICY email_delivery_queue_worker_discovery
+  ON eogp.email_delivery_tenant_queue
+  FOR SELECT TO eventor_worker USING (true);
+REVOKE ALL ON eogp.email_delivery_tenant_queue FROM PUBLIC,eventor_runtime,eventor_worker;
+GRANT SELECT (organization_id,available_at)
+  ON eogp.email_delivery_tenant_queue TO eventor_worker;
+
 CREATE OR REPLACE FUNCTION eogp.guard_event_notification_campaign_update()
 RETURNS trigger
 LANGUAGE plpgsql
@@ -543,6 +563,11 @@ BEGIN
     FROM eogp.event_notification_recipients recipient
    WHERE recipient.organization_id=p_organization_id AND recipient.campaign_id=p_campaign_id;
 
+  INSERT INTO eogp.email_delivery_tenant_queue(organization_id,available_at)
+  VALUES (p_organization_id,clock_timestamp())
+  ON CONFLICT (organization_id) DO UPDATE
+    SET available_at=least(eogp.email_delivery_tenant_queue.available_at,EXCLUDED.available_at);
+
   INSERT INTO eogp.audit_events(
     organization_id,actor_organization_id,actor_membership_id,actor_kind,
     action,aggregate_type,aggregate_id,safe_metadata
@@ -564,7 +589,6 @@ $function$;
 CREATE FUNCTION eogp.discover_pending_email_delivery_tenants()
 RETURNS TABLE(organization_id uuid)
 LANGUAGE plpgsql
-SECURITY DEFINER
 SET search_path=pg_catalog,eogp
 AS $function$
 BEGIN
@@ -572,14 +596,10 @@ BEGIN
     RAISE EXCEPTION 'delivery tenant discovery requires eventor_worker' USING ERRCODE='42501';
   END IF;
   RETURN QUERY
-    SELECT DISTINCT campaign.organization_id
-      FROM eogp.event_notification_campaigns campaign
-      JOIN eogp.event_notification_delivery_attempts attempt
-        ON attempt.organization_id=campaign.organization_id AND attempt.campaign_id=campaign.id
-     WHERE campaign.status IN ('queued','sending')
-       AND attempt.status='queued'
-       AND attempt.next_attempt_at<=clock_timestamp()
-     ORDER BY campaign.organization_id
+    SELECT queue.organization_id
+      FROM eogp.email_delivery_tenant_queue queue
+     WHERE queue.available_at<=clock_timestamp()
+     ORDER BY queue.available_at,queue.organization_id
      LIMIT 1000;
 END;
 $function$;
@@ -652,6 +672,19 @@ BEGIN
    WHERE organization_id=p_organization_id AND id=v_attempt.campaign_id
      AND status='queued';
 
+  UPDATE eogp.email_delivery_tenant_queue queue
+     SET available_at=coalesce((
+       SELECT min(CASE WHEN attempt.status='queued' THEN attempt.next_attempt_at
+                       ELSE attempt.lease_expires_at END)
+         FROM eogp.event_notification_delivery_attempts attempt
+         JOIN eogp.event_notification_campaigns campaign
+           ON campaign.organization_id=attempt.organization_id AND campaign.id=attempt.campaign_id
+        WHERE attempt.organization_id=p_organization_id
+          AND campaign.status IN ('queued','sending')
+          AND attempt.status IN ('queued','sending')
+     ),clock_timestamp()+interval '5 minutes')
+   WHERE queue.organization_id=p_organization_id;
+
   RETURN QUERY
   SELECT v_attempt.attempt_id,campaign.id,recipient.id,
          recipient.destination_ciphertext,config.credentials_ciphertext,
@@ -702,6 +735,7 @@ DECLARE
   v_failed integer;
   v_uncertain integer;
   v_final_status text;
+  v_next_available timestamptz;
 BEGIN
   IF session_user<>'eventor_worker'
      OR eogp.current_organization_id() IS DISTINCT FROM p_organization_id THEN
@@ -760,6 +794,12 @@ BEGIN
        ORDER BY attempt.recipient_id,attempt.attempt_number DESC
     ) latest;
 
+  SELECT min(CASE WHEN status='queued' THEN next_attempt_at ELSE lease_expires_at END)
+    INTO v_next_available
+    FROM eogp.event_notification_delivery_attempts
+   WHERE organization_id=p_organization_id AND campaign_id=v_campaign_id
+     AND status IN ('queued','sending');
+
   IF v_pending=0 THEN
     v_final_status:=CASE
       WHEN v_failed=0 AND v_uncertain=0 THEN 'completed'
@@ -771,6 +811,16 @@ BEGIN
        SET status=v_final_status,delivery_completed_at=clock_timestamp()
      WHERE organization_id=p_organization_id AND id=v_campaign_id
        AND status IN ('queued','sending');
+  END IF;
+
+  IF v_next_available IS NULL THEN
+    DELETE FROM eogp.email_delivery_tenant_queue
+     WHERE organization_id=p_organization_id;
+  ELSE
+    INSERT INTO eogp.email_delivery_tenant_queue(organization_id,available_at)
+    VALUES (p_organization_id,v_next_available)
+    ON CONFLICT (organization_id) DO UPDATE
+      SET available_at=EXCLUDED.available_at;
   END IF;
 
   RETURN jsonb_build_object(
