@@ -109,7 +109,7 @@ BEGIN
     '22222222-2222-4222-8222-222222222222',
     v_endpoint_id,
     'msg_ci_resend_delivery_0001',
-    'ci-smtp-accepted-1',
+    v_message_reference,
     'delivered',
     repeat('d',64)
   );
@@ -122,7 +122,7 @@ BEGIN
       '22222222-2222-4222-8222-222222222222',
       v_endpoint_id,
       'msg_ci_resend_delivery_0001',
-      'ci-smtp-accepted-1',
+      v_message_reference,
       'bounced',
       repeat('e',64)
     );
@@ -138,7 +138,7 @@ BEGIN
       '22222222-2222-4222-8222-222222222222',
       v_endpoint_id,
       'msg_ci_resend_delivery_0002',
-      'ci-smtp-accepted-1',
+      v_message_reference,
       'bounced',
       repeat('f',64)
     );
