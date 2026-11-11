@@ -665,6 +665,7 @@ DECLARE
   v_attempt record;
   v_expired record;
   v_next_available timestamptz;
+  v_campaign_rows integer;
 BEGIN
   IF session_user<>'eventor_worker'
      OR eogp.current_organization_id() IS DISTINCT FROM p_organization_id THEN
@@ -768,14 +769,23 @@ BEGIN
   ) VALUES (
     p_organization_id,v_attempt.attempt_id,clock_timestamp()+interval '5 minutes'
   );
-  INSERT INTO eogp.event_notification_delivery_attempt_events(
-    organization_id,attempt_id,status,provider_name
-  ) VALUES (p_organization_id,v_attempt.attempt_id,'sending','smtp');
 
+  -- Serialize the transition against an administrator cancelling a queued
+  -- campaign. Do not create a sending event or return a job if cancellation won.
   UPDATE eogp.event_notification_campaigns
      SET status='sending',delivery_started_at=coalesce(delivery_started_at,clock_timestamp())
    WHERE organization_id=p_organization_id AND id=v_attempt.campaign_id
-     AND status='queued';
+     AND status IN ('queued','sending');
+  GET DIAGNOSTICS v_campaign_rows=ROW_COUNT;
+  IF v_campaign_rows=0 THEN
+    DELETE FROM eogp.event_notification_delivery_attempt_claims
+     WHERE organization_id=p_organization_id AND attempt_id=v_attempt.attempt_id;
+    RETURN;
+  END IF;
+
+  INSERT INTO eogp.event_notification_delivery_attempt_events(
+    organization_id,attempt_id,status,provider_name
+  ) VALUES (p_organization_id,v_attempt.attempt_id,'sending','smtp');
 
   SELECT min(CASE WHEN coalesce(latest.status,attempt.status)='queued'
                   THEN attempt.next_attempt_at ELSE claim.lease_expires_at END)
