@@ -49,8 +49,18 @@ BEGIN
     RAISE EXCEPTION 'Resend configuration projection is unsafe or incomplete: %',v_config;
   END IF;
 
+  IF has_table_privilege(current_user,'eogp.organization_resend_webhook_endpoints','SELECT')
+     OR has_table_privilege(current_user,'eogp.resend_webhook_endpoint_routes','SELECT') THEN
+    RAISE EXCEPTION 'runtime must not directly read Resend endpoint or routing tables';
+  END IF;
+  -- Exercise the public lookup with no pre-established tenant context.
+  PERFORM set_config('app.organization_id','',true);
+  IF eogp.current_organization_id() IS NOT NULL THEN
+    RAISE EXCEPTION 'test did not clear the prior tenant context';
+  END IF;
   v_resolved:=eogp.resolve_organization_resend_webhook_endpoint(v_endpoint_id);
-  IF v_resolved->>'organizationId'<>'22222222-2222-4222-8222-222222222222'
+  IF eogp.current_organization_id() IS DISTINCT FROM '22222222-2222-4222-8222-222222222222'::uuid
+     OR v_resolved->>'organizationId'<>'22222222-2222-4222-8222-222222222222'
      OR v_resolved->>'signingSecretCiphertextBase64' IS NULL THEN
     RAISE EXCEPTION 'public endpoint resolution did not return tenant-bound encrypted secret';
   END IF;
