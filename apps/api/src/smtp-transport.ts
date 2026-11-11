@@ -1,5 +1,4 @@
 import nodemailer, { type Transporter } from "nodemailer";
-import type SMTPTransport from "nodemailer/lib/smtp-transport/index.js";
 import type { SmtpCredentials } from "./delivery-credentials-crypto.js";
 
 export interface SmtpSettings {
@@ -48,7 +47,7 @@ export function createSmtpTransport(
   if (settings.authMode === "password" && !credentials) {
     throw new TypeError("SMTP password authentication requires credentials.");
   }
-  const options: SMTPTransport.Options = {
+  const transporter: Transporter = nodemailer.createTransport({
     host: settings.host,
     port: settings.port,
     secure: settings.transportSecurity === "implicit_tls",
@@ -60,9 +59,7 @@ export function createSmtpTransport(
     ...(settings.authMode === "password" && credentials
       ? { auth: { user: credentials.username, pass: credentials.password } }
       : {}),
-  };
-  const transporter: Transporter<SMTPTransport.SentMessageInfo> =
-    nodemailer.createTransport(options);
+  });
   return {
     async verify() {
       return transporter.verify();
