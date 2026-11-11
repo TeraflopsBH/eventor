@@ -37,7 +37,7 @@ SMTP is a network egress capability. Production deployments must apply outbound 
 4. A separately authorized user explicitly queues it. The queue command pins the current, successfully tested SMTP configuration revision and creates one delivery-attempt record per recipient.
 5. The delivery worker processes only queued email attempts. It decrypts contact and SMTP credentials immediately before submission and never logs addresses, ciphertext or credentials.
 
-A queued campaign continues to use the exact SMTP revision pinned when it was queued. Updating the organization's current SMTP settings affects future queue actions, not already authorized campaigns. Canceling an already queued campaign is a separate operational action and must be completed before delivery begins if sending is to be prevented.
+A queued campaign continues to use the exact SMTP revision pinned when it was queued. Updating the organization's current SMTP settings affects future queue actions, not already authorized campaigns. The staff API does not yet expose a campaign hold/cancel command; treat queueing as an irreversible authorization to send and queue only when ready.
 
 The worker records SMTP acceptance as `sent`; it does not claim that the recipient read or even received the message. Temporary connection and SMTP 4xx failures are retried with bounded exponential backoff (up to five attempts). Permanent 5xx and configuration/template errors are not automatically retried. If the connection fails at the SMTP DATA stage and acceptance is ambiguous, the attempt is marked `uncertain` and is not automatically resent, to avoid duplicate messages. Expired in-flight leases are also marked uncertain for operator reconciliation.
 
