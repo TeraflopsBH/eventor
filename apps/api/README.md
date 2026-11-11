@@ -188,7 +188,7 @@ CI regenerates OpenAPI TypeScript declarations, runs strict TypeScript compilati
 
 ## Remaining integration work
 
-- Implement inquiry-to-draft conversion, offer revisions/approval and booking confirmation.
+- Implement editable draft projections and successor revisions for the newly converted drafts, then offer revisions/approval, acceptance/rejection and booking confirmation.
 - Expand the staff UI to the remaining event, booking, venue and guest workflows.
 - Implement an SMS provider adapter only when a concrete provider is selected; keep it optional and tenant-configurable.
 - Extend provider-specific status handling only when another concrete provider is selected. Resend's raw-body signature verification, exact Message-ID correlation and delivered/bounced callbacks are implemented. SMTP acceptance alone remains `sent`, not `delivered`.
