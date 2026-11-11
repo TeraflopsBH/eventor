@@ -1,30 +1,32 @@
 # Delivery roadmap
 
-This roadmap is provisional. Scope and acceptance criteria must be finalized after the design artifacts are reconciled.
+This roadmap tracks the accepted Eventor product direction and implementation gates. PR #26 contains the first executable database/API contract draft; it remains unmerged pending review.
 
 ## Phase 0 — Repository and design baseline
 
 - [x] Import Technical Blueprint v1.2 and Implementation Design v0.2 source artifacts.
 - [x] Perform initial static reconciliation and record findings in `docs/DESIGN_RECONCILIATION_v0.2.md` (remaining technical validation tracked separately).
-- [ ] Complete PostgreSQL parser/runtime validation and migration tests; initial structural schema review is documented in `docs/database/DATABASE_REVIEW_v0.2.md`.
-- [ ] Resolve cross-organization ownership and tenant/resource integrity findings (Issues #12 and #13).
+- [x] Apply the initial ordered migrations and run PostgreSQL 18.6 migration/integrity/RLS/concurrency tests in CI (draft PR #26); broader upgrade and recovery validation remains open.
+- [x] Accept the cross-organization ownership and tenant/resource integrity successor designs (PRs #15, #24 and #25); implementation review remains open in draft PR #26.
 - [x] Record initial architectural decisions and unresolved assumptions; add follow-up ADRs as decisions are approved.
-- [ ] Define MVP and acceptance criteria.
+- [x] Define the venue-first MVP and acceptance criteria (PR #20).
 - [ ] Add CI, issue/PR templates and repository protection settings.
 
 ## Phase 0.5 — Successor contracts
 
-- [ ] Accept database integrity and resource reservation constraints (Issue #13 / PR #24).
-- [ ] Complete logical schema review and produce ordered executable PostgreSQL 18 migrations.
-- [ ] Produce OpenAPI 3.1.1 v0.3 YAML from the route/security design.
-- [ ] Add PostgreSQL integration/concurrency/RLS tests and pinned OpenAPI validation/auth contract tests.
+- [x] Accept database integrity and resource reservation constraints (Issue #13 / PR #24).
+- [x] Produce an initial ordered PostgreSQL 18 migration draft and checksum runner.
+- [x] Produce canonical OpenAPI 3.1.1 v0.3 YAML from the route/security design.
+- [x] Add PostgreSQL integration/concurrency/RLS tests and pinned OpenAPI validation to the unified CI workflow.
+- [x] Pass the unified CI workflow end-to-end on PostgreSQL 18.6 and the canonical OpenAPI contract (latest PR run #42837964380 on head `ce9fd3d7e4889b713f36e1d93d1b40c3e0c609f2`; both jobs succeeded).
+- [ ] Complete deeper schema/permission review, migration-upgrade/backup tests and route-level API contract tests before accepting the DDL.
 - [ ] Close Issues #2, #3, #13 and #17 only after their runtime/CI acceptance criteria pass.
 
 ## Phase 1 — Platform foundation
 
 - [ ] Monorepo workspace and build tooling.
 - [ ] Fastify API skeleton, configuration and health/readiness endpoints.
-- [ ] PostgreSQL migrations, connection management and transaction conventions (migration standards documented; executable migrations pending schema reconciliation).
+- [ ] PostgreSQL migrations, connection management and transaction conventions (21-file migration draft and green PostgreSQL 18.6 CI are in draft PR #26; deployment is not started).
 - [ ] Shared contracts, validation and error model.
 - [ ] Authentication, sessions, authorization and audit foundation.
 - [ ] Organization, venue and event tenancy model.

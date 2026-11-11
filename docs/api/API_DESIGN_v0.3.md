@@ -1,9 +1,10 @@
 # OpenAPI successor contract design — v0.3
 
-**Status:** proposed API surface and security design; exact OpenAPI YAML is the next artifact  
+**Status:** proposed API surface and security design; aligned with the canonical OpenAPI v0.3 draft in `docs/api/openapi.v0.3.yaml`  
 **Date:** 2026-11-10  
 **Depends on:** ADR 0004–0006; accepted MVP/role model; RSVP and Invitation Design v0.3; Cancellation and Event Disruption Design v0.3; Successor PostgreSQL Schema Design v0.3  
-**Historical source:** `docs/implementation-design/v0.2/eogp_openapi_v0.2.yaml` (read-only snapshot)
+**Historical source:** `docs/implementation-design/v0.2/eogp_openapi_v0.2.yaml` (read-only snapshot)  
+**Concrete contract draft:** [`docs/api/openapi.v0.3.yaml`](openapi.v0.3.yaml)
 
 ## 1. Contract goals
 
@@ -57,7 +58,7 @@ Long-running imports, campaign delivery, document rendering and solver runs retu
 
 ## 4. Proposed route inventory
 
-Routes below define the intended contract surface. Exact verbs and operation IDs are normative only after the OpenAPI YAML review.
+Routes below define the intended contract surface. The canonical OpenAPI v0.3 YAML is the concrete route baseline; route additions or semantic differences against this broader inventory must be recorded and resolved before Issue #17 closes.
 
 ### 4.1 Identity, organizations and authorization
 
@@ -171,6 +172,8 @@ Event creation does not occur as a side effect of booking confirmation. Disabled
 
 Grant acceptance does not grant every member broad access; the actor's membership and role in the grantee organization must also permit the operation. Snapshot routes never mutate provider master geometry.
 
+For `createVenueSnapshotShare`, `approvedLayerIds` must identify spatial layers belonging to the exact `venueSpaceRevisionId`. `approvedResourceIds` may identify resource pools or discrete units belonging to that revision's venue. The database rejects duplicate/foreign identifiers. When the organizer copies the share, each snapshot layer must refer to an approved source layer, every source object must belong to one of those approved layers, and every copied resource must be in the approved resource list. The source revision, its approved layer/object rows and approved resource rows are visible through narrowly filtered RLS only while the share and `venue.snapshot.use` grant remain active. Revocation hides provider master rows from the recipient and blocks new bindings/copies, while the organizer's already-copied event-owned snapshot remains historical data.
+
 ### 4.7 Guest registry, invitations, RSVP and attendance
 
 | Method / path | Operation ID | Security |
@@ -267,4 +270,4 @@ The final OpenAPI 3.1.1 YAML must include explicit security schemes: `staffSessi
 7. Add contract tests for booking-only operation, external booking cancellation, venue disruption isolation, RSVP, event cancellation audiences, grant revocation and reservation conflicts.
 8. Keep v0.2 YAML unchanged as historical reference.
 
-No full OpenAPI validator or route implementation test has been run yet. The YAML generated from this design must be validated in CI before Issue #3 can close.
+The contract is subject to the pinned full validator and Redocly lint in CI. Route implementation and request/response contract tests remain separate work; Issue #3 must remain open until those tests are added and pass.

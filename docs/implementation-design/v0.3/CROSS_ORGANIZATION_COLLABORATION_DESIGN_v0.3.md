@@ -161,6 +161,8 @@ A grant can expose a safe projection without exposing the underlying aggregate:
 - Check-in task projection with only the minimum fields needed to identify/validate an attendee.
 - Venue plan snapshot with selected approved layers, while private staff/security layers remain excluded.
 
+For venue-plan sharing, the provider approves explicit stable source identifiers: selected spatial layer IDs from one published venue-space revision, plus optional resource-pool or discrete-unit IDs at the same venue. The organizer cannot request a different source revision or add a layer/resource to the copied projection. Objects may be copied only from the approved layers. The database validates the identifiers and enforces source-row visibility through tenant RLS while the share and use grant are active. On revocation, the recipient loses access to provider-owned source rows and cannot create new copies or operational bindings; snapshots already copied into the organizer's tenant remain immutable historical records.
+
 The system must distinguish:
 - Booking visibility.
 - Venue inventory/plan visibility.
