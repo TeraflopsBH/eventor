@@ -56,7 +56,8 @@ const inquiryCapabilities = ref<BookingInquiryCapabilities>({
 });
 const selectedInquiryId = ref("");
 const inquiryAssignmentChoice = ref("unassigned");
-const inquiryStatusChoice = ref<BookingInquiryStatus | "">("");
+type InquiryStatusCommand = "received" | "under_review" | "declined" | "spam";
+const inquiryStatusChoice = ref<InquiryStatusCommand | "">("");
 const inquiryStatusReason = ref("");
 const inquiryAnnotationText = ref("");
 
@@ -72,7 +73,7 @@ const canEditInquiryAssignment = computed(() =>
   inquiryCapabilities.value.canAssign &&
   (inquiryDetail.value?.status === "received" || inquiryDetail.value?.status === "under_review"),
 );
-const inquiryStatusTargets = computed<BookingInquiryStatus[]>(() => {
+const inquiryStatusTargets = computed<InquiryStatusCommand[]>(() => {
   if (inquiryDetail.value?.status === "received") return ["under_review", "declined", "spam"];
   if (inquiryDetail.value?.status === "under_review") return ["received", "declined", "spam"];
   return [];
