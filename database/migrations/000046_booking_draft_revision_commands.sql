@@ -52,7 +52,11 @@ BEGIN
      AND user_grant.scope_kind = 'organization'
      AND user_grant.revoked_at IS NULL
      AND (user_grant.expires_at IS NULL OR user_grant.expires_at > clock_timestamp())
-     AND role_permission.permission_code = p_permission_code
+     AND (
+       role_permission.permission_code = p_permission_code
+       OR (p_permission_code = 'booking.draft.read'
+           AND role_permission.permission_code = 'booking.draft.manage')
+     )
    FOR SHARE OF user_grant, role_permission;
 
   IF NOT FOUND THEN
@@ -132,7 +136,7 @@ BEGIN
        AND user_grant.scope_kind = 'organization'
        AND user_grant.revoked_at IS NULL
        AND (user_grant.expires_at IS NULL OR user_grant.expires_at > clock_timestamp())
-       AND role_permission.permission_code = 'booking.draft.read'
+       AND role_permission.permission_code IN ('booking.draft.read','booking.draft.manage')
      FOR SHARE OF user_grant, role_permission;
     v_can_read_draft := FOUND;
   EXCEPTION WHEN insufficient_privilege THEN
@@ -540,6 +544,7 @@ BEGIN
     END;
     IF v_space_id IS NULL OR v_starts_at IS NULL OR v_ends_at IS NULL
        OR v_ends_at <= v_starts_at
+       OR v_block_kind IS NULL
        OR v_block_kind NOT IN ('setup','rehearsal','event_use','teardown','buffer')
        OR (v_requested_capacity IS NOT NULL AND v_requested_capacity < 0) THEN
       RAISE EXCEPTION 'space line % has invalid required values', v_line_index
