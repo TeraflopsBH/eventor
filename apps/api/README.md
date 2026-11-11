@@ -12,8 +12,8 @@ This package contains the first deployable command API and a separate tenant-awa
 - `POST /booking-inquiries/{inquiryId}/assignment` — assign or unassign an active organization member.
 - `POST /booking-inquiries/{inquiryId}/status` — change inquiry review status with an audit reason.
 - `POST /booking-inquiries/{inquiryId}/annotations` — append an internal-only staff note.
-- `GET /public/organizations/{organizationSlug}/booking-forms/{formCode}` — public read of an active organization's latest published booking form.
-- `POST /public/organizations/{organizationSlug}/booking-inquiries` — accept an encrypted, idempotent booking inquiry using the published form revision.
+- `GET /public/organizations/{organizationSlug}/booking-forms/{formCode}` — public read of an active organization's latest published booking form and its versioned field schema.
+- `POST /public/organizations/{organizationSlug}/booking-inquiries` — accept an encrypted, idempotent booking inquiry using the exact published form revision supplied by the visitor.
 - `POST /bookings/{bookingId}/reservations/release`
 - `POST /events/{eventId}/change-requests`
 - `POST /event-change-requests/{requestId}/approve`
@@ -38,15 +38,17 @@ All mutating staff routes require an idempotency key, an authenticated session, 
 
 ## Public booking inquiry intake
 
-The public form GET returns only an active organization's latest published revision. The POST requires the form code and revision ID returned by that endpoint, plus an `Idempotency-Key`. It stores requester name, email, phone, requested details and dynamic answers using the tenant-bound ECP1 AES-256-GCM contact codec. Raw source IPs and raw idempotency keys are not persisted; keyed fingerprints support an organization-scoped limit of ten accepted submissions per source per UTC hour and deterministic replay handling. Idempotent replays do not consume another rate-limit slot.
+The public form GET returns only an active organization's latest published revision. The POST requires the form code and exact revision ID, plus an `Idempotency-Key`. It resolves that revision through the constrained database projection, rather than validating against whatever revision is latest at submission time. Previously published revisions remain usable while they remain published; the database submission command rechecks that state before inserting the inquiry.
 
-Submitted values are bounded and encrypted, but are not yet validated against every field rule in the revision's dynamic `field_schema`. Attachment references are rejected until the upload workflow exists.
+Before encryption, the API validates the answer object against the immutable revision's versioned `field_schema`. Schema v1 supports `text`, `textarea`, `email`, `phone`, `number`, `date`, `datetime`, `time`, `select`, `multiselect` and `checkbox` fields. It enforces required values, JSON types, string lengths, numeric ranges/integer constraints, date/time formats, unique choice options, option membership and unknown-key rejection. Missing `schemaVersion` is treated as v1 for legacy revisions; an explicit unknown version or unsupported schema property fails closed. Invalid answers return 422 and do not reach the database submission command or consume an inquiry rate-limit slot.
+
+Requester name, email, phone, requested details and validated dynamic answers are stored using the tenant-bound ECP1 AES-256-GCM contact codec. Raw source IPs and raw idempotency keys are not persisted; keyed fingerprints support an organization-scoped limit of ten accepted submissions per source per UTC hour and deterministic replay handling. Idempotent replays do not consume another rate-limit slot. The field contract and example are documented in [Public Booking Form Schema v1](../../docs/product/PUBLIC_BOOKING_FORM_SCHEMA_v1.md). Attachment references are rejected until the upload workflow exists.
 
 ## Staff inquiry review
 
 The inbox, detail, assignment, status and annotation routes require an authenticated staff session. Database SECURITY DEFINER projections and commands re-check active membership plus the `booking.inquiry.read`, `booking.inquiry.assign`, `booking.inquiry.manage` or `booking.inquiry.annotate` permission on an organization-scope role grant. Inquiries are not yet linked to a booking, so booking-specific role grants do not authorize inquiry access. Inquiry source and history tables are not directly accessible to the runtime database role. Contact fields and answers are decrypted only in the API after the permission-checked detail projection. Assignment and status changes append immutable histories and audit events. Staff annotations are append-only and internal-only; customer-visible annotations are not supported by these endpoints.
 
-The staff web inquiry interface, dynamic answer validation, inquiry-to-draft conversion and booking offer/approval workflow remain to be implemented.
+The staff web inquiry interface, inquiry-to-draft conversion and booking offer/approval workflow remain to be implemented.
 
 ## Organization-owned SMTP
 
@@ -181,7 +183,7 @@ CI regenerates OpenAPI TypeScript declarations, runs strict TypeScript compilati
 
 ## Remaining integration work
 
-- Build the staff inquiry inbox/detail and assignment/status/annotation interface; enforce dynamic field-schema validation before accepting submitted answers as trusted structured values; then implement inquiry-to-draft conversion, offer revisions/approval and booking confirmation.
+- Build the staff inquiry inbox/detail and assignment/status/annotation interface; then implement inquiry-to-draft conversion, offer revisions/approval and booking confirmation.
 - Expand the staff UI to the remaining event, booking, venue and guest workflows.
 - Implement an SMS provider adapter only when a concrete provider is selected; keep it optional and tenant-configurable.
 - Extend provider-specific status handling only when another concrete provider is selected. Resend's raw-body signature verification, exact Message-ID correlation and delivered/bounced callbacks are implemented. SMTP acceptance alone remains `sent`, not `delivered`.
