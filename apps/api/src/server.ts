@@ -1083,7 +1083,7 @@ export function buildApi(dependencies: ApiDependencies): FastifyInstance {
         );
         await client.query("COMMIT");
         return reply.code(200).send({ data: result.rows[0]?.result ?? {
-          canAssign: false, canManage: false, canAnnotate: false, canConvert: false,
+          canAssign: false, canManage: false, canAnnotate: false, canConvert: false, canReadDraft: false, canManageDraft: false,
         } });
       } catch (error) {
         try { await client.query("ROLLBACK"); } catch { /* preserve the read error */ }
