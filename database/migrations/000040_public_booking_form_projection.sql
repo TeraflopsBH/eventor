@@ -12,6 +12,9 @@ CREATE TABLE eogp.public_organization_routes (
 REVOKE ALL ON TABLE eogp.public_organization_routes
   FROM PUBLIC, eventor_runtime, eventor_worker, eventor_auth;
 
+CREATE POLICY organization_public_route_backfill ON eogp.organizations
+  FOR SELECT TO eventor_owner USING (true);
+
 INSERT INTO eogp.public_organization_routes (
   organization_id, organization_slug, is_active
 )
@@ -21,6 +24,8 @@ ON CONFLICT (organization_id) DO UPDATE
   SET organization_slug = EXCLUDED.organization_slug,
       is_active = EXCLUDED.is_active,
       synced_at = clock_timestamp();
+
+DROP POLICY organization_public_route_backfill ON eogp.organizations;
 
 CREATE FUNCTION eogp.sync_public_organization_route()
 RETURNS trigger
@@ -75,7 +80,7 @@ BEGIN
 
   SELECT organization_id INTO v_organization_id
     FROM eogp.public_organization_routes
-   WHERE organization_slug = lower(trim(p_organization_slug))
+   WHERE organization_slug = trim(p_organization_slug)
      AND is_active = true;
   IF NOT FOUND THEN
     RETURN NULL;
