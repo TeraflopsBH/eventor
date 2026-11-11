@@ -223,7 +223,7 @@ function makeApi(
     } : {}),
     privateFieldEncryptionKey: options.encryptionKey ?? Buffer.alloc(32, 7),
     deliveryCredentialsEncryptionKey: Buffer.alloc(32, 9),
-    smtpTransportFactory: options.smtpTransportFactory,
+    ...(options.smtpTransportFactory ? { smtpTransportFactory: options.smtpTransportFactory } : {}),
   });
 }
 
