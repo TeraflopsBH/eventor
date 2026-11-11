@@ -710,7 +710,7 @@ test("staff inquiry inbox decrypts authorized projections and routes assignment,
     url: `/organizations/${principal.organizationId}/booking-inquiry-capabilities`,
   });
   assert.equal(capabilities.statusCode, 200);
-  assert.deepEqual(capabilities.json<{ data: BookingInquiryCapabilities }>().data, {
+  assert.deepEqual(capabilities.json<{ data: { canAssign: boolean; canManage: boolean; canAnnotate: boolean } }>().data, {
     canAssign: true, canManage: true, canAnnotate: true,
   });
   assert.equal(mock.bookingInquiryCapabilitiesCalls, 1);
