@@ -111,8 +111,11 @@ DO $backfill$
 DECLARE
   v_organization_id uuid;
 BEGIN
+  -- The private public-route directory is deliberately not tenant-RLS
+  -- protected and contains every organization, allowing a safe tenant-by-tenant
+  -- backfill without a cross-tenant SELECT on inquiry source rows.
   FOR v_organization_id IN
-    SELECT DISTINCT organization_id FROM eogp.booking_inquiries ORDER BY organization_id
+    SELECT organization_id FROM eogp.public_organization_routes ORDER BY organization_id
   LOOP
     PERFORM set_config('app.organization_id',v_organization_id::text,true);
     INSERT INTO eogp.booking_inquiry_status_history (
