@@ -967,6 +967,36 @@ export function buildApi(dependencies: ApiDependencies): FastifyInstance {
   });
 
 
+  server.get<{ Params: { organizationId: string } }>(
+    "/organizations/:organizationId/booking-inquiry-assignees",
+    { schema: { params: organizationInquiryParams } },
+    async (request, reply) => {
+      const principal = request.staffPrincipal!;
+      if (request.params.organizationId !== principal.organizationId) {
+        throw new ApiError(403, "FORBIDDEN", "The requested organization is not the active membership organization.");
+      }
+      const client = await dependencies.pool.connect();
+      try {
+        await client.query("BEGIN");
+        await client.query("SELECT set_config('app.organization_id',$1,true)", [principal.organizationId]);
+        const result = await client.query<ResultRow>(
+          "SELECT eogp.list_booking_inquiry_assignees($1::uuid,$2::uuid) AS result",
+          [principal.organizationId, principal.membershipId],
+        );
+        await client.query("COMMIT");
+        const projection = result.rows[0]?.result as { items?: unknown[] } | undefined;
+        return reply.code(200).send({
+          data: Array.isArray(projection?.items) ? projection.items : [],
+        });
+      } catch (error) {
+        try { await client.query("ROLLBACK"); } catch { /* preserve the read error */ }
+        throw databaseError(error);
+      } finally {
+        client.release();
+      }
+    },
+  );
+
   server.get<{
     Params: { organizationId: string };
     Querystring: { status?: string; assignedToMembershipId?: string; limit?: number; offset?: number };
