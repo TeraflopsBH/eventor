@@ -647,6 +647,11 @@ export const api = {
       `/booking-offers/${encodeURIComponent(offerId)}/issue`,
       { method: "POST", body: {}, idempotent: true, idempotencyKey: requestKey },
     ),
+  queueBookingOfferEmail: (offerId: string, acceptanceToken: string, requestKey?: string) =>
+    request<Envelope<{ deliveryId: string; status: string; created: boolean }>>(
+      `/booking-offers/${encodeURIComponent(offerId)}/email`,
+      { method: "POST", body: { acceptanceToken }, idempotent: true, idempotencyKey: requestKey },
+    ),
   getBookingApprovalPolicies: () =>
     request<Envelope<BookingApprovalPolicy[]>>("/organization/booking-approval-policies"),
   createBookingApprovalPolicy: (body: { code: string; name: string }) =>
