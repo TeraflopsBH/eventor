@@ -34,6 +34,7 @@ const {
         <span>EVENTOR <small>{{ $t("app.staffWorkspace") }}</small></span>
       </a>
       <label class="locale-picker">{{ $t("app.language") }} <select v-model="locale" @change="props.workspace.saveLocalePreference(locale)"><option v-for="option in localeOptions" :key="option.value" :value="option.value">{{ option.label }}</option></select></label>
+      <button v-if="principal?.userLocale" class="button button-quiet" :disabled="busy" @click="props.workspace.useOrganizationLocalePreference">{{ $t("localeSettings.useOrganization") }}</button>
       <div v-if="principal" class="account">
         <div class="account-copy">
           <strong>{{ selectedOrganization }}</strong>
