@@ -46,6 +46,7 @@ async function request<T>(
     idempotent?: boolean;
     idempotencyKey?: string;
     extraHeaders?: Record<string, string>;
+    credentials?: RequestCredentials;
   } = {},
 ): Promise<T> {
   const method = options.method ?? "GET";
@@ -65,7 +66,7 @@ async function request<T>(
   const response = await fetch(`${apiBase}${path}`, {
     method,
     headers,
-    credentials: "include",
+    credentials: options.credentials ?? "include",
     cache: "no-store",
     body: options.body === undefined ? undefined : JSON.stringify(options.body),
   });
@@ -564,7 +565,7 @@ export const api = {
   getPublicBookingOffer: (offerId: string, token: string) =>
     request<Envelope<PublicBookingOffer>>(
       `/public/booking-offers/${encodeURIComponent(offerId)}`,
-      { extraHeaders: { "X-External-Booking-Token": token } },
+      { credentials: "omit", extraHeaders: { "X-External-Booking-Token": token } },
     ),
   acceptPublicBookingOffer: (
     offerId: string,
@@ -576,6 +577,7 @@ export const api = {
       `/booking-offers/${encodeURIComponent(offerId)}/accept`,
       {
         method: "POST", body, idempotent: true, idempotencyKey: requestKey,
+        credentials: "omit",
         extraHeaders: { "X-External-Booking-Token": token },
       },
     ),
