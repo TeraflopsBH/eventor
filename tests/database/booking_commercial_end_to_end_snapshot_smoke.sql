@@ -1,7 +1,7 @@
 -- End-to-end transactional verification of the commercial offer -> customer
 -- acceptance -> approval -> booking confirmation path.
--- Runs as the migrator/owner, creates isolated synthetic actors/configuration,
--- invokes the production command functions, and rolls every change back.
+-- Runs as the migrator/owner, creates isolated synthetic actors/configuration
+-- and venue inventory, invokes the production command functions, and rolls back.
 \set ON_ERROR_STOP on
 BEGIN;
 SET LOCAL ROLE eventor_owner;
@@ -18,6 +18,10 @@ DECLARE
   v_approver_role uuid := gen_random_uuid();
   v_draft_id uuid := gen_random_uuid();
   v_draft_revision_id uuid := gen_random_uuid();
+  v_venue_id uuid := gen_random_uuid();
+  v_space_id uuid := gen_random_uuid();
+  v_space_starts_at timestamptz := clock_timestamp()+interval '10 days';
+  v_space_ends_at timestamptz := clock_timestamp()+interval '10 days 8 hours';
   v_tax_profile_id uuid;
   v_tax_revision_1 uuid;
   v_tax_revision_2 uuid;
@@ -83,8 +87,13 @@ BEGIN
     (v_org,v_creator,v_creator_role,'organization',v_creator),
     (v_org,v_approver,v_approver_role,'organization',v_creator);
 
-  -- Minimal direct-draft fixture: no space/resource lines, so final resource
-  -- availability preflight must correctly accept the empty requested inventory.
+  -- Isolated venue space and an exact requested interval for this commercial
+  -- booking. The hold lifecycle is exercised below against this real inventory.
+  INSERT INTO eogp.venues(id,organization_id,code,name,timezone_name)
+  VALUES(v_venue_id,v_org,'CI-E2E-'||substr(gen_random_uuid()::text,1,8),'CI E2E Venue','Europe/Sarajevo');
+  INSERT INTO eogp.venue_spaces(id,organization_id,venue_id,code,name,space_kind,capacity,status)
+  VALUES(v_space_id,v_org,v_venue_id,'CI-ROOM','CI E2E Room','room',50,'active');
+
   INSERT INTO eogp.booking_drafts(
     id,organization_id,created_by_membership_id,status,current_revision_number
   ) VALUES(v_draft_id,v_org,v_creator,'draft',1);
@@ -271,6 +280,52 @@ BEGIN
     RAISE EXCEPTION 'pinned approval requirement was not satisfied: %',v_result;
   END IF;
 
+  -- A missing hold must block commercial confirmation without partially
+  -- creating a booking or changing the accepted offer.
+  BEGIN
+    PERFORM eogp.confirm_booking_from_offer(
+      v_org,v_draft_revision_id,v_creator,'Expected missing space hold rejection'
+    );
+    RAISE EXCEPTION 'commercial confirmation unexpectedly succeeded without a space hold';
+  EXCEPTION WHEN SQLSTATE '23P01' THEN
+    NULL;
+  END;
+  IF EXISTS (SELECT 1 FROM eogp.booking_records WHERE organization_id=v_org AND source_offer_revision_id=v_offer_revision_id) THEN
+    RAISE EXCEPTION 'failed missing-hold confirmation left a partial booking';
+  END IF;
+
+  -- An already-expired hold is not a substitute for the exact live hold.
+  INSERT INTO eogp.venue_space_time_blocks(
+    organization_id,venue_space_id,booking_draft_revision_id,reservation_kind,status,
+    starts_at,ends_at,expires_at,idempotency_key,actor_membership_id
+  ) VALUES(
+    v_org,v_space_id,v_draft_revision_id,'draft_hold','expired',
+    v_space_starts_at,v_space_ends_at,clock_timestamp()-interval '1 minute',
+    'ci-e2e-expired-space-hold',v_creator
+  );
+  BEGIN
+    PERFORM eogp.confirm_booking_from_offer(
+      v_org,v_draft_revision_id,v_creator,'Expected expired space hold rejection'
+    );
+    RAISE EXCEPTION 'commercial confirmation unexpectedly succeeded with an expired space hold';
+  EXCEPTION WHEN SQLSTATE '23P01' THEN
+    NULL;
+  END;
+  IF EXISTS (SELECT 1 FROM eogp.booking_records WHERE organization_id=v_org AND source_offer_revision_id=v_offer_revision_id) THEN
+    RAISE EXCEPTION 'failed expired-hold confirmation left a partial booking';
+  END IF;
+
+  -- Supply the exact active hold. Confirmation must atomically convert it to
+  -- booking occupancy while preserving the accepted commercial snapshot.
+  INSERT INTO eogp.venue_space_time_blocks(
+    organization_id,venue_space_id,booking_draft_revision_id,reservation_kind,status,
+    starts_at,ends_at,expires_at,idempotency_key,actor_membership_id
+  ) VALUES(
+    v_org,v_space_id,v_draft_revision_id,'draft_hold','held',
+    v_space_starts_at,v_space_ends_at,clock_timestamp()+interval '1 day',
+    'ci-e2e-live-space-hold',v_creator
+  );
+
   -- Confirmation uses the accepted revision and pinned one-approval rule,
   -- even though policy revision 2 now asks for two approvals.
   v_confirmation:=eogp.confirm_booking_from_offer(
@@ -278,8 +333,25 @@ BEGIN
   );
   v_booking_id:=(v_confirmation->>'bookingId')::uuid;
   IF v_confirmation->>'status'<>'confirmed'
-     OR coalesce((v_confirmation->>'replayed')::boolean,true) THEN
+     OR coalesce((v_confirmation->>'replayed')::boolean,true)
+     OR (v_confirmation->>'spaceReservationsConfirmed')::integer<>1 THEN
     RAISE EXCEPTION 'accepted offer did not produce a new confirmed booking: %',v_confirmation;
+  END IF;
+
+  IF NOT EXISTS (
+    SELECT 1 FROM eogp.venue_space_time_blocks block
+     WHERE block.organization_id=v_org AND block.venue_space_id=v_space_id
+       AND block.booking_id=v_booking_id AND block.booking_draft_revision_id IS NULL
+       AND block.reservation_kind='booking' AND block.status='confirmed'
+       AND block.starts_at=v_space_starts_at AND block.ends_at=v_space_ends_at
+       AND block.expires_at IS NULL
+  ) THEN
+    RAISE EXCEPTION 'the exact live space hold was not converted to confirmed booking occupancy';
+  END IF;
+  IF (SELECT count(*) FROM eogp.venue_space_time_blocks block
+       WHERE block.organization_id=v_org AND block.booking_draft_revision_id=v_draft_revision_id
+         AND block.status='held')<>0 THEN
+    RAISE EXCEPTION 'draft space hold remained active after booking confirmation';
   END IF;
 
   SELECT * INTO v_snapshot
