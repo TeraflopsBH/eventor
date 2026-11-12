@@ -80,7 +80,7 @@ const {
         <template v-if="campaign">
           <div class="campaign-summary">
             <div><span class="eyebrow">{{ $t("campaignWorkspace.campaignStatus") }}</span><h3>{{ statusLabel(campaign.status) }}</h3></div>
-            <span class="pill" :class="campaign.status === 'completed' ? 'pill-success' : campaign.status === 'failed' ? 'pill-danger' : 'pill-neutral'">{{ campaign.status }}</span>
+            <span class="pill" :class="campaign.status === 'completed' ? 'pill-success' : campaign.status === 'failed' ? 'pill-danger' : 'pill-neutral'">{{ statusLabel(campaign.status) }}</span>
           </div>
           <div class="metric-grid">
             <div class="metric"><span>{{ $t("campaignWorkspace.recipients") }}</span><strong>{{ campaign.recipientCount }}</strong><small>{{ $t("campaignWorkspace.snapshotCount") }}</small></div>
@@ -102,10 +102,10 @@ const {
               </dl>
             </div>
             <div class="review-card">
-              <h4>Message template · {{ campaign.template.locale }}</h4>
+              <h4>{{ $t("campaignWorkspace.messageTemplate") }} · {{ campaign.template.locale }}</h4>
               <p class="template-subject">{{ campaign.template.subjectTemplate }}</p>
               <pre class="template-body">{{ campaign.template.bodyTemplate }}</pre>
-              <p class="fine-print">Template revision {{ campaign.template.revisionNumber }} · {{ statusLabel(campaign.template.state) }}</p>
+              <p class="fine-print">{{ $t("campaignWorkspace.templateRevision") }} {{ campaign.template.revisionNumber }} · {{ statusLabel(campaign.template.state) }}</p>
             </div>
           </div>
           <div class="review-card exclusion-card">
@@ -148,10 +148,10 @@ const {
                   <span class="pill" :class="attempt.status === 'sent' || attempt.status === 'delivered' ? 'pill-success' : attempt.status === 'failed' || attempt.status === 'bounced' ? 'pill-danger' : attempt.status === 'uncertain' ? 'pill-warning' : 'pill-neutral'">{{ statusLabel(attempt.status) }}</span>
                 </div>
                 <div class="delivery-meta">
-                  <span>Provider: {{ attempt.provider ?? "—" }}</span>
-                  <span>Failure: {{ attempt.failureCode ?? "—" }}</span>
-                  <span>Retry scheduled: {{ attempt.retryScheduled ? $t("campaignWorkspace.yes") : $t("campaignWorkspace.no") }}</span>
-                  <span>Completed: {{ attempt.completedAt ? new Date(attempt.completedAt).toLocaleString() : "—" }}</span>
+                  <span>{{ $t("campaignWorkspace.provider") }}: {{ attempt.provider ?? "—" }}</span>
+                  <span>{{ $t("campaignWorkspace.failure") }}: {{ attempt.failureCode ?? "—" }}</span>
+                  <span>{{ $t("campaignWorkspace.retryScheduled") }}: {{ attempt.retryScheduled ? $t("campaignWorkspace.yes") : $t("campaignWorkspace.no") }}</span>
+                  <span>{{ $t("campaignWorkspace.completed") }}: {{ attempt.completedAt ? new Date(attempt.completedAt).toLocaleString() : "—" }}</span>
                 </div>
                 <div v-if="attempt.status === 'uncertain' || (attempt.status === 'failed' && !attempt.retryScheduled)" class="operator-controls">
                   <label>{{ $t("campaignWorkspace.verifiedOutcome") }}
@@ -164,7 +164,7 @@ const {
                     </select>
                   </label>
                   <label>{{ $t("campaignWorkspace.auditReason") }}
-                    <textarea v-model="operatorReason[attempt.attemptId]" rows="2" maxlength="1000" placeholder="Record how the outcome was verified…"></textarea>
+                    <textarea v-model="operatorReason[attempt.attemptId]" rows="2" maxlength="1000"  :placeholder="$t('campaignWorkspace.auditPlaceholder')"></textarea>
                   </label>
                   <button class="button button-secondary" type="button" :disabled="busy" @click="reconcileDeliveryAttempt(attempt)">{{ $t("campaignWorkspace.recordReconciliation") }}</button>
                 </div>
