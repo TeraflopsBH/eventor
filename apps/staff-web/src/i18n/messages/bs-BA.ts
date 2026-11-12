@@ -833,6 +833,7 @@ export default {
     fullName: "Ime i prezime",
     email: "E-mail adresa",
     phone: "Broj telefona",
+    selectMaximum: "Odaberite najviše {count} opcija za polje: {field}.",
     selectMinimum: "Odaberite najmanje {count} opcija za polje: {field}.",
     chooseOption: "Odaberite opciju",
     dateTimeOffsetHelp: "Unesite datum i vrijeme u ISO 8601 formatu, uključujući UTC pomak, npr. 2026-11-12T14:30:00+01:00.",
