@@ -10,12 +10,19 @@ type Workspace = ReturnType<typeof useStaffSession> & {
   activeTab: Ref<string>;
   locale: WritableComputedRef<string>;
   localeOptions: Array<{ value: SupportedLocale; label: string }>;
+  openInquiryWorkspace: () => Promise<void>;
+  openBookingApprovalPolicies: () => Promise<void>;
+  openBookingPriceLists: () => Promise<void>;
+  openBookingCancellationPolicies: () => Promise<void>;
+  openBookingTaxProfiles: () => Promise<void>;
 };
 
 const props = defineProps<{ workspace: Workspace }>();
 const {
   principal, loadingSession, loginForm, selectedOrganization, signIn, signOut,
   busy, pageError, pageNotice, activeTab, locale, localeOptions,
+  openInquiryWorkspace, openBookingApprovalPolicies, openBookingPriceLists,
+  openBookingCancellationPolicies, openBookingTaxProfiles,
 } = props.workspace;
 </script>
 
