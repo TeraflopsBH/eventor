@@ -2367,8 +2367,8 @@ onMounted(() => {
                     <label>Offer valid until (your local time)
                       <input v-model="bookingOfferValidUntil" type="datetime-local" required />
                     </label>
-                    <label>Tax amount
-                      <input v-model="bookingOfferTaxAmount" type="number" min="0" step="0.01" required />
+                    <label>Tax amount (zero = calculate from selected tax profile; positive = manual override)
+                      <input v-model="bookingOfferTaxAmount" type="number" min="0" step="0.0001" required />
                     </label>
                   </div>
                   <label>Price-list line items (JSON array)
