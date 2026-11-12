@@ -130,7 +130,7 @@ BEGIN
   IF eogp.current_organization_id() IS DISTINCT FROM p_organization_id THEN
     RAISE EXCEPTION 'organization context mismatch' USING ERRCODE='42501';
   END IF;
-  IF p_resolution NOT IN ('confirmed_sent','confirmed_not_sent')
+  IF p_resolution IS NULL OR p_resolution NOT IN ('confirmed_sent','confirmed_not_sent')
      OR length(btrim(coalesce(p_reason,''))) NOT BETWEEN 3 AND 1000
      OR length(coalesce(p_provider_message_reference,''))>998 THEN
     RAISE EXCEPTION 'invalid offer email reconciliation decision' USING ERRCODE='22023';
@@ -214,8 +214,8 @@ BEGIN
   PERFORM eogp.assert_booking_commercial_permission(
     p_organization_id,p_actor_membership_id,ARRAY['booking.manage']::text[]
   );
-  IF v_delivery.status<>'failed'
-     OR v_delivery.last_operator_resolution<>'confirmed_not_sent'
+  IF v_delivery.status IS DISTINCT FROM 'failed'
+     OR v_delivery.last_operator_resolution IS DISTINCT FROM 'confirmed_not_sent'
      OR v_delivery.manual_retry_count>=1
      OR NOT EXISTS (
        SELECT 1
