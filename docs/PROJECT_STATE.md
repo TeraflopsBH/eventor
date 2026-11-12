@@ -1,6 +1,6 @@
 # Project state
 
-**Status:** accepted product/domain design baseline; 62-migration PostgreSQL 18 implementation, canonical OpenAPI v0.3, Fastify staff API/workers and Vue 3 staff web across stacked draft PRs #26–#31; PostgreSQL 18.6, OpenAPI, API and staff-web CI validation configured; SMTP delivery worker and explicit campaign queue/cancel lifecycle implemented; production-readiness review remains open  
+**Status:** accepted product/domain design baseline; 63-migration PostgreSQL 18 implementation, canonical OpenAPI v0.3, Fastify staff API/workers and Vue 3 staff web across stacked draft PRs #26–#32; PostgreSQL 18.6, OpenAPI, API and staff-web CI validation configured; SMTP delivery worker and explicit campaign queue/cancel lifecycle implemented; production-readiness review remains open  
 **Last updated:** 2026-11-12  
 **Implementation status:** PR #28 adds the commercial offer lifecycle; stacked PR #29 adds organization price-list management; stacked PR #30 adds organization cancellation-policy management; stacked PR #31 adds versioned organization tax configuration. CI is intentionally deferred while the monthly GitHub Actions allowance is exhausted; no current-head CI pass or production database deployment is claimed.
 
