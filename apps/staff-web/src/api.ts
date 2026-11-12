@@ -264,12 +264,7 @@ export interface BookingInquiryAssignmentHistoryItem {
 export interface BookingInquiryDetail extends BookingInquiryListItem {
   fieldSchema: {
     schemaVersion?: number;
-    fields: Array<{
-      code: string;
-      type: string;
-      label?: string;
-      options?: Array<{ value: string; label: string }>;
-    }>;
+    fields: PublicBookingFormField[];
   };
   requesterEmail: string | null;
   requesterPhone: string | null;
