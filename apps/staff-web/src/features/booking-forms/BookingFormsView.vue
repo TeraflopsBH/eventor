@@ -43,65 +43,65 @@ function setType(type: string): void {
     <div v-if="w.selectedForm" class="booking-form-editor">
       <section class="panel">
         <div class="section-heading compact"><div><p class="eyebrow">{{ w.selectedForm.formCode }}</p><h3>{{ w.selectedForm.name }}</h3><p class="muted">{{ t("bookingForms.revision", { number: w.latestRevision?.revisionNumber ?? 0 }) }} · {{ w.latestRevision?.state }}</p></div>
-          <button v-if="!w.editable.value" class="button button-secondary" :disabled="w.busy.value" @click="w.createRevision">{{ t("bookingForms.newRevision") }}</button>
+          <button v-if="!w.editable" class="button button-secondary" :disabled="w.busy.value" @click="w.createRevision">{{ t("bookingForms.newRevision") }}</button>
         </div>
         <div class="form-grid">
-          <label>{{ t("bookingForms.baseLanguage") }}<select v-model="w.baseLocale" :disabled="!w.editable.value" @change="w.markDirty"><option v-for="item in locales" :key="item.value" :value="item.value">{{ item.label }}</option></select></label>
-          <label>{{ t("bookingForms.formName") }}<input :value="w.translation(w.baseLocale).formName || w.selectedForm.name" :disabled="!w.editable.value" @input="w.setFormTranslationName(w.baseLocale, ($event.target as HTMLInputElement).value)" /></label>
+          <label>{{ t("bookingForms.baseLanguage") }}<select v-model="w.baseLocale" :disabled="!w.editable" @change="w.markDirty"><option v-for="item in locales" :key="item.value" :value="item.value">{{ item.label }}</option></select></label>
+          <label>{{ t("bookingForms.formName") }}<input :value="w.translation(w.baseLocale).formName || w.selectedForm.name" :disabled="!w.editable" @input="w.setFormTranslationName(w.baseLocale, ($event.target as HTMLInputElement).value)" /></label>
         </div>
         <div class="booking-form-actions">
           <span class="muted">{{ w.dirty ? t("bookingForms.unsaved") : t("bookingForms.savedState") }}</span>
-          <button class="button button-primary" :disabled="w.busy || !w.editable.value || !w.dirty.value" @click="w.save">{{ t("bookingForms.saveDraft") }}</button>
-          <button class="button button-secondary" :disabled="w.busy || !w.editable.value || w.dirty || !w.schema.fields.length" @click="w.publish">{{ t("bookingForms.publish") }}</button>
+          <button class="button button-primary" :disabled="w.busy || !w.editable || !w.dirty" @click="w.save">{{ t("bookingForms.saveDraft") }}</button>
+          <button class="button button-secondary" :disabled="w.busy || !w.editable || w.dirty || !w.schema.fields.length" @click="w.publish">{{ t("bookingForms.publish") }}</button>
         </div>
       </section>
       <section class="panel">
-        <div class="section-heading compact"><h3>{{ t("bookingForms.fields") }} ({{ w.schema.fields.length }}/100)</h3><button class="button button-quiet" :disabled="!w.editable.value || w.schema.fields.length >= 100" @click="w.addField">{{ t("bookingForms.addField") }}</button></div>
+        <div class="section-heading compact"><h3>{{ t("bookingForms.fields") }} ({{ w.schema.fields.length }}/100)</h3><button class="button button-quiet" :disabled="!w.editable || w.schema.fields.length >= 100" @click="w.addField">{{ t("bookingForms.addField") }}</button></div>
         <div class="booking-form-field-list">
           <button v-for="field in w.schema.fields" :key="field.code" class="booking-form-field-chip" :class="{ active: field.code === w.selectedFieldCode }" @click="w.selectedFieldCode = field.code">{{ field.label || field.code }} <small>{{ field.type }}</small></button>
           <p v-if="!w.schema.fields.length" class="muted">{{ t("bookingForms.noFields") }}</p>
         </div>
         <template v-if="w.selectedField">
           <div class="booking-form-reorder">
-            <button class="button button-quiet" :disabled="!w.editable.value || w.schema.fields.findIndex(field => field.code === w.selectedField!.code) === 0" @click="w.moveField(w.schema.fields.findIndex(field => field.code === w.selectedField!.code), -1)">{{ t("bookingForms.moveUp") }}</button>
-            <button class="button button-quiet" :disabled="!w.editable.value || w.schema.fields.findIndex(field => field.code === w.selectedField!.code) === w.schema.fields.length - 1" @click="w.moveField(w.schema.fields.findIndex(field => field.code === w.selectedField!.code), 1)">{{ t("bookingForms.moveDown") }}</button>
+            <button class="button button-quiet" :disabled="!w.editable || w.schema.fields.findIndex(field => field.code === w.selectedField!.code) === 0" @click="w.moveField(w.schema.fields.findIndex(field => field.code === w.selectedField!.code), -1)">{{ t("bookingForms.moveUp") }}</button>
+            <button class="button button-quiet" :disabled="!w.editable || w.schema.fields.findIndex(field => field.code === w.selectedField!.code) === w.schema.fields.length - 1" @click="w.moveField(w.schema.fields.findIndex(field => field.code === w.selectedField!.code), 1)">{{ t("bookingForms.moveDown") }}</button>
           </div>
           <div class="form-grid">
-            <label>{{ t("bookingForms.fieldCode") }}<input  :value="w.selectedField.code" pattern="[a-z][a-z0-9_]{0,79}" :disabled="!w.editable.value" @input="w.updateFieldCode(w.selectedField!, ($event.target as HTMLInputElement).value)" /></label>
-            <label>{{ t("bookingForms.fieldType") }}<select :value="w.selectedField.type" :disabled="!w.editable.value" @change="setType(($event.target as HTMLSelectElement).value)"><option v-for="type in ['text','textarea','email','phone','number','date','datetime','time','select','multiselect','checkbox']" :key="type" :value="type">{{ type }}</option></select></label>
-            <label>{{ t("bookingForms.label") }}<input v-model="w.selectedField.label" :disabled="!w.editable.value" @input="w.markDirty" /></label>
-            <label class="checkbox-label"><input v-model="w.selectedField.required" type="checkbox" :disabled="!w.editable.value" @change="w.markDirty" />{{ t("bookingForms.required") }}</label>
-            <label v-if="['text','textarea','email','phone'].includes(w.selectedField.type)">{{ t("bookingForms.minLength") }}<input v-model.number="w.selectedField.minLength" type="number" min="0" max="5000" :disabled="!w.editable.value" @input="w.markDirty" /></label>
-            <label v-if="['text','textarea','email','phone'].includes(w.selectedField.type)">{{ t("bookingForms.maxLength") }}<input v-model.number="w.selectedField.maxLength" type="number" min="1" max="5000" :disabled="!w.editable.value" @input="w.markDirty" /></label>
-            <label v-if="w.selectedField.type === 'number'">{{ t("bookingForms.minimum") }}<input v-model.number="w.selectedField.min" type="number" :disabled="!w.editable.value" @input="w.markDirty" /></label>
-            <label v-if="w.selectedField.type === 'number'">{{ t("bookingForms.maximum") }}<input v-model.number="w.selectedField.max" type="number" :disabled="!w.editable.value" @input="w.markDirty" /></label>
-            <label v-if="w.selectedField.type === 'number'" class="checkbox-label"><input v-model="w.selectedField.integer" type="checkbox" :disabled="!w.editable.value" @change="w.markDirty" />{{ t("bookingForms.integer") }}</label>
-            <label v-if="w.selectedField.type === 'multiselect'">{{ t("bookingForms.minItems") }}<input v-model.number="w.selectedField.minItems" type="number" min="0" :disabled="!w.editable.value" @input="w.markDirty" /></label>
-            <label v-if="w.selectedField.type === 'multiselect'">{{ t("bookingForms.maxItems") }}<input v-model.number="w.selectedField.maxItems" type="number" min="1" :disabled="!w.editable.value" @input="w.markDirty" /></label>
+            <label>{{ t("bookingForms.fieldCode") }}<input  :value="w.selectedField.code" pattern="[a-z][a-z0-9_]{0,79}" :disabled="!w.editable" @input="w.updateFieldCode(w.selectedField!, ($event.target as HTMLInputElement).value)" /></label>
+            <label>{{ t("bookingForms.fieldType") }}<select :value="w.selectedField.type" :disabled="!w.editable" @change="setType(($event.target as HTMLSelectElement).value)"><option v-for="type in ['text','textarea','email','phone','number','date','datetime','time','select','multiselect','checkbox']" :key="type" :value="type">{{ type }}</option></select></label>
+            <label>{{ t("bookingForms.label") }}<input v-model="w.selectedField.label" :disabled="!w.editable" @input="w.markDirty" /></label>
+            <label class="checkbox-label"><input v-model="w.selectedField.required" type="checkbox" :disabled="!w.editable" @change="w.markDirty" />{{ t("bookingForms.required") }}</label>
+            <label v-if="['text','textarea','email','phone'].includes(w.selectedField.type)">{{ t("bookingForms.minLength") }}<input v-model.number="w.selectedField.minLength" type="number" min="0" max="5000" :disabled="!w.editable" @input="w.markDirty" /></label>
+            <label v-if="['text','textarea','email','phone'].includes(w.selectedField.type)">{{ t("bookingForms.maxLength") }}<input v-model.number="w.selectedField.maxLength" type="number" min="1" max="5000" :disabled="!w.editable" @input="w.markDirty" /></label>
+            <label v-if="w.selectedField.type === 'number'">{{ t("bookingForms.minimum") }}<input v-model.number="w.selectedField.min" type="number" :disabled="!w.editable" @input="w.markDirty" /></label>
+            <label v-if="w.selectedField.type === 'number'">{{ t("bookingForms.maximum") }}<input v-model.number="w.selectedField.max" type="number" :disabled="!w.editable" @input="w.markDirty" /></label>
+            <label v-if="w.selectedField.type === 'number'" class="checkbox-label"><input v-model="w.selectedField.integer" type="checkbox" :disabled="!w.editable" @change="w.markDirty" />{{ t("bookingForms.integer") }}</label>
+            <label v-if="w.selectedField.type === 'multiselect'">{{ t("bookingForms.minItems") }}<input v-model.number="w.selectedField.minItems" type="number" min="0" :disabled="!w.editable" @input="w.markDirty" /></label>
+            <label v-if="w.selectedField.type === 'multiselect'">{{ t("bookingForms.maxItems") }}<input v-model.number="w.selectedField.maxItems" type="number" min="1" :disabled="!w.editable" @input="w.markDirty" /></label>
           </div>
           <div v-if="['select','multiselect'].includes(w.selectedField.type)" class="option-editor">
-            <div class="section-heading compact"><h4>{{ t("bookingForms.options") }}</h4><button class="button button-quiet" :disabled="!w.editable.value" @click="w.addOption(w.selectedField!)">{{ t("bookingForms.addOption") }}</button></div>
+            <div class="section-heading compact"><h4>{{ t("bookingForms.options") }}</h4><button class="button button-quiet" :disabled="!w.editable" @click="w.addOption(w.selectedField!)">{{ t("bookingForms.addOption") }}</button></div>
             <div v-for="(option, index) in w.selectedField.options || []" :key="option.value" class="form-grid option-row">
-              <label>{{ t("bookingForms.optionValue") }}<input  :value="option.value" :disabled="!w.editable.value" @input="w.updateOptionValue(w.selectedField!, option.value, ($event.target as HTMLInputElement).value)" /></label>
-              <label>{{ t("bookingForms.optionLabel") }}<input v-model="option.label" :disabled="!w.editable.value" @input="w.markDirty" /></label>
-              <button class="button button-quiet" :disabled="!w.editable.value" @click="w.selectedField!.options!.splice(index,1); w.markDirty()">{{ t("bookingForms.remove") }}</button>
+              <label>{{ t("bookingForms.optionValue") }}<input  :value="option.value" :disabled="!w.editable" @input="w.updateOptionValue(w.selectedField!, option.value, ($event.target as HTMLInputElement).value)" /></label>
+              <label>{{ t("bookingForms.optionLabel") }}<input v-model="option.label" :disabled="!w.editable" @input="w.markDirty" /></label>
+              <button class="button button-quiet" :disabled="!w.editable" @click="w.selectedField!.options!.splice(index,1); w.markDirty()">{{ t("bookingForms.remove") }}</button>
             </div>
           </div>
-          <button class="button button-danger" :disabled="!w.editable.value" @click="w.removeField(w.selectedField.code)">{{ t("bookingForms.removeField") }}</button>
+          <button class="button button-danger" :disabled="!w.editable" @click="w.removeField(w.selectedField.code)">{{ t("bookingForms.removeField") }}</button>
         </template>
       </section>
       <section class="panel">
         <div class="section-heading compact"><div><h3>{{ t("bookingForms.translations") }}</h3><p class="muted">{{ t("bookingForms.translationHelp") }}</p></div></div>
         <div v-for="locale in locales" :key="locale.value" class="translation-section">
           <h4>{{ locale.label }} <small>{{ w.completeness(locale.value).complete }}/{{ w.completeness(locale.value).total }}</small></h4>
-          <label>{{ t("bookingForms.translatedFormName") }}<input :value="w.translation(locale.value).formName" :disabled="!w.editable.value" @input="w.setFormTranslationName(locale.value, ($event.target as HTMLInputElement).value)" /></label>
+          <label>{{ t("bookingForms.translatedFormName") }}<input :value="w.translation(locale.value).formName" :disabled="!w.editable" @input="w.setFormTranslationName(locale.value, ($event.target as HTMLInputElement).value)" /></label>
           <template v-for="field in w.schema.fields" :key="field.code">
             <div class="form-grid">
-              <label>{{ field.code }} · {{ t("bookingForms.label") }}<input :value="w.fieldText(locale.value, field, 'label')" :disabled="!w.editable.value" @input="w.setFieldText(locale.value,field,'label',($event.target as HTMLInputElement).value)" /></label>
-              <label>{{ t("bookingForms.fieldDescription") }}<input :value="w.fieldText(locale.value, field, 'description')" :disabled="!w.editable.value" @input="w.setFieldText(locale.value,field,'description',($event.target as HTMLInputElement).value)" /></label>
-              <label>{{ t("bookingForms.helpText") }}<input :value="w.fieldText(locale.value, field, 'helpText')" :disabled="!w.editable.value" @input="w.setFieldText(locale.value,field,'helpText',($event.target as HTMLInputElement).value)" /></label>
-              <label>{{ t("bookingForms.placeholder") }}<input :value="w.fieldText(locale.value, field, 'placeholder')" :disabled="!w.editable.value" @input="w.setFieldText(locale.value,field,'placeholder',($event.target as HTMLInputElement).value)" /></label>
-              <template v-for="option in field.options || []" :key="option.value"><label>{{ option.value }}<input :value="w.optionText(locale.value,field,option.value,'')" :disabled="!w.editable.value" @input="w.setOptionText(locale.value,field,option.value,($event.target as HTMLInputElement).value)" /></label></template>
+              <label>{{ field.code }} · {{ t("bookingForms.label") }}<input :value="w.fieldText(locale.value, field, 'label')" :disabled="!w.editable" @input="w.setFieldText(locale.value,field,'label',($event.target as HTMLInputElement).value)" /></label>
+              <label>{{ t("bookingForms.fieldDescription") }}<input :value="w.fieldText(locale.value, field, 'description')" :disabled="!w.editable" @input="w.setFieldText(locale.value,field,'description',($event.target as HTMLInputElement).value)" /></label>
+              <label>{{ t("bookingForms.helpText") }}<input :value="w.fieldText(locale.value, field, 'helpText')" :disabled="!w.editable" @input="w.setFieldText(locale.value,field,'helpText',($event.target as HTMLInputElement).value)" /></label>
+              <label>{{ t("bookingForms.placeholder") }}<input :value="w.fieldText(locale.value, field, 'placeholder')" :disabled="!w.editable" @input="w.setFieldText(locale.value,field,'placeholder',($event.target as HTMLInputElement).value)" /></label>
+              <template v-for="option in field.options || []" :key="option.value"><label>{{ option.value }}<input :value="w.optionText(locale.value,field,option.value,'')" :disabled="!w.editable" @input="w.setOptionText(locale.value,field,option.value,($event.target as HTMLInputElement).value)" /></label></template>
             </div>
           </template>
         </div>
