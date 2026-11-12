@@ -170,7 +170,7 @@ The separate v0.2 booking SQL addendum duplicates all 22 booking/configuration t
 
 1. Review the stacked commercial PRs in order. Tax configuration is implemented in PR #31 as an organization-owned, versioned profile catalogue; automatic percentage calculation now consumes the exact pinned tax-profile revision in PR #32; statutory interpretation and full invoice/tax workflows remain validation gates.
 2. Expand PostgreSQL functional/concurrency fixtures across migrations 000058–000064 and the complete offer/approval/confirmation workflow. Runtime-role snapshot consistency guards and a rollback-only transactional commercial lifecycle fixture now cover offer preparation, customer acceptance, independent approval, confirmation, pinned tax/price/cancellation/approval revisions and snapshot integrity. The lifecycle fixture also proves that missing and expired exact space holds block confirmation, then verifies that a live hold converts to confirmed booking occupancy without changing the commercial snapshot. It exercises resource preflight for missing and expired pooled/discrete holds, rejects a partially covered pooled quantity, and verifies split pooled holds plus a discrete-unit hold convert to the matching confirmed booking resource lines. PostgreSQL execution and CI validation remain outstanding. CI remains intentionally deferred while the monthly GitHub Actions allowance is exhausted; do not spend further runs until the allowance resets.
-3. Treat internationalization as a cross-cutting product requirement before staff and customer-facing UI expansion: organization default locale, user override, locale-aware formatting/pluralization, and translated customer communications/templates. Start with Bosnian (Bosnia and Herzegovina) and English for the reference deployment.
+3. Establish internationalization before staff and customer-facing UI expansion. [ADR 0007](decisions/0007-internationalization.md) defines locale precedence, content translation, formatting and communication rules. The initial reference locales are Bosnian (Bosnia and Herzegovina, `bs-BA`) and English (`en`).
 4. Review offer preparation's effective-period checks against the new price-list revision model, and ensure the staff UI can explicitly select the exact published revision.
 5. Expand venue, building, space and resource administration workspaces after the commercial configuration layer is complete.
 6. Keep production deployment blocked until GHB validates inventory, capacities, prices, tax treatment, cancellation terms and approval authority.
@@ -183,3 +183,12 @@ The separate v0.2 booking SQL addendum duplicates all 22 booking/configuration t
 - Confirm which guest and staff data fields are mandatory and who may view them.
 - Review the venue spatial drawing with an authorized venue representative.
 - Confirm public deployment hostname, reverse-proxy boundaries, email delivery and retention requirements.
+
+
+## Internationalization architecture
+
+[ADR 0007](decisions/0007-internationalization.md) is the accepted cross-cutting direction for i18n. Eventor will use stable locale-independent identifiers and translation keys; organization defaults and staff preferences determine the staff interface locale, while customer-facing flows may resolve an explicit customer language preference or request before falling back to the organization default. Missing translations fall back predictably to the configured fallback locale and are never replaced by machine-translated text at runtime.
+
+Locale is distinct from timezone and currency. Date/time rendering must use the event or booking timezone where the domain requires it, with locale controlling presentation only. Monetary values retain their ISO currency code and exact stored amount; locale affects formatting, not calculation. Customer-facing communications and vendor-authored translatable content must resolve language explicitly and preserve the exact rendered wording in issued/historical snapshots where that wording forms part of an accepted commercial record.
+
+The first implementation slice is intentionally architectural: no locale columns, API behavior or UI translation framework are added until the existing user/membership/session and content revision boundaries are incorporated into a reviewed implementation plan. Initial supported locales: `bs-BA` and `en`.
