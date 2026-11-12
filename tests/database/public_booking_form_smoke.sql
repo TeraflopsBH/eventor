@@ -32,7 +32,7 @@ INSERT INTO eogp.booking_form_revisions (
   'a1000000-0000-4000-8000-000000000001',
   'a2000000-0000-4000-8000-000000000001',
   1,
-  'bs-BA',
+  'en',
   '{"fields":[{"code":"event_date","type":"date","required":true}]}'::jsonb,
   'published',
   clock_timestamp()
@@ -81,7 +81,7 @@ BEGIN
   IF v_form IS NULL
      OR v_form->>'organizationId' <> 'a1000000-0000-4000-8000-000000000001'
      OR v_form->>'formRevisionId' <> 'a3000000-0000-4000-8000-000000000001'
-     OR v_form->>'locale' <> 'bs-BA'
+     OR v_form->>'locale' <> 'en'
      OR v_form->>'defaultLocale' <> 'en'
      OR v_form->'fieldSchema'->'fields'->0->>'code' <> 'event_date' THEN
     RAISE EXCEPTION 'published public form projection did not return the expected safe revision';
@@ -120,7 +120,7 @@ DECLARE
   v_form jsonb;
 BEGIN
   v_form := eogp.get_published_public_booking_form('ci-public-form','venue-rental');
-  IF v_form->>'defaultLocale' <> 'bs-BA' OR v_form->>'locale' <> 'bs-BA' THEN
+  IF v_form->>'defaultLocale' <> 'bs-BA' OR v_form->>'locale' <> 'en' THEN
     RAISE EXCEPTION 'public form projection did not expose the configured organization locale separately from authored revision locale';
   END IF;
 END;
