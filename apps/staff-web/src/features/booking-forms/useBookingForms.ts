@@ -139,6 +139,17 @@ export function useBookingForms({ api, busy, pageError, pageNotice, clearMessage
   async function save(): Promise<void> {
     const form = selectedForm.value, revision = latestRevision.value;
     if (!form || !revision || !editable.value) return;
+    for (const locale of ["bs-BA", "en"] as Locale[]) {
+      const content = schema.value.contentTranslations?.[locale];
+      if (!content) continue;
+      if (!content.formName.trim() && Object.keys(content.fields).length > 0) {
+        pageError.value = translate("bookingForms.translationNameRequired");
+        return;
+      }
+      if (!content.formName.trim() && Object.keys(content.fields).length === 0) {
+        delete schema.value.contentTranslations?.[locale];
+      }
+    }
     clearMessages(); busy.value = true;
     try {
       await api.updateBookingFormDraftRevision(form.formId, revision.revisionId, { locale: baseLocale.value, fieldSchema: schema.value });
