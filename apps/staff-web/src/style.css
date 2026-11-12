@@ -448,3 +448,14 @@ textarea:focus { border-color: var(--accent); box-shadow: 0 0 0 3px #f5863420; }
 .draft-answer-editor .public-choice, .draft-answer-editor .public-checkbox { display: flex; align-items: center; gap: 10px; font-weight: 500; }
 .draft-answer-editor .public-choice input, .draft-answer-editor .public-checkbox input { width: 16px; min-width: 16px; height: 16px; margin: 0; accent-color: var(--accent); }
 .draft-answer-editor .public-choice-group { margin: 0; }
+
+
+/* Structured booking-draft allocation editor */
+.draft-allocation-editor { display: grid; gap: 12px; padding: 14px; border: 1px solid var(--border); border-radius: 10px; }
+.draft-allocation-editor .inquiry-card-heading { margin: 0; }
+.draft-allocation-row { display: grid; grid-template-columns: minmax(180px, 1.5fr) repeat(2, minmax(130px, 1fr)); gap: 10px; align-items: end; padding: 12px 0; border-top: 1px solid var(--border); }
+.draft-allocation-row label { display: grid; gap: 6px; min-width: 0; color: var(--muted); font-size: 11px; }
+.draft-allocation-row input, .draft-allocation-row select { width: 100%; min-width: 0; }
+.draft-allocation-row .button { justify-self: start; }
+@media (max-width: 760px) { .draft-allocation-row { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
+@media (max-width: 480px) { .draft-allocation-row { grid-template-columns: 1fr; } }
