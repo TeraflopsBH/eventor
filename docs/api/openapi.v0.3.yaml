@@ -765,6 +765,52 @@ paths:
         '422': { $ref: '#/components/responses/UnprocessableEntity' }
         '429': { $ref: '#/components/responses/TooManyRequests' }
         '500': { $ref: '#/components/responses/InternalServerError' }
+  "/booking-offers/{offerId}/approvals":
+    get:
+      tags: ["Booking Administration"]
+      operationId: getBookingOfferApprovalStatus
+      summary: "Read approval requirements and decisions for the current offer revision"
+      security: [{ StaffSession: [] }]
+      parameters:
+        - $ref: '#/components/parameters/POfferId'
+      responses:
+        '200':
+          description: "Approval requirement snapshot and attributed decisions."
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/DataEnvelope' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '404': { $ref: '#/components/responses/NotFound' }
+        '500': { $ref: '#/components/responses/InternalServerError' }
+    post:
+      tags: ["Booking Administration"]
+      operationId: decideBookingOfferApproval
+      summary: "Record an approval decision for one pinned offer requirement"
+      description: "Requires booking.approve. The decision names the exact offer revision and rule code from its immutable evaluated approval snapshot. Distinct active memberships are counted; separation-of-duties rules prevent the offer creator from self-approving. A rejection or return-for-changes blocks that requirement."
+      security: [{ StaffSession: [], StaffCsrf: [] }]
+      parameters:
+        - $ref: '#/components/parameters/POfferId'
+        - $ref: '#/components/parameters/IdempotencyKey'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/BookingOfferApprovalDecisionRequest' }
+      responses:
+        '201':
+          description: "Approval decision recorded."
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/DataEnvelope' }
+        '400': { $ref: '#/components/responses/BadRequest' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '404': { $ref: '#/components/responses/NotFound' }
+        '409': { $ref: '#/components/responses/Conflict' }
+        '422': { $ref: '#/components/responses/UnprocessableEntity' }
+        '429': { $ref: '#/components/responses/TooManyRequests' }
+        '500': { $ref: '#/components/responses/InternalServerError' }
   "/booking-offers/{offerId}":
     get:
       tags: ["Booking Administration"]
@@ -4716,6 +4762,15 @@ components:
         reasonCode: { type: string, minLength: 2, maxLength: 100 }
         reason: { type: string, minLength: 3, maxLength: 2000 }
         note: { type: string, maxLength: 1000 }
+      additionalProperties: false
+    BookingOfferApprovalDecisionRequest:
+      type: object
+      required: [offerRevisionId, ruleCode, decision, reason]
+      properties:
+        offerRevisionId: { type: string, format: uuid }
+        ruleCode: { type: string, minLength: 1, maxLength: 100 }
+        decision: { type: string, enum: [approved, rejected, returned_for_changes] }
+        reason: { type: string, minLength: 3, maxLength: 2000 }
       additionalProperties: false
     BookingConfirmationRequest:
       type: object
