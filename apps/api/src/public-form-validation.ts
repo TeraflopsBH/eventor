@@ -252,6 +252,10 @@ function validateContentTranslations(
   }
 }
 
+export function validatePublicFormSchema(fieldSchema: unknown): void {
+  parseSchema(fieldSchema);
+}
+
 function validateFieldAnswer(field: PublicFormField, value: unknown): boolean {
   switch (field.type) {
     case "text":
