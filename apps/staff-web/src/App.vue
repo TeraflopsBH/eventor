@@ -132,7 +132,6 @@ const canManageBookingDraft = computed(() =>
   Boolean(bookingDraftDetail.value.currentRevision),
 );
 const canManageBookingOffer = computed(() =>
-  inquiryCapabilities.value.canManageDraft &&
   (bookingDraftDetail.value?.status === "draft" || bookingDraftDetail.value?.status === "offered") &&
   Boolean(bookingDraftDetail.value.currentRevision),
 );
