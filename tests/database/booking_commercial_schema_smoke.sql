@@ -12,7 +12,8 @@ DECLARE
     'booking_offer_approval_decisions',
     'booking_offer_capability_idempotency',
     'booking_offer_email_deliveries',
-    'booking_price_lists','booking_price_list_revisions','booking_price_items'
+    'booking_price_lists','booking_price_list_revisions','booking_price_items',
+    'cancellation_policies','cancellation_policy_revisions'
   ];
   v_required_functions text[] := ARRAY[
     'eogp.save_booking_offer_revision(uuid,uuid,uuid,uuid,uuid,uuid,uuid,text,text,timestamptz,jsonb,jsonb,numeric,text,boolean)',
@@ -37,7 +38,12 @@ DECLARE
     'eogp.create_booking_price_list(uuid,uuid,text,text,text,uuid,uuid,text,text)',
     'eogp.create_booking_price_list_revision(uuid,uuid,uuid,text,text,timestamptz,timestamptz)',
     'eogp.replace_booking_price_list_draft_items(uuid,uuid,uuid,uuid,text,text,timestamptz,timestamptz,jsonb)',
-    'eogp.publish_booking_price_list_revision(uuid,uuid,uuid,uuid)'
+    'eogp.publish_booking_price_list_revision(uuid,uuid,uuid,uuid)',
+    'eogp.get_booking_cancellation_policies(uuid,uuid)',
+    'eogp.create_booking_cancellation_policy(uuid,uuid,text,text)',
+    'eogp.create_booking_cancellation_policy_revision(uuid,uuid,uuid,text,text,jsonb,jsonb,jsonb)',
+    'eogp.update_booking_cancellation_policy_draft_revision(uuid,uuid,uuid,uuid,text,text,jsonb,jsonb,jsonb)',
+    'eogp.publish_booking_cancellation_policy_revision(uuid,uuid,uuid,uuid)'
   ];
 BEGIN
   FOREACH v_name IN ARRAY v_required_tables LOOP
@@ -73,7 +79,9 @@ BEGIN
      OR has_table_privilege(current_user,'eogp.booking_offer_email_delivery_tenant_queue','SELECT')
      OR has_table_privilege(current_user,'eogp.booking_price_lists','SELECT')
      OR has_table_privilege(current_user,'eogp.booking_price_list_revisions','SELECT')
-     OR has_table_privilege(current_user,'eogp.booking_price_items','SELECT') THEN
+     OR has_table_privilege(current_user,'eogp.booking_price_items','SELECT')
+     OR has_table_privilege(current_user,'eogp.cancellation_policies','SELECT')
+     OR has_table_privilege(current_user,'eogp.cancellation_policy_revisions','SELECT') THEN
     RAISE EXCEPTION 'runtime role has direct table read access to protected commercial data';
   END IF;
 
