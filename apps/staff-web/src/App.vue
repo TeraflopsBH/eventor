@@ -1037,7 +1037,7 @@ async function issueBookingOffer(): Promise<void> {
     const result = await api.issueBookingOffer(offer.offerId, bookingOfferIssueRequestKey.value);
     bookingOfferAcceptanceToken.value = result.data.acceptanceToken;
     await refreshBookingOfferData();
-    pageNotice.value = "Offer issued. Copy the secure customer link and deliver it through an approved channel. Email delivery is not yet automated.";
+    pageNotice.value = "Offer issued. You can copy the secure link or explicitly queue it for delivery to the source inquiry email address.";
   } catch (error) {
     showError(error);
   } finally {
