@@ -291,6 +291,18 @@ const bookingOfferSuccessorBody = {
   additionalProperties: false,
 } as const;
 const bookingOfferIssueBody = { type: "object", properties: {}, additionalProperties: false } as const;
+const bookingOfferApprovalBody = {
+  type: "object",
+  required: ["offerRevisionId", "ruleCode", "decision", "reason"],
+  properties: {
+    offerRevisionId: { type: "string", pattern: uuidPattern },
+    ruleCode: { type: "string", minLength: 1, maxLength: 100 },
+    decision: { type: "string", enum: ["approved", "rejected", "returned_for_changes"] },
+    reason: { type: "string", minLength: 3, maxLength: 2000 },
+  },
+  additionalProperties: false,
+} as const;
+
 const publicOfferDecisionParams = {
   type: "object", required: ["offerId"],
   properties: { offerId: { type: "string", pattern: uuidPattern } },
@@ -758,6 +770,7 @@ async function runIdempotentCommand(
     await client.query("BEGIN");
     // The tenant comes only from the trusted session principal, never request data.
     await client.query("SELECT set_config('app.organization_id',$1,true)", [principal.organizationId]);
+    await client.query("SELECT set_config('app.actor_membership_id',$1,true)", [principal.membershipId]);
     await client.query(
       "DELETE FROM eogp.idempotency_records WHERE organization_id=$1 AND principal_kind='membership' AND principal_id=$2 AND operation_id=$3 AND idempotency_key=$4 AND expires_at<=clock_timestamp()",
       [principal.organizationId, principal.membershipId, operationId, idempotencyKey],
