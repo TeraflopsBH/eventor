@@ -257,8 +257,200 @@ BEGIN
     RAISE EXCEPTION 'organization context mismatch' USING ERRCODE='42501';
   END IF;
   PERFORM eogp.assert_booking_commercial_permission(p_organization_id,p_actor_membership_id,ARRAY['booking.manage']::text[]);
-  IF p_currency !~ '^[A-Z]{3}$' OR p_tax_basis NOT IN ('inclusive','exclusive','not_applicable')
-     OR p_rounding_method NOT IN ('per_line','per_tax_code','invoice_total') OR p_rounding_scale NOT BETWEEN 0 AND 4
+  IF p_currency IS NULL OR p_currency !~ '^[A-Z]{3}
+    RAISE EXCEPTION 'tax profile revision settings are invalid' USING ERRCODE='22023';
+  END IF;
+  PERFORM eogp.validate_booking_tax_codes(p_tax_codes);
+  SELECT id INTO v_latest_id FROM eogp.booking_tax_profile_revisions
+   WHERE organization_id=p_organization_id AND tax_profile_id=p_tax_profile_id
+   ORDER BY revision_number DESC LIMIT 1;
+  IF v_latest_id IS DISTINCT FROM p_revision_id THEN RAISE EXCEPTION 'only the latest tax profile revision may be edited' USING ERRCODE='40001'; END IF;
+  SELECT * INTO v_revision FROM eogp.booking_tax_profile_revisions
+   WHERE organization_id=p_organization_id AND tax_profile_id=p_tax_profile_id AND id=p_revision_id FOR UPDATE;
+  IF NOT FOUND OR v_revision.state<>'draft' THEN RAISE EXCEPTION 'latest draft tax profile revision is required' USING ERRCODE='55000'; END IF;
+  UPDATE eogp.booking_tax_profile_revisions SET
+    jurisdiction_code=nullif(btrim(p_jurisdiction_code),''),registration_identifier=nullif(btrim(p_registration_identifier),''),
+    currency=p_currency,tax_basis=p_tax_basis,rounding_method=p_rounding_method,rounding_scale=p_rounding_scale,
+    effective_from=p_effective_from,effective_until=p_effective_until,tax_codes=p_tax_codes
+  WHERE organization_id=p_organization_id AND id=p_revision_id;
+  INSERT INTO eogp.audit_events(organization_id,actor_organization_id,actor_membership_id,actor_kind,
+    action,aggregate_type,aggregate_id,reason_code,safe_metadata)
+  VALUES(p_organization_id,p_organization_id,p_actor_membership_id,'membership',
+    'booking.tax_profile.draft_updated','booking_tax_profile',p_tax_profile_id,'tax_profile_draft_updated',
+    jsonb_build_object('revisionId',p_revision_id,'revisionNumber',v_revision.revision_number,'taxCodeCount',jsonb_array_length(p_tax_codes)));
+  RETURN jsonb_build_object('taxProfileId',p_tax_profile_id,'revisionId',p_revision_id,
+    'revisionNumber',v_revision.revision_number,'state','draft','taxCodeCount',jsonb_array_length(p_tax_codes));
+END;
+$function$;
+
+CREATE FUNCTION eogp.publish_booking_tax_profile_revision(
+  p_organization_id uuid,p_tax_profile_id uuid,p_revision_id uuid,p_actor_membership_id uuid
+) RETURNS jsonb LANGUAGE plpgsql SECURITY DEFINER SET search_path=pg_catalog,eogp AS $function$
+DECLARE v_profile eogp.booking_tax_profiles%ROWTYPE; v_revision eogp.booking_tax_profile_revisions%ROWTYPE;
+  v_latest_id uuid; v_published timestamptz:=clock_timestamp();
+BEGIN
+  IF eogp.current_organization_id() IS DISTINCT FROM p_organization_id THEN
+    RAISE EXCEPTION 'organization context mismatch' USING ERRCODE='42501';
+  END IF;
+  PERFORM eogp.assert_booking_commercial_permission(p_organization_id,p_actor_membership_id,ARRAY['booking.manage']::text[]);
+  SELECT * INTO v_profile FROM eogp.booking_tax_profiles WHERE organization_id=p_organization_id AND id=p_tax_profile_id FOR UPDATE;
+  IF NOT FOUND OR v_profile.status<>'active' THEN RAISE EXCEPTION 'active tax profile not found' USING ERRCODE='P0002'; END IF;
+  SELECT id INTO v_latest_id FROM eogp.booking_tax_profile_revisions
+   WHERE organization_id=p_organization_id AND tax_profile_id=p_tax_profile_id ORDER BY revision_number DESC LIMIT 1;
+  IF v_latest_id IS DISTINCT FROM p_revision_id THEN RAISE EXCEPTION 'only the latest tax profile revision may be published' USING ERRCODE='40001'; END IF;
+  SELECT * INTO v_revision FROM eogp.booking_tax_profile_revisions
+   WHERE organization_id=p_organization_id AND tax_profile_id=p_tax_profile_id AND id=p_revision_id FOR UPDATE;
+  IF NOT FOUND OR v_revision.state<>'draft' THEN RAISE EXCEPTION 'draft tax profile revision is required' USING ERRCODE='55000'; END IF;
+  IF jsonb_array_length(v_revision.tax_codes)=0 AND v_revision.tax_basis<>'not_applicable' THEN
+    RAISE EXCEPTION 'add at least one tax code or explicitly mark tax as not applicable before publication' USING ERRCODE='22023';
+  END IF;
+  IF jsonb_array_length(v_revision.tax_codes)>0 AND v_revision.tax_basis='not_applicable' THEN
+    RAISE EXCEPTION 'a not-applicable tax profile cannot contain tax codes' USING ERRCODE='22023';
+  END IF;
+  UPDATE eogp.booking_tax_profile_revisions SET state='published',published_at=v_published
+   WHERE organization_id=p_organization_id AND id=p_revision_id;
+  INSERT INTO eogp.audit_events(organization_id,actor_organization_id,actor_membership_id,actor_kind,
+    action,aggregate_type,aggregate_id,reason_code,safe_metadata)
+  VALUES(p_organization_id,p_organization_id,p_actor_membership_id,'membership',
+    'booking.tax_profile.published','booking_tax_profile',p_tax_profile_id,'tax_profile_published',
+    jsonb_build_object('revisionId',p_revision_id,'revisionNumber',v_revision.revision_number,'taxCodeCount',jsonb_array_length(v_revision.tax_codes)));
+  RETURN jsonb_build_object('taxProfileId',p_tax_profile_id,'revisionId',p_revision_id,
+    'revisionNumber',v_revision.revision_number,'state','published','publishedAt',v_published);
+END;
+$function$;
+
+CREATE FUNCTION eogp.set_booking_price_list_tax_profile_revision(
+  p_organization_id uuid,p_price_list_id uuid,p_revision_id uuid,p_tax_profile_revision_id uuid,p_actor_membership_id uuid
+) RETURNS jsonb LANGUAGE plpgsql SECURITY DEFINER SET search_path=pg_catalog,eogp AS $function$
+DECLARE v_price eogp.booking_price_list_revisions%ROWTYPE; v_tax eogp.booking_tax_profile_revisions%ROWTYPE;
+BEGIN
+  IF eogp.current_organization_id() IS DISTINCT FROM p_organization_id THEN
+    RAISE EXCEPTION 'organization context mismatch' USING ERRCODE='42501';
+  END IF;
+  PERFORM eogp.assert_booking_commercial_permission(p_organization_id,p_actor_membership_id,ARRAY['booking.manage']::text[]);
+  SELECT * INTO v_price FROM eogp.booking_price_list_revisions
+   WHERE organization_id=p_organization_id AND price_list_id=p_price_list_id AND id=p_revision_id FOR UPDATE;
+  IF NOT FOUND OR v_price.state<>'draft' OR p_revision_id IS DISTINCT FROM (
+    SELECT id FROM eogp.booking_price_list_revisions WHERE organization_id=p_organization_id AND price_list_id=p_price_list_id ORDER BY revision_number DESC LIMIT 1
+  ) THEN RAISE EXCEPTION 'latest draft price-list revision is required' USING ERRCODE='55000'; END IF;
+  IF p_tax_profile_revision_id IS NOT NULL THEN
+    SELECT tax_revision.* INTO v_tax
+      FROM eogp.booking_tax_profile_revisions tax_revision
+      JOIN eogp.booking_tax_profiles tax_profile
+        ON tax_profile.organization_id=tax_revision.organization_id AND tax_profile.id=tax_revision.tax_profile_id
+     WHERE tax_revision.organization_id=p_organization_id AND tax_revision.id=p_tax_profile_revision_id
+       AND tax_revision.state='published' AND tax_profile.status='active' FOR SHARE OF tax_revision,tax_profile;
+    IF NOT FOUND OR v_tax.currency<>v_price.currency OR v_tax.tax_basis<>v_price.tax_basis THEN
+      RAISE EXCEPTION 'published tax profile revision must match price-list currency and tax basis' USING ERRCODE='22023';
+    END IF;
+    IF EXISTS (
+      SELECT 1 FROM eogp.booking_price_items i
+       WHERE i.organization_id=p_organization_id AND i.price_list_revision_id=p_revision_id
+         AND i.tax_code IS NOT NULL
+         AND NOT EXISTS (SELECT 1 FROM jsonb_array_elements(v_tax.tax_codes) t WHERE t->>'taxCode'=i.tax_code)
+    ) THEN
+      RAISE EXCEPTION 'existing price item taxCode is not present in the selected tax profile revision' USING ERRCODE='22023';
+    END IF;
+  END IF;
+  UPDATE eogp.booking_price_list_revisions SET tax_profile_revision_id=p_tax_profile_revision_id
+   WHERE organization_id=p_organization_id AND id=p_revision_id;
+  INSERT INTO eogp.audit_events(organization_id,actor_organization_id,actor_membership_id,actor_kind,
+    action,aggregate_type,aggregate_id,reason_code,safe_metadata)
+  VALUES(p_organization_id,p_organization_id,p_actor_membership_id,'membership',
+    'booking.price_list.tax_profile_selected','booking_price_list',p_price_list_id,'price_list_tax_profile_selected',
+    jsonb_build_object('revisionId',p_revision_id,'taxProfileRevisionId',p_tax_profile_revision_id));
+  RETURN jsonb_build_object('priceListId',p_price_list_id,'revisionId',p_revision_id,'taxProfileRevisionId',p_tax_profile_revision_id,'state','draft');
+END;
+$function$;
+
+CREATE FUNCTION eogp.enforce_booking_price_list_tax_profile()
+RETURNS trigger LANGUAGE plpgsql SECURITY DEFINER SET search_path=pg_catalog,eogp AS $function$
+DECLARE v_tax eogp.booking_tax_profile_revisions%ROWTYPE; v_profile_status text;
+BEGIN
+  IF NEW.state='published' AND NEW.tax_profile_revision_id IS NOT NULL THEN
+    SELECT r,p.status INTO v_tax,v_profile_status
+      FROM eogp.booking_tax_profile_revisions r
+      JOIN eogp.booking_tax_profiles p ON p.organization_id=r.organization_id AND p.id=r.tax_profile_id
+     WHERE r.organization_id=NEW.organization_id AND r.id=NEW.tax_profile_revision_id;
+    IF NOT FOUND OR v_tax.state<>'published' OR v_profile_status<>'active'
+       OR v_tax.currency<>NEW.currency OR v_tax.tax_basis<>NEW.tax_basis
+       OR (v_tax.effective_from IS NOT NULL AND (NEW.effective_from IS NULL OR v_tax.effective_from>NEW.effective_from))
+       OR (NEW.effective_until IS NOT NULL AND v_tax.effective_until IS NOT NULL AND v_tax.effective_until<NEW.effective_until)
+       OR (NEW.effective_until IS NULL AND v_tax.effective_until IS NOT NULL) THEN
+      RAISE EXCEPTION 'selected published tax profile revision must match the price-list revision' USING ERRCODE='23514';
+    END IF;
+    IF EXISTS (
+      SELECT 1 FROM eogp.booking_price_items i
+       WHERE i.organization_id=NEW.organization_id AND i.price_list_revision_id=NEW.id
+         AND i.tax_code IS NOT NULL
+         AND NOT EXISTS (SELECT 1 FROM jsonb_array_elements(v_tax.tax_codes) t WHERE t->>'taxCode'=i.tax_code)
+    ) THEN
+      RAISE EXCEPTION 'every price item taxCode must exist in the selected tax profile revision' USING ERRCODE='23514';
+    END IF;
+  END IF;
+  RETURN NEW;
+END;
+$function$;
+CREATE TRIGGER booking_price_list_tax_profile_publish_guard
+  BEFORE UPDATE OF state ON eogp.booking_price_list_revisions
+  FOR EACH ROW EXECUTE FUNCTION eogp.enforce_booking_price_list_tax_profile();
+
+-- Enrich each new offer's terms with the immutable tax-profile revision selected by its price list.
+CREATE FUNCTION eogp.snapshot_booking_offer_tax_profile()
+RETURNS trigger LANGUAGE plpgsql SECURITY DEFINER SET search_path=pg_catalog,eogp AS $function$
+DECLARE v_tax eogp.booking_tax_profile_revisions%ROWTYPE; v_profile eogp.booking_tax_profiles%ROWTYPE;
+BEGIN
+  SELECT r,p INTO v_tax,v_profile
+    FROM eogp.booking_price_list_revisions price
+    JOIN eogp.booking_tax_profile_revisions r
+      ON r.organization_id=price.organization_id AND r.id=price.tax_profile_revision_id
+    JOIN eogp.booking_tax_profiles p
+      ON p.organization_id=r.organization_id AND p.id=r.tax_profile_id
+   WHERE price.organization_id=NEW.organization_id AND price.id=NEW.price_list_revision_id;
+  IF FOUND THEN
+    NEW.terms_snapshot:=NEW.terms_snapshot || jsonb_build_object(
+      'taxConfiguration',jsonb_build_object(
+        'taxProfileId',v_profile.id,'taxProfileCode',v_profile.code,'taxProfileName',v_profile.name,
+        'taxProfileRevisionId',v_tax.id,'taxProfileRevisionNumber',v_tax.revision_number,
+        'jurisdictionCode',v_tax.jurisdiction_code,'registrationIdentifier',v_tax.registration_identifier,
+        'currency',v_tax.currency,'taxBasis',v_tax.tax_basis,'roundingMethod',v_tax.rounding_method,
+        'roundingScale',v_tax.rounding_scale,'taxCodes',v_tax.tax_codes
+      )
+    );
+  ELSE
+    NEW.terms_snapshot:=NEW.terms_snapshot || jsonb_build_object('taxConfiguration',NULL);
+  END IF;
+  RETURN NEW;
+END;
+$function$;
+CREATE TRIGGER booking_offer_revision_tax_configuration_snapshot
+  BEFORE INSERT ON eogp.booking_offer_revisions
+  FOR EACH ROW EXECUTE FUNCTION eogp.snapshot_booking_offer_tax_profile();
+
+REVOKE ALL ON eogp.booking_tax_profiles,eogp.booking_tax_profile_revisions FROM PUBLIC,eventor_runtime,eventor_worker,eventor_auth;
+REVOKE ALL ON FUNCTION eogp.protect_published_booking_tax_profile_revision() FROM PUBLIC,eventor_runtime,eventor_worker,eventor_auth;
+REVOKE ALL ON FUNCTION eogp.validate_booking_tax_codes(jsonb) FROM PUBLIC,eventor_runtime,eventor_worker,eventor_auth;
+REVOKE ALL ON FUNCTION eogp.get_booking_tax_profiles(uuid,uuid) FROM PUBLIC,eventor_runtime,eventor_worker,eventor_auth;
+REVOKE ALL ON FUNCTION eogp.create_booking_tax_profile(uuid,uuid,text,text,text,text,text,text) FROM PUBLIC,eventor_runtime,eventor_worker,eventor_auth;
+REVOKE ALL ON FUNCTION eogp.create_booking_tax_profile_revision(uuid,uuid,uuid,text,text,text,text,text,integer,timestamptz,timestamptz) FROM PUBLIC,eventor_runtime,eventor_worker,eventor_auth;
+REVOKE ALL ON FUNCTION eogp.update_booking_tax_profile_draft_revision(uuid,uuid,uuid,uuid,text,text,text,text,text,integer,timestamptz,timestamptz,jsonb) FROM PUBLIC,eventor_runtime,eventor_worker,eventor_auth;
+REVOKE ALL ON FUNCTION eogp.publish_booking_tax_profile_revision(uuid,uuid,uuid,uuid) FROM PUBLIC,eventor_runtime,eventor_worker,eventor_auth;
+REVOKE ALL ON FUNCTION eogp.set_booking_price_list_tax_profile_revision(uuid,uuid,uuid,uuid,uuid) FROM PUBLIC,eventor_runtime,eventor_worker,eventor_auth;
+REVOKE ALL ON FUNCTION eogp.enforce_booking_price_list_tax_profile() FROM PUBLIC,eventor_runtime,eventor_worker,eventor_auth;
+REVOKE ALL ON FUNCTION eogp.snapshot_booking_offer_tax_profile() FROM PUBLIC,eventor_runtime,eventor_worker,eventor_auth;
+GRANT EXECUTE ON FUNCTION eogp.get_booking_tax_profiles(uuid,uuid),
+  eogp.create_booking_tax_profile(uuid,uuid,text,text,text,text,text,text),
+  eogp.create_booking_tax_profile_revision(uuid,uuid,uuid,text,text,text,text,text,integer,timestamptz,timestamptz),
+  eogp.update_booking_tax_profile_draft_revision(uuid,uuid,uuid,uuid,text,text,text,text,text,integer,timestamptz,timestamptz,jsonb),
+  eogp.publish_booking_tax_profile_revision(uuid,uuid,uuid,uuid),
+  eogp.set_booking_price_list_tax_profile_revision(uuid,uuid,uuid,uuid,uuid)
+  TO eventor_runtime;
+
+     OR p_tax_basis IS NULL OR p_tax_basis NOT IN ('inclusive','exclusive','not_applicable')
+     OR p_rounding_method IS NULL OR p_rounding_method NOT IN ('per_line','per_tax_code','invoice_total')
+     OR p_rounding_scale IS NULL OR p_rounding_scale NOT BETWEEN 0 AND 4
+     OR (p_jurisdiction_code IS NOT NULL AND length(btrim(p_jurisdiction_code))>100)
+     OR (p_registration_identifier IS NOT NULL AND length(btrim(p_registration_identifier))>120)
      OR (p_effective_from IS NOT NULL AND p_effective_until IS NOT NULL AND p_effective_until<=p_effective_from) THEN
     RAISE EXCEPTION 'tax profile revision settings are invalid' USING ERRCODE='22023';
   END IF;
