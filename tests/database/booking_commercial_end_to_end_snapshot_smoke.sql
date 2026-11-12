@@ -92,6 +92,7 @@ BEGIN
   INSERT INTO eogp.role_permissions(organization_id,role_id,permission_code)
   VALUES
     (v_org,v_creator_role,'booking.manage'),
+    (v_org,v_creator_role,'booking.draft.manage'),
     (v_org,v_creator_role,'booking.approve'),
     (v_org,v_creator_role,'booking.confirm'),
     (v_org,v_approver_role,'booking.approve');
