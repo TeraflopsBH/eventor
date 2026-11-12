@@ -126,6 +126,9 @@ export default {
       "bounced": "Bounced",
       "suppressed": "Suppressed",
       "pending": "Pending"
+          "draft": "Draft",
+      "published": "Published",
+      "retired": "Retired",
     },
     "outcome": {
       "providerAccepted": "confirmed SMTP/provider acceptance",
@@ -148,6 +151,8 @@ export default {
     "campaignConfirmed": "Campaign confirmed. No messages have been queued or sent.",
     "campaignQueued": "Campaign queued. Delivery is handled asynchronously by the worker.",
     "campaignCancelled": "Campaign cancelled before sending began."
+      "attempts": "attempts",
+    "auditPlaceholder": "Record how the outcome was verified…",
   },
   emailDelivery: {
     "eyebrow": "ORGANIZATION SETTINGS",
@@ -217,6 +222,7 @@ export default {
     "webhookActivated": "Resend callback signature verification is enabled. Delivered and bounced events can now update matching attempts.",
     "callbackCopied": "Resend callback URL copied.",
     "clipboardDenied": "Clipboard access was denied. Select and copy the callback URL manually."
+      "andEvent": "and",
   },
   bookingInquiry: {
     "venueBooking": "VENUE BOOKING",
