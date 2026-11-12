@@ -51,7 +51,8 @@ DECLARE
     'eogp.create_booking_tax_profile_revision(uuid,uuid,uuid,text,text,text,text,text,integer,timestamptz,timestamptz)',
     'eogp.update_booking_tax_profile_draft_revision(uuid,uuid,uuid,uuid,text,text,text,text,text,integer,timestamptz,timestamptz,jsonb)',
     'eogp.publish_booking_tax_profile_revision(uuid,uuid,uuid,uuid)',
-    'eogp.set_booking_price_list_tax_profile_revision(uuid,uuid,uuid,uuid,uuid)'
+    'eogp.set_booking_price_list_tax_profile_revision(uuid,uuid,uuid,uuid,uuid)',
+  'eogp.preview_booking_draft_allocation_availability(uuid,uuid,uuid,jsonb,jsonb,timestamptz,timestamptz)'
   ];
 BEGIN
   FOREACH v_name IN ARRAY v_required_tables LOOP
@@ -89,6 +90,11 @@ BEGIN
    WHERE has_table_privilege(current_user,format('eogp.%I',table_name),'SELECT');
   IF v_name IS NOT NULL THEN
     RAISE EXCEPTION 'runtime role has direct table read access to protected commercial data: %',v_name;
+  END IF;
+
+  IF has_function_privilege(current_user,
+       'eogp.preview_booking_draft_allocation_availability_base(uuid,uuid,uuid,jsonb,jsonb,timestamptz,timestamptz)','EXECUTE') THEN
+    RAISE EXCEPTION 'runtime role must not execute the internal base allocation preview helper directly';
   END IF;
 
   IF to_regprocedure('eogp.allocate_booking_offer_adjustment_tax(uuid,uuid,jsonb,jsonb,text)') IS NULL THEN
