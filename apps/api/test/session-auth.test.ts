@@ -156,7 +156,6 @@ test("staff login stores only hashed opaque session/CSRF tokens and authenticate
     organizationId,
     organizationSlug: "event-owner",
     organizationName: "Event Owner",
-    defaultLocale: "bs-BA",
     selected: true,
   }]);
 
