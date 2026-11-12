@@ -720,6 +720,7 @@ function makeApi(
     smtpTransportFactory?: SmtpTransportFactory;
     publicApiBaseUrl?: string;
     contactEncryptionKey?: Buffer;
+    bookingCapabilityKey?: Buffer;
     publicInquiryFingerprintKey?: Buffer;
   } = {},
 ) {
@@ -740,6 +741,7 @@ function makeApi(
     } : {}),
     privateFieldEncryptionKey: options.encryptionKey ?? Buffer.alloc(32, 7),
     contactEncryptionKey: options.contactEncryptionKey ?? Buffer.alloc(32, 10),
+    bookingCapabilityKey: options.bookingCapabilityKey ?? Buffer.alloc(32, 12),
     publicInquiryFingerprintKey: options.publicInquiryFingerprintKey ?? Buffer.alloc(32, 11),
     deliveryCredentialsEncryptionKey: Buffer.alloc(32, 9),
     publicApiBaseUrl: options.publicApiBaseUrl ?? "https://eventor.example.test/api",
