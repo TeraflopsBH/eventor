@@ -13,7 +13,8 @@ const translatedProperties = ["label", "placeholder", "description", "helpText"]
 export function validateBookingFormDraft(schema: BookingFormSchema): DraftIssue[] {
   const issues: DraftIssue[] = [];
   const fields = schema.fields;
-  if (!Array.isArray(fields) || fields.length < 1 || fields.length > 100) {
+  if ((schema.schemaVersion !== undefined && schema.schemaVersion !== 1) ||
+      !Array.isArray(fields) || fields.length < 1 || fields.length > 100) {
     issues.push({ code: "field_count", messageKey: "bookingForms.validation.fieldCount" });
     return issues;
   }
@@ -56,9 +57,15 @@ export function validateBookingFormDraft(schema: BookingFormSchema): DraftIssue[
     if (field.type === "select" || field.type === "multiselect") {
       const options = field.options ?? [];
       const values = new Set<string>();
-      if (options.length < 1 || options.length > 250 ||
-          options.some(option => !option.value.trim() || option.value.length > 200 ||
-            !option.label.trim() || option.label.length > 200 || values.has(option.value) || !values.add(option.value))) {
+      let invalidOption = options.length < 1 || options.length > 250;
+      for (const option of options) {
+        if (!option.value.trim() || option.value.length > 200 ||
+            !option.label.trim() || option.label.length > 200 || values.has(option.value)) {
+          invalidOption = true;
+        }
+        values.add(option.value);
+      }
+      if (invalidOption) {
         issues.push({ code: "options", fieldCode: field.code, messageKey: "bookingForms.validation.options" });
       }
       if (field.type === "multiselect") {
