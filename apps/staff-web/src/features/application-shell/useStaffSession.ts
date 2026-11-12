@@ -88,6 +88,18 @@ export function useStaffSession({
     }
   }
 
+  async function useOrganizationLocalePreference(): Promise<void> {
+    if (!principal.value) return;
+    try {
+      await api.updateUserLocale(null);
+      principal.value.userLocale = null;
+      applyLocale(principal.value.organizationDefaultLocale);
+      pageNotice.value = translate("localeSettings.followOrganization");
+    } catch (error) {
+      showError(error);
+    }
+  }
+
   async function signOut(): Promise<void> {
     clearMessages();
     busy.value = true;
@@ -103,5 +115,5 @@ export function useStaffSession({
     }
   }
 
-  return { principal, loadingSession, loginForm, selectedOrganization, showError, refreshSession, signIn, signOut, saveLocalePreference };
+  return { principal, loadingSession, loginForm, selectedOrganization, showError, refreshSession, signIn, signOut, saveLocalePreference, useOrganizationLocalePreference };
 }
