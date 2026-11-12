@@ -253,6 +253,18 @@ BEGIN
     RAISE EXCEPTION 'runtime role can invoke worker-only booking offer email functions';
   END IF;
 
+  IF to_regprocedure('eogp.calculate_booking_offer_tax(uuid,uuid,text,text,timestamptz,jsonb,numeric)') IS NULL
+     OR has_function_privilege(current_user,
+       'eogp.calculate_booking_offer_tax(uuid,uuid,text,text,timestamptz,jsonb,numeric)','EXECUTE') THEN
+    RAISE EXCEPTION 'tax calculation helper must exist and remain internal to the authorized offer command';
+  END IF;
+  IF (SELECT numeric_scale FROM information_schema.columns
+       WHERE table_schema='eogp' AND table_name='booking_offer_revisions' AND column_name='tax_amount')<4
+     OR (SELECT numeric_scale FROM information_schema.columns
+       WHERE table_schema='eogp' AND table_name='booking_offer_revisions' AND column_name='total_amount')<4 THEN
+    RAISE EXCEPTION 'offer amounts do not preserve configured tax precision';
+  END IF;
+
   IF to_regprocedure('eogp.digest(bytea,text)') IS NULL THEN
     RAISE EXCEPTION 'pgcrypto digest function is not installed in the eogp schema';
   END IF;
