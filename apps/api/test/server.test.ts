@@ -1208,6 +1208,107 @@ test("staff inquiry inbox decrypts authorized projections and routes assignment,
   assert.equal(denied.statusCode, 401);
 });
 
+
+test("customer offer acceptance and rejection use a one-use purpose-bound capability without a staff session", async (t) => {
+  const mock = makePool();
+  const contactKey = Buffer.alloc(32, 10);
+  const app = makeApi(mock.pool, { authenticated: false, contactEncryptionKey: contactKey });
+  t.after(async () => app.close());
+
+  const offerId = "18181818-1818-4181-8181-181818181818";
+  const token = "A".repeat(43);
+  const headers = {
+    "x-external-booking-token": token,
+    "idempotency-key": "customer-offer-accept-0001",
+  };
+  const payload = {
+    acceptanceName: "Jane Example",
+    acceptanceNote: "I accept the stated venue terms.",
+  };
+  const accepted = await app.inject({
+    method: "POST",
+    url: `/booking-offers/${offerId}/accept`,
+    headers,
+    payload,
+  });
+  assert.equal(accepted.statusCode, 201);
+  assert.equal(accepted.json<{ data: { decision: string; replayed: boolean } }>().data.decision, "accepted");
+  assert.equal(accepted.json<{ data: { replayed: boolean } }>().data.replayed, false);
+
+  const decisionCall = mock.commandCalls.find((call) => call.sql.includes("eogp.decide_booking_offer_with_capability("));
+  assert.ok(decisionCall);
+  assert.equal(decisionCall.values[0], offerId);
+  assert.equal(decisionCall.values[2], "accepted");
+  assert.equal(
+    decisionCall.values[1],
+    createHash("sha256").update(token, "utf8").digest("hex"),
+  );
+  assert.ok(Buffer.isBuffer(decisionCall.values[5]));
+  assert.equal(
+    decryptContactValue(decisionCall.values[5] as Buffer, contactKey, {
+      organizationId: principal.organizationId,
+      contactKind: "other",
+    }),
+    "Jane Example",
+  );
+  assert.equal(
+    decryptContactValue(decisionCall.values[6] as Buffer, contactKey, {
+      organizationId: principal.organizationId,
+      contactKind: "other",
+    }),
+    "I accept the stated venue terms.",
+  );
+
+  const replay = await app.inject({
+    method: "POST",
+    url: `/booking-offers/${offerId}/accept`,
+    headers,
+    payload,
+  });
+  assert.equal(replay.statusCode, 201);
+  assert.equal(replay.json<{ data: { replayed: boolean } }>().data.replayed, true);
+
+  const conflictingReplay = await app.inject({
+    method: "POST",
+    url: `/booking-offers/${offerId}/accept`,
+    headers,
+    payload: { acceptanceName: "Different person" },
+  });
+  assert.equal(conflictingReplay.statusCode, 409);
+
+  const rejectionToken = "R".repeat(43);
+  const rejected = await app.inject({
+    method: "POST",
+    url: `/booking-offers/${offerId}/reject`,
+    headers: {
+      "x-external-booking-token": rejectionToken,
+      "idempotency-key": "customer-offer-reject-0001",
+    },
+    payload: {
+      reasonCode: "terms_not_accepted",
+      reason: "The proposed schedule does not work.",
+      note: "Please contact me with alternative dates.",
+    },
+  });
+  assert.equal(rejected.statusCode, 201);
+  assert.equal(rejected.json<{ data: { decision: string } }>().data.decision, "rejected");
+  assert.equal(mock.customerOfferDecisionCalls, 4);
+
+  const rejectionCall = mock.commandCalls
+    .filter((call) => call.sql.includes("eogp.decide_booking_offer_with_capability("))
+    .at(-1);
+  assert.ok(rejectionCall);
+  assert.equal(rejectionCall.values[2], "rejected");
+  assert.equal(rejectionCall.values[7], "terms_not_accepted");
+  assert.equal(
+    JSON.parse(decryptContactValue(rejectionCall.values[8] as Buffer, contactKey, {
+      organizationId: principal.organizationId,
+      contactKind: "other",
+    })).reason,
+    "The proposed schedule does not work.",
+  );
+});
+
 test("reservation release delegates exact selected IDs to the permission-gated database command and replays idempotently", async (t) => {
   const mock = makePool();
   const app = makeApi(mock.pool);
