@@ -5228,6 +5228,10 @@ components:
           type: string
           format: uuid
           description: Published form revision returned by the public form endpoint.
+        customerLocale:
+          type: string
+          enum: [bs-BA, en]
+          description: Optional explicit language choice for this customer interaction. When omitted, the organization's configured default locale is used.
         requester:
           type: object
           required: [displayName]
@@ -6114,6 +6118,10 @@ components:
           type: string
           format: uuid
           description: Published form revision returned by the public form endpoint.
+        customerLocale:
+          type: string
+          enum: [bs-BA, en]
+          description: Optional explicit language choice for this customer interaction. When omitted, the organization's configured default locale is used.
         requester:
           type: object
           required: [displayName]
@@ -7292,6 +7300,10 @@ components:
           type: string
           format: uuid
           description: Published form revision returned by the public form endpoint.
+        customerLocale:
+          type: string
+          enum: [bs-BA, en]
+          description: Optional explicit language choice for this customer interaction. When omitted, the organization's configured default locale is used.
         requester:
           type: object
           required: [displayName]
@@ -8429,6 +8441,10 @@ components:
           type: string
           format: uuid
           description: Published form revision returned by the public form endpoint.
+        customerLocale:
+          type: string
+          enum: [bs-BA, en]
+          description: Optional explicit language choice for this customer interaction. When omitted, the organization's configured default locale is used.
         requester:
           type: object
           required: [displayName]
@@ -9594,6 +9610,10 @@ components:
           type: string
           format: uuid
           description: Published form revision returned by the public form endpoint.
+        customerLocale:
+          type: string
+          enum: [bs-BA, en]
+          description: Optional explicit language choice for this customer interaction. When omitted, the organization's configured default locale is used.
         requester:
           type: object
           required: [displayName]
@@ -14026,6 +14046,10 @@ components:
           type: string
           format: uuid
           description: Published form revision returned by the public form endpoint.
+        customerLocale:
+          type: string
+          enum: [bs-BA, en]
+          description: Optional explicit language choice for this customer interaction. When omitted, the organization's configured default locale is used.
         requester:
           type: object
           required: [displayName]
@@ -14867,6 +14891,10 @@ components:
           type: string
           format: uuid
           description: Published form revision returned by the public form endpoint.
+        customerLocale:
+          type: string
+          enum: [bs-BA, en]
+          description: Optional explicit language choice for this customer interaction. When omitted, the organization's configured default locale is used.
         requester:
           type: object
           required: [displayName]
@@ -16032,6 +16060,10 @@ components:
           type: string
           format: uuid
           description: Published form revision returned by the public form endpoint.
+        customerLocale:
+          type: string
+          enum: [bs-BA, en]
+          description: Optional explicit language choice for this customer interaction. When omitted, the organization's configured default locale is used.
         requester:
           type: object
           required: [displayName]
@@ -17169,6 +17201,10 @@ components:
           type: string
           format: uuid
           description: Published form revision returned by the public form endpoint.
+        customerLocale:
+          type: string
+          enum: [bs-BA, en]
+          description: Optional explicit language choice for this customer interaction. When omitted, the organization's configured default locale is used.
         requester:
           type: object
           required: [displayName]
@@ -18334,6 +18370,10 @@ components:
           type: string
           format: uuid
           description: Published form revision returned by the public form endpoint.
+        customerLocale:
+          type: string
+          enum: [bs-BA, en]
+          description: Optional explicit language choice for this customer interaction. When omitted, the organization's configured default locale is used.
         requester:
           type: object
           required: [displayName]
