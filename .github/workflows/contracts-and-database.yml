@@ -69,6 +69,9 @@ jobs:
       - name: Install staff web dependencies
         working-directory: apps/staff-web
         run: npm install --no-package-lock --no-audit --no-fund
+      - name: Run staff web regression tests
+        working-directory: apps/staff-web
+        run: npm test
       - name: Type-check and build staff web
         working-directory: apps/staff-web
         run: npm run build
