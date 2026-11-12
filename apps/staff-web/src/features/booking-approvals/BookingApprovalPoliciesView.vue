@@ -9,7 +9,7 @@ type Workspace = ReturnType<typeof useBookingApprovalPolicies> & { busy: Ref<boo
 const props = defineProps<{ workspace: Workspace }>();
 const { formatDate } = useInquiryPresentation();
 const { t } = useI18n();
-const statusLabel = (value: string) => { const key = `commercialConfiguration.viewValues.${value}`; const translated = t(key); return translated === key ? value : translated; };
+const statusLabel = (value: string) => { const key = `commercialConfiguration.viewValues.${value}`; const translated = t(key as never) as string; return translated === key ? value : translated; };
 const enumLabel = (value: string) => statusLabel(value);
 
 const {
@@ -99,7 +99,7 @@ const {
               <li><code>discount_at_least</code> {{ t("commercialConfiguration.approvalView.triggers_when_discounts_and_credits_reach_the_configure") }}</li>
               <li><code>adjustment_present</code> {{ t("commercialConfiguration.approvalView.triggers_when_any_adjustment_or_a_selected_fee_discount") }}</li>
             </ul>
-            <p class="fine-print">{{ t("commercialConfiguration.approvalView.each_rule_must_define_a_unique_code_requiredapprovals_1") }} <code>booking.approve</code>, and separationOfDuties (true/false). {{ t("commercialConfiguration.approvalView.no_role_assignments_or_monetary_thresholds_are_preconfi") }}</p>
+            <p class="fine-print">{{ t("commercialConfiguration.approvalView.each_rule_must_define_a_unique_code_requiredapprovals_1") }} <code>booking.approve</code>, {{ t("commercialConfiguration.approvalView.and_separation_of_duties") }} separationOfDuties (true/false). {{ t("commercialConfiguration.approvalView.no_role_assignments_or_monetary_thresholds_are_preconfi") }}</p>
             <pre>[
   {
     "code": "high_value",
