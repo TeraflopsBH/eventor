@@ -95,11 +95,11 @@ const {
             <strong>{{ t("commercialConfiguration.approvalView.supported_conditions") }}</strong>
             <ul>
               <li><code>always</code> {{ t("commercialConfiguration.approvalView.every_offer_using_the_policy_triggers_the_requirement") }}</li>
-              <li><code>total_at_least</code> {{ t("commercialConfiguration.approvalView.requires") }} <code>amount</code> {{ t("commercialConfiguration.approvalView.{{ t("commercialConfiguration.approvalView.and") }}_matching_three_letter") }} <code>{{ t("commercialConfiguration.approvalView.currency") }}</code>.</li>
-              <li><code>discount_at_least</code> {{ t("commercialConfiguration.approvalView.triggers_when_discounts_{{ t("commercialConfiguration.approvalView.and") }}_credits_reach_the_configure") }}</li>
+              <li><code>total_at_least</code> {{ t("commercialConfiguration.approvalView.requires") }} <code>amount</code> {{ t("commercialConfiguration.approvalView.and_matching_three_letter") }} <code>currency</code>.</li>
+              <li><code>discount_at_least</code> {{ t("commercialConfiguration.approvalView.triggers_when_discounts_and_credits_reach_the_configure") }}</li>
               <li><code>adjustment_present</code> {{ t("commercialConfiguration.approvalView.triggers_when_any_adjustment_or_a_selected_fee_discount") }}</li>
             </ul>
-            <p class="fine-print">{{ t("commercialConfiguration.approvalView.each_rule_must_define_a_unique_code_requiredapprovals_1") }} <code>booking.approve</code>, {{ t("commercialConfiguration.approvalView.and") }} separationOfDuties (true/false). {{ t("commercialConfiguration.approvalView.no_role_assignments_or_monetary_thresholds_are_preconfi") }}</p>
+            <p class="fine-print">{{ t("commercialConfiguration.approvalView.each_rule_must_define_a_unique_code_requiredapprovals_1") }} <code>booking.approve</code>, and separationOfDuties (true/false). {{ t("commercialConfiguration.approvalView.no_role_assignments_or_monetary_thresholds_are_preconfi") }}</p>
             <pre>[
   {
     "code": "high_value",
@@ -125,7 +125,7 @@ const {
             </button>
           </div>
           <div v-if="selectedApprovalPolicy.revisions.length" class="draft-revision-history">
-            <h5>{{ t("commercialConfiguration.approvalView.revision") }} history</h5>
+            <h5>{{ t("commercialConfiguration.approvalView.revision_history") }}</h5>
             <ol class="history-list">
               <li v-for="revision in selectedApprovalPolicy.revisions" :key="revision.revisionId">
                 <strong>{{ t("commercialConfiguration.approvalView.revision") }} {{ revision.revisionNumber }} · {{ statusLabel(revision.state) }} · {{ revision.rules.length }} {{ t("commercialConfiguration.approvalView.rule_s") }}</strong>
