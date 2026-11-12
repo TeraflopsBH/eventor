@@ -434,9 +434,10 @@ export async function processPendingBookingOfferEmailDeliveries(
         const total = new Intl.NumberFormat("en", {
           style: "currency", currency: job.currency,
         }).format(Number(job.total_amount));
-        const subject = `Booking offer from ${sender}`;
+        const subject = "Booking offer";
         const text = [
           "You have received a booking offer.",
+          `Offer from: ${sender}`,
           "",
           `Offer total: ${total}`,
           `Valid until: ${validity}`,
