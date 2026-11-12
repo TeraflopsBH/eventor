@@ -263,6 +263,10 @@ export default {
     "stateConfirmedSent": "confirmed_sent",
     "stateConfirmedNotSent": "confirmed_not_sent",
     "timezone": "Timezone",
+    "approvalSummary": "{approved} / {required} approvals · separation of duties {separation}",
+    "stateOffered": "offered",
+    "stateConfirmed": "confirmed",
+    "stateCancelled": "cancelled",
   },
   publicOffer: {
     "language": "Language",
