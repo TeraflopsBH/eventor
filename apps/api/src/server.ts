@@ -1594,6 +1594,44 @@ export function buildApi(dependencies: ApiDependencies): FastifyInstance {
     },
   );
 
+  server.put<{
+    Params: { policyId: string; revisionId: string };
+    Body: { rules: Array<Record<string, unknown>> };
+  }>(
+    "/booking-approval-policies/:policyId/revisions/:revisionId",
+    {
+      schema: {
+        params: bookingApprovalPolicyRevisionParams,
+        headers: idempotencyHeaders,
+        body: bookingApprovalPolicyRevisionBody,
+      },
+    },
+    async (request, reply) => {
+      const principal = request.staffPrincipal!;
+      return withCommand(
+        request, reply, "updateBookingApprovalPolicyDraftRevision",
+        {
+          policyId: request.params.policyId,
+          revisionId: request.params.revisionId,
+          rules: request.body.rules,
+        },
+        async (client) => {
+          const result = await client.query<ResultRow>(
+            "SELECT eogp.update_booking_approval_policy_draft_revision($1::uuid,$2::uuid,$3::uuid,$4::uuid,$5::jsonb) AS result",
+            [
+              principal.organizationId,
+              request.params.policyId,
+              request.params.revisionId,
+              principal.membershipId,
+              JSON.stringify(request.body.rules),
+            ],
+          );
+          return result.rows[0]?.result as Record<string, unknown>;
+        },
+      );
+    },
+  );
+
   server.post<{ Params: { policyId: string; revisionId: string } }>(
     "/booking-approval-policies/:policyId/revisions/:revisionId/publish",
     {
