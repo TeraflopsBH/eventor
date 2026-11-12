@@ -158,8 +158,6 @@ $function$;
 
 REVOKE ALL ON FUNCTION eogp.calculate_booking_offer_tax(uuid,uuid,text,text,timestamptz,jsonb,numeric)
   FROM PUBLIC,eventor_runtime,eventor_worker,eventor_auth;
-GRANT EXECUTE ON FUNCTION eogp.calculate_booking_offer_tax(uuid,uuid,text,text,timestamptz,jsonb,numeric)
-  TO eventor_runtime;
 
 -- Extend the existing offer command in-place so calculation and offer creation remain
 -- in one transaction. Fail the migration rather than silently applying a partial patch.
