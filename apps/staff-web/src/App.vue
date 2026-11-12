@@ -2092,6 +2092,7 @@ onMounted(() => {
                         <span v-if="delivery.sentAt">SMTP accepted: {{ formatInquiryDate(delivery.sentAt) }}</span>
                         <span v-if="delivery.lastFailureCode">Failure: {{ delivery.lastFailureCode }}</span>
                         <span v-if="delivery.lastOperatorResolution">Operator resolution: {{ delivery.lastOperatorResolution.replaceAll("_", " ") }}</span>
+                        <span v-if="delivery.lastOperatorReason">Audit reason: {{ delivery.lastOperatorReason }}</span>
                         <span v-if="delivery.lastOperatorAt">Reconciled: {{ formatInquiryDate(delivery.lastOperatorAt) }}</span>
                       </div>
                       <div v-if="delivery.canReconcile" class="operator-controls">
@@ -2102,7 +2103,7 @@ onMounted(() => {
                             <option value="confirmed_not_sent">SMTP server did not accept the message</option>
                           </select>
                         </label>
-                        <label>Provider message reference (optional)
+                        <label v-if="bookingOfferEmailResolution[delivery.deliveryId] === 'confirmed_sent'">Provider message reference (optional)
                           <input v-model="bookingOfferEmailReference[delivery.deliveryId]" maxlength="998" placeholder="Message-ID or SMTP queue reference" />
                         </label>
                         <label>Audit reason
