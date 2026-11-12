@@ -314,6 +314,29 @@ export interface BookingDraftResourceLine {
   values: Record<string, unknown>;
 }
 
+export interface BookingDraftAllocationSpaceOption {
+  venueSpaceId: string;
+  venueId: string;
+  venueName: string;
+  code: string;
+  name: string;
+  spaceKind: "building_area" | "level_area" | "room" | "zone" | "other";
+  capacity: number | null;
+}
+
+export interface BookingDraftAllocationResourceOption {
+  resourceTypeId: string;
+  code: string;
+  name: string;
+  unitLabel: string;
+  capacity: number;
+}
+
+export interface BookingDraftAllocationOptions {
+  spaces: BookingDraftAllocationSpaceOption[];
+  resources: BookingDraftAllocationResourceOption[];
+}
+
 export interface BookingDraftRevisionHistoryItem {
   revisionId: string;
   revisionNumber: number;
@@ -893,6 +916,10 @@ export const api = {
     request<Envelope<BookingInquiryDetail>>(`/booking-inquiries/${encodeURIComponent(inquiryId)}`),
   getBookingDraft: (draftId: string) =>
     request<Envelope<BookingDraftDetail>>(`/booking-drafts/${encodeURIComponent(draftId)}`),
+  getBookingDraftAllocationOptions: (draftId: string) =>
+    request<Envelope<BookingDraftAllocationOptions>>(
+      `/booking-drafts/${encodeURIComponent(draftId)}/allocation-options`,
+    ),
   createBookingOffer: (draftRevisionId: string, body: BookingOfferWriteRequest) =>
     request<Envelope<BookingOfferCreateResult>>(
       `/booking-draft-revisions/${encodeURIComponent(draftRevisionId)}/offers`,
