@@ -77,11 +77,17 @@ async function loadForm(): Promise<void> {
 
 async function submitInquiry(): Promise<void> {
   if (!form.value || submitting.value) return;
-  const missingChoice = form.value.fieldSchema.fields.find(field =>
-    field.required && field.type === "multiselect" && selectedValues(field.code).length === 0,
-  );
+  const missingChoice = form.value.fieldSchema.fields.find(field => {
+    if (field.type !== "multiselect") return false;
+    const minimum = Math.max(field.required ? 1 : 0, field.minItems ?? 0);
+    return selectedValues(field.code).length < minimum;
+  });
   if (missingChoice) {
-    error.value = t("publicBookingForm.requiredChoice", { field: missingChoice.label || missingChoice.code });
+    const minimum = Math.max(missingChoice.required ? 1 : 0, missingChoice.minItems ?? 0);
+    error.value = t("publicBookingForm.requiredChoice", {
+      field: missingChoice.label || missingChoice.code,
+      count: minimum,
+    });
     return;
   }
   submitting.value = true;
@@ -172,7 +178,7 @@ onMounted(() => { void loadForm(); });
           <template v-for="field in form.fieldSchema.fields" :key="field.code">
             <label v-if="field.type === 'textarea'">
               {{ field.label || field.code }}{{ field.required ? " *" : "" }}
-              <textarea v-model="answers[field.code]" :name="field.code" :required="field.required" :maxlength="field.maxLength" :placeholder="field.placeholder" rows="4" />
+              <textarea v-model="answers[field.code]" :name="field.code" :required="field.required" :minlength="field.minLength" :maxlength="field.maxLength" :placeholder="field.placeholder" rows="4" />
               <small v-if="field.description || field.helpText" class="muted">{{ field.description || field.helpText }}</small>
             </label>
             <label v-else-if="field.type === 'select'">
