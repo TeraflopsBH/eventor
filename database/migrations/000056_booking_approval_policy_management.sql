@@ -154,7 +154,6 @@ SET search_path = pg_catalog,eogp
 AS $function$
 DECLARE
   v_policy_id uuid := gen_random_uuid();
-  v_revision_id uuid := gen_random_uuid();
 BEGIN
   IF eogp.current_organization_id() IS DISTINCT FROM p_organization_id THEN
     RAISE EXCEPTION 'organization context mismatch' USING ERRCODE = '42501';
@@ -170,21 +169,17 @@ BEGIN
   INSERT INTO eogp.booking_approval_policies(id,organization_id,code,name)
   VALUES(v_policy_id,p_organization_id,btrim(p_code),btrim(p_name));
 
-  INSERT INTO eogp.booking_approval_policy_revisions(
-    id,organization_id,policy_id,revision_number,state,rules
-  ) VALUES(v_revision_id,p_organization_id,v_policy_id,1,'draft','[]'::jsonb);
-
   INSERT INTO eogp.audit_events(
     organization_id,actor_organization_id,actor_membership_id,actor_kind,
     action,aggregate_type,aggregate_id,reason_code,safe_metadata
   ) VALUES (
     p_organization_id,p_organization_id,p_actor_membership_id,'membership',
     'booking.approval_policy.created','booking_approval_policy',v_policy_id,
-    'approval_policy_created',jsonb_build_object('code',btrim(p_code),'revisionId',v_revision_id)
+    'approval_policy_created',jsonb_build_object('code',btrim(p_code))
   );
 
   RETURN jsonb_build_object(
-    'policyId',v_policy_id,'revisionId',v_revision_id,'revisionNumber',1,'state','draft'
+    'policyId',v_policy_id,'state','active'
   );
 END;
 $function$;
