@@ -288,7 +288,7 @@ const bookingFormRevisionParams = {
 const bookingFormCreateBody = {
   type: "object", required: ["code", "name", "locale", "fieldSchema"],
   properties: {
-    code: { type: "string", minLength: 2, maxLength: 80, pattern: "^[A-Za-z0-9][A-Za-z0-9._-]*$" },
+    code: { type: "string", minLength: 2, maxLength: 80, pattern: "^[A-Za-z0-9][A-Za-z0-9_-]*$" },
     name: { type: "string", minLength: 1, maxLength: 250 },
     locale: { type: "string", enum: ["bs-BA", "en"] },
     fieldSchema: { type: "object", maxProperties: 10, additionalProperties: true },
