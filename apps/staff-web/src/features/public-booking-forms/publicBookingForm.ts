@@ -174,7 +174,11 @@ export function validatePublicBookingAnswers(
     }
     if (empty) continue;
     if (field.type === "multiselect") {
+      if (!Array.isArray(value)) return { code: field.code, kind: "invalidOption" };
       const selected = selectedPublicBookingValues(answers, field.code);
+      if (selected.length !== value.length || new Set(selected).size !== selected.length) {
+        return { code: field.code, kind: "invalidOption" };
+      }
       const minimum = Math.max(field.required ? 1 : 0, field.minItems ?? 0);
       if (selected.length < minimum) return { code: field.code, kind: "minimum", limit: minimum };
       if (field.maxItems !== undefined && selected.length > field.maxItems) {
@@ -196,6 +200,9 @@ export function validatePublicBookingAnswers(
       continue;
     }
     if (field.type === "number") {
+      if (typeof value !== "number" && typeof value !== "string") {
+        return { code: field.code, kind: "invalidNumber" };
+      }
       const number = typeof value === "number" ? value : Number(value);
       if (!Number.isFinite(number)) return { code: field.code, kind: "invalidNumber" };
       if (field.integer && !Number.isInteger(number)) return { code: field.code, kind: "integer" };
@@ -207,6 +214,7 @@ export function validatePublicBookingAnswers(
       }
       continue;
     }
+    if (typeof value !== "string") return { code: field.code, kind: "invalidOption" };
     if (typeof value === "string") {
       if (field.minLength !== undefined && value.length < field.minLength) {
         return { code: field.code, kind: "minLength", limit: field.minLength };
