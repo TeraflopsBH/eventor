@@ -125,8 +125,8 @@ export default {
       "delivered": "Dostavljeno",
       "bounced": "Odbijeno",
       "suppressed": "Obustavljeno",
-      "pending": "Na čekanju"
-          "draft": "Nacrt",
+      "pending": "Na čekanju",
+      "draft": "Nacrt",
       "published": "Objavljeno",
       "retired": "Povučeno",
     },
@@ -219,8 +219,8 @@ export default {
     "signingSecretInvalid": "Zalijepite Resend webhook potpisni ključ koji počinje sa whsec_.",
     "webhookActivated": "Provjera potpisa Resend povratnih poziva je omogućena. Događaji dostave i odbijanja sada mogu ažurirati odgovarajuće pokušaje.",
     "callbackCopied": "Resend URL povratnog poziva je kopiran.",
-    "clipboardDenied": "Pristup međuspremniku je odbijen. Ručno označite i kopirajte URL povratnog poziva."
-      "andEvent": "i",
+    "clipboardDenied": "Pristup međuspremniku je odbijen. Ručno označite i kopirajte URL povratnog poziva.",
+    "andEvent": "i",
   },
   bookingInquiry: {
     "venueBooking": "REZERVACIJE PROSTORA",
