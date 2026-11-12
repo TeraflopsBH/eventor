@@ -84,8 +84,8 @@ test("renders translated form and field content with per-item fallback to the pu
       },
     },
   });
-  const field = form.fieldSchema.fields[0]!;
-  const equipment = form.fieldSchema.fields[1]!;
+  const field = form.fieldSchema.fields[0];
+  const equipment = form.fieldSchema.fields[1];
 
   assert.equal(publicBookingFormName(form, "en"), "Venue rental");
   assert.equal(publicBookingFieldText(form, field, "en", "label"), "Event name");
