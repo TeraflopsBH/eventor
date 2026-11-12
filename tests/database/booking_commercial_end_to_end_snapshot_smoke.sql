@@ -118,7 +118,8 @@ BEGIN
   VALUES(v_resource_type_id,v_org,'CI-CHAIR','CI E2E Chair','chair',true);
   INSERT INTO eogp.resource_pools(
     id,organization_id,venue_id,resource_type_id,code,name,capacity,status
-  ) VALUES(v_resource_pool_id,v_org,v_venue_id,'CI-CHAIR-POOL','CI Chairs','CI E2E Chairs',10,'active');
+  ) VALUES(v_resource_pool_id,v_org,v_venue_id,v_resource_type_id,
+           'CI-CHAIR-POOL','CI E2E Chairs',10,'active');
   INSERT INTO eogp.resource_units(id,organization_id,resource_pool_id,unit_code,status)
   VALUES(v_resource_unit_id,v_org,v_resource_pool_id,'CI-CHAIR-UNIT-01','available');
   INSERT INTO eogp.booking_resource_lines(
