@@ -249,18 +249,32 @@ BEGIN
       USING ERRCODE='42501';
   END IF;
 
-  UPDATE eogp.booking_offer_email_deliveries
-     SET status='uncertain',lease_expires_at=NULL,
-         last_failure_code='SMTP_UNKNOWN',updated_at=clock_timestamp()
-   WHERE organization_id=p_organization_id AND status='sending'
-     AND lease_expires_at<=clock_timestamp();
+  WITH expired AS (
+    UPDATE eogp.booking_offer_email_deliveries
+       SET status='uncertain',lease_expires_at=NULL,
+           last_failure_code='SMTP_UNKNOWN',updated_at=clock_timestamp()
+     WHERE organization_id=p_organization_id AND status='sending'
+       AND lease_expires_at<=clock_timestamp()
+     RETURNING id,offer_id,offer_revision_id
+  )
+  INSERT INTO eogp.audit_events(
+    organization_id,actor_kind,action,aggregate_type,aggregate_id,
+    reason_code,safe_metadata,occurred_at
+  )
+  SELECT p_organization_id,'system','booking.offer.email_uncertain',
+         'booking_offer',expired.offer_id,'SMTP_UNKNOWN',
+         jsonb_build_object('deliveryId',expired.id,'offerRevisionId',expired.offer_revision_id,
+           'source','expired_worker_lease'),
+         clock_timestamp()
+    FROM expired;
 
-  UPDATE eogp.booking_offer_email_deliveries delivery
-     SET status='failed',last_failure_code='OFFER_NO_LONGER_CURRENT',
-         updated_at=clock_timestamp()
-   WHERE delivery.organization_id=p_organization_id
-     AND delivery.status='queued'
-     AND NOT EXISTS (
+  WITH stale AS (
+    UPDATE eogp.booking_offer_email_deliveries delivery
+       SET status='failed',last_failure_code='OFFER_NO_LONGER_CURRENT',
+           updated_at=clock_timestamp()
+     WHERE delivery.organization_id=p_organization_id
+       AND delivery.status='queued'
+       AND NOT EXISTS (
        SELECT 1
          FROM eogp.booking_offers offer
          JOIN eogp.booking_offer_revisions revision
@@ -274,7 +288,19 @@ BEGIN
               FROM eogp.booking_offer_revisions latest
              WHERE latest.organization_id=offer.organization_id AND latest.offer_id=offer.id
           )
-     );
+     )
+     RETURNING id,offer_id,offer_revision_id
+  )
+  INSERT INTO eogp.audit_events(
+    organization_id,actor_kind,action,aggregate_type,aggregate_id,
+    reason_code,safe_metadata,occurred_at
+  )
+  SELECT p_organization_id,'system','booking.offer.email_failed',
+         'booking_offer',stale.offer_id,'OFFER_NO_LONGER_CURRENT',
+         jsonb_build_object('deliveryId',stale.id,'offerRevisionId',stale.offer_revision_id,
+           'source','offer_no_longer_current'),
+         clock_timestamp()
+    FROM stale;
 
   SELECT delivery.* INTO v_delivery
     FROM eogp.booking_offer_email_deliveries delivery
