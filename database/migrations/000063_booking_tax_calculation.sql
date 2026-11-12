@@ -36,6 +36,7 @@ DECLARE
   v_code_raw numeric;
   v_code_tax numeric;
   v_breakdown jsonb:='[]'::jsonb;
+  v_code_breakdown jsonb:='[]'::jsonb;
   v_codes jsonb:='{}'::jsonb;
   v_manual boolean:=false;
   v_line_count integer:=0;
@@ -122,7 +123,8 @@ BEGIN
     END IF;
     v_breakdown:=v_breakdown||jsonb_build_array(jsonb_build_object(
       'itemCode',v_line->>'itemCode','taxCode',v_tax_code,'treatment',v_treatment,
-      'rate',v_rate,'taxableAmount',v_base,'unroundedTaxAmount',v_raw
+      'rate',v_rate,'taxableAmount',v_base,'unroundedTaxAmount',v_raw,
+      'roundedTaxAmount',CASE WHEN v_profile_revision.rounding_method='per_line' THEN v_line_tax ELSE NULL END
     ));
   END LOOP;
 
@@ -136,9 +138,17 @@ BEGIN
       v_code_raw:=(v_codes->>v_tax_code)::numeric;
       v_code_tax:=round(v_code_raw,v_profile_revision.rounding_scale);
       v_tax_total:=v_tax_total+v_code_tax;
+      v_code_breakdown:=v_code_breakdown||jsonb_build_array(jsonb_build_object(
+        'taxCode',v_tax_code,'unroundedTaxAmount',v_code_raw,'roundedTaxAmount',v_code_tax
+      ));
     END LOOP;
   ELSIF v_profile_revision.rounding_method='invoice_total' THEN
     v_tax_total:=round(v_raw_total,v_profile_revision.rounding_scale);
+    FOR v_tax_code IN SELECT key FROM jsonb_each(v_codes) LOOP
+      v_code_breakdown:=v_code_breakdown||jsonb_build_array(jsonb_build_object(
+        'taxCode',v_tax_code,'unroundedTaxAmount',(v_codes->>v_tax_code)::numeric
+      ));
+    END LOOP;
   END IF;
 
   IF v_tax_total<0 OR v_tax_total>999999999999.99
@@ -151,7 +161,7 @@ BEGIN
     'roundingMethod',v_profile_revision.rounding_method,'roundingScale',v_profile_revision.rounding_scale,
     'calculationMethod',CASE WHEN v_manual THEN 'manual_override' ELSE v_profile_revision.rounding_method END,
     'taxAmount',v_tax_total,'unroundedTaxAmount',v_raw_total,
-    'taxCodes',v_breakdown
+    'taxCodes',v_breakdown,'taxByCode',v_code_breakdown
   );
 END;
 $function$;
