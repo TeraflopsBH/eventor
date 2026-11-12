@@ -3637,6 +3637,134 @@ paths:
         '422': { $ref: '#/components/responses/UnprocessableEntity' }
         '429': { $ref: '#/components/responses/TooManyRequests' }
         '500': { $ref: '#/components/responses/InternalServerError' }
+  "/organization/booking-cancellation-policies":
+    get:
+      tags: ["Cancellation Policy"]
+      operationId: listOrganizationBookingCancellationPolicies
+      summary: "List the current organization's versioned cancellation policies"
+      security: [{ StaffSession: [] }]
+      responses:
+        '200':
+          description: "Successful response."
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/DataEnvelope' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '500': { $ref: '#/components/responses/InternalServerError' }
+    post:
+      tags: ["Cancellation Policy"]
+      operationId: createOrganizationBookingCancellationPolicy
+      summary: "Create an organization cancellation policy"
+      security: [{ StaffSession: [], StaffCsrf: [] }]
+      parameters:
+        - $ref: '#/components/parameters/IdempotencyKey'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/CancellationPolicyCreateRequest' }
+      responses:
+        '201':
+          description: "Successful response."
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/DataEnvelope' }
+        '400': { $ref: '#/components/responses/BadRequest' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '409': { $ref: '#/components/responses/Conflict' }
+        '422': { $ref: '#/components/responses/UnprocessableEntity' }
+        '500': { $ref: '#/components/responses/InternalServerError' }
+  "/booking-cancellation-policies/{policyId}/revisions":
+    post:
+      tags: ["Cancellation Policy"]
+      operationId: createBookingCancellationPolicyRevision
+      summary: "Create a draft cancellation policy revision"
+      security: [{ StaffSession: [], StaffCsrf: [] }]
+      parameters:
+        - name: policyId
+          in: path
+          required: true
+          schema: { type: string, format: uuid }
+        - $ref: '#/components/parameters/IdempotencyKey'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/CancellationPolicyRevisionRequest' }
+      responses:
+        '201':
+          description: "Successful response."
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/DataEnvelope' }
+        '400': { $ref: '#/components/responses/BadRequest' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '409': { $ref: '#/components/responses/Conflict' }
+        '422': { $ref: '#/components/responses/UnprocessableEntity' }
+        '500': { $ref: '#/components/responses/InternalServerError' }
+  "/booking-cancellation-policies/{policyId}/revisions/{revisionId}":
+    put:
+      tags: ["Cancellation Policy"]
+      operationId: updateBookingCancellationPolicyDraftRevision
+      summary: "Update only the latest draft cancellation policy revision"
+      security: [{ StaffSession: [], StaffCsrf: [] }]
+      parameters:
+        - name: policyId
+          in: path
+          required: true
+          schema: { type: string, format: uuid }
+        - name: revisionId
+          in: path
+          required: true
+          schema: { type: string, format: uuid }
+        - $ref: '#/components/parameters/IdempotencyKey'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/CancellationPolicyRevisionRequest' }
+      responses:
+        '200':
+          description: "Successful response."
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/DataEnvelope' }
+        '400': { $ref: '#/components/responses/BadRequest' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '409': { $ref: '#/components/responses/Conflict' }
+        '422': { $ref: '#/components/responses/UnprocessableEntity' }
+        '500': { $ref: '#/components/responses/InternalServerError' }
+  "/booking-cancellation-policies/{policyId}/revisions/{revisionId}/publish":
+    post:
+      tags: ["Cancellation Policy"]
+      operationId: publishBookingCancellationPolicyRevision
+      summary: "Publish a draft cancellation policy revision"
+      security: [{ StaffSession: [], StaffCsrf: [] }]
+      parameters:
+        - name: policyId
+          in: path
+          required: true
+          schema: { type: string, format: uuid }
+        - name: revisionId
+          in: path
+          required: true
+          schema: { type: string, format: uuid }
+        - $ref: '#/components/parameters/IdempotencyKey'
+      responses:
+        '200':
+          description: "Successful response."
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/DataEnvelope' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '409': { $ref: '#/components/responses/Conflict' }
+        '422': { $ref: '#/components/responses/UnprocessableEntity' }
+        '500': { $ref: '#/components/responses/InternalServerError' }
   "/organizations/{organizationId}/cancellation-policies":
     get:
       tags: ["Cancellation Policy"]
@@ -5441,7 +5569,7 @@ components:
         name: { type: string, maxLength: 250 }
     CancellationPolicyRevisionRequest:
       type: object
-      required: [customerMode, publicTerms, approvalRules, commercialRules]
+      required: [customerMode, publicTerms, approvalRules, commercialRules, noticeRules]
       properties:
         customerMode: { type: string, enum: [request_only, approval_required, self_service] }
         publicTerms: { type: string, minLength: 1, maxLength: 10000 }
