@@ -49,3 +49,6 @@ Commercial configuration is split by domain rather than collected in one generic
 
 
 The four commercial-configuration workspace templates are extracted into feature-owned views under their corresponding feature directories. Each view receives the matching composable return contract through a typed `workspace` prop and the shared busy reference; it owns presentation only and does not instantiate an API client or duplicate workflow state. `App.vue` composes the views by active workspace and retains only the cross-feature tax-profile projection needed by price-list configuration. This keeps the four domains independently reviewable while preserving the existing UI and command boundaries.
+
+
+Campaign review and delivery reporting follow the same boundary: `features/campaigns/useCampaigns.ts` owns campaign and delivery state/commands, while `CampaignWorkspaceView.vue` renders the workspace from an explicit typed contract. Shared session messages, busy state and SMTP readiness remain application-level dependencies passed into the feature. The root no longer owns campaign lookup, delivery reconciliation/retry, or campaign lifecycle command implementations.
