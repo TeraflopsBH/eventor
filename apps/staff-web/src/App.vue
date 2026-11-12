@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { computed, onMounted, reactive, ref } from "vue";
-import { api, ApiError, type CampaignReview, type CampaignProgress, type CampaignListItem, type DeliveryAttempt, type PageMeta, type EmailConfiguration, type ResendWebhookConfiguration, type Principal, type BookingInquiryListItem, type BookingInquiryDetail, type BookingInquiryAssignee, type BookingInquiryCapabilities, type BookingOfferRecord, type BookingOfferApprovalStatus, type BookingOfferApprovalRequirement, type BookingOfferWriteRequest, type BookingApprovalPolicy, type BookingApprovalRule, type PublicBookingOffer } from "./api";
+import { api, ApiError, type CampaignReview, type CampaignProgress, type CampaignListItem, type DeliveryAttempt, type PageMeta, type EmailConfiguration, type ResendWebhookConfiguration, type Principal, type BookingInquiryListItem, type BookingInquiryDetail, type BookingInquiryAssignee, type BookingInquiryCapabilities, type BookingOfferRecord, type BookingOfferEmailDelivery, type BookingOfferApprovalStatus, type BookingOfferApprovalRequirement, type BookingOfferWriteRequest, type BookingApprovalPolicy, type BookingApprovalRule, type PublicBookingOffer } from "./api";
 
 const publicOfferMatch = window.location.pathname.match(/^\/offers\/([0-9a-fA-F-]{36})\/?$/);
 const isPublicOfferPage = Boolean(publicOfferMatch);
@@ -94,6 +94,15 @@ const bookingOfferAcceptanceToken = ref("");
 const bookingOfferConfirmationReason = ref("");
 const bookingOfferIssueRequestKey = ref("");
 const bookingOfferEmailRequestKey = ref("");
+const bookingOfferEmailDeliveries = ref<BookingOfferEmailDelivery[]>([]);
+const bookingOfferEmailMeta = ref<{ limit: number; offset: number; totalCount: number; counts: Record<string, number> } | null>(null);
+const bookingOfferEmailStatusFilter = ref("");
+const bookingOfferEmailOffset = ref(0);
+const bookingOfferEmailResolution = reactive<Record<string, "confirmed_sent" | "confirmed_not_sent" | "">>({});
+const bookingOfferEmailReason = reactive<Record<string, string>>({});
+const bookingOfferEmailReference = reactive<Record<string, string>>({});
+const bookingOfferEmailRetryReason = reactive<Record<string, string>>({});
+
 const bookingOfferSupersedeCurrent = ref(false);
 const bookingOfferValidUntil = ref("");
 const bookingOfferTaxAmount = ref("");
@@ -960,6 +969,19 @@ async function refreshBookingOfferData(): Promise<void> {
   }
   bookingOffer.value = offerResult.data;
   bookingOfferApprovalStatus.value = approvalResult.data;
+  await refreshBookingOfferEmailData();
+}
+
+async function refreshBookingOfferEmailData(): Promise<void> {
+  const offerId = bookingOfferIdInput.value.trim();
+  if (!offerId) return;
+  const result = await api.getBookingOfferEmailDeliveries(offerId, {
+    status: bookingOfferEmailStatusFilter.value || undefined,
+    limit: 25,
+    offset: bookingOfferEmailOffset.value,
+  });
+  bookingOfferEmailDeliveries.value = result.data;
+  bookingOfferEmailMeta.value = result.meta;
 }
 
 async function loadBookingOffer(): Promise<void> {
@@ -1059,6 +1081,7 @@ async function emailBookingOffer(): Promise<void> {
     }
     const result = await api.queueBookingOfferEmail(offer.offerId, token, bookingOfferEmailRequestKey.value);
     bookingOfferEmailRequestKey.value = "";
+    await refreshBookingOfferEmailData();
     pageNotice.value = result.data.created
       ? "Offer email queued. SMTP delivery will be handled by the background worker."
       : "Offer email request already exists (status: " + result.data.status + ").";
@@ -1068,6 +1091,58 @@ async function emailBookingOffer(): Promise<void> {
     busy.value = false;
   }
 }
+async function reconcileBookingOfferEmail(delivery: BookingOfferEmailDelivery): Promise<void> {
+  const resolution = bookingOfferEmailResolution[delivery.deliveryId] ?? "";
+  const reason = (bookingOfferEmailReason[delivery.deliveryId] ?? "").trim();
+  if (!resolution) {
+    pageError.value = "Choose the verified SMTP outcome before reconciling this delivery.";
+    return;
+  }
+  if (reason.length < 3) {
+    pageError.value = "Enter how the outcome was verified (at least 3 characters).";
+    return;
+  }
+  if (resolution === "confirmed_sent" && !window.confirm("Record that this email was accepted by the SMTP server? This does not claim inbox delivery and will not send another email.")) return;
+  if (resolution === "confirmed_not_sent" && !window.confirm("Record that the SMTP server did not accept this email? This does not send anything. A separate, one-time retry can then be authorised.")) return;
+  clearMessages();
+  busy.value = true;
+  try {
+    await api.reconcileBookingOfferEmailDelivery(delivery.deliveryId, {
+      resolution,
+      reason,
+      providerMessageReference: bookingOfferEmailReference[delivery.deliveryId]?.trim() || undefined,
+    });
+    await refreshBookingOfferEmailData();
+    pageNotice.value = resolution === "confirmed_sent"
+      ? "Delivery recorded as SMTP-accepted. No email was sent by reconciliation."
+      : "Delivery recorded as not accepted. A separate one-time retry is now available if the offer remains current.";
+  } catch (error) {
+    showError(error);
+  } finally {
+    busy.value = false;
+  }
+}
+
+async function retryBookingOfferEmail(delivery: BookingOfferEmailDelivery): Promise<void> {
+  const reason = (bookingOfferEmailRetryReason[delivery.deliveryId] ?? "").trim();
+  if (reason.length < 3) {
+    pageError.value = "Enter why this one-time retry is safe (at least 3 characters).";
+    return;
+  }
+  if (!window.confirm("Authorise the single manual retry for this offer email? This can send another email. Proceed only after verifying that the previous SMTP submission was not accepted.")) return;
+  clearMessages();
+  busy.value = true;
+  try {
+    await api.retryBookingOfferEmailDelivery(delivery.deliveryId, reason);
+    await refreshBookingOfferEmailData();
+    pageNotice.value = "One-time offer email retry queued. Further ambiguous submissions will require manual investigation and cannot be retried again.";
+  } catch (error) {
+    showError(error);
+  } finally {
+    busy.value = false;
+  }
+}
+
 async function copyBookingOfferCapability(): Promise<void> {
   if (!bookingOfferAcceptanceToken.value) return;
   try {
@@ -1976,6 +2051,82 @@ onMounted(() => {
                   <input :value="bookingOfferAcceptanceToken" type="password" readonly autocomplete="off" />
                   <div class="offer-command-row"><button class="button button-secondary" type="button" @click="copyBookingOfferCapability">Copy customer link</button><button v-if="bookingOffer.currentRevision.state === 'issued'" class="button button-secondary" type="button" :disabled="busy" @click="emailBookingOffer">Queue offer email</button></div>
                 </div>
+
+                <section class="offer-approval-list offer-email-history">
+                  <div class="inquiry-card-heading">
+                    <div>
+                      <h5>Offer email delivery history</h5>
+                      <p class="fine-print">SMTP acceptance is not proof of inbox delivery. Uncertain submissions are never automatically resent.</p>
+                    </div>
+                    <button class="button button-quiet" type="button" :disabled="busy" @click="refreshBookingOfferEmailData">Refresh delivery status</button>
+                  </div>
+                  <div class="metric-grid compact-metrics">
+                    <div class="metric"><span>Queued</span><strong>{{ bookingOfferEmailMeta?.counts.queued ?? 0 }}</strong></div>
+                    <div class="metric"><span>Sending</span><strong>{{ bookingOfferEmailMeta?.counts.sending ?? 0 }}</strong></div>
+                    <div class="metric"><span>SMTP accepted</span><strong>{{ bookingOfferEmailMeta?.counts.sent ?? 0 }}</strong></div>
+                    <div class="metric"><span>Uncertain</span><strong>{{ bookingOfferEmailMeta?.counts.uncertain ?? 0 }}</strong></div>
+                    <div class="metric"><span>Failed</span><strong>{{ bookingOfferEmailMeta?.counts.failed ?? 0 }}</strong></div>
+                  </div>
+                  <div class="delivery-toolbar">
+                    <label>Filter email status
+                      <select v-model="bookingOfferEmailStatusFilter" @change="bookingOfferEmailOffset = 0; refreshBookingOfferEmailData()">
+                        <option value="">All statuses</option>
+                        <option v-for="status in ['queued','sending','sent','failed','uncertain']" :key="status" :value="status">{{ status }}</option>
+                      </select>
+                    </label>
+                  </div>
+                  <div v-if="bookingOfferEmailDeliveries.length" class="delivery-attempt-list">
+                    <article v-for="delivery in bookingOfferEmailDeliveries" :key="delivery.deliveryId" class="delivery-attempt">
+                      <div class="delivery-attempt-heading">
+                        <div>
+                          <strong>Offer revision · {{ delivery.offerRevisionId }}</strong>
+                          <span class="mono">Delivery {{ delivery.deliveryId }}</span>
+                        </div>
+                        <span class="pill" :class="delivery.status === 'sent' ? 'pill-success' : delivery.status === 'failed' ? 'pill-danger' : delivery.status === 'uncertain' ? 'pill-warning' : 'pill-neutral'">{{ delivery.status }}</span>
+                      </div>
+                      <div class="delivery-meta">
+                        <span>SMTP attempts: {{ delivery.attemptCount }}</span>
+                        <span>Manual retries: {{ delivery.manualRetryCount }} / 1</span>
+                        <span>Queued: {{ formatInquiryDate(delivery.createdAt) }}</span>
+                        <span>Last update: {{ formatInquiryDate(delivery.updatedAt) }}</span>
+                        <span v-if="delivery.sentAt">SMTP accepted: {{ formatInquiryDate(delivery.sentAt) }}</span>
+                        <span v-if="delivery.lastFailureCode">Failure: {{ delivery.lastFailureCode }}</span>
+                        <span v-if="delivery.lastOperatorResolution">Operator resolution: {{ delivery.lastOperatorResolution.replaceAll("_", " ") }}</span>
+                        <span v-if="delivery.lastOperatorAt">Reconciled: {{ formatInquiryDate(delivery.lastOperatorAt) }}</span>
+                      </div>
+                      <div v-if="delivery.canReconcile" class="operator-controls">
+                        <label>Verified SMTP outcome
+                          <select v-model="bookingOfferEmailResolution[delivery.deliveryId]">
+                            <option disabled value="">Choose verified outcome…</option>
+                            <option value="confirmed_sent">SMTP server accepted the message</option>
+                            <option value="confirmed_not_sent">SMTP server did not accept the message</option>
+                          </select>
+                        </label>
+                        <label>Provider message reference (optional)
+                          <input v-model="bookingOfferEmailReference[delivery.deliveryId]" maxlength="998" placeholder="Message-ID or SMTP queue reference" />
+                        </label>
+                        <label>Audit reason
+                          <textarea v-model="bookingOfferEmailReason[delivery.deliveryId]" rows="2" maxlength="1000" placeholder="How was the SMTP outcome verified?"></textarea>
+                        </label>
+                        <button class="button button-secondary" type="button" :disabled="busy" @click="reconcileBookingOfferEmail(delivery)">Record reconciliation</button>
+                      </div>
+                      <div v-if="delivery.canRetry" class="operator-controls">
+                        <p class="fine-print">The previous submission was explicitly recorded as not accepted. Only one manual retry is permitted for this delivery.</p>
+                        <label>Retry reason
+                          <textarea v-model="bookingOfferEmailRetryReason[delivery.deliveryId]" rows="2" maxlength="1000" placeholder="Explain why retrying is safe…"></textarea>
+                        </label>
+                        <button class="button button-danger" type="button" :disabled="busy" @click="retryBookingOfferEmail(delivery)">Authorise one-time retry</button>
+                      </div>
+                    </article>
+                  </div>
+                  <p v-else class="muted">No offer email deliveries match this filter.</p>
+                  <div class="pagination">
+                    <button class="button button-quiet" type="button" :disabled="busy || bookingOfferEmailOffset === 0" @click="bookingOfferEmailOffset = Math.max(0, bookingOfferEmailOffset - 25); refreshBookingOfferEmailData()">Previous</button>
+                    <span>{{ bookingOfferEmailMeta?.totalCount ?? 0 }} deliveries</span>
+                    <button class="button button-quiet" type="button" :disabled="busy || !bookingOfferEmailMeta || bookingOfferEmailOffset + 25 >= bookingOfferEmailMeta.totalCount" @click="bookingOfferEmailOffset += 25; refreshBookingOfferEmailData()">Next</button>
+                  </div>
+                  <p class="fine-print">Contact addresses and encrypted payloads are never exposed in this history. Reconciliation changes records only; it never sends an email.</p>
+                </section>
 
                 <div v-if="bookingOfferApprovalStatus" class="offer-approval-list">
                   <h5>Internal approval requirements</h5>
