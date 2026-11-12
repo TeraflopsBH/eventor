@@ -91,9 +91,11 @@ export function useStaffSession({
   async function useOrganizationLocalePreference(): Promise<void> {
     if (!principal.value) return;
     try {
+      const organization = await api.getOrganizationLocale();
       await api.updateUserLocale(null);
       principal.value.userLocale = null;
-      applyLocale(principal.value.organizationDefaultLocale);
+      principal.value.organizationDefaultLocale = organization.data.defaultLocale;
+      applyLocale(organization.data.defaultLocale);
       pageNotice.value = translate("localeSettings.followOrganization");
     } catch (error) {
       showError(error);
