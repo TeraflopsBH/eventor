@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { computed, onMounted, reactive, ref } from "vue";
-import { api, ApiError, type CampaignReview, type CampaignProgress, type CampaignListItem, type DeliveryAttempt, type PageMeta, type EmailConfiguration, type ResendWebhookConfiguration, type Principal, type BookingInquiryListItem, type BookingInquiryDetail, type BookingInquiryAssignee, type BookingInquiryCapabilities, type BookingOfferRecord, type BookingOfferEmailDelivery, type BookingOfferApprovalStatus, type BookingOfferApprovalRequirement, type BookingOfferWriteRequest, type BookingApprovalPolicy, type BookingApprovalRule, type PublicBookingOffer } from "./api";
+import { api, ApiError, type CampaignReview, type CampaignProgress, type CampaignListItem, type DeliveryAttempt, type PageMeta, type EmailConfiguration, type ResendWebhookConfiguration, type Principal, type BookingInquiryListItem, type BookingInquiryDetail, type BookingInquiryAssignee, type BookingInquiryCapabilities, type BookingOfferRecord, type BookingOfferEmailDelivery, type BookingOfferApprovalStatus, type BookingOfferApprovalRequirement, type BookingOfferWriteRequest, type BookingApprovalPolicy, type BookingApprovalRule, type BookingPriceList, type BookingPriceListItem, type PublicBookingOffer } from "./api";
 
 const publicOfferMatch = window.location.pathname.match(/^\/offers\/([0-9a-fA-F-]{36})\/?$/);
 const isPublicOfferPage = Boolean(publicOfferMatch);
@@ -19,7 +19,7 @@ const publicDecisionKey = ref("");
 const publicDecisionKind = ref<"accepted" | "rejected" | null>(null);
 const principal = ref<Principal | null>(null);
 const loadingSession = ref(true);
-const activeTab = ref<"delivery" | "campaign" | "inquiries" | "approvals">("delivery");
+const activeTab = ref<"delivery" | "campaign" | "inquiries" | "approvals" | "prices">("delivery");
 const busy = ref(false);
 const pageError = ref("");
 const pageNotice = ref("");
@@ -119,6 +119,26 @@ const bookingOfferAdjustmentsJson = ref("[]");
 const bookingOfferApprovalDecisions = reactive<Record<string, "approved" | "rejected" | "returned_for_changes">>({});
 const bookingOfferApprovalReasons = reactive<Record<string, string>>({});
 const approvalPolicies = ref<BookingApprovalPolicy[]>([]);
+const bookingPriceLists = ref<BookingPriceList[]>([]);
+const selectedPriceListId = ref("");
+const priceListCreateForm = reactive({ code: "", name: "", currency: "BAM", taxBasis: "to_be_confirmed" as "inclusive" | "exclusive" | "not_applicable" | "to_be_confirmed" });
+const priceListRevisionForm = reactive({
+  currency: "BAM",
+  taxBasis: "to_be_confirmed" as "inclusive" | "exclusive" | "not_applicable" | "to_be_confirmed",
+  effectiveFrom: "",
+  effectiveUntil: "",
+});
+const priceListItemsJson = ref("[]");
+const selectedPriceList = computed(() =>
+  bookingPriceLists.value.find((item) => item.priceListId === selectedPriceListId.value) ?? null,
+);
+const selectedPriceListLatestRevision = computed(() => {
+  const priceList = selectedPriceList.value;
+  return priceList?.revisions.find((revision) => revision.revisionId === priceList.latestRevisionId)
+    ?? priceList?.revisions[0]
+    ?? null;
+});
+
 const selectedApprovalPolicyId = ref("");
 const approvalPolicyCreateForm = reactive({ code: "", name: "" });
 const approvalPolicyRulesJson = ref("[]");
