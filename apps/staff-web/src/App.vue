@@ -289,7 +289,7 @@ function formatBookingMoney(value: string | number, currency: string): string {
   const amount = Number(value);
   if (!Number.isFinite(amount)) return String(value) + " " + currency;
   try {
-    return new Intl.NumberFormat(undefined, { style: "currency", currency }).format(amount);
+    return new Intl.NumberFormat(undefined, { style: "currency", currency, maximumFractionDigits: 4 }).format(amount);
   } catch {
     return amount.toFixed(2) + " " + currency;
   }
