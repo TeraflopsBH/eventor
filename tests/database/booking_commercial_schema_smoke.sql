@@ -28,9 +28,7 @@ DECLARE
     'eogp.create_booking_approval_policy(uuid,uuid,text,text)',
     'eogp.create_booking_approval_policy_revision(uuid,uuid,uuid,jsonb)',
     'eogp.update_booking_approval_policy_draft_revision(uuid,uuid,uuid,uuid,jsonb)',
-    'eogp.publish_booking_approval_policy_revision(uuid,uuid,uuid,uuid)',
-    'eogp.discover_due_booking_offer_expiry_tenants()',
-    'eogp.expire_due_booking_offers(uuid,integer)'
+    'eogp.publish_booking_approval_policy_revision(uuid,uuid,uuid,uuid)'
   ];
 BEGIN
   FOREACH v_name IN ARRAY v_required_tables LOOP
