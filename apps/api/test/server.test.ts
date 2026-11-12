@@ -88,6 +88,7 @@ function makePool() {
   let bookingOfferSuccessorCalls = 0;
   let bookingOfferGetCalls = 0;
   let bookingOfferIssueCalls = 0;
+  let bookingOfferEmailQueueCalls = 0;
   let customerOfferDecisionCalls = 0;
   let publicBookingOfferViewCalls = 0;
   let bookingOfferApprovalDecisionCalls = 0;
@@ -345,6 +346,17 @@ function makePool() {
           },
           revisionHistory: [],
           decisionHistory: [],
+        } }], rowCount: 1 };
+      }
+      if (normalized.includes("eogp.queue_booking_offer_email_delivery(")) {
+        bookingOfferEmailQueueCalls += 1;
+        commandCalls.push({ sql: normalized, values });
+        return { rows: [{ result: {
+          deliveryId: "21212121-2121-4121-8121-212121212121",
+          offerId: values[1],
+          offerRevisionId: "18181818-1818-4181-8181-181818181819",
+          status: "queued",
+          created: true,
         } }], rowCount: 1 };
       }
       if (normalized.includes("eogp.issue_booking_offer(")) {
@@ -809,6 +821,7 @@ function makePool() {
     get bookingOfferSuccessorCalls() { return bookingOfferSuccessorCalls; },
     get bookingOfferGetCalls() { return bookingOfferGetCalls; },
     get bookingOfferIssueCalls() { return bookingOfferIssueCalls; },
+    get bookingOfferEmailQueueCalls() { return bookingOfferEmailQueueCalls; },
     get customerOfferDecisionCalls() { return customerOfferDecisionCalls; },
     get publicBookingOfferViewCalls() { return publicBookingOfferViewCalls; },
     get bookingOfferApprovalDecisionCalls() { return bookingOfferApprovalDecisionCalls; },
@@ -1288,6 +1301,22 @@ test("staff inquiry inbox decrypts authorized projections and routes assignment,
     issueData.acceptanceToken,
   );
   assert.equal(mock.bookingOfferIssueCalls, 1);
+
+  const offerEmailQueued = await app.inject({
+    method: "POST",
+    url: "/booking-offers/18181818-1818-4181-8181-181818181818/email",
+    headers: { "idempotency-key": "email-booking-offer-0001" },
+    payload: { acceptanceToken: issueData.acceptanceToken },
+  });
+  assert.equal(offerEmailQueued.statusCode, 201);
+  assert.equal(offerEmailQueued.json<{ data: { status: string; created: boolean } }>().data.status, "queued");
+  assert.equal(mock.bookingOfferEmailQueueCalls, 1);
+  const emailQueueCall = mock.commandCalls.find((call) => call.sql.includes("eogp.queue_booking_offer_email_delivery("));
+  assert.ok(emailQueueCall);
+  assert.equal(emailQueueCall.values[4], createHash("sha256").update(issueData.acceptanceToken, "utf8").digest("hex"));
+  assert.ok(Buffer.isBuffer(emailQueueCall.values[5]));
+  assert.equal((emailQueueCall.values[5] as Buffer).subarray(0, 4).toString("utf8"), "ECP1");
+  assert.notEqual((emailQueueCall.values[5] as Buffer).toString("utf8"), issueData.acceptanceToken);
 
   const successorOffer = await app.inject({
     method: "POST",
