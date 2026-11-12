@@ -2,6 +2,14 @@ import { computed, ref, type ComputedRef, type Ref } from "vue";
 import { ApiError, api, type BookingDraftDetail, type PublicBookingFormField } from "../../api";
 import { initializePublicBookingAnswers, mergePublicBookingAnswers, validatePublicBookingAnswers } from "../public-booking-forms/publicBookingForm";
 import { formatBookingAnswerItems } from "../booking-inquiries/presentation";
+import {
+  formatBookingDraftResourceLines,
+  formatBookingDraftSpaceLines,
+  validateBookingDraftAllocations,
+  type BookingDraftResourceAllocationInput,
+  type BookingDraftSpaceAllocationInput,
+} from "./bookingDraftAllocations";
+import type { BookingDraftAllocationOptions } from "../../api";
 
 type BookingDraftApi = typeof api;
 
@@ -35,8 +43,9 @@ export function useBookingDraft(dependencies: BookingDraftDependencies) {
   const valuesJson = ref("{}");
   const draftAnswers = ref<Record<string, unknown>>({});
   const sourceFormFields = computed<PublicBookingFormField[]>(() => detail.value?.currentRevision?.fieldSchema?.fields ?? []);
-  const spaceLinesJson = ref("[]");
-  const resourceLinesJson = ref("[]");
+  const allocationOptions = ref<BookingDraftAllocationOptions>({ spaces: [], resources: [] });
+  const spaceLines = ref<BookingDraftSpaceAllocationInput[]>([]);
+  const resourceLines = ref<BookingDraftResourceAllocationInput[]>([]);
   const requestedStart = ref("");
   const requestedEnd = ref("");
   const timezone = ref("Europe/Sarajevo");
@@ -63,26 +72,8 @@ export function useBookingDraft(dependencies: BookingDraftDependencies) {
         ? storedAnswers as Record<string, unknown>
         : {}),
     };
-    spaceLinesJson.value = JSON.stringify(
-      (revision?.spaceLines ?? []).map((line) => ({
-        venueSpaceId: line.venueSpaceId,
-        startsAt: line.startsAt,
-        endsAt: line.endsAt,
-        blockKind: line.blockKind,
-        ...(line.requestedCapacity === null ? {} : { requestedCapacity: line.requestedCapacity }),
-      })),
-      null,
-      2,
-    );
-    resourceLinesJson.value = JSON.stringify(
-      (revision?.resourceLines ?? []).map((line) => ({
-        resourceTypeId: line.resourceTypeId,
-        requestedQuantity: line.requestedQuantity,
-        values: line.values,
-      })),
-      null,
-      2,
-    );
+    spaceLines.value = formatBookingDraftSpaceLines(revision?.spaceLines ?? []);
+    resourceLines.value = formatBookingDraftResourceLines(revision?.resourceLines ?? []);
     requestedStart.value = revision?.requestedStart ?? "";
     requestedEnd.value = revision?.requestedEnd ?? "";
     timezone.value = revision?.timezone ?? "Europe/Sarajevo";
@@ -94,8 +85,9 @@ export function useBookingDraft(dependencies: BookingDraftDependencies) {
     editorOpen.value = false;
     valuesJson.value = "{}";
     draftAnswers.value = {};
-    spaceLinesJson.value = "[]";
-    resourceLinesJson.value = "[]";
+    allocationOptions.value = { spaces: [], resources: [] };
+    spaceLines.value = [];
+    resourceLines.value = [];
     requestedStart.value = "";
     requestedEnd.value = "";
     timezone.value = "Europe/Sarajevo";
@@ -107,8 +99,12 @@ export function useBookingDraft(dependencies: BookingDraftDependencies) {
     clearMessages();
     busy.value = true;
     try {
-      const result = await bookingApi.getBookingDraft(draftId);
+      const [result, options] = await Promise.all([
+        bookingApi.getBookingDraft(draftId),
+        bookingApi.getBookingDraftAllocationOptions(draftId),
+      ]);
       detail.value = result.data;
+      allocationOptions.value = options.data;
       populateEditor(result.data);
       editorOpen.value = true;
     } catch (error) {
@@ -121,8 +117,12 @@ export function useBookingDraft(dependencies: BookingDraftDependencies) {
   async function refresh(): Promise<void> {
     const draftId = detail.value?.draftId;
     if (!draftId) return;
-    const result = await bookingApi.getBookingDraft(draftId);
+    const [result, options] = await Promise.all([
+      bookingApi.getBookingDraft(draftId),
+      bookingApi.getBookingDraftAllocationOptions(draftId),
+    ]);
     detail.value = result.data;
+    allocationOptions.value = options.data;
     populateEditor(result.data);
   }
 
@@ -132,14 +132,23 @@ export function useBookingDraft(dependencies: BookingDraftDependencies) {
     if (!draft || !revision || !canManage.value) return;
 
     let values: Record<string, unknown>;
-    let spaceLines: Array<Record<string, unknown>>;
-    let resourceLines: Array<Record<string, unknown>>;
+    let normalizedSpaceLines: BookingDraftSpaceAllocationInput[];
+    let normalizedResourceLines: BookingDraftResourceAllocationInput[];
     try {
-      const parsedSpaces: unknown = JSON.parse(spaceLinesJson.value);
-      const parsedResources: unknown = JSON.parse(resourceLinesJson.value);
-      if (!Array.isArray(parsedSpaces) || !Array.isArray(parsedResources)) {
-        throw new Error(t("commercialBooking.jsonArraysRequired"));
+      const allocationIssue = validateBookingDraftAllocations(
+        spaceLines.value,
+        resourceLines.value,
+        allocationOptions.value,
+      );
+      if (allocationIssue) {
+        pageError.value = t("commercialBooking.allocationValidation." + allocationIssue.kind, {
+          index: "index" in allocationIssue ? allocationIssue.index + 1 : 0,
+          capacity: "capacity" in allocationIssue ? allocationIssue.capacity : 0,
+        });
+        return;
       }
+      normalizedSpaceLines = spaceLines.value.map((line) => ({ ...line }));
+      normalizedResourceLines = resourceLines.value.map((line) => ({ ...line, values: { ...(line.values ?? {}) } }));
       if (sourceFormFields.value.length) {
         const issue = validatePublicBookingAnswers(sourceFormFields.value, draftAnswers.value);
         if (issue) {
@@ -160,8 +169,7 @@ export function useBookingDraft(dependencies: BookingDraftDependencies) {
         }
         values = parsedValues as Record<string, unknown>;
       }
-      spaceLines = parsedSpaces as Array<Record<string, unknown>>;
-      resourceLines = parsedResources as Array<Record<string, unknown>>;
+
     } catch (error) {
       pageError.value = error instanceof SyntaxError ? t("commercialBooking.draftJsonInvalid") : error instanceof Error ? error.message : t("commercialBooking.draftJsonInvalid");
       return;
@@ -184,18 +192,8 @@ export function useBookingDraft(dependencies: BookingDraftDependencies) {
         requestedStart: requestedStart.value.trim() || null,
         requestedEnd: requestedEnd.value.trim() || null,
         timezone: timezone.value.trim(),
-        spaceLines: spaceLines as Array<{
-          venueSpaceId: string;
-          startsAt: string;
-          endsAt: string;
-          blockKind: "setup" | "rehearsal" | "event_use" | "teardown" | "buffer";
-          requestedCapacity?: number;
-        }>,
-        resourceLines: resourceLines as Array<{
-          resourceTypeId: string;
-          requestedQuantity: number;
-          values?: Record<string, unknown>;
-        }>,
+        spaceLines: normalizedSpaceLines,
+        resourceLines: normalizedResourceLines,
         changeReason: reason,
       });
       await Promise.all([refresh(), refreshInquiryDetail()]);
@@ -221,8 +219,18 @@ export function useBookingDraft(dependencies: BookingDraftDependencies) {
     valuesJson,
     draftAnswers,
     sourceFormFields,
-    spaceLinesJson,
-    resourceLinesJson,
+    allocationOptions,
+    spaceLines,
+    resourceLines,
+    addSpaceLine: () => spaceLines.value.push({
+      venueSpaceId: "",
+      startsAt: requestedStart.value,
+      endsAt: requestedEnd.value,
+      blockKind: "event_use",
+    }),
+    removeSpaceLine: (index: number) => spaceLines.value.splice(index, 1),
+    addResourceLine: () => resourceLines.value.push({ resourceTypeId: "", requestedQuantity: 1, values: {} }),
+    removeResourceLine: (index: number) => resourceLines.value.splice(index, 1),
     requestedStart,
     requestedEnd,
     timezone,
