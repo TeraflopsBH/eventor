@@ -1,4 +1,9 @@
 -- Jurisdiction-neutral calculation against the exact tax-profile revision pinned by a price list.
+
+-- Profile precision is configurable up to four decimals; preserve it in offer amounts.
+ALTER TABLE eogp.booking_offer_revisions
+  ALTER COLUMN tax_amount TYPE numeric(16,4) USING tax_amount::numeric(16,4),
+  ALTER COLUMN total_amount TYPE numeric(16,4) USING total_amount::numeric(16,4);
 -- Rates and classifications are organization-authored configuration; this migration seeds none.
 -- Manual tax treatments deliberately require the existing audited invoice-level tax override.
 
