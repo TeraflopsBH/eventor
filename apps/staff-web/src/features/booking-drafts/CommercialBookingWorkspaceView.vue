@@ -116,7 +116,7 @@ const { busy } = props.workspace;
                   </label>
                   <label>{{$t('commercialBooking.resourceLines')}}<textarea v-model="bookingDraftResourceLinesJson" rows="5" spellcheck="false"></textarea>
                   </label>
-                  <label>{{$t('commercialBooking.changeReason')}}<textarea v-model="bookingDraftChangeReason" rows="2" maxlength="2000" required placeholder="Explain why this revision is being created…"></textarea>
+                  <label>{{$t('commercialBooking.changeReason')}}<textarea v-model="bookingDraftChangeReason" rows="2" maxlength="2000" required  :placeholder="t('commercialBooking.changeReasonPlaceholder')"></textarea>
                   </label>
                   <div class="form-actions">
                     <button class="button button-primary" type="submit" :disabled="busy || bookingDraftChangeReason.trim().length < 3">
@@ -141,13 +141,13 @@ const { busy } = props.workspace;
               </div>
 
               <div class="offer-load-row">
-                <label>{{$t('commercialBooking.offerUuid')}}<input v-model="bookingOfferIdInput" type="text" maxlength="36" placeholder="Load an existing offer for this draft" />
+                <label>{{$t('commercialBooking.offerUuid')}}<input v-model="bookingOfferIdInput" type="text" maxlength="36"  :placeholder="t('commercialBooking.loadOfferPlaceholder')" />
                 </label>
                 <button class="button button-secondary" type="button" :disabled="busy || !bookingOfferIdInput.trim()" @click="loadBookingOffer">{{ t('commercialBooking.loadOffer') }}</button>
               </div>
 
               <div v-if="canManageBookingOffer" class="offer-preparation">
-                <h5>{{ bookingOffer ? "Prepare successor offer revision" : "Prepare first offer revision" }}</h5>
+                <h5>{{ bookingOffer ? t('commercialBooking.prepareSuccessor') : t('commercialBooking.prepareFirst') }}</h5>
                 <p class="fine-print">{{$t('commercialBooking.offerPreparationInfo')}}</p>
                 <form class="draft-revision-form" @submit.prevent="saveBookingOfferRevision">
                   <div class="field-grid">
@@ -157,7 +157,7 @@ const { busy } = props.workspace;
                     </label>
                     <label>{{$t('commercialBooking.approvalRevision')}}<input v-model="bookingOfferCreateForm.approvalPolicyRevisionId" type="text" required maxlength="36" />
                     </label>
-                    <label>{{$t('commercialBooking.currency')}}<input v-model="bookingOfferCreateForm.currency" type="text" required maxlength="3" placeholder="e.g. BAM" />
+                    <label>{{$t('commercialBooking.currency')}}<input v-model="bookingOfferCreateForm.currency" type="text" required maxlength="3"  :placeholder="t('commercialBooking.currencyExamplePlaceholder')" />
                     </label>
                     <label>{{$t('commercialBooking.taxTreatment')}}<select v-model="bookingOfferCreateForm.taxBasis" required>
                         <option value="">{{ t('commercialBooking.chooseTax') }}</option>
@@ -178,7 +178,7 @@ const { busy } = props.workspace;
                   <label>{{$t('commercialBooking.manualAdjustments')}}<textarea v-model="bookingOfferAdjustmentsJson" rows="5" spellcheck="false" placeholder='[{"code":"adjustment-code","label":"Reasoned adjustment","kind":"discount","amount":0.01,"allocationMethod":"proportional_to_lines"}]'></textarea>
                     <small>{{$t('commercialBooking.taxAllocationHelp')}}</small>
                   </label>
-                  <label>{{$t('commercialBooking.internalTaxReason')}}<textarea v-model="bookingOfferInternalReason" rows="2" maxlength="2000" required placeholder="Explain manual terms, especially any tax amount or adjustment…"></textarea>
+                  <label>{{$t('commercialBooking.internalTaxReason')}}<textarea v-model="bookingOfferInternalReason" rows="2" maxlength="2000" required  :placeholder="t('commercialBooking.internalTaxReasonPlaceholder')"></textarea>
                   </label>
                   <label v-if="bookingOffer" class="check-row">
                     <input v-model="bookingOfferSupersedeCurrent" type="checkbox" />
@@ -186,7 +186,7 @@ const { busy } = props.workspace;
                   </label>
                   <div class="form-actions">
                     <button class="button button-primary" type="submit" :disabled="busy || !bookingOfferValidUntil || !bookingOfferTaxAmount.trim()">
-                      {{ bookingOffer ? "Create successor revision" : "Prepare offer" }}
+                      {{ bookingOffer ? t('commercialBooking.createSuccessor') : t('commercialBooking.prepareOffer') }}
                     </button>
                   </div>
                 </form>
@@ -198,14 +198,14 @@ const { busy } = props.workspace;
                   <div class="metric"><span>{{ t('commercialBooking.offerStatus') }}</span><strong>{{ commercialStatusLabel(bookingOffer.status) }}</strong><small>{{ t("commercialBooking.offerLabel", { id: bookingOffer.offerId }) }}</small></div>
                   <div class="metric"><span>{{ t('commercialBooking.offerRevision') }}</span><strong>{{ bookingOffer.currentRevision.revisionNumber }}</strong><small>{{ commercialStatusLabel(bookingOffer.currentRevision.state) }}</small></div>
                   <div class="metric"><span>{{ t('commercialBooking.subtotal') }}</span><strong>{{ formatMoney(bookingOffer.currentRevision.subtotal, bookingOffer.currentRevision.currency) }}</strong></div>
-                  <div class="metric"><span>{{ t('commercialBooking.total') }}</span><strong>{{ formatMoney(bookingOffer.currentRevision.totalAmount, bookingOffer.currentRevision.currency) }}</strong><small>Tax {{ formatMoney(bookingOffer.currentRevision.taxAmount, bookingOffer.currentRevision.currency) }}</small></div>
+                  <div class="metric"><span>{{ t('commercialBooking.total') }}</span><strong>{{ formatMoney(bookingOffer.currentRevision.totalAmount, bookingOffer.currentRevision.currency) }}</strong><small>{{ t('commercialBooking.tax') }} {{ formatMoney(bookingOffer.currentRevision.taxAmount, bookingOffer.currentRevision.currency) }}</small></div>
                 </div>
                 <dl class="offer-reference-list">
                   <dt>{{ t('commercialBooking.draftRevision') }}</dt><dd class="mono">{{ bookingOffer.currentRevision.draftRevisionId }}</dd>
-                  <dt>Price-list revision</dt><dd class="mono">{{ bookingOffer.currentRevision.priceListRevisionId }}</dd>
+                  <dt>{{ t('commercialBooking.priceListRevisionLabel') }}</dt><dd class="mono">{{ bookingOffer.currentRevision.priceListRevisionId }}</dd>
                   <dt>{{ t('commercialBooking.cancellationPolicy') }}</dt><dd class="mono">{{ bookingOffer.currentRevision.cancellationPolicyRevisionId }}</dd>
                   <dt>{{ t('commercialBooking.approvalPolicy') }}</dt><dd class="mono">{{ bookingOffer.currentRevision.approvalPolicyRevisionId }}</dd>
-                  <dt>Valid until</dt><dd>{{ formatDate(bookingOffer.currentRevision.validUntil) }}</dd>
+                  <dt>{{ t('commercialBooking.validUntilLabel') }}</dt><dd>{{ formatDate(bookingOffer.currentRevision.validUntil) }}</dd>
                   <dt>{{ t('commercialBooking.issued') }}</dt><dd>{{ formatDate(bookingOffer.currentRevision.issuedAt) }}</dd>
                   <dt>{{ t('commercialBooking.customerAccepted') }}</dt><dd>{{ formatDate(bookingOffer.currentRevision.acceptedAt) }}</dd>
                 </dl>
@@ -279,17 +279,17 @@ const { busy } = props.workspace;
                           </select>
                         </label>
                         <label v-if="bookingOfferEmailResolution[delivery.deliveryId] === 'confirmed_sent'">{{$t('commercialBooking.providerReference')}}
-                          <input v-model="bookingOfferEmailReference[delivery.deliveryId]" maxlength="998" placeholder="Message-ID or SMTP queue reference" />
+                          <input v-model="bookingOfferEmailReference[delivery.deliveryId]" maxlength="998"  :placeholder="t('commercialBooking.messageReferencePlaceholder')" />
                         </label>
                         <label>{{$t('commercialBooking.auditReasonLabel')}}
-                          <textarea v-model="bookingOfferEmailReason[delivery.deliveryId]" rows="2" maxlength="1000" placeholder="How was the SMTP outcome verified?"></textarea>
+                          <textarea v-model="bookingOfferEmailReason[delivery.deliveryId]" rows="2" maxlength="1000"  :placeholder="t('commercialBooking.smtpVerifyPlaceholder')"></textarea>
                         </label>
                         <button class="button button-secondary" type="button" :disabled="busy" @click="reconcileBookingOfferEmail(delivery)">{{ t("commercialBooking.recordReconciliation") }}</button>
                       </div>
                       <div v-if="delivery.canRetry" class="operator-controls">
                         <p class="fine-print">{{$t('commercialBooking.retryOnceInfo')}}</p>
                         <label>{{$t('commercialBooking.retryReasonLabel')}}
-                          <textarea v-model="bookingOfferEmailRetryReason[delivery.deliveryId]" rows="2" maxlength="1000" placeholder="Explain why retrying is safe…"></textarea>
+                          <textarea v-model="bookingOfferEmailRetryReason[delivery.deliveryId]" rows="2" maxlength="1000"  :placeholder="t('commercialBooking.retrySafePlaceholder')"></textarea>
                         </label>
                         <button class="button button-danger" type="button" :disabled="busy" @click="retryBookingOfferEmail(delivery)">{{$t('commercialBooking.retryOnceAction')}}</button>
                       </div>
@@ -332,7 +332,7 @@ const { busy } = props.workspace;
                         </select>
                       </label>
                       <label>{{$t('commercialBooking.decisionReasonLabel')}}
-                        <textarea v-model="bookingOfferApprovalReasons[requirement.ruleCode]" rows="2" maxlength="2000" placeholder="Record the decision rationale…"></textarea>
+                        <textarea v-model="bookingOfferApprovalReasons[requirement.ruleCode]" rows="2" maxlength="2000"  :placeholder="t('commercialBooking.decisionReasonPlaceholder')"></textarea>
                       </label>
                       <button class="button button-secondary" type="button" :disabled="busy || (bookingOfferApprovalReasons[requirement.ruleCode] ?? '').trim().length < 3" @click="decideBookingOfferApproval(requirement)">{{ t('commercialBooking.recordDecision') }}</button>
                     </div>
@@ -343,7 +343,7 @@ const { busy } = props.workspace;
                   <h5>{{ t('commercialBooking.confirmAccepted') }}</h5>
                   <p class="fine-print">{{$t('commercialBooking.confirmationInfo')}}</p>
                   <label>{{ t("commercialBooking.bookingConfirmationReason") }}
-                    <textarea v-model="bookingOfferConfirmationReason" rows="2" maxlength="2000" placeholder="Record why this booking is being confirmed…"></textarea>
+                    <textarea v-model="bookingOfferConfirmationReason" rows="2" maxlength="2000"  :placeholder="t('commercialBooking.bookingConfirmationReasonPlaceholder')"></textarea>
                   </label>
                   <button class="button button-primary" type="button" :disabled="busy || bookingOfferConfirmationReason.trim().length < 3" @click="confirmBookingFromAcceptedOffer">{{ t('commercialBooking.confirmBooking') }}</button>
                 </div>
