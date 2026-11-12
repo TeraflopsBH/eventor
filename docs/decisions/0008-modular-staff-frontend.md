@@ -70,3 +70,6 @@ The booking inquiry and commercial booking workspace views consume feature-scope
 
 
 The public booking-offer capability page uses the `publicOffer` feature namespace and an explicit customer language choice rather than inferring language from customer identity or location. Locale-aware date/number formatting follows that choice; customer-entered and organization-authored commercial terms remain untouched.
+
+
+Booking workflow composables receive a typed translation function from `App.vue` rather than owning or importing a locale runtime. Client-owned validation, confirmation prompts, success/error notices and JSON parsing feedback use the feature catalogues. This keeps locale selection at the application boundary and makes workflow copy react to locale changes without changing domain values, API behavior or server-originated error messages.
