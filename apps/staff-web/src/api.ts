@@ -45,12 +45,14 @@ async function request<T>(
     body?: unknown;
     idempotent?: boolean;
     idempotencyKey?: string;
+    extraHeaders?: Record<string, string>;
   } = {},
 ): Promise<T> {
   const method = options.method ?? "GET";
   const headers = new Headers({ Accept: "application/json" });
   if (options.body !== undefined) headers.set("Content-Type", "application/json");
 
+  for (const [name, value] of Object.entries(options.extraHeaders ?? {})) headers.set(name, value);
   if (method !== "GET") {
     const csrf = readCookie(csrfCookieName);
     if (path !== "/auth/session" && !csrf) {
@@ -530,6 +532,27 @@ export interface BookingApprovalPolicyMutationResult {
 }
 
 
+export interface PublicBookingOffer {
+  offerId: string;
+  status: "issued" | "expired";
+  revisionNumber: number;
+  currency: string;
+  subtotal: number;
+  taxAmount: number;
+  totalAmount: number;
+  validUntil: string;
+  terms: {
+    requestedStart: string | null;
+    requestedEnd: string | null;
+    timezone: string | null;
+    taxBasis: string;
+    lineItems: Array<{ label: string; unit: string; quantity: number; unitAmount: number; lineTotal: number }>;
+    adjustments: Array<{ label: string; kind: string; amount: number }>;
+    spaces: Array<{ code: string; name: string; blockKind: string; startsAt: string; endsAt: string; requestedCapacity: number | null }>;
+    resources: Array<{ label: string; requestedQuantity: number }>;
+    cancellationTerms: string | null;
+  };
+}
 export interface PageMeta {
   limit: number;
   offset: number;
@@ -538,6 +561,37 @@ export interface PageMeta {
 }
 
 export const api = {
+  getPublicBookingOffer: (offerId: string, token: string) =>
+    request<Envelope<PublicBookingOffer>>(
+      `/public/booking-offers/${encodeURIComponent(offerId)}`,
+      { extraHeaders: { "X-External-Booking-Token": token } },
+    ),
+  acceptPublicBookingOffer: (
+    offerId: string,
+    token: string,
+    body: { acceptanceName: string; acceptanceNote?: string },
+    requestKey: string,
+  ) =>
+    request<Envelope<Record<string, unknown>>>(
+      `/booking-offers/${encodeURIComponent(offerId)}/accept`,
+      {
+        method: "POST", body, idempotent: true, idempotencyKey: requestKey,
+        extraHeaders: { "X-External-Booking-Token": token },
+      },
+    ),
+  rejectPublicBookingOffer: (
+    offerId: string,
+    token: string,
+    body: { reasonCode: string; reason: string; note?: string },
+    requestKey: string,
+  ) =>
+    request<Envelope<Record<string, unknown>>>(
+      `/booking-offers/${encodeURIComponent(offerId)}/reject`,
+      {
+        method: "POST", body, idempotent: true, idempotencyKey: requestKey,
+        extraHeaders: { "X-External-Booking-Token": token },
+      },
+    ),
   login: (body: { email: string; password: string; organizationSlug: string }) =>
     request<Envelope<{ csrfToken: string; expiresAt: string }>>("/auth/session", { method: "POST", body }),
   me: () => request<Envelope<Principal>>("/me"),
