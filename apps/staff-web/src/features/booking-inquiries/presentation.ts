@@ -2,7 +2,7 @@ import type { BookingInquiryAssignee, BookingInquiryDetail } from "../../api";
 import type { SupportedLocale } from "../../i18n";
 
 export function formatInquiryAnswer(
-  field: BookingInquiryDetail["fieldSchema"]["fields"][number] | undefined,
+  field: { type: string; options?: readonly { value: string; label: string }[] } | undefined,
   value: unknown,
 ): string {
   if (value === null || value === undefined || value === "") return "—";
