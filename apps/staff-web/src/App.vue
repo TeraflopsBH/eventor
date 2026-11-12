@@ -1437,6 +1437,8 @@ async function openBookingTaxProfiles(): Promise<void> {
 }
 function selectBookingTaxProfile(id: string): void { selectedTaxProfileId.value = id; syncTaxProfileEditor(); }
 function taxProfileRevisionPayload(): BookingTaxProfileRevisionInput {
+  if (!/^[A-Z]{3}$/.test(taxProfileRevisionForm.currency.trim().toUpperCase())) throw new Error("Currency must be a three-letter uppercase code.");
+  if (!Number.isInteger(taxProfileRevisionForm.roundingScale) || taxProfileRevisionForm.roundingScale < 0 || taxProfileRevisionForm.roundingScale > 4) throw new Error("Rounding decimal places must be an integer from 0 to 4.");
   const taxCodes: unknown = JSON.parse(taxCodesJson.value);
   if (!Array.isArray(taxCodes) || taxCodes.length > 200) throw new Error("Tax codes must be a JSON array with at most 200 entries.");
   const seen = new Set<string>();
@@ -1454,6 +1456,7 @@ function taxProfileRevisionPayload(): BookingTaxProfileRevisionInput {
     if ((row.treatment === "percentage" && typeof row.rate !== "number") ||
         (row.treatment !== "percentage" && row.rate !== null)) throw new Error("Only percentage tax codes may have a rate.");
   }
+  if (taxProfileRevisionForm.taxBasis === "not_applicable" && taxCodes.length > 0) throw new Error("A not-applicable tax profile cannot contain tax codes.");
   return {
     jurisdictionCode: taxProfileRevisionForm.jurisdictionCode.trim() || null,
     registrationIdentifier: taxProfileRevisionForm.registrationIdentifier.trim() || null,
