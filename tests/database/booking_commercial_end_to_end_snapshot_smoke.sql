@@ -102,6 +102,9 @@ BEGIN
     change_reason,created_by_membership_id
   ) VALUES(v_draft_revision_id,v_org,v_draft_id,1,'{"fixture":"commercial-snapshot"}',
     'Europe/Sarajevo','End-to-end commercial snapshot fixture',v_creator);
+  INSERT INTO eogp.booking_draft_space_lines(
+    organization_id,draft_revision_id,venue_space_id,block_kind,starts_at,ends_at,requested_capacity
+  ) VALUES(v_org,v_draft_revision_id,v_space_id,'event_use',v_space_starts_at,v_space_ends_at,20);
 
   -- Publish tax profile revision 1 at 20%.
   v_result:=eogp.create_booking_tax_profile(v_org,v_creator,
