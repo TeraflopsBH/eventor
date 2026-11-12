@@ -179,6 +179,13 @@ BEGIN
   END IF;
   v_definition:=replace(v_definition,v_old,v_new);
 
+  v_old:='     OR scale(trim_scale(p_tax_amount)) > 2 THEN';
+  v_new:='     OR scale(trim_scale(p_tax_amount)) > 4 THEN';
+  IF position(v_old in v_definition)=0 THEN
+    RAISE EXCEPTION 'offer command tax precision anchor not found';
+  END IF;
+  v_definition:=replace(v_definition,v_old,v_new);
+
   v_old:='  IF p_tax_basis = ''not_applicable'' AND v_tax <> 0 THEN';
   v_new:='  v_tax_calculation:=eogp.calculate_booking_offer_tax('
     ||'p_organization_id,p_price_list_revision_id,p_currency,p_tax_basis,p_valid_until,v_lines,p_tax_amount);'
