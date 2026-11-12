@@ -430,6 +430,9 @@ BEGIN
      OR v_draft_detail->>'status' <> 'draft'
      OR v_draft_detail->>'currentRevisionNumber' <> '1'
      OR v_draft_detail->'currentRevision'->>'revisionNumber' <> '1'
+     OR v_draft_detail->'currentRevision'->>'sourceFormRevisionId' <> 'a7500000-0000-4000-8000-000000000001'
+     OR v_draft_detail->'currentRevision'->'fieldSchema'->'fields'->0->>'code' <> 'event_date'
+     OR v_draft_detail->'currentRevision'->'fieldSchema'->'fields'->0->>'type' <> 'date'
      OR v_draft_detail->'currentRevision'->'valuesSnapshot'->>'encryption' <> 'ECP1'
      OR v_draft_detail->'currentRevision'->'valuesSnapshot'->>'ciphertextBase64' <> encode(v_ciphertext,'base64')
      OR jsonb_array_length(v_draft_detail->'revisionHistory') <> 1 THEN
