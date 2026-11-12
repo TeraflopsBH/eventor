@@ -8,6 +8,7 @@ const props = defineProps<{
   pageNotice: Ref<string>;
   showError: (error: unknown) => void;
   translate: (key: string) => string;
+  onDefaultLocaleChanged: (locale: SupportedLocale) => void;
 }>();
 
 const defaultLocale = ref<SupportedLocale>("en");
@@ -33,6 +34,7 @@ async function save(): Promise<void> {
   try {
     const result = await api.setOrganizationLocale(defaultLocale.value);
     defaultLocale.value = result.data.defaultLocale;
+    props.onDefaultLocaleChanged(result.data.defaultLocale);
     props.pageNotice.value = props.translate("localeSettings.organizationSaved");
   } catch (error) {
     props.showError(error);
