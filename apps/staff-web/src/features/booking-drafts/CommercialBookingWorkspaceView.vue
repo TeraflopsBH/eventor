@@ -20,13 +20,27 @@ const inquiryStatusLabel = (status: string): string => {
   return keys[status] ? t(`bookingInquiry.${keys[status]}`) : status.replaceAll("_", " ");
 };
 const commercialStatusLabel = (value: string): string => {
-  const keys: Record<string, string> = {
-    draft: "stateDraft", offered: "stateOffered", confirmed: "stateConfirmed", cancelled: "stateCancelled", issued: "stateIssued", accepted: "stateAccepted", rejected: "stateRejected",
-    expired: "stateExpired", superseded: "stateSuperseded", queued: "stateQueued", sending: "stateSending",
-    sent: "stateSent", failed: "stateFailed", uncertain: "stateUncertain", approved: "stateApproved",
-    returned_for_changes: "stateReturnedForChanges", confirmed_sent: "stateConfirmedSent", confirmed_not_sent: "stateConfirmedNotSent",
+  const labels: Record<string, () => string> = {
+    draft: () => t("commercialBooking.stateDraft"),
+    offered: () => t("commercialBooking.stateOffered"),
+    confirmed: () => t("commercialBooking.stateConfirmed"),
+    cancelled: () => t("commercialBooking.stateCancelled"),
+    issued: () => t("commercialBooking.stateIssued"),
+    accepted: () => t("commercialBooking.stateAccepted"),
+    rejected: () => t("commercialBooking.stateRejected"),
+    expired: () => t("commercialBooking.stateExpired"),
+    superseded: () => t("commercialBooking.stateSuperseded"),
+    queued: () => t("commercialBooking.stateQueued"),
+    sending: () => t("commercialBooking.stateSending"),
+    sent: () => t("commercialBooking.stateSent"),
+    failed: () => t("commercialBooking.stateFailed"),
+    uncertain: () => t("commercialBooking.stateUncertain"),
+    approved: () => t("commercialBooking.stateApproved"),
+    returned_for_changes: () => t("commercialBooking.stateReturnedForChanges"),
+    confirmed_sent: () => t("commercialBooking.stateConfirmedSent"),
+    confirmed_not_sent: () => t("commercialBooking.stateConfirmedNotSent"),
   };
-  return keys[value] ? t(`commercialBooking.${keys[value]}`) : value.replaceAll("_", " ");
+  return labels[value]?.() ?? value.replaceAll("_", " ");
 };
 
 const {
