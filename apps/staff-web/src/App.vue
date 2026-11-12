@@ -1110,7 +1110,9 @@ async function reconcileBookingOfferEmail(delivery: BookingOfferEmailDelivery): 
     await api.reconcileBookingOfferEmailDelivery(delivery.deliveryId, {
       resolution,
       reason,
-      providerMessageReference: bookingOfferEmailReference[delivery.deliveryId]?.trim() || undefined,
+      providerMessageReference: resolution === "confirmed_sent"
+        ? bookingOfferEmailReference[delivery.deliveryId]?.trim() || undefined
+        : undefined,
     });
     await refreshBookingOfferEmailData();
     pageNotice.value = resolution === "confirmed_sent"
