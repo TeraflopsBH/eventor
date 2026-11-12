@@ -15,6 +15,15 @@ const props = defineProps<{
 }>();
 const { formatDate, formatMoney } = useInquiryPresentation();
 const { t } = useI18n();
+const commercialStatusLabel = (value: string): string => {
+  const keys: Record<string, string> = {
+    draft: "stateDraft", issued: "stateIssued", accepted: "stateAccepted", rejected: "stateRejected",
+    expired: "stateExpired", superseded: "stateSuperseded", queued: "stateQueued", sending: "stateSending",
+    sent: "stateSent", failed: "stateFailed", uncertain: "stateUncertain", approved: "stateApproved",
+    returned_for_changes: "stateReturnedForChanges", confirmed_sent: "stateConfirmedSent", confirmed_not_sent: "stateConfirmedNotSent",
+  };
+  return keys[value] ? t(`commercialBooking.${keys[value]}`) : value.replaceAll("_", " ");
+};
 
 const {
   detail: bookingDraftDetail,
@@ -76,28 +85,21 @@ const { busy } = props.workspace;
                   against the current revision, they must expire or be released before it can be revised.
                 </p>
                 <form class="draft-revision-form" @submit.prevent="saveBookingDraftRevision">
-                  <label>Values snapshot (JSON)
-                    <textarea v-model="bookingDraftValuesJson" rows="8" spellcheck="false"></textarea>
+                  <label>{{$t('commercialBooking.valuesSnapshot')}}<textarea v-model="bookingDraftValuesJson" rows="8" spellcheck="false"></textarea>
                   </label>
                   <div class="field-grid">
-                    <label>Requested start (ISO 8601)
-                      <input v-model="bookingDraftRequestedStart" type="text" maxlength="80" placeholder="2027-01-18T09:00:00+01:00" />
+                    <label>{{$t('commercialBooking.requestedStart')}}<input v-model="bookingDraftRequestedStart" type="text" maxlength="80" placeholder="2027-01-18T09:00:00+01:00" />
                     </label>
-                    <label>Requested end (ISO 8601)
-                      <input v-model="bookingDraftRequestedEnd" type="text" maxlength="80" placeholder="2027-01-18T13:00:00+01:00" />
+                    <label>{{$t('commercialBooking.requestedEnd')}}<input v-model="bookingDraftRequestedEnd" type="text" maxlength="80" placeholder="2027-01-18T13:00:00+01:00" />
                     </label>
-                    <label>Timezone
-                      <input v-model="bookingDraftTimezone" type="text" maxlength="80" required />
+                    <label>{{$t('commercialBooking.timezone')}}<input v-model="bookingDraftTimezone" type="text" maxlength="80" required />
                     </label>
                   </div>
-                  <label>Space lines (JSON array)
-                    <textarea v-model="bookingDraftSpaceLinesJson" rows="5" spellcheck="false"></textarea>
+                  <label>{{$t('commercialBooking.spaceLines')}}<textarea v-model="bookingDraftSpaceLinesJson" rows="5" spellcheck="false"></textarea>
                   </label>
-                  <label>Resource lines (JSON array)
-                    <textarea v-model="bookingDraftResourceLinesJson" rows="5" spellcheck="false"></textarea>
+                  <label>{{$t('commercialBooking.resourceLines')}}<textarea v-model="bookingDraftResourceLinesJson" rows="5" spellcheck="false"></textarea>
                   </label>
-                  <label>Change reason
-                    <textarea v-model="bookingDraftChangeReason" rows="2" maxlength="2000" required placeholder="Explain why this revision is being created…"></textarea>
+                  <label>{{$t('commercialBooking.changeReason')}}<textarea v-model="bookingDraftChangeReason" rows="2" maxlength="2000" required placeholder="Explain why this revision is being created…"></textarea>
                   </label>
                   <div class="form-actions">
                     <button class="button button-primary" type="submit" :disabled="busy || bookingDraftChangeReason.trim().length < 3">
@@ -122,8 +124,7 @@ const { busy } = props.workspace;
               </div>
 
               <div class="offer-load-row">
-                <label>Offer UUID
-                  <input v-model="bookingOfferIdInput" type="text" maxlength="36" placeholder="Load an existing offer for this draft" />
+                <label>{{$t('commercialBooking.offerUuid')}}<input v-model="bookingOfferIdInput" type="text" maxlength="36" placeholder="Load an existing offer for this draft" />
                 </label>
                 <button class="button button-secondary" type="button" :disabled="busy || !bookingOfferIdInput.trim()" @click="loadBookingOffer">{{ t('commercialBooking.loadOffer') }}</button>
               </div>
@@ -133,20 +134,15 @@ const { busy } = props.workspace;
                 <p class="fine-print">{{$t('commercialBooking.offerPreparationInfo')}}</p>
                 <form class="draft-revision-form" @submit.prevent="saveBookingOfferRevision">
                   <div class="field-grid">
-                    <label>Price-list revision UUID
-                      <input v-model="bookingOfferCreateForm.priceListRevisionId" type="text" required maxlength="36" />
+                    <label>{{$t('commercialBooking.priceListRevision')}}<input v-model="bookingOfferCreateForm.priceListRevisionId" type="text" required maxlength="36" />
                     </label>
-                    <label>Cancellation-policy revision UUID
-                      <input v-model="bookingOfferCreateForm.cancellationPolicyRevisionId" type="text" required maxlength="36" />
+                    <label>{{$t('commercialBooking.cancellationRevision')}}<input v-model="bookingOfferCreateForm.cancellationPolicyRevisionId" type="text" required maxlength="36" />
                     </label>
-                    <label>Approval-policy revision UUID
-                      <input v-model="bookingOfferCreateForm.approvalPolicyRevisionId" type="text" required maxlength="36" />
+                    <label>{{$t('commercialBooking.approvalRevision')}}<input v-model="bookingOfferCreateForm.approvalPolicyRevisionId" type="text" required maxlength="36" />
                     </label>
-                    <label>Currency (ISO 4217)
-                      <input v-model="bookingOfferCreateForm.currency" type="text" required maxlength="3" placeholder="e.g. BAM" />
+                    <label>{{$t('commercialBooking.currency')}}<input v-model="bookingOfferCreateForm.currency" type="text" required maxlength="3" placeholder="e.g. BAM" />
                     </label>
-                    <label>Tax treatment
-                      <select v-model="bookingOfferCreateForm.taxBasis" required>
+                    <label>{{$t('commercialBooking.taxTreatment')}}<select v-model="bookingOfferCreateForm.taxBasis" required>
                         <option value="">{{ t('commercialBooking.chooseTax') }}</option>
                         <option value="inclusive">{{ t('commercialBooking.taxInclusive') }}</option>
                         <option value="exclusive">{{ t('commercialBooking.taxExclusive') }}</option>
@@ -154,22 +150,18 @@ const { busy } = props.workspace;
                         <option value="to_be_confirmed">{{ t('commercialBooking.toBeConfirmed') }}</option>
                       </select>
                     </label>
-                    <label>Offer valid until (your local time)
-                      <input v-model="bookingOfferValidUntil" type="datetime-local" required />
+                    <label>{{$t('commercialBooking.validUntil')}}<input v-model="bookingOfferValidUntil" type="datetime-local" required />
                     </label>
                     <label>{{$t('commercialBooking.offerTaxAmount')}}
                       <input v-model="bookingOfferTaxAmount" type="number" min="0" step="0.0001" required />
                     </label>
                   </div>
-                  <label>Price-list line items (JSON array)
-                    <textarea v-model="bookingOfferLineItemsJson" rows="5" spellcheck="false" placeholder='[{"itemCode":"published-item-code","quantity":1}]'></textarea>
+                  <label>{{$t('commercialBooking.priceLineItems')}}<textarea v-model="bookingOfferLineItemsJson" rows="5" spellcheck="false" placeholder='[{"itemCode":"published-item-code","quantity":1}]'></textarea>
                   </label>
-                  <label>Manual adjustments (JSON array)
-                    <textarea v-model="bookingOfferAdjustmentsJson" rows="5" spellcheck="false" placeholder='[{"code":"adjustment-code","label":"Reasoned adjustment","kind":"discount","amount":0.01,"allocationMethod":"proportional_to_lines"}]'></textarea>
+                  <label>{{$t('commercialBooking.manualAdjustments')}}<textarea v-model="bookingOfferAdjustmentsJson" rows="5" spellcheck="false" placeholder='[{"code":"adjustment-code","label":"Reasoned adjustment","kind":"discount","amount":0.01,"allocationMethod":"proportional_to_lines"}]'></textarea>
                     <small>{{$t('commercialBooking.taxAllocationHelp')}}</small>
                   </label>
-                  <label>Internal reason / tax audit reason
-                    <textarea v-model="bookingOfferInternalReason" rows="2" maxlength="2000" required placeholder="Explain manual terms, especially any tax amount or adjustment…"></textarea>
+                  <label>{{$t('commercialBooking.internalTaxReason')}}<textarea v-model="bookingOfferInternalReason" rows="2" maxlength="2000" required placeholder="Explain manual terms, especially any tax amount or adjustment…"></textarea>
                   </label>
                   <label v-if="bookingOffer" class="check-row">
                     <input v-model="bookingOfferSupersedeCurrent" type="checkbox" />
@@ -186,8 +178,8 @@ const { busy } = props.workspace;
 
               <template v-if="bookingOffer">
                 <div class="offer-summary-grid">
-                  <div class="metric"><span>{{ t('commercialBooking.offerStatus') }}</span><strong>{{ bookingOffer.status }}</strong><small>Offer {{ bookingOffer.offerId }}</small></div>
-                  <div class="metric"><span>{{ t('commercialBooking.offerRevision') }}</span><strong>{{ bookingOffer.currentRevision.revisionNumber }}</strong><small>{{ bookingOffer.currentRevision.state }}</small></div>
+                  <div class="metric"><span>{{ t('commercialBooking.offerStatus') }}</span><strong>{{ commercialStatusLabel(bookingOffer.status) }}</strong><small>Offer {{ bookingOffer.offerId }}</small></div>
+                  <div class="metric"><span>{{ t('commercialBooking.offerRevision') }}</span><strong>{{ bookingOffer.currentRevision.revisionNumber }}</strong><small>{{ commercialStatusLabel(bookingOffer.currentRevision.state) }}</small></div>
                   <div class="metric"><span>{{ t('commercialBooking.subtotal') }}</span><strong>{{ formatMoney(bookingOffer.currentRevision.subtotal, bookingOffer.currentRevision.currency) }}</strong></div>
                   <div class="metric"><span>{{ t('commercialBooking.total') }}</span><strong>{{ formatMoney(bookingOffer.currentRevision.totalAmount, bookingOffer.currentRevision.currency) }}</strong><small>Tax {{ formatMoney(bookingOffer.currentRevision.taxAmount, bookingOffer.currentRevision.currency) }}</small></div>
                 </div>
@@ -234,8 +226,7 @@ const { busy } = props.workspace;
                     <div class="metric"><span>{{$t('commercialBooking.emailCountsFailed')}}</span><strong>{{ bookingOfferEmailMeta?.counts.failed ?? 0 }}</strong></div>
                   </div>
                   <div class="delivery-toolbar">
-                    <label>Filter email status
-                      <select v-model="bookingOfferEmailStatusFilter" @change="bookingOfferEmailOffset = 0; refreshBookingOfferEmailData()">
+                    <label>{{$t('commercialBooking.filterEmail')}}<select v-model="bookingOfferEmailStatusFilter" @change="bookingOfferEmailOffset = 0; refreshBookingOfferEmailData()">
                         <option value="">{{$t('commercialBooking.allStatuses')}}</option>
                         <option v-for="status in ['queued','sending','sent','failed','uncertain']" :key="status" :value="status">{{ status }}</option>
                       </select>
@@ -248,7 +239,7 @@ const { busy } = props.workspace;
                           <strong>Offer revision · {{ delivery.offerRevisionId }}</strong>
                           <span class="mono">Delivery {{ delivery.deliveryId }}</span>
                         </div>
-                        <span class="pill" :class="delivery.status === 'sent' ? 'pill-success' : delivery.status === 'failed' ? 'pill-danger' : delivery.status === 'uncertain' ? 'pill-warning' : 'pill-neutral'">{{ delivery.status }}</span>
+                        <span class="pill" :class="delivery.status === 'sent' ? 'pill-success' : delivery.status === 'failed' ? 'pill-danger' : delivery.status === 'uncertain' ? 'pill-warning' : 'pill-neutral'">{{ commercialStatusLabel(delivery.status) }}</span>
                       </div>
                       <div class="delivery-meta">
                         <span>SMTP attempts: {{ delivery.attemptCount }}</span>
@@ -258,7 +249,7 @@ const { busy } = props.workspace;
                         <span v-if="delivery.status === 'queued'">Next attempt: {{ formatDate(delivery.nextAttemptAt) }}</span>
                         <span v-if="delivery.sentAt">SMTP accepted: {{ formatDate(delivery.sentAt) }}</span>
                         <span v-if="delivery.lastFailureCode">Failure: {{ delivery.lastFailureCode }}</span>
-                        <span v-if="delivery.lastOperatorResolution">Operator resolution: {{ delivery.lastOperatorResolution.replaceAll("_", " ") }}</span>
+                        <span v-if="delivery.lastOperatorResolution">Operator resolution: {{ commercialStatusLabel(delivery.lastOperatorResolution) }}</span>
                         <span v-if="delivery.lastOperatorReason">Audit reason: {{ delivery.lastOperatorReason }}</span>
                         <span v-if="delivery.lastOperatorAt">Reconciled: {{ formatDate(delivery.lastOperatorAt) }}</span>
                       </div>
@@ -311,14 +302,13 @@ const { busy } = props.workspace;
                     </div>
                     <ol v-if="requirement.decisions.length" class="history-list">
                       <li v-for="(decision, index) in requirement.decisions" :key="decision.membershipId + '-' + index">
-                        <strong>{{ decision.decision.replaceAll("_", " ") }}</strong>
+                        <strong>{{ commercialStatusLabel(decision.decision) }}</strong>
                         <span>{{ decision.reason }}</span>
                         <small>{{ decision.membershipId }} · {{ formatDate(decision.decidedAt) }}</small>
                       </li>
                     </ol>
                     <div v-if="canDecideBookingOfferRequirement(requirement)" class="operator-controls offer-approval-controls">
-                      <label>Decision
-                        <select v-model="bookingOfferApprovalDecisions[requirement.ruleCode]">
+                      <label>{{$t('commercialBooking.decision')}}<select v-model="bookingOfferApprovalDecisions[requirement.ruleCode]">
                           <option value="approved">{{ t('commercialBooking.approve') }}</option>
                           <option value="rejected">{{ t('commercialBooking.reject') }}</option>
                           <option value="returned_for_changes">{{ t('commercialBooking.returnChanges') }}</option>
