@@ -48,13 +48,23 @@ jobs:
       - name: Lint OpenAPI with pinned Redocly CLI
         run: npx --yes @redocly/cli@2.77.0 lint --config redocly.yaml docs/api/openapi.v0.3.yaml
 
-      - name: Install API dependencies
+      - name: Resolve and install locked API dependencies
         working-directory: apps/api
-        run: npm install --no-package-lock --no-audit --no-fund
+        run: |
+          npm install --package-lock-only --ignore-scripts --no-audit --no-fund
+          npm ci --no-audit --no-fund
 
       - name: Generate OpenAPI TypeScript declarations, type-check and test API routes
         working-directory: apps/api
         run: npm test
+
+      - name: Publish generated API dependency lockfile
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        with:
+          name: api-npm-lock
+          path: apps/api/package-lock.json
+          if-no-files-found: error
+          retention-days: 7
 
   staff-web:
     name: Staff web type-check and production build
@@ -66,15 +76,24 @@ jobs:
         uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020
         with:
           node-version: "22.16.0"
-      - name: Install staff web dependencies
+      - name: Resolve and install locked staff web dependencies
         working-directory: apps/staff-web
-        run: npm install --no-package-lock --no-audit --no-fund
+        run: |
+          npm install --package-lock-only --ignore-scripts --no-audit --no-fund
+          npm ci --no-audit --no-fund
       - name: Run staff web regression tests
         working-directory: apps/staff-web
         run: npm test
       - name: Type-check and build staff web
         working-directory: apps/staff-web
         run: npm run build
+      - name: Publish generated staff web dependency lockfile
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        with:
+          name: staff-web-npm-lock
+          path: apps/staff-web/package-lock.json
+          if-no-files-found: error
+          retention-days: 7
 
   postgres:
     name: PostgreSQL 18.6 migrations, RLS and concurrency
