@@ -13,7 +13,8 @@ DECLARE
     'booking_offer_capability_idempotency',
     'booking_offer_email_deliveries',
     'booking_price_lists','booking_price_list_revisions','booking_price_items',
-    'cancellation_policies','cancellation_policy_revisions'
+    'cancellation_policies','cancellation_policy_revisions',
+    'booking_tax_profiles','booking_tax_profile_revisions'
   ];
   v_required_functions text[] := ARRAY[
     'eogp.save_booking_offer_revision(uuid,uuid,uuid,uuid,uuid,uuid,uuid,text,text,timestamptz,jsonb,jsonb,numeric,text,boolean)',
@@ -43,7 +44,14 @@ DECLARE
     'eogp.create_booking_cancellation_policy(uuid,uuid,text,text)',
     'eogp.create_booking_cancellation_policy_revision(uuid,uuid,uuid,text,text,jsonb,jsonb,jsonb)',
     'eogp.update_booking_cancellation_policy_draft_revision(uuid,uuid,uuid,uuid,text,text,jsonb,jsonb,jsonb)',
-    'eogp.publish_booking_cancellation_policy_revision(uuid,uuid,uuid,uuid)'
+    'eogp.publish_booking_cancellation_policy_revision(uuid,uuid,uuid,uuid)',
+    'eogp.get_booking_tax_profiles(uuid,uuid)',
+    'eogp.get_booking_price_lists(uuid,uuid)',
+    'eogp.create_booking_tax_profile(uuid,uuid,text,text,text,text,text,text)',
+    'eogp.create_booking_tax_profile_revision(uuid,uuid,uuid,text,text,text,text,text,integer,timestamptz,timestamptz)',
+    'eogp.update_booking_tax_profile_draft_revision(uuid,uuid,uuid,uuid,text,text,text,text,text,integer,timestamptz,timestamptz,jsonb)',
+    'eogp.publish_booking_tax_profile_revision(uuid,uuid,uuid,uuid)',
+    'eogp.set_booking_price_list_tax_profile_revision(uuid,uuid,uuid,uuid,uuid)'
   ];
 BEGIN
   FOREACH v_name IN ARRAY v_required_tables LOOP
@@ -81,7 +89,9 @@ BEGIN
      OR has_table_privilege(current_user,'eogp.booking_price_list_revisions','SELECT')
      OR has_table_privilege(current_user,'eogp.booking_price_items','SELECT')
      OR has_table_privilege(current_user,'eogp.cancellation_policies','SELECT')
-     OR has_table_privilege(current_user,'eogp.cancellation_policy_revisions','SELECT') THEN
+     OR has_table_privilege(current_user,'eogp.cancellation_policy_revisions','SELECT')
+     OR has_table_privilege(current_user,'eogp.booking_tax_profiles','SELECT')
+     OR has_table_privilege(current_user,'eogp.booking_tax_profile_revisions','SELECT') THEN
     RAISE EXCEPTION 'runtime role has direct table read access to protected commercial data';
   END IF;
 
@@ -141,6 +151,28 @@ BEGIN
       AND t.tgname='cancellation_policy_revisions_published_immutable_guard' AND NOT t.tgisinternal
   ) THEN
     RAISE EXCEPTION 'published cancellation policy revision immutability trigger is missing';
+  END IF;
+
+  IF NOT EXISTS (
+    SELECT 1 FROM pg_catalog.pg_trigger t
+    JOIN pg_catalog.pg_class r ON r.oid=t.tgrelid
+    JOIN pg_catalog.pg_namespace n ON n.oid=r.relnamespace
+    WHERE n.nspname='eogp' AND r.relname='booking_tax_profile_revisions'
+      AND t.tgname='booking_tax_profile_revisions_published_immutable_guard' AND NOT t.tgisinternal
+  ) OR NOT EXISTS (
+    SELECT 1 FROM pg_catalog.pg_trigger t
+    JOIN pg_catalog.pg_class r ON r.oid=t.tgrelid
+    JOIN pg_catalog.pg_namespace n ON n.oid=r.relnamespace
+    WHERE n.nspname='eogp' AND r.relname='booking_price_list_revisions'
+      AND t.tgname='booking_price_list_tax_profile_publish_guard' AND NOT t.tgisinternal
+  ) OR NOT EXISTS (
+    SELECT 1 FROM pg_catalog.pg_trigger t
+    JOIN pg_catalog.pg_class r ON r.oid=t.tgrelid
+    JOIN pg_catalog.pg_namespace n ON n.oid=r.relnamespace
+    WHERE n.nspname='eogp' AND r.relname='booking_offer_revisions'
+      AND t.tgname='booking_offer_revision_tax_configuration_snapshot' AND NOT t.tgisinternal
+  ) THEN
+    RAISE EXCEPTION 'tax-profile immutability, price-list validation or offer snapshot trigger is missing';
   END IF;
 
   IF NOT has_table_privilege('eventor_worker','eogp.booking_offer_expiry_tenant_queue','SELECT')
