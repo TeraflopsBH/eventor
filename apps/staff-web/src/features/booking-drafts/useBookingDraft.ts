@@ -151,7 +151,10 @@ export function useBookingDraft(dependencies: BookingDraftDependencies) {
         }
         values = {
           ...revision.values,
-          answers: normalizePublicBookingAnswers(sourceFormFields.value, draftAnswers.value),
+          answers: {
+            ...draftAnswers.value,
+            ...normalizePublicBookingAnswers(sourceFormFields.value, draftAnswers.value),
+          },
         };
       } else {
         const parsedValues: unknown = JSON.parse(valuesJson.value);
