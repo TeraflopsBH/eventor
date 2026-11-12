@@ -55,7 +55,31 @@ BEGIN
     p_organization_id,p_actor_membership_id,ARRAY['booking.manage']::text[]
   );
   IF p_form_code IS NULL OR length(btrim(p_form_code)) NOT BETWEEN 2 AND 80
-     OR p_form_code !~ '^[A-Za-z0-9][A-Za-z0-9_-]*CREATE FUNCTION eogp.create_booking_form_revision(
+     OR p_form_code !~ '^[A-Za-z0-9][A-Za-z0-9._-]*$'
+     OR p_name IS NULL OR length(btrim(p_name)) NOT BETWEEN 1 AND 250
+     OR p_locale NOT IN ('bs-BA','en')
+     OR p_field_schema IS NULL OR jsonb_typeof(p_field_schema)<>'object'
+     OR jsonb_typeof(p_field_schema->'fields') IS DISTINCT FROM 'array'
+     OR jsonb_array_length(p_field_schema->'fields')>100 THEN
+    RAISE EXCEPTION 'booking form details are invalid' USING ERRCODE='22023';
+  END IF;
+  INSERT INTO eogp.booking_form_definitions(
+    id,organization_id,scope_kind,form_code,name,status
+  ) VALUES(v_form_id,p_organization_id,'organization',btrim(p_form_code),btrim(p_name),'active');
+  INSERT INTO eogp.booking_form_revisions(
+    id,organization_id,form_definition_id,revision_number,locale,field_schema,state
+  ) VALUES(v_revision_id,p_organization_id,v_form_id,1,p_locale,p_field_schema,'draft');
+  INSERT INTO eogp.audit_events(
+    organization_id,actor_organization_id,actor_membership_id,actor_kind,
+    action,aggregate_type,aggregate_id,reason_code,safe_metadata
+  ) VALUES(p_organization_id,p_organization_id,p_actor_membership_id,'membership',
+    'booking.form.created','booking_form',v_form_id,'booking_form_created',
+    jsonb_build_object('formCode',btrim(p_form_code),'revisionId',v_revision_id));
+  RETURN jsonb_build_object('formId',v_form_id,'revisionId',v_revision_id,'revisionNumber',1,'state','draft');
+END;
+$function$;
+
+CREATE FUNCTION eogp.create_booking_form_revision(
   p_organization_id uuid,p_form_id uuid,p_actor_membership_id uuid
 ) RETURNS jsonb
 LANGUAGE plpgsql SECURITY DEFINER
