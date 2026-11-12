@@ -1,5 +1,5 @@
 import { computed, ref, type ComputedRef, type Ref } from "vue";
-import { ApiError, api, type BookingDraftDetail, type PublicBookingFormField } from "../../api";
+import { ApiError, api, type BookingDraftAllocationOptions, type BookingDraftDetail, type BookingDraftSpaceLine, type PublicBookingFormField } from "../../api";
 import { initializePublicBookingAnswers, mergePublicBookingAnswers, validatePublicBookingAnswers } from "../public-booking-forms/publicBookingForm";
 import { formatBookingAnswerItems } from "../booking-inquiries/presentation";
 import {
@@ -9,7 +9,6 @@ import {
   type BookingDraftResourceAllocationInput,
   type BookingDraftSpaceAllocationInput,
 } from "./bookingDraftAllocations";
-import type { BookingDraftAllocationOptions } from "../../api";
 
 type BookingDraftApi = typeof api;
 
@@ -132,7 +131,7 @@ export function useBookingDraft(dependencies: BookingDraftDependencies) {
     if (!draft || !revision || !canManage.value) return;
 
     let values: Record<string, unknown>;
-    let normalizedSpaceLines: BookingDraftSpaceAllocationInput[];
+    let normalizedSpaceLines: Array<Omit<BookingDraftSpaceLine, "spaceLineId">>;
     let normalizedResourceLines: BookingDraftResourceAllocationInput[];
     try {
       const allocationIssue = validateBookingDraftAllocations(
