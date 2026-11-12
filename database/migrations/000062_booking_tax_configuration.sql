@@ -352,6 +352,18 @@ BEGIN
     IF NOT FOUND OR v_tax.currency<>v_price.currency OR v_tax.tax_basis<>v_price.tax_basis THEN
       RAISE EXCEPTION 'published tax profile revision must match price-list currency and tax basis' USING ERRCODE='22023';
     END IF;
+    IF v_tax.tax_basis='not_applicable' AND EXISTS (
+      SELECT 1 FROM eogp.booking_price_items i WHERE i.organization_id=p_organization_id
+       AND i.price_list_revision_id=p_revision_id AND i.tax_code IS NOT NULL
+    ) THEN
+      RAISE EXCEPTION 'not-applicable tax profiles require all price item taxCode values to be null' USING ERRCODE='22023';
+    END IF;
+    IF v_tax.tax_basis<>'not_applicable' AND EXISTS (
+      SELECT 1 FROM eogp.booking_price_items i WHERE i.organization_id=p_organization_id
+       AND i.price_list_revision_id=p_revision_id AND i.tax_code IS NULL
+    ) THEN
+      RAISE EXCEPTION 'every price item requires a taxCode when a tax profile is selected' USING ERRCODE='22023';
+    END IF;
     IF EXISTS (
       SELECT 1 FROM eogp.booking_price_items i
        WHERE i.organization_id=p_organization_id AND i.price_list_revision_id=p_revision_id
@@ -387,6 +399,18 @@ BEGIN
        OR (NEW.effective_until IS NOT NULL AND v_tax.effective_until IS NOT NULL AND v_tax.effective_until<NEW.effective_until)
        OR (NEW.effective_until IS NULL AND v_tax.effective_until IS NOT NULL) THEN
       RAISE EXCEPTION 'selected published tax profile revision must match the price-list revision' USING ERRCODE='23514';
+    END IF;
+    IF v_tax.tax_basis='not_applicable' AND EXISTS (
+      SELECT 1 FROM eogp.booking_price_items i WHERE i.organization_id=NEW.organization_id
+       AND i.price_list_revision_id=NEW.id AND i.tax_code IS NOT NULL
+    ) THEN
+      RAISE EXCEPTION 'not-applicable tax profiles require all price item taxCode values to be null' USING ERRCODE='23514';
+    END IF;
+    IF v_tax.tax_basis<>'not_applicable' AND EXISTS (
+      SELECT 1 FROM eogp.booking_price_items i WHERE i.organization_id=NEW.organization_id
+       AND i.price_list_revision_id=NEW.id AND i.tax_code IS NULL
+    ) THEN
+      RAISE EXCEPTION 'every price item requires a taxCode when a tax profile is selected' USING ERRCODE='23514';
     END IF;
     IF EXISTS (
       SELECT 1 FROM eogp.booking_price_items i
