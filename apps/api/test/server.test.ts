@@ -89,6 +89,9 @@ function makePool() {
   let bookingOfferGetCalls = 0;
   let bookingOfferIssueCalls = 0;
   let bookingOfferEmailQueueCalls = 0;
+  let bookingOfferEmailListCalls = 0;
+  let bookingOfferEmailReconcileCalls = 0;
+  let bookingOfferEmailRetryCalls = 0;
   let customerOfferDecisionCalls = 0;
   let publicBookingOfferViewCalls = 0;
   let bookingOfferApprovalDecisionCalls = 0;
@@ -347,6 +350,34 @@ function makePool() {
           revisionHistory: [],
           decisionHistory: [],
         } }], rowCount: 1 };
+      }
+      if (normalized.includes("eogp.list_booking_offer_email_deliveries(")) {
+        bookingOfferEmailListCalls += 1;
+        commandCalls.push({ sql: normalized, values });
+        return { rows: [{ result: {
+          items: [{
+            deliveryId: "21212121-2121-4121-8121-212121212121",
+            offerRevisionId: "18181818-1818-4181-8181-181818181819",
+            status: "uncertain", attemptCount: 1, manualRetryCount: 0,
+            nextAttemptAt: "2026-11-12T06:00:00.000Z",
+            createdAt: "2026-11-12T05:00:00.000Z", updatedAt: "2026-11-12T06:00:00.000Z",
+            sentAt: null, lastFailureCode: "SMTP_UNKNOWN",
+            lastOperatorResolution: null, lastOperatorAt: null,
+            canReconcile: true, canRetry: false,
+          }],
+          page: { limit: values[4], offset: values[5], total: 1 },
+          counts: { uncertain: 1 },
+        } }], rowCount: 1 };
+      }
+      if (normalized.includes("eogp.reconcile_booking_offer_email_delivery(")) {
+        bookingOfferEmailReconcileCalls += 1;
+        commandCalls.push({ sql: normalized, values });
+        return { rows: [{ result: { deliveryId: values[1], previousStatus: "uncertain", status: "failed", canRetry: true } }], rowCount: 1 };
+      }
+      if (normalized.includes("eogp.retry_booking_offer_email_delivery(")) {
+        bookingOfferEmailRetryCalls += 1;
+        commandCalls.push({ sql: normalized, values });
+        return { rows: [{ result: { deliveryId: values[1], status: "queued", manualRetryCount: 1 } }], rowCount: 1 };
       }
       if (normalized.includes("eogp.queue_booking_offer_email_delivery(")) {
         bookingOfferEmailQueueCalls += 1;
@@ -822,6 +853,9 @@ function makePool() {
     get bookingOfferGetCalls() { return bookingOfferGetCalls; },
     get bookingOfferIssueCalls() { return bookingOfferIssueCalls; },
     get bookingOfferEmailQueueCalls() { return bookingOfferEmailQueueCalls; },
+    get bookingOfferEmailListCalls() { return bookingOfferEmailListCalls; },
+    get bookingOfferEmailReconcileCalls() { return bookingOfferEmailReconcileCalls; },
+    get bookingOfferEmailRetryCalls() { return bookingOfferEmailRetryCalls; },
     get customerOfferDecisionCalls() { return customerOfferDecisionCalls; },
     get publicBookingOfferViewCalls() { return publicBookingOfferViewCalls; },
     get bookingOfferApprovalDecisionCalls() { return bookingOfferApprovalDecisionCalls; },
@@ -1317,6 +1351,36 @@ test("staff inquiry inbox decrypts authorized projections and routes assignment,
   assert.ok(Buffer.isBuffer(emailQueueCall.values[5]));
   assert.equal((emailQueueCall.values[5] as Buffer).subarray(0, 4).toString("utf8"), "ECP1");
   assert.notEqual((emailQueueCall.values[5] as Buffer).toString("utf8"), issueData.acceptanceToken);
+
+  const offerEmailHistory = await app.inject({
+    method: "GET",
+    url: "/booking-offers/18181818-1818-4181-8181-181818181818/email-deliveries?limit=10&offset=0",
+  });
+  assert.equal(offerEmailHistory.statusCode, 200);
+  assert.equal(offerEmailHistory.json<{ data: Array<{ status: string }>; meta: { totalCount: number; counts: Record<string, number> } }>().data[0]?.status, "uncertain");
+  assert.equal(offerEmailHistory.json<{ meta: { totalCount: number; counts: Record<string, number> } }>().meta.totalCount, 1);
+  assert.equal(mock.bookingOfferEmailListCalls, 1);
+
+  const offerEmailReconciled = await app.inject({
+    method: "POST",
+    url: "/booking-offer-email-deliveries/21212121-2121-4121-8121-212121212121/reconcile",
+    headers: { "idempotency-key": "reconcile-booking-offer-email-0001" },
+    payload: { resolution: "confirmed_not_sent", reason: "Checked the SMTP server queue logs." },
+  });
+  assert.equal(offerEmailReconciled.statusCode, 200);
+  assert.equal(offerEmailReconciled.json<{ data: { status: string } }>().data.status, "failed");
+  assert.equal(mock.bookingOfferEmailReconcileCalls, 1);
+
+  const offerEmailRetry = await app.inject({
+    method: "POST",
+    url: "/booking-offer-email-deliveries/21212121-2121-4121-8121-212121212121/retry",
+    headers: { "idempotency-key": "retry-booking-offer-email-0001" },
+    payload: { reason: "Verified non-acceptance; SMTP configuration is now corrected." },
+  });
+  assert.equal(offerEmailRetry.statusCode, 200);
+  assert.equal(offerEmailRetry.json<{ data: { status: string; manualRetryCount: number } }>().data.status, "queued");
+  assert.equal(offerEmailRetry.json<{ data: { manualRetryCount: number } }>().data.manualRetryCount, 1);
+  assert.equal(mock.bookingOfferEmailRetryCalls, 1);
 
   const successorOffer = await app.inject({
     method: "POST",
