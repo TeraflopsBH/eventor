@@ -10,9 +10,7 @@ DECLARE
     'booking_approval_policy_revisions',
     'booking_offer_decision_history',
     'booking_offer_approval_decisions',
-    'booking_offer_capability_idempotency',
-    'booking_approval_policies',
-    'booking_approval_policy_revisions'
+    'booking_offer_capability_idempotency'
   ];
   v_required_functions text[] := ARRAY[
     'eogp.save_booking_offer_revision(uuid,uuid,uuid,uuid,uuid,uuid,uuid,text,text,timestamptz,jsonb,jsonb,numeric,text,boolean)',
