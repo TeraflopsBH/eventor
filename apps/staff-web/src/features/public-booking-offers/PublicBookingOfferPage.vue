@@ -144,7 +144,7 @@ onMounted(() => { void loadPublicBookingOffer(); });
     </section>
     <template v-else-if="publicOffer">
       <section class="public-offer-hero">
-        <p class="eyebrow">BOOKING OFFER · REVISION {{ publicOffer.revisionNumber }}</p>
+        <p class="eyebrow">{{ t("publicOffer.bookingOffer") }} · {{ t("publicOffer.revision") }} {{ publicOffer.revisionNumber }}</p>
         <h1>{{$t('publicOffer.reviewTitle')}}</h1>
         <p class="muted">{{$t('publicOffer.reviewInstructions')}}</p>
         <span class="pill" :class="publicOffer.status === 'expired' ? 'pill-warning' : 'pill-success'">{{ publicOffer.status === "expired" ? t("publicOffer.expired") : t("publicOffer.awaitingDecision") }}</span>
@@ -159,43 +159,43 @@ onMounted(() => { void loadPublicBookingOffer(); });
         <div v-if="publicOffer.terms.spaces.length" class="public-offer-list">
           <div v-for="(space, index) in publicOffer.terms.spaces" :key="index" class="public-offer-line">
             <div><strong>{{ space.name }}</strong><span>{{ space.blockKind.replaceAll("_", " ") }} · {{ formatPublicDate(space.startsAt, publicOffer.terms.timezone) }} – {{ formatPublicDate(space.endsAt, publicOffer.terms.timezone) }}</span></div>
-            <span v-if="space.requestedCapacity">Capacity {{ space.requestedCapacity }}</span>
+            <span v-if="space.requestedCapacity">{{ t("publicOffer.capacity") }} {{ space.requestedCapacity }}</span>
           </div>
         </div>
         <p v-else class="muted">{{$t('publicOffer.noVenueItems')}}</p>
         <div v-if="publicOffer.terms.resources.length" class="public-offer-list">
           <div v-for="(resource, index) in publicOffer.terms.resources" :key="index" class="public-offer-line">
-            <strong>{{ resource.label }}</strong><span>Quantity {{ resource.requestedQuantity }}</span>
+            <strong>{{ resource.label }}</strong><span>{{ t("publicOffer.quantity") }} {{ resource.requestedQuantity }}</span>
           </div>
         </div>
         <h2>{{$t('publicOffer.priceBreakdown')}}</h2>
         <div class="public-offer-list">
           <div v-for="(line, index) in publicOffer.terms.lineItems" :key="index" class="public-offer-line">
             <div><strong>{{ line.label }}</strong><span>{{ line.quantity }} {{ line.unit }} × {{ line.unitAmount.toLocaleString(locale, { minimumFractionDigits: 2, maximumFractionDigits: 4 }) }} {{ publicOffer.currency }}</span></div>
-            <strong>{{ line.lineTotal.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 }) }} {{ publicOffer.currency }}</strong>
+            <strong>{{ line.lineTotal.toLocaleString(locale, { minimumFractionDigits: 2, maximumFractionDigits: 2 }) }} {{ publicOffer.currency }}</strong>
           </div>
           <div v-for="(adjustment, index) in publicOffer.terms.adjustments" :key="'adjustment-' + index" class="public-offer-line">
-            <span>{{ adjustment.label }} ({{ adjustment.kind }})</span><strong>{{ adjustment.amount.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 }) }} {{ publicOffer.currency }}</strong>
+            <span>{{ adjustment.label }} ({{ adjustment.kind }})</span><strong>{{ adjustment.amount.toLocaleString(locale, { minimumFractionDigits: 2, maximumFractionDigits: 2 }) }} {{ publicOffer.currency }}</strong>
           </div>
-          <div class="public-offer-total"><span>{{$t('publicOffer.total')}}</span><strong>{{ publicOffer.totalAmount.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 }) }} {{ publicOffer.currency }}</strong></div>
+          <div class="public-offer-total"><span>{{$t('publicOffer.total')}}</span><strong>{{ publicOffer.totalAmount.toLocaleString(locale, { minimumFractionDigits: 2, maximumFractionDigits: 2 }) }} {{ publicOffer.currency }}</strong></div>
         </div>
         <h2>{{$t('publicOffer.cancellationTerms')}}</h2>
-        <p class="public-cancellation-terms">{{ publicOffer.terms.cancellationTerms || "No cancellation terms were supplied." }}</p>
-        <p class="fine-print">Tax basis: {{ publicOffer.terms.taxBasis }} · Tax amount: {{ publicOffer.taxAmount.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 }) }} {{ publicOffer.currency }}</p>
+        <p class="public-cancellation-terms">{{ publicOffer.terms.cancellationTerms || t("publicOffer.noCancellationTerms") }}</p>
+        <p class="fine-print">{{ t("publicOffer.taxBasis") }}: {{ publicOffer.terms.taxBasis }} · {{ t("publicOffer.taxAmount") }}: {{ publicOffer.taxAmount.toLocaleString(locale, { minimumFractionDigits: 2, maximumFractionDigits: 2 }) }} {{ publicOffer.currency }}</p>
       </section>
       <section v-if="publicOffer.status === 'issued' && !publicOfferDecision" class="public-offer-panel public-offer-actions">
         <div><p class="eyebrow">{{$t('publicOffer.yourDecision')}}</p><h2>{{$t('publicOffer.acceptThisOffer')}}</h2></div>
         <form @submit.prevent="submitPublicOfferAcceptance">
           <label>{{$t('publicOffer.fullName')}}<input v-model="publicAcceptanceName" required maxlength="250" autocomplete="name" /></label>
           <label>{{$t('publicOffer.optionalNote')}}<textarea v-model="publicAcceptanceNote" maxlength="1000" rows="3"></textarea></label>
-          <button class="button button-primary" type="submit" :disabled="publicDecisionBusy">{{ publicDecisionBusy ? "Recording…" : "Accept offer" }}</button>
+          <button class="button button-primary" type="submit" :disabled="publicDecisionBusy">{{ publicDecisionBusy ? t("publicOffer.recording") : t("publicOffer.acceptOffer") }}</button>
         </form>
         <div class="public-reject">
           <h3>{{$t('publicOffer.declineThisOffer')}}</h3>
           <form @submit.prevent="submitPublicOfferRejection">
             <label>{{$t('publicOffer.reason')}}<textarea v-model="publicRejectionReason" required minlength="3" maxlength="2000" rows="3"></textarea></label>
             <label>{{$t('publicOffer.optionalNote')}}<textarea v-model="publicRejectionNote" maxlength="1000" rows="2"></textarea></label>
-            <button class="button button-quiet" type="submit" :disabled="publicDecisionBusy">{{ publicDecisionBusy ? "Recording…" : "Decline offer" }}</button>
+            <button class="button button-quiet" type="submit" :disabled="publicDecisionBusy">{{ publicDecisionBusy ? t("publicOffer.recording") : t("publicOffer.declineOffer") }}</button>
           </form>
         </div>
       </section>
