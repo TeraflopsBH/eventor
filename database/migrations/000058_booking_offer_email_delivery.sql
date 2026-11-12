@@ -255,6 +255,27 @@ BEGIN
    WHERE organization_id=p_organization_id AND status='sending'
      AND lease_expires_at<=clock_timestamp();
 
+  UPDATE eogp.booking_offer_email_deliveries delivery
+     SET status='failed',last_failure_code='OFFER_NO_LONGER_CURRENT',
+         updated_at=clock_timestamp()
+   WHERE delivery.organization_id=p_organization_id
+     AND delivery.status='queued'
+     AND NOT EXISTS (
+       SELECT 1
+         FROM eogp.booking_offers offer
+         JOIN eogp.booking_offer_revisions revision
+           ON revision.organization_id=offer.organization_id AND revision.offer_id=offer.id
+        WHERE offer.organization_id=delivery.organization_id
+          AND offer.id=delivery.offer_id AND offer.status='issued'
+          AND revision.id=delivery.offer_revision_id AND revision.state='issued'
+          AND revision.valid_until>clock_timestamp()
+          AND revision.revision_number=(
+            SELECT max(latest.revision_number)
+              FROM eogp.booking_offer_revisions latest
+             WHERE latest.organization_id=offer.organization_id AND latest.offer_id=offer.id
+          )
+     );
+
   SELECT delivery.* INTO v_delivery
     FROM eogp.booking_offer_email_deliveries delivery
    WHERE delivery.organization_id=p_organization_id
@@ -379,6 +400,25 @@ BEGIN
         SET available_at=EXCLUDED.available_at,updated_at=clock_timestamp();
     END IF;
   END IF;
+
+  INSERT INTO eogp.audit_events(
+    organization_id,actor_kind,action,aggregate_type,aggregate_id,
+    reason_code,safe_metadata,occurred_at
+  ) VALUES (
+    p_organization_id,'system',
+    CASE WHEN p_outcome='sent' THEN 'booking.offer.email_sent'
+         WHEN p_outcome='uncertain' THEN 'booking.offer.email_uncertain'
+         ELSE 'booking.offer.email_failed' END,
+    'booking_offer',v_delivery.offer_id,
+    CASE WHEN p_outcome='sent' THEN 'smtp_accepted'
+         ELSE coalesce(p_failure_code,'SMTP_UNKNOWN') END,
+    jsonb_build_object('deliveryId',p_delivery_id,'offerRevisionId',v_delivery.offer_revision_id,
+      'status',CASE WHEN p_outcome='sent' THEN 'sent'
+                    WHEN p_outcome='uncertain' THEN 'uncertain'
+                    WHEN v_retry THEN 'queued' ELSE 'failed' END,
+      'retryScheduled',p_outcome='failed' AND v_retry),
+    clock_timestamp()
+  );
 
   RETURN jsonb_build_object(
     'deliveryId',p_delivery_id,
