@@ -49,6 +49,8 @@ export function useBookingDraft(dependencies: BookingDraftDependencies) {
   const allocationAvailabilityPreviewKey = ref("");
   const allocationAvailabilityPreviewBusy = ref(false);
   const allocationPreviewInputKey = computed(() => JSON.stringify({
+    draftId: detail.value?.draftId ?? null,
+    revisionNumber: detail.value?.currentRevisionNumber ?? null,
     requestedStart: requestedStart.value,
     requestedEnd: requestedEnd.value,
     spaceLines: spaceLines.value,
@@ -75,6 +77,8 @@ export function useBookingDraft(dependencies: BookingDraftDependencies) {
   );
 
   function populateEditor(draft: BookingDraftDetail): void {
+    allocationAvailabilityPreview.value = null;
+    allocationAvailabilityPreviewKey.value = "";
     const revision = draft.currentRevision;
     valuesJson.value = JSON.stringify(revision?.values ?? {}, null, 2);
     const storedAnswers = revision?.values?.answers;
@@ -98,6 +102,9 @@ export function useBookingDraft(dependencies: BookingDraftDependencies) {
     valuesJson.value = "{}";
     draftAnswers.value = {};
     allocationOptions.value = { spaces: [], resources: [] };
+    allocationAvailabilityPreview.value = null;
+    allocationAvailabilityPreviewKey.value = "";
+    allocationAvailabilityPreviewBusy.value = false;
     spaceLines.value = [];
     resourceLines.value = [];
     requestedStart.value = "";
