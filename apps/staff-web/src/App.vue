@@ -4,6 +4,7 @@ import { useI18n } from "vue-i18n";
 import type { SupportedLocale } from "./i18n";
 import PublicBookingOfferPage from "./features/public-booking-offers/PublicBookingOfferPage.vue";
 import StaffApplicationShell from "./features/application-shell/StaffApplicationShell.vue";
+import OrganizationLocaleView from "./features/application-shell/OrganizationLocaleView.vue";
 import { useStaffSession } from "./features/application-shell/useStaffSession";
 import { useBookingInquiries } from "./features/booking-inquiries/useBookingInquiries";
 import { useBookingDraft } from "./features/booking-drafts/useBookingDraft";
@@ -208,6 +209,8 @@ onMounted(() => {
       <BookingTaxProfilesView v-else-if="activeTab === 'taxes'" :workspace="{ ...bookingTaxProfileState, busy }" />
 
       <BookingCancellationPoliciesView v-else-if="activeTab === 'cancellations'" :workspace="{ ...bookingCancellationPolicyState, busy }" />
+
+      <OrganizationLocaleView v-else-if="activeTab === 'settings'" :busy="busy" :page-notice="pageNotice" :show-error="showError" :translate="translate" />
 
       <CampaignWorkspaceView v-else :workspace="campaignWorkspace" />
     
