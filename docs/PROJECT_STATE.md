@@ -1,6 +1,6 @@
 # Project state
 
-**Status:** accepted product/domain design baseline; 60-migration PostgreSQL 18 implementation, canonical OpenAPI v0.3, Fastify staff API/workers and Vue 3 staff web across stacked draft PRs #26–#29; PostgreSQL 18.6, OpenAPI, API and staff-web CI validation configured; SMTP delivery worker and explicit campaign queue/cancel lifecycle implemented; production-readiness review remains open  
+**Status:** accepted product/domain design baseline; 62-migration PostgreSQL 18 implementation, canonical OpenAPI v0.3, Fastify staff API/workers and Vue 3 staff web across stacked draft PRs #26–#31; PostgreSQL 18.6, OpenAPI, API and staff-web CI validation configured; SMTP delivery worker and explicit campaign queue/cancel lifecycle implemented; production-readiness review remains open  
 **Last updated:** 2026-11-12  
 **Implementation status:** PR #28 adds the commercial offer lifecycle; stacked PR #29 adds organization price-list management; stacked PR #30 adds organization cancellation-policy management; stacked PR #31 adds versioned organization tax configuration. CI is intentionally deferred while the monthly GitHub Actions allowance is exhausted; no current-head CI pass or production database deployment is claimed.
 
@@ -169,10 +169,10 @@ The separate v0.2 booking SQL addendum duplicates all 22 booking/configuration t
 ## Immediate next steps
 
 1. Review the stacked commercial PRs in order. Tax configuration is implemented in PR #31 as an organization-owned, versioned profile catalogue; automatic statutory tax calculation remains a separate design and validation gate.
-3. Add PostgreSQL functional/concurrency coverage for migrations 000058–000062 and the complete offer/approval/confirmation workflow. CI remains intentionally deferred while the monthly GitHub Actions allowance is exhausted; do not spend further runs until the allowance resets.
-4. Review offer preparation's effective-period checks against the new price-list revision model, and ensure the staff UI can explicitly select the exact published revision.
-5. Expand venue, building, space and resource administration workspaces after the commercial configuration layer is complete.
-6. Keep production deployment blocked until GHB validates inventory, capacities, prices, tax treatment, cancellation terms and approval authority.
+2. Add PostgreSQL functional/concurrency coverage for migrations 000058–000062 and the complete offer/approval/confirmation workflow. CI remains intentionally deferred while the monthly GitHub Actions allowance is exhausted; do not spend further runs until the allowance resets.
+3. Review offer preparation's effective-period checks against the new price-list revision model, and ensure the staff UI can explicitly select the exact published revision.
+4. Expand venue, building, space and resource administration workspaces after the commercial configuration layer is complete.
+5. Keep production deployment blocked until GHB validates inventory, capacities, prices, tax treatment, cancellation terms and approval authority.
 
 ## Open questions / validation gates
 
