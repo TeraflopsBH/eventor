@@ -16,8 +16,15 @@ const props = defineProps<{ workspace: BookingInquiryWorkspace }>();
 const { formatDate } = useInquiryPresentation();
 const { t } = useI18n();
 const inquiryStatusLabel = (status: string): string => {
-  const keys: Record<string, string> = { received: "received", under_review: "underReview", converted: "converted", declined: "declined", withdrawn: "withdrawn", spam: "spam" };
-  return keys[status] ? t(`bookingInquiry.${keys[status]}`) : status.replaceAll("_", " ");
+  const labels: Record<string, () => string> = {
+    received: () => t("bookingInquiry.received"),
+    under_review: () => t("bookingInquiry.underReview"),
+    converted: () => t("bookingInquiry.converted"),
+    declined: () => t("bookingInquiry.declined"),
+    withdrawn: () => t("bookingInquiry.withdrawn"),
+    spam: () => t("bookingInquiry.spam"),
+  };
+  return labels[status]?.() ?? status.replaceAll("_", " ");
 };
 const emit = defineEmits<{ (event: "open-booking-draft"): void }>();
 
