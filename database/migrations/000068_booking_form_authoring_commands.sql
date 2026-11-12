@@ -55,7 +55,7 @@ BEGIN
     p_organization_id,p_actor_membership_id,ARRAY['booking.manage']::text[]
   );
   IF p_form_code IS NULL OR length(btrim(p_form_code)) NOT BETWEEN 2 AND 80
-     OR p_form_code !~ '^[A-Za-z0-9][A-Za-z0-9_-]*
+     OR p_form_code !~ '^[A-Za-z0-9][A-Za-z0-9_-]*$'
      OR p_name IS NULL OR length(btrim(p_name)) NOT BETWEEN 1 AND 250
      OR p_locale NOT IN ('bs-BA','en')
      OR p_field_schema IS NULL OR jsonb_typeof(p_field_schema)<>'object'
