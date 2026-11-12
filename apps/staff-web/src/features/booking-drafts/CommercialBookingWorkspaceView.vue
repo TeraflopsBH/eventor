@@ -66,8 +66,8 @@ const { busy } = props.workspace;
             <section v-if="bookingDraftDetail && bookingDraftEditorOpen" class="inquiry-card booking-draft-editor">
               <div class="inquiry-card-heading">
                 <div>
-                  <h4>Booking draft · {{ bookingDraftDetail.draftId.slice(0, 8) }}</h4>
-                  <p class="fine-print">Current revision {{ bookingDraftDetail.currentRevisionNumber }} · {{ commercialStatusLabel(bookingDraftDetail.status) }}</p>
+                  <h4>{{ t("commercialBooking.bookingDraftTitle", { id: bookingDraftDetail.draftId.slice(0, 8) }) }}</h4>
+                  <p class="fine-print">{{ t("commercialBooking.currentRevisionStatus", { revision: bookingDraftDetail.currentRevisionNumber, status: commercialStatusLabel(bookingDraftDetail.status) }) }}</p>
                 </div>
                 <button class="button button-quiet" type="button" :disabled="busy" @click="bookingDraftEditorOpen = false">{{ t('commercialBooking.close') }}</button>
               </div>
@@ -76,7 +76,7 @@ const { busy } = props.workspace;
                 <h5>{{ t('commercialBooking.revisionHistory') }}</h5>
                 <ol class="history-list">
                   <li v-for="history in bookingDraftDetail.revisionHistory" :key="history.revisionId">
-                    <strong>Revision {{ history.revisionNumber }}</strong>
+                    <strong>{{ t("commercialBooking.revisionNumber", { number: history.revisionNumber }) }}</strong>
                     <span>{{ history.changeReason ?? "No change reason recorded" }}</span>
                     <small>{{ history.createdByDisplayName }} · {{ formatDate(history.createdAt) }}</small>
                   </li>
@@ -85,8 +85,7 @@ const { busy } = props.workspace;
 
               <template v-if="canManageBookingDraft">
                 <p class="fine-print">
-                  Saving creates a new immutable revision. The previous revision is retained. If resource or space holds exist
-                  against the current revision, they must expire or be released before it can be revised.
+                  {{ t("commercialBooking.draftImmutableInfo") }}
                 </p>
                 <form class="draft-revision-form" @submit.prevent="saveBookingDraftRevision">
                   <label>{{$t('commercialBooking.valuesSnapshot')}}<textarea v-model="bookingDraftValuesJson" rows="8" spellcheck="false"></textarea>
@@ -107,9 +106,9 @@ const { busy } = props.workspace;
                   </label>
                   <div class="form-actions">
                     <button class="button button-primary" type="submit" :disabled="busy || bookingDraftChangeReason.trim().length < 3">
-                      Save as revision {{ bookingDraftDetail.currentRevisionNumber + 1 }}
+                      {{ t("commercialBooking.saveRevision") }} {{ bookingDraftDetail.currentRevisionNumber + 1 }}
                     </button>
-                    <span class="fine-print">Revision {{ bookingDraftDetail.currentRevisionNumber }} stays unchanged.</span>
+                    <span class="fine-print">{{ t("commercialBooking.revisionUnchangedWithNumber", { revision: bookingDraftDetail.currentRevisionNumber }) }}</span>
                   </div>
                 </form>
               </template>
@@ -169,7 +168,7 @@ const { busy } = props.workspace;
                   </label>
                   <label v-if="bookingOffer" class="check-row">
                     <input v-model="bookingOfferSupersedeCurrent" type="checkbox" />
-                    Request superseding the current offer (server validates eligibility)
+                    {{ t("commercialBooking.supersedeCurrent") }}
                   </label>
                   <div class="form-actions">
                     <button class="button button-primary" type="submit" :disabled="busy || !bookingOfferValidUntil || !bookingOfferTaxAmount.trim()">
@@ -182,7 +181,7 @@ const { busy } = props.workspace;
 
               <template v-if="bookingOffer">
                 <div class="offer-summary-grid">
-                  <div class="metric"><span>{{ t('commercialBooking.offerStatus') }}</span><strong>{{ commercialStatusLabel(bookingOffer.status) }}</strong><small>Offer {{ bookingOffer.offerId }}</small></div>
+                  <div class="metric"><span>{{ t('commercialBooking.offerStatus') }}</span><strong>{{ commercialStatusLabel(bookingOffer.status) }}</strong><small>{{ t("commercialBooking.offerLabel", { id: bookingOffer.offerId }) }}</small></div>
                   <div class="metric"><span>{{ t('commercialBooking.offerRevision') }}</span><strong>{{ bookingOffer.currentRevision.revisionNumber }}</strong><small>{{ commercialStatusLabel(bookingOffer.currentRevision.state) }}</small></div>
                   <div class="metric"><span>{{ t('commercialBooking.subtotal') }}</span><strong>{{ formatMoney(bookingOffer.currentRevision.subtotal, bookingOffer.currentRevision.currency) }}</strong></div>
                   <div class="metric"><span>{{ t('commercialBooking.total') }}</span><strong>{{ formatMoney(bookingOffer.currentRevision.totalAmount, bookingOffer.currentRevision.currency) }}</strong><small>Tax {{ formatMoney(bookingOffer.currentRevision.taxAmount, bookingOffer.currentRevision.currency) }}</small></div>
@@ -240,22 +239,22 @@ const { busy } = props.workspace;
                     <article v-for="delivery in bookingOfferEmailDeliveries" :key="delivery.deliveryId" class="delivery-attempt">
                       <div class="delivery-attempt-heading">
                         <div>
-                          <strong>Offer revision · {{ delivery.offerRevisionId }}</strong>
-                          <span class="mono">Delivery {{ delivery.deliveryId }}</span>
+                          <strong>{{ t("commercialBooking.offerRevisionPrefix", { id: delivery.offerRevisionId }) }}</strong>
+                          <span class="mono">{{ t("commercialBooking.deliveryPrefix", { id: delivery.deliveryId }) }}</span>
                         </div>
                         <span class="pill" :class="delivery.status === 'sent' ? 'pill-success' : delivery.status === 'failed' ? 'pill-danger' : delivery.status === 'uncertain' ? 'pill-warning' : 'pill-neutral'">{{ commercialStatusLabel(delivery.status) }}</span>
                       </div>
                       <div class="delivery-meta">
-                        <span>SMTP attempts: {{ delivery.attemptCount }}</span>
-                        <span>Manual retries: {{ delivery.manualRetryCount }} / 1</span>
-                        <span>Queued: {{ formatDate(delivery.createdAt) }}</span>
-                        <span>Last update: {{ formatDate(delivery.updatedAt) }}</span>
-                        <span v-if="delivery.status === 'queued'">Next attempt: {{ formatDate(delivery.nextAttemptAt) }}</span>
-                        <span v-if="delivery.sentAt">SMTP accepted: {{ formatDate(delivery.sentAt) }}</span>
-                        <span v-if="delivery.lastFailureCode">Failure: {{ delivery.lastFailureCode }}</span>
-                        <span v-if="delivery.lastOperatorResolution">Operator resolution: {{ commercialStatusLabel(delivery.lastOperatorResolution) }}</span>
-                        <span v-if="delivery.lastOperatorReason">Audit reason: {{ delivery.lastOperatorReason }}</span>
-                        <span v-if="delivery.lastOperatorAt">Reconciled: {{ formatDate(delivery.lastOperatorAt) }}</span>
+                        <span>{{ t("commercialBooking.smtpAttemptsCount", { count: delivery.attemptCount }) }}</span>
+                        <span>{{ t("commercialBooking.manualRetriesCount", { count: delivery.manualRetryCount }) }}</span>
+                        <span>{{ t("commercialBooking.queuedDate", { date: formatDate(delivery.createdAt) }) }}</span>
+                        <span>{{ t("commercialBooking.lastUpdateDate", { date: formatDate(delivery.updatedAt) }) }}</span>
+                        <span v-if="delivery.status === 'queued'">{{ t("commercialBooking.nextAttemptDate", { date: formatDate(delivery.nextAttemptAt) }) }}</span>
+                        <span v-if="delivery.sentAt">{{ t("commercialBooking.smtpAcceptedDate", { date: formatDate(delivery.sentAt) }) }}</span>
+                        <span v-if="delivery.lastFailureCode">{{ t("commercialBooking.failureValue", { value: delivery.lastFailureCode }) }}</span>
+                        <span v-if="delivery.lastOperatorResolution">{{ t("commercialBooking.operatorResolutionValue", { value: commercialStatusLabel(delivery.lastOperatorResolution) }) }}</span>
+                        <span v-if="delivery.lastOperatorReason">{{ t("commercialBooking.auditReasonValue", { value: delivery.lastOperatorReason }) }}</span>
+                        <span v-if="delivery.lastOperatorAt">{{ t("commercialBooking.reconciledDate", { date: formatDate(delivery.lastOperatorAt) }) }}</span>
                       </div>
                       <div v-if="delivery.canReconcile" class="operator-controls">
                         <label>{{$t('commercialBooking.verifiedOutcome')}}
@@ -271,7 +270,7 @@ const { busy } = props.workspace;
                         <label>{{$t('commercialBooking.auditReasonLabel')}}
                           <textarea v-model="bookingOfferEmailReason[delivery.deliveryId]" rows="2" maxlength="1000" placeholder="How was the SMTP outcome verified?"></textarea>
                         </label>
-                        <button class="button button-secondary" type="button" :disabled="busy" @click="reconcileBookingOfferEmail(delivery)">Record reconciliation</button>
+                        <button class="button button-secondary" type="button" :disabled="busy" @click="reconcileBookingOfferEmail(delivery)">{{ t("commercialBooking.recordReconciliation") }}</button>
                       </div>
                       <div v-if="delivery.canRetry" class="operator-controls">
                         <p class="fine-print">{{$t('commercialBooking.retryOnceInfo')}}</p>
@@ -284,9 +283,9 @@ const { busy } = props.workspace;
                   </div>
                   <p v-else class="muted">{{ t('commercialBooking.noDeliveries') }}</p>
                   <div class="pagination">
-                    <button class="button button-quiet" type="button" :disabled="busy || bookingOfferEmailOffset === 0" @click="bookingOfferEmailOffset = Math.max(0, bookingOfferEmailOffset - 25); refreshBookingOfferEmailData()">Previous</button>
-                    <span>{{ bookingOfferEmailMeta?.totalCount ?? 0 }} deliveries</span>
-                    <button class="button button-quiet" type="button" :disabled="busy || !bookingOfferEmailMeta || bookingOfferEmailOffset + 25 >= bookingOfferEmailMeta.totalCount" @click="bookingOfferEmailOffset += 25; refreshBookingOfferEmailData()">Next</button>
+                    <button class="button button-quiet" type="button" :disabled="busy || bookingOfferEmailOffset === 0" @click="bookingOfferEmailOffset = Math.max(0, bookingOfferEmailOffset - 25); refreshBookingOfferEmailData()">{{ t("commercialBooking.previousPage") }}</button>
+                    <span>{{ bookingOfferEmailMeta?.totalCount ?? 0 }} {{ t("commercialBooking.deliveryCount") }}</span>
+                    <button class="button button-quiet" type="button" :disabled="busy || !bookingOfferEmailMeta || bookingOfferEmailOffset + 25 >= bookingOfferEmailMeta.totalCount" @click="bookingOfferEmailOffset += 25; refreshBookingOfferEmailData()">{{ t("commercialBooking.nextPage") }}</button>
                   </div>
                   <p class="fine-print">{{$t('commercialBooking.historyPrivacy')}}</p>
                 </section>
@@ -329,7 +328,7 @@ const { busy } = props.workspace;
                 <div v-if="canConfirmBookingOffer" class="offer-confirm-box">
                   <h5>{{ t('commercialBooking.confirmAccepted') }}</h5>
                   <p class="fine-print">{{$t('commercialBooking.confirmationInfo')}}</p>
-                  <label>Booking confirmation reason
+                  <label>{{ t("commercialBooking.bookingConfirmationReason") }}
                     <textarea v-model="bookingOfferConfirmationReason" rows="2" maxlength="2000" placeholder="Record why this booking is being confirmed…"></textarea>
                   </label>
                   <button class="button button-primary" type="button" :disabled="busy || bookingOfferConfirmationReason.trim().length < 3" @click="confirmBookingFromAcceptedOffer">{{ t('commercialBooking.confirmBooking') }}</button>
@@ -341,8 +340,8 @@ const { busy } = props.workspace;
                   <ol class="history-list">
                     <li v-for="history in bookingOffer.revisionHistory" :key="history.offerRevisionId">
                       <strong>Offer revision {{ history.revisionNumber }} · {{ commercialStatusLabel(history.state) }}</strong>
-                      <span>Draft revision {{ history.draftRevisionId }}</span>
-                      <small>{{ formatDate(history.createdAt) }} · issued {{ formatDate(history.issuedAt) }}</small>
+                      <span>{{ t("commercialBooking.draftRevision") }} {{ history.draftRevisionId }}</span>
+                      <small>{{ formatDate(history.createdAt) }} · {{ t("commercialBooking.issuedDate", { date: formatDate(history.issuedAt) }) }}</small>
                     </li>
                   </ol>
                 </div>
