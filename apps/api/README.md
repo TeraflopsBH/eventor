@@ -82,7 +82,7 @@ Approval policy revisions contain JSON rules. Supported condition kinds are `alw
 
 Final confirmation is a separate staff command requiring `booking.confirm`, customer acceptance evidence, the exact current draft/offer revision and all pinned approvals. It preflights each required space/resource hold, creates the booking and immutable customer/price/cancellation snapshots, then calls the existing reservation conversion command in the same transaction. The database serializes capacity/overlap checks at conversion. A missing, expired or conflicting hold rolls back the booking row, snapshots, history and all reservation changes. A confirmed booking is idempotently returned on retry.
 
-The API/database and staff-web offer/approval/confirmation and approval-policy management surfaces are implemented. The staff-web SPA also serves a capability-protected customer offer page at `/offers/{offerId}`; it loads the public projection and records customer acceptance/rejection. Production use still needs offer email delivery through the configured SMTP transport, a periodic expiry sweep and PostgreSQL functional/concurrency fixtures for the full commercial workflow. The schema smoke test checks installation/RLS/grants; it does not replace those end-to-end tests. Price-list, cancellation-policy and tax configuration management screens also remain outstanding; current offer preparation requires administrators to supply existing published revision IDs and item codes.
+The API/database and staff-web offer/approval/confirmation and approval-policy management surfaces are implemented. The staff-web SPA also serves a capability-protected customer offer page at `/offers/{offerId}`; it loads the public projection and records customer acceptance/rejection. Production use still needs offer email delivery through the configured SMTP transport and PostgreSQL functional/concurrency fixtures for the full commercial workflow. The schema smoke test checks installation/RLS/grants; it does not replace those end-to-end tests. Price-list, cancellation-policy and tax configuration management screens also remain outstanding; current offer preparation requires administrators to supply existing published revision IDs and item codes.
 
 ## Organization-owned SMTP
 
@@ -149,7 +149,7 @@ The API uses two independent database pools:
 - `eventor_runtime` for tenant-scoped application commands.
 - `eventor_auth` for global identity lookup, password-hash verification, login throttling and opaque session storage.
 
-The notification worker connects separately as `eventor_worker`. Do not run API or worker processes with migration/owner credentials. The worker can discover only tenant IDs and can read SMTP/contact ciphertext only through narrowly scoped delivery functions; it cannot directly select delivery configuration tables.
+The notification worker connects separately as `eventor_worker`. Do not run API or worker processes with migration/owner credentials. The worker can discover only tenant IDs and can read SMTP/contact ciphertext only through narrowly scoped delivery functions; it cannot directly select delivery configuration tables. It also polls a tenant-ID-only expiry queue and expires due issued booking offers in tenant-scoped batches. The queue is refreshed by offer/revision triggers; expiry appends system decision history and audit records and revokes every outstanding capability for the expired revision.
 
 Configure separate, cryptographically random 32-byte keys, base64-encoded in deployment secrets:
 
