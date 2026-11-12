@@ -341,3 +341,40 @@ textarea:focus { border-color: var(--accent); box-shadow: 0 0 0 3px #f5863420; }
   .policy-revision-heading { flex-direction: column; }
   .approval-policy-workspace .form-actions > button { width: 100%; }
 }
+
+
+/* Capability-protected customer offer presentation */
+.public-offer-shell { width: min(100% - 32px, 900px); margin: 0 auto; padding: 28px 0 56px; display: grid; gap: 20px; }
+.public-offer-header { display: flex; align-items: center; justify-content: space-between; gap: 16px; padding: 4px 0 18px; border-bottom: 1px solid var(--border); }
+.public-security-note { color: var(--muted); font-size: 11px; }
+.public-offer-hero { display: grid; gap: 10px; padding: 14px 2px; }
+.public-offer-hero h1 { margin: 0; font-size: clamp(27px, 5vw, 40px); letter-spacing: -.04em; }
+.public-offer-hero .muted { max-width: 650px; margin: 0; line-height: 1.6; }
+.public-offer-panel { display: grid; gap: 18px; padding: clamp(18px, 4vw, 28px); background: var(--panel, #191919); border: 1px solid var(--border); border-radius: 14px; }
+.public-offer-panel h2 { margin: 8px 0 0; font-size: 17px; }
+.public-offer-panel h3 { margin: 0; font-size: 14px; }
+.public-offer-summary { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 14px; padding-bottom: 18px; border-bottom: 1px solid var(--border); }
+.public-offer-summary div { display: grid; gap: 6px; }
+.public-offer-summary span, .public-offer-line > span, .public-offer-line div span { color: var(--muted); font-size: 11px; }
+.public-offer-summary strong { font-size: 12px; }
+.public-offer-list { display: grid; gap: 0; }
+.public-offer-line { display: flex; justify-content: space-between; align-items: start; gap: 14px; padding: 12px 0; border-bottom: 1px solid var(--border); font-size: 12px; }
+.public-offer-line div { display: grid; gap: 5px; }
+.public-offer-line > strong, .public-offer-line > span:last-child { text-align: right; }
+.public-offer-total { display: flex; justify-content: space-between; align-items: center; gap: 12px; padding-top: 16px; font-size: 16px; font-weight: 700; }
+.public-offer-total strong { font-size: 21px; color: #f58634; }
+.public-cancellation-terms { margin: 0; white-space: pre-wrap; line-height: 1.65; font-size: 12px; }
+.public-offer-actions form { display: grid; gap: 12px; }
+.public-offer-actions label { display: grid; gap: 7px; color: var(--muted); font-size: 11px; }
+.public-offer-actions input, .public-offer-actions textarea { width: 100%; padding: 11px 12px; color: var(--text); background: #101010; border: 1px solid var(--border); border-radius: 7px; font: inherit; font-size: 13px; }
+.public-offer-actions textarea { resize: vertical; }
+.public-offer-actions .button { justify-self: start; min-width: 150px; }
+.public-reject { display: grid; gap: 12px; margin-top: 6px; padding-top: 20px; border-top: 1px solid var(--border); }
+.public-offer-error { padding: 12px 14px; border: 1px solid #a34c42; border-radius: 8px; color: #ffb6aa; background: #a34c4214; font-size: 12px; }
+.public-offer-footer { color: var(--muted); font-size: 10px; line-height: 1.5; text-align: center; }
+@media (max-width: 620px) {
+  .public-offer-summary { grid-template-columns: 1fr; }
+  .public-offer-line { flex-direction: column; }
+  .public-offer-line > strong, .public-offer-line > span:last-child { text-align: left; }
+  .public-offer-actions .button { width: 100%; }
+}
