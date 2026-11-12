@@ -311,11 +311,11 @@ END;
 $function$;
 
 CREATE FUNCTION eogp.enforce_booking_price_list_tax_profile()
-RETURNS trigger LANGUAGE plpgsql SET search_path=pg_catalog,eogp AS $function$
-DECLARE v_tax eogp.booking_tax_profile_revisions%ROWTYPE; v_profile_status text; v_item_codes text[];
+RETURNS trigger LANGUAGE plpgsql SECURITY DEFINER SET search_path=pg_catalog,eogp AS $function$
+DECLARE v_tax eogp.booking_tax_profile_revisions%ROWTYPE; v_profile_status text;
 BEGIN
   IF NEW.state='published' AND NEW.tax_profile_revision_id IS NOT NULL THEN
-    SELECT r.*,p.status INTO v_tax,v_profile_status
+    SELECT r,p.status INTO v_tax,v_profile_status
       FROM eogp.booking_tax_profile_revisions r
       JOIN eogp.booking_tax_profiles p ON p.organization_id=r.organization_id AND p.id=r.tax_profile_id
      WHERE r.organization_id=NEW.organization_id AND r.id=NEW.tax_profile_revision_id;
@@ -323,11 +323,6 @@ BEGIN
        OR v_tax.currency<>NEW.currency OR v_tax.tax_basis<>NEW.tax_basis THEN
       RAISE EXCEPTION 'selected published tax profile revision must match the price-list revision' USING ERRCODE='23514';
     END IF;
-    SELECT array_agg(value->>'taxCode') INTO v_item_codes
-      FROM eogp.booking_price_items i
-      CROSS JOIN LATERAL jsonb_array_elements(v_tax.tax_codes) value
-     WHERE i.organization_id=NEW.organization_id AND i.price_list_revision_id=NEW.id
-       AND i.tax_code IS NOT NULL;
     IF EXISTS (
       SELECT 1 FROM eogp.booking_price_items i
        WHERE i.organization_id=NEW.organization_id AND i.price_list_revision_id=NEW.id
@@ -349,7 +344,7 @@ CREATE FUNCTION eogp.snapshot_booking_offer_tax_profile()
 RETURNS trigger LANGUAGE plpgsql SECURITY DEFINER SET search_path=pg_catalog,eogp AS $function$
 DECLARE v_tax eogp.booking_tax_profile_revisions%ROWTYPE; v_profile eogp.booking_tax_profiles%ROWTYPE;
 BEGIN
-  SELECT r.*,p.* INTO v_tax,v_profile
+  SELECT r,p INTO v_tax,v_profile
     FROM eogp.booking_price_list_revisions price
     JOIN eogp.booking_tax_profile_revisions r
       ON r.organization_id=price.organization_id AND r.id=price.tax_profile_revision_id
