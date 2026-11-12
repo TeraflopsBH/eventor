@@ -33,3 +33,6 @@ The first extraction moves booking-inquiry presentation logic into `src/features
 
 
 The next extraction after presentation helpers moves booking-inquiry state and command orchestration into `src/features/booking-inquiries/useBookingInquiries.ts`. The composable receives shared application dependencies explicitly and exposes state/actions to the root composition layer. The existing inquiry template remains in `App.vue` at this stage; a dedicated feature view is a later step. Server-side authorization remains authoritative, with capability checks retained in the client for presentation and interaction gating.
+
+
+The next extraction moves booking-inquiry state and command orchestration into `src/features/booking-inquiries/useBookingInquiries.ts`. The composable receives shared application dependencies explicitly and exposes state/actions to the root composition layer. The existing inquiry template remains in `App.vue`; a dedicated feature view is a later step. Server-side authorization remains authoritative, with capability checks retained in the client for presentation and interaction gating.
