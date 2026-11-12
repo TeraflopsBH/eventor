@@ -238,6 +238,61 @@ const bookingOfferRevisionParams = {
   properties: { revisionId: { type: "string", pattern: uuidPattern } },
   additionalProperties: false,
 } as const;
+const bookingApprovalPolicyParams = {
+  type: "object", required: ["policyId"],
+  properties: { policyId: { type: "string", pattern: uuidPattern } },
+  additionalProperties: false,
+} as const;
+const bookingApprovalPolicyRevisionParams = {
+  type: "object", required: ["policyId", "revisionId"],
+  properties: {
+    policyId: { type: "string", pattern: uuidPattern },
+    revisionId: { type: "string", pattern: uuidPattern },
+  },
+  additionalProperties: false,
+} as const;
+const bookingApprovalPolicyCreateBody = {
+  type: "object",
+  required: ["code", "name"],
+  properties: {
+    code: { type: "string", minLength: 2, maxLength: 80 },
+    name: { type: "string", minLength: 1, maxLength: 250 },
+  },
+  additionalProperties: false,
+} as const;
+const bookingApprovalPolicyRevisionBody = {
+  type: "object",
+  required: ["rules"],
+  properties: {
+    rules: {
+      type: "array",
+      maxItems: 50,
+      items: {
+        type: "object",
+        required: ["code", "condition", "requiredApprovals", "permission", "separationOfDuties"],
+        properties: {
+          code: { type: "string", minLength: 1, maxLength: 100 },
+          condition: {
+            type: "object",
+            required: ["kind"],
+            properties: {
+              kind: { type: "string", enum: ["always", "total_at_least", "discount_at_least", "adjustment_present"] },
+              amount: { type: "number", exclusiveMinimum: 0 },
+              currency: { type: "string", pattern: "^[A-Z]{3}$" },
+              adjustmentKind: { type: "string", enum: ["fee", "discount", "credit"] },
+            },
+            additionalProperties: false,
+          },
+          requiredApprovals: { type: "integer", minimum: 1, maximum: 10 },
+          permission: { type: "string", const: "booking.approve" },
+          separationOfDuties: { type: "boolean" },
+        },
+        additionalProperties: false,
+      },
+    },
+  },
+  additionalProperties: false,
+} as const;
 const bookingOfferCreateBody = {
   type: "object",
   required: ["priceListRevisionId", "cancellationPolicyRevisionId", "approvalPolicyRevisionId", "currency", "taxBasis", "validUntil", "lineItems", "taxAmount"],
@@ -1463,6 +1518,105 @@ export function buildApi(dependencies: ApiDependencies): FastifyInstance {
   );
 
 
+
+  server.get(
+    "/organization/booking-approval-policies",
+    async (request, reply) => {
+      const principal = request.staffPrincipal!;
+      const client = await dependencies.pool.connect();
+      try {
+        await client.query("BEGIN");
+        await client.query("SELECT set_config('app.organization_id',$1,true)", [principal.organizationId]);
+        const result = await client.query<ResultRow>(
+          "SELECT eogp.get_booking_approval_policies($1::uuid,$2::uuid) AS result",
+          [principal.organizationId, principal.membershipId],
+        );
+        await client.query("COMMIT");
+        return reply.code(200).send({ data: result.rows[0]?.result ?? [] });
+      } catch (error) {
+        try { await client.query("ROLLBACK"); } catch { /* preserve the read error */ }
+        throw databaseError(error);
+      } finally {
+        client.release();
+      }
+    },
+  );
+
+  server.post<{ Body: { code: string; name: string } }>(
+    "/organization/booking-approval-policies",
+    {
+      schema: {
+        headers: idempotencyHeaders,
+        body: bookingApprovalPolicyCreateBody,
+      },
+    },
+    async (request, reply) => {
+      const principal = request.staffPrincipal!;
+      return withCommand(
+        request, reply, "createBookingApprovalPolicy",
+        request.body,
+        async (client) => {
+          const result = await client.query<ResultRow>(
+            "SELECT eogp.create_booking_approval_policy($1::uuid,$2::uuid,$3::text,$4::text) AS result",
+            [principal.organizationId, principal.membershipId, request.body.code, request.body.name],
+          );
+          return result.rows[0]?.result as Record<string, unknown>;
+        },
+      );
+    },
+  );
+
+  server.post<{
+    Params: { policyId: string };
+    Body: { rules: Array<Record<string, unknown>> };
+  }>(
+    "/booking-approval-policies/:policyId/revisions",
+    {
+      schema: {
+        params: bookingApprovalPolicyParams,
+        headers: idempotencyHeaders,
+        body: bookingApprovalPolicyRevisionBody,
+      },
+    },
+    async (request, reply) => {
+      const principal = request.staffPrincipal!;
+      return withCommand(
+        request, reply, "createBookingApprovalPolicyRevision",
+        { policyId: request.params.policyId, rules: request.body.rules },
+        async (client) => {
+          const result = await client.query<ResultRow>(
+            "SELECT eogp.create_booking_approval_policy_revision($1::uuid,$2::uuid,$3::uuid,$4::jsonb) AS result",
+            [principal.organizationId, request.params.policyId, principal.membershipId, JSON.stringify(request.body.rules)],
+          );
+          return result.rows[0]?.result as Record<string, unknown>;
+        },
+      );
+    },
+  );
+
+  server.post<{ Params: { policyId: string; revisionId: string } }>(
+    "/booking-approval-policies/:policyId/revisions/:revisionId/publish",
+    {
+      schema: {
+        params: bookingApprovalPolicyRevisionParams,
+        headers: idempotencyHeaders,
+      },
+    },
+    async (request, reply) => {
+      const principal = request.staffPrincipal!;
+      return withCommand(
+        request, reply, "publishBookingApprovalPolicyRevision",
+        { policyId: request.params.policyId, revisionId: request.params.revisionId },
+        async (client) => {
+          const result = await client.query<ResultRow>(
+            "SELECT eogp.publish_booking_approval_policy_revision($1::uuid,$2::uuid,$3::uuid,$4::uuid) AS result",
+            [principal.organizationId, request.params.policyId, request.params.revisionId, principal.membershipId],
+          );
+          return result.rows[0]?.result as Record<string, unknown>;
+        },
+      );
+    },
+  );
 
   server.post<{ Params: { revisionId: string }; Body: BookingConfirmationBody }>(
     "/booking-draft-revisions/:revisionId/confirm",
