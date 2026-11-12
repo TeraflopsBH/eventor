@@ -258,6 +258,12 @@ BEGIN
        'eogp.calculate_booking_offer_tax(uuid,uuid,text,text,timestamptz,jsonb,numeric)','EXECUTE') THEN
     RAISE EXCEPTION 'tax calculation helper must exist and remain internal to the authorized offer command';
   END IF;
+  IF position('calculate_booking_offer_tax' IN pg_get_functiondef(
+       'eogp.save_booking_offer_revision(uuid,uuid,uuid,uuid,uuid,uuid,uuid,text,text,timestamptz,jsonb,jsonb,numeric,text,boolean)'::regprocedure
+     ))=0 THEN
+    RAISE EXCEPTION 'offer preparation does not invoke the tax calculation helper';
+  END IF;
+
   IF (SELECT numeric_scale FROM information_schema.columns
        WHERE table_schema='eogp' AND table_name='booking_offer_revisions' AND column_name='tax_amount')<4
      OR (SELECT numeric_scale FROM information_schema.columns
