@@ -156,7 +156,7 @@ Configure separate, cryptographically random 32-byte keys, base64-encoded in dep
 - `EVENTOR_PUBLIC_INQUIRY_FINGERPRINT_KEY`
 - `EVENTOR_BOOKING_CAPABILITY_KEY`
 
-Never reuse one key for another purpose. The API requires all six keys; the notification worker requires the contact-encryption and delivery-credential keys. The public inquiry API uses the contact key for tenant-bound ECP1 encryption and its dedicated public-inquiry fingerprint key for source/idempotency fingerprints. Key rotation requires an explicit re-encryption procedure. Replacing a key alone makes existing ciphertext unreadable.
+Never reuse one key for another purpose. The API requires all six keys; the notification worker requires the contact-encryption and delivery-credential keys. The public inquiry API uses the contact key for tenant-bound ECP1 encryption and its dedicated public-inquiry fingerprint key for source/idempotency fingerprints. Keep `EVENTOR_BOOKING_CAPABILITY_KEY` stable while any issued customer offer links remain valid; rotating it invalidates those links and prevents deterministic capability re-derivation for an issue idempotency replay. Rotate only after outstanding capabilities have expired/revoked or after an explicit re-issue plan. Key rotation for encryption keys requires an explicit re-encryption procedure. Replacing an encryption key alone makes existing ciphertext unreadable.
 
 Both database connection URLs should use TLS with certificate and hostname verification in production (for example, PostgreSQL `sslmode=verify-full` with a trusted CA). Configure database passwords outside this repository.
 
