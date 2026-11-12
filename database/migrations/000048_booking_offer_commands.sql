@@ -426,8 +426,36 @@ BEGIN
         p_organization_id,v_offer_id,v_previous_revision_id,'superseded','membership',
         p_actor_membership_id,'offer_superseded'
       );
+    ELSIF v_previous_state = 'accepted' THEN
+      IF NOT p_supersede_current THEN
+        RAISE EXCEPTION 'an accepted offer requires an explicit approval return/rejection and successor action'
+          USING ERRCODE = '55000';
+      END IF;
+      IF p_internal_reason IS NULL OR length(btrim(p_internal_reason)) < 3 THEN
+        RAISE EXCEPTION 'a reason is required to replace an accepted offer returned by approval'
+          USING ERRCODE = '22023';
+      END IF;
+      IF NOT EXISTS (
+        SELECT 1
+          FROM eogp.booking_offer_approval_decisions decision
+         WHERE decision.organization_id=p_organization_id
+           AND decision.offer_revision_id=v_previous_revision_id
+           AND decision.decision IN ('rejected','returned_for_changes')
+      ) THEN
+        RAISE EXCEPTION 'an accepted offer may be replaced only after an approval rejection or return-for-changes'
+          USING ERRCODE = '55000';
+      END IF;
+      -- Keep the accepted revision's terminal customer decision intact.
+      -- The new higher revision number makes it non-current; the successor
+      -- must be issued and accepted separately.
+      INSERT INTO eogp.booking_offer_decision_history (
+        organization_id,offer_id,offer_revision_id,decision,actor_kind,actor_membership_id,reason_code
+      ) VALUES (
+        p_organization_id,v_offer_id,v_previous_revision_id,'superseded','membership',
+        p_actor_membership_id,'approval_required_successor'
+      );
     ELSIF v_previous_state NOT IN ('rejected','expired','withdrawn') THEN
-      RAISE EXCEPTION 'an accepted offer cannot be replaced by a successor offer'
+      RAISE EXCEPTION 'accepted offers cannot be replaced without an explicit approval return/rejection'
         USING ERRCODE = '55000';
     END IF;
     UPDATE eogp.booking_offers SET status='prepared'
