@@ -1759,14 +1759,13 @@ export function buildApi(dependencies: ApiDependencies): FastifyInstance {
       // Deterministic, domain-separated derivation means retries can return the
       // same raw capability without persisting it in the idempotency response.
       const acceptanceToken = createHmac("sha256", capabilityKey)
-        .update("eventor:booking-offer-capability:v1\\x00", "utf8")
-        .update(principal.organizationId, "utf8")
-        .update("\\x00", "utf8")
-        .update(principal.membershipId, "utf8")
-        .update("\\x00", "utf8")
-        .update(request.params.offerId, "utf8")
-        .update("\\x00", "utf8")
-        .update(idempotencyKey, "utf8")
+        .update(JSON.stringify({
+          purpose: "eventor:booking-offer-capability:v1",
+          organizationId: principal.organizationId,
+          membershipId: principal.membershipId,
+          offerId: request.params.offerId,
+          idempotencyKey,
+        }), "utf8")
         .digest("base64url");
       const tokenHash = createHash("sha256").update(acceptanceToken, "utf8").digest("hex");
       const command = await runIdempotentCommand(
