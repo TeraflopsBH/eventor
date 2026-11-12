@@ -341,6 +341,16 @@ BEGIN
   EXCEPTION WHEN SQLSTATE '55000' THEN
     NULL;
   END;
+  BEGIN
+    UPDATE eogp.booking_price_items
+       SET unit_amount=999.00
+     WHERE organization_id=v_org
+       AND price_list_revision_id=v_price_revision_1
+       AND item_code='ROOM';
+    RAISE EXCEPTION 'published price-list item unexpectedly accepted mutation';
+  EXCEPTION WHEN SQLSTATE '55000' THEN
+    NULL;
+  END;
 
   -- Re-read after the rejected mutation attempts to ensure no financial drift.
   IF (SELECT total_amount FROM eogp.booking_offer_revisions
