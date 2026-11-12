@@ -920,7 +920,7 @@ paths:
                 providerMessageReference: { type: string, maxLength: 998 }
               additionalProperties: false
       responses:
-        '200':
+        '201':
           description: "Delivery outcome reconciled and audited."
           content:
             application/json:
@@ -956,7 +956,7 @@ paths:
                 reason: { type: string, minLength: 3, maxLength: 1000 }
               additionalProperties: false
       responses:
-        '200':
+        '201':
           description: "One-time retry queued."
           content:
             application/json:
