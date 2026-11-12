@@ -497,7 +497,7 @@ BEGIN
      OR v_snapshot.price_snapshot->'terms'->>'cancellationTerms'<>'Cancellation terms version 1'
      OR (v_snapshot.price_snapshot->'terms'->'taxCalculation'->>'taxAmount')::numeric<>20.00
      OR v_snapshot.price_snapshot->'terms'->'adjustments'->0->'taxAllocations'->0->>'taxCode'<>'STANDARD'
-     OR v_snapshot.price_snapshot->'terms'->'adjustments'->1->'allocationMethod'<>'proportional_to_lines' THEN
+     OR v_snapshot.price_snapshot->'terms'->'adjustments'->1->>'allocationMethod'<>'proportional_to_lines' THEN
     RAISE EXCEPTION 'confirmed price snapshot does not preserve the exact accepted financial terms: %',v_snapshot.price_snapshot;
   END IF;
 
