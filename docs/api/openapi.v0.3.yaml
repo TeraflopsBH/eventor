@@ -6152,6 +6152,32 @@ components:
           type: array
           maxItems: 100
           items: { $ref: '#/components/schemas/PublicBookingFormFieldV1' }
+        contentTranslations:
+          type: object
+          description: Optional immutable language-specific authored content included in this exact published revision. Missing entries fall back to the revision's base locale and are identified in the public form UI.
+          properties:
+            bs-BA: { $ref: '#/components/schemas/PublicBookingFormContentTranslationV1' }
+            en: { $ref: '#/components/schemas/PublicBookingFormContentTranslationV1' }
+          additionalProperties: false
+      additionalProperties: false
+    PublicBookingFormContentTranslationV1:
+      type: object
+      required: [formName, fields]
+      properties:
+        formName: { type: string, minLength: 1, maxLength: 200 }
+        fields:
+          type: object
+          additionalProperties:
+            type: object
+            properties:
+              label: { type: string, minLength: 1, maxLength: 200 }
+              description: { type: string, minLength: 1, maxLength: 1000 }
+              helpText: { type: string, minLength: 1, maxLength: 1000 }
+              placeholder: { type: string, minLength: 1, maxLength: 200 }
+              options:
+                type: object
+                additionalProperties: { type: string, minLength: 1, maxLength: 200 }
+            additionalProperties: false
       additionalProperties: false
     PublicBookingFormResponse:
       type: object
