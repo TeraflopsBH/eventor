@@ -11,10 +11,11 @@ interface StaffSessionDependencies {
   loadConfiguration: () => Promise<void>;
   resetWorkspace: () => void;
   translate: (key: string, params?: Record<string, string | number>) => string;
+  applyLocale: (locale: string) => void;
 }
 
 export function useStaffSession({
-  api, busy, pageError, pageNotice, clearMessages, loadConfiguration, resetWorkspace, translate,
+  api, busy, pageError, pageNotice, clearMessages, loadConfiguration, resetWorkspace, translate, applyLocale,
 }: StaffSessionDependencies) {
   const principal = ref<Principal | null>(null);
   const loadingSession = ref(true);
@@ -44,6 +45,7 @@ export function useStaffSession({
     try {
       const result = await api.me();
       principal.value = result.data;
+      applyLocale(result.data.userLocale ?? result.data.organizationDefaultLocale ?? "en");
       await loadConfiguration();
     } catch (error) {
       if (error instanceof ApiError && error.status === 401) {
@@ -75,6 +77,17 @@ export function useStaffSession({
     }
   }
 
+  async function saveLocalePreference(locale: string): Promise<void> {
+    if (locale !== "bs-BA" && locale !== "en") return;
+    try {
+      const result = await api.updateUserLocale(locale);
+      if (principal.value) principal.value.userLocale = result.data.userLocale;
+      pageNotice.value = translate("localeSettings.userSaved");
+    } catch (error) {
+      showError(error);
+    }
+  }
+
   async function signOut(): Promise<void> {
     clearMessages();
     busy.value = true;
@@ -90,5 +103,5 @@ export function useStaffSession({
     }
   }
 
-  return { principal, loadingSession, loginForm, selectedOrganization, showError, refreshSession, signIn, signOut };
+  return { principal, loadingSession, loginForm, selectedOrganization, showError, refreshSession, signIn, signOut, saveLocalePreference };
 }
