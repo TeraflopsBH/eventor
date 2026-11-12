@@ -81,6 +81,7 @@ DECLARE
   v_draft_status text;
   v_current_revision_id uuid;
   v_revision_number integer;
+  v_target_revision_number integer;
   v_offer_id uuid := p_offer_id;
   v_offer_status text;
   v_previous_revision_id uuid;
@@ -130,13 +131,6 @@ BEGIN
     RAISE EXCEPTION 'offer currency, tax basis, validity or tax amount is invalid'
       USING ERRCODE = '22023';
   END IF;
-     OR p_valid_until IS NULL OR p_valid_until <= clock_timestamp()
-     OR p_tax_amount IS NULL OR p_tax_amount < 0
-     OR p_tax_amount::text IN ('NaN','Infinity','-Infinity')
-     OR scale(trim_scale(p_tax_amount)) > 2 THEN
-    RAISE EXCEPTION 'offer currency, tax basis, validity or tax amount is invalid'
-      USING ERRCODE = '22023';
-  END IF;
   IF p_line_items IS NULL OR jsonb_typeof(p_line_items) <> 'array' THEN
     RAISE EXCEPTION 'offer line items must be a JSON array' USING ERRCODE = '22023';
   END IF;
@@ -149,12 +143,6 @@ BEGIN
   IF jsonb_array_length(p_adjustments) > 50 THEN
     RAISE EXCEPTION 'offer adjustments cannot contain more than 50 entries' USING ERRCODE = '22023';
   END IF;
-     OR jsonb_array_length(p_line_items) > 100
-     OR p_adjustments IS NULL OR jsonb_typeof(p_adjustments) <> 'array'
-     OR jsonb_array_length(p_adjustments) > 50 THEN
-    RAISE EXCEPTION 'offer line items and adjustments must be bounded JSON arrays'
-      USING ERRCODE = '22023';
-  END IF;
   IF jsonb_array_length(p_line_items) = 0 AND jsonb_array_length(p_adjustments) = 0 THEN
     RAISE EXCEPTION 'an offer must contain at least one priced item or adjustment'
       USING ERRCODE = '22023';
@@ -166,10 +154,10 @@ BEGIN
   END IF;
 
   SELECT draft.id, draft.status, draft.current_revision_number,
-         revision.id, revision.requested_start, revision.requested_end,
+         revision.id, revision.revision_number, revision.requested_start, revision.requested_end,
          revision.timezone_name
     INTO v_draft_id, v_draft_status, v_revision_number,
-         v_current_revision_id, v_requested_start, v_requested_end, v_timezone
+         v_current_revision_id, v_target_revision_number, v_requested_start, v_requested_end, v_timezone
     FROM eogp.booking_draft_revisions revision
     JOIN eogp.booking_drafts draft
       ON draft.organization_id = revision.organization_id
@@ -180,7 +168,8 @@ BEGIN
   IF NOT FOUND THEN
     RAISE EXCEPTION 'booking draft revision not found' USING ERRCODE = 'P0002';
   END IF;
-  IF v_draft_status <> 'draft' OR v_current_revision_id IS DISTINCT FROM p_draft_revision_id THEN
+  IF v_draft_status <> 'draft' OR v_current_revision_id IS DISTINCT FROM p_draft_revision_id
+     OR v_revision_number IS DISTINCT FROM v_target_revision_number THEN
     RAISE EXCEPTION 'offers can be prepared only from the current revision of an editable draft'
       USING ERRCODE = '55000';
   END IF;
@@ -241,7 +230,7 @@ BEGIN
     v_line_count := v_line_count + 1;
     IF jsonb_typeof(v_line) <> 'object'
        OR jsonb_typeof(v_line->'itemCode') <> 'string'
-       OR jsonb_typeof(v_line->'quantity') NOT IN ('number','string') THEN
+       OR jsonb_typeof(v_line->'quantity') IS DISTINCT FROM 'number' THEN
       RAISE EXCEPTION 'offer line % must contain itemCode and quantity', v_line_count
         USING ERRCODE = '22023';
     END IF;
@@ -296,7 +285,7 @@ BEGIN
        OR jsonb_typeof(v_line->'code') <> 'string'
        OR jsonb_typeof(v_line->'label') <> 'string'
        OR jsonb_typeof(v_line->'kind') <> 'string'
-       OR jsonb_typeof(v_line->'amount') NOT IN ('number','string') THEN
+       OR jsonb_typeof(v_line->'amount') IS DISTINCT FROM 'number' THEN
       RAISE EXCEPTION 'offer adjustment % is incomplete', v_adjustment_count USING ERRCODE = '22023';
     END IF;
     v_adjustment_code := btrim(v_line->>'code');
