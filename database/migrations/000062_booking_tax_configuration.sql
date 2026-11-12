@@ -329,7 +329,9 @@ BEGIN
   PERFORM eogp.assert_booking_commercial_permission(p_organization_id,p_actor_membership_id,ARRAY['booking.manage']::text[]);
   SELECT * INTO v_price FROM eogp.booking_price_list_revisions
    WHERE organization_id=p_organization_id AND price_list_id=p_price_list_id AND id=p_revision_id FOR UPDATE;
-  IF NOT FOUND OR v_price.state<>'draft' THEN RAISE EXCEPTION 'latest draft price-list revision is required' USING ERRCODE='55000'; END IF;
+  IF NOT FOUND OR v_price.state<>'draft' OR p_revision_id IS DISTINCT FROM (
+    SELECT id FROM eogp.booking_price_list_revisions WHERE organization_id=p_organization_id AND price_list_id=p_price_list_id ORDER BY revision_number DESC LIMIT 1
+  ) THEN RAISE EXCEPTION 'latest draft price-list revision is required' USING ERRCODE='55000'; END IF;
   IF p_tax_profile_revision_id IS NOT NULL THEN
     SELECT tax_revision.* INTO v_tax
       FROM eogp.booking_tax_profile_revisions tax_revision
@@ -371,7 +373,7 @@ BEGIN
      WHERE r.organization_id=NEW.organization_id AND r.id=NEW.tax_profile_revision_id;
     IF NOT FOUND OR v_tax.state<>'published' OR v_profile_status<>'active'
        OR v_tax.currency<>NEW.currency OR v_tax.tax_basis<>NEW.tax_basis
-       OR (NEW.effective_from IS NOT NULL AND v_tax.effective_from IS NOT NULL AND v_tax.effective_from>NEW.effective_from)
+       OR (v_tax.effective_from IS NOT NULL AND (NEW.effective_from IS NULL OR v_tax.effective_from>NEW.effective_from))
        OR (NEW.effective_until IS NOT NULL AND v_tax.effective_until IS NOT NULL AND v_tax.effective_until<NEW.effective_until)
        OR (NEW.effective_until IS NULL AND v_tax.effective_until IS NOT NULL) THEN
       RAISE EXCEPTION 'selected published tax profile revision must match the price-list revision' USING ERRCODE='23514';
