@@ -585,6 +585,9 @@ export default {
       "requires_organization_level_booking_manage_permission": "Zahtijeva dozvolu booking.manage na nivou organizacije.",
     },
     "viewValues": {
+      "organization": "Organizacija",
+      "venue": "Prostor",
+      "space": "Prostorija",
       "noRevision": "Nema verzije",
       "active": "Aktivno",
       "inactive": "Neaktivno",
