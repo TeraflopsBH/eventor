@@ -360,7 +360,7 @@ BEGIN
     starts_at,ends_at,expires_at,idempotency_key,actor_membership_id
   ) VALUES(
     v_org,v_space_id,v_draft_revision_id,'draft_hold','held',
-    v_space_starts_at,v_space_ends_at,clock_timestamp()+interval '1 day',
+    v_space_starts_at,v_space_ends_at,v_space_ends_at+interval '1 day',
     'ci-e2e-live-space-hold',v_creator
   );
 
