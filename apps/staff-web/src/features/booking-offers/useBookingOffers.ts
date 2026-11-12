@@ -1,11 +1,8 @@
 import { computed, reactive, ref, type Ref } from "vue";
-import type { BookingOfferRecord, BookingOfferEmailDelivery, BookingOfferApprovalStatus, BookingOfferApprovalRequirement, BookingOfferWriteRequest, Principal } from "../../api";
-interface BookingDraftDetailLike {
-  value: { draftId: string; status: string; currentRevision?: { revisionId: string } | null; currentRevisionNumber?: number } | null;
-}
+import type { BookingDraftDetail, BookingOfferRecord, BookingOfferEmailDelivery, BookingOfferApprovalStatus, BookingOfferApprovalRequirement, BookingOfferWriteRequest, Principal } from "../../api";
 interface BookingOffersDependencies {
   api: typeof import("../../api").api; busy: Ref<boolean>; pageError: Ref<string>; pageNotice: Ref<string>;
-  principal: Ref<Principal | null>; bookingDraftDetail: BookingDraftDetailLike;
+  principal: Ref<Principal | null>; bookingDraftDetail: Ref<BookingDraftDetail | null>;
   clearMessages: () => void; showError: (error: unknown) => void;
   refreshBookingDraft: () => Promise<void>; refreshInquiryDetail: () => Promise<void>;
 }
