@@ -65,6 +65,7 @@ export interface ApiDependencies {
   readonly getCurrentPrincipal?: (principal: StaffPrincipal) => Promise<Record<string, unknown>>;
   readonly privateFieldEncryptionKey?: Buffer;
   readonly contactEncryptionKey?: Buffer;
+  readonly bookingCapabilityKey?: Buffer;
   readonly publicInquiryFingerprintKey?: Buffer;
   readonly deliveryCredentialsEncryptionKey?: Buffer;
   readonly publicApiBaseUrl?: string;
@@ -1703,20 +1704,40 @@ export function buildApi(dependencies: ApiDependencies): FastifyInstance {
     },
     async (request, reply) => {
       const principal = request.staffPrincipal!;
-      const acceptanceToken = randomBytes(32).toString("base64url");
+      const capabilityKey = dependencies.bookingCapabilityKey;
+      if (!capabilityKey || capabilityKey.length !== 32) {
+        throw new ApiError(503, "BOOKING_CAPABILITY_KEY_UNAVAILABLE", "Customer offer capability issuance is not configured.");
+      }
+      const idempotencyKey = request.headers["idempotency-key"];
+      if (typeof idempotencyKey !== "string") {
+        throw new ApiError(400, "IDEMPOTENCY_KEY_REQUIRED", "A valid Idempotency-Key header is required.");
+      }
+      // Deterministic, domain-separated derivation means retries can return the
+      // same raw capability without persisting it in the idempotency response.
+      const acceptanceToken = createHmac("sha256", capabilityKey)
+        .update("eventor:booking-offer-capability:v1\\x00", "utf8")
+        .update(principal.organizationId, "utf8")
+        .update("\\x00", "utf8")
+        .update(principal.membershipId, "utf8")
+        .update("\\x00", "utf8")
+        .update(request.params.offerId, "utf8")
+        .update("\\x00", "utf8")
+        .update(idempotencyKey, "utf8")
+        .digest("base64url");
       const tokenHash = createHash("sha256").update(acceptanceToken, "utf8").digest("hex");
-      return withCommand(
-        request, reply, "issueBookingOffer",
+      const command = await runIdempotentCommand(
+        dependencies, principal, "issueBookingOffer", idempotencyKey,
         { offerId: request.params.offerId },
         async (client) => {
           const result = await client.query<ResultRow>(
             "SELECT eogp.issue_booking_offer($1::uuid,$2::uuid,$3::uuid,$4::text) AS result",
             [principal.organizationId, request.params.offerId, principal.membershipId, tokenHash],
           );
-          const value = result.rows[0]?.result as Record<string, unknown>;
-          return { ...value, acceptanceToken };
+          return result.rows[0]?.result as Record<string, unknown>;
         },
       );
+      const data = command.body.data as Record<string, unknown>;
+      return reply.code(command.status).send({ data: { ...data, acceptanceToken } });
     },
   );
 
