@@ -124,13 +124,8 @@ BEGIN
      AND revision.id=capability.offer_revision_id
      AND revision.state='issued'
      AND offer.status='issued'
-     AND revision.id=(
-       SELECT max(latest.id) FILTER (WHERE latest.revision_number=(
-         SELECT max(numbered.revision_number)
-           FROM eogp.booking_offer_revisions numbered
-          WHERE numbered.organization_id=v_organization_id
-            AND numbered.offer_id=p_offer_id
-       ))
+     AND revision.revision_number=(
+       SELECT max(latest.revision_number)
          FROM eogp.booking_offer_revisions latest
         WHERE latest.organization_id=v_organization_id
           AND latest.offer_id=p_offer_id
