@@ -369,6 +369,126 @@ export interface BookingInquiryAssignee {
   displayName: string;
 }
 
+export interface BookingOfferLineItemInput {
+  itemCode: string;
+  quantity: number;
+}
+
+export interface BookingOfferAdjustmentInput {
+  code: string;
+  label: string;
+  kind: "fee" | "discount" | "credit";
+  amount: number;
+}
+
+export interface BookingOfferWriteRequest {
+  priceListRevisionId: string;
+  cancellationPolicyRevisionId: string;
+  approvalPolicyRevisionId: string;
+  currency: string;
+  taxBasis: "inclusive" | "exclusive" | "not_applicable" | "to_be_confirmed";
+  validUntil: string;
+  lineItems: BookingOfferLineItemInput[];
+  adjustments?: BookingOfferAdjustmentInput[];
+  taxAmount: number;
+  internalReason?: string;
+}
+
+export interface BookingOfferRevision {
+  offerRevisionId: string;
+  revisionNumber: number;
+  draftRevisionId: string;
+  priceListRevisionId: string;
+  cancellationPolicyRevisionId: string;
+  approvalPolicyRevisionId: string;
+  approvalRequirements: Array<Record<string, unknown>>;
+  currency: string;
+  subtotal: string | number;
+  taxAmount: string | number;
+  totalAmount: string | number;
+  validUntil: string;
+  state: string;
+  issuedAt: string | null;
+  acceptedAt: string | null;
+  terms: Record<string, unknown>;
+}
+
+export interface BookingOfferRecord {
+  offerId: string;
+  draftId: string;
+  status: string;
+  createdAt: string;
+  currentRevision: BookingOfferRevision;
+  revisionHistory: Array<{
+    offerRevisionId: string;
+    revisionNumber: number;
+    draftRevisionId: string;
+    state: string;
+    createdAt: string;
+    issuedAt: string | null;
+    acceptedAt: string | null;
+  }>;
+  decisionHistory: Array<{
+    decision: string;
+    actorKind: string;
+    actorMembershipId: string | null;
+    reasonCode: string | null;
+    occurredAt: string;
+  }>;
+}
+
+export interface BookingOfferApprovalRequirement {
+  ruleCode: string;
+  condition: unknown;
+  requiredApprovals: number;
+  separationOfDuties: boolean;
+  approvedCount: number;
+  blocked: boolean;
+  decisions: Array<{
+    membershipId: string;
+    decision: "approved" | "rejected" | "returned_for_changes";
+    reason: string;
+    decidedAt: string;
+  }>;
+}
+
+export interface BookingOfferApprovalStatus {
+  offerId: string;
+  offerRevisionId: string;
+  requirements: BookingOfferApprovalRequirement[];
+}
+
+export interface BookingOfferCreateResult {
+  offerId: string;
+  offerRevisionId: string;
+  draftRevisionId: string;
+  revisionNumber: number;
+  state: string;
+  currency: string;
+  taxBasis: string;
+  subtotal: string | number;
+  taxAmount: string | number;
+  totalAmount: string | number;
+  validUntil: string;
+}
+
+export interface BookingOfferIssueResult extends Record<string, unknown> {
+  acceptanceToken: string;
+  offerId: string;
+  offerRevisionId: string;
+}
+
+export interface BookingConfirmationResult {
+  bookingId: string;
+  bookingCode: string;
+  status: "confirmed";
+  offerId: string;
+  offerRevisionId: string;
+  draftRevisionId: string;
+  confirmedAt?: string;
+  replayed: boolean;
+}
+
 export interface PageMeta {
   limit: number;
   offset: number;
@@ -406,6 +526,51 @@ export const api = {
     request<Envelope<BookingInquiryDetail>>(`/booking-inquiries/${encodeURIComponent(inquiryId)}`),
   getBookingDraft: (draftId: string) =>
     request<Envelope<BookingDraftDetail>>(`/booking-drafts/${encodeURIComponent(draftId)}`),
+  createBookingOffer: (draftRevisionId: string, body: BookingOfferWriteRequest) =>
+    request<Envelope<BookingOfferCreateResult>>(
+      `/booking-draft-revisions/${encodeURIComponent(draftRevisionId)}/offers`,
+      { method: "POST", body, idempotent: true },
+    ),
+  createBookingOfferSuccessor: (
+    offerId: string,
+    body: BookingOfferWriteRequest & { draftRevisionId: string; supersedeCurrentOffer?: boolean },
+  ) =>
+    request<Envelope<BookingOfferCreateResult>>(
+      `/booking-offers/${encodeURIComponent(offerId)}/revisions`,
+      { method: "POST", body, idempotent: true },
+    ),
+  getBookingOffer: (offerId: string) =>
+    request<Envelope<BookingOfferRecord>>(`/booking-offers/${encodeURIComponent(offerId)}`),
+  issueBookingOffer: (offerId: string) =>
+    request<Envelope<BookingOfferIssueResult>>(
+      `/booking-offers/${encodeURIComponent(offerId)}/issue`,
+      { method: "POST", body: {}, idempotent: true },
+    ),
+  getBookingOfferApprovals: (offerId: string) =>
+    request<Envelope<BookingOfferApprovalStatus>>(
+      `/booking-offers/${encodeURIComponent(offerId)}/approvals`,
+    ),
+  decideBookingOfferApproval: (
+    offerId: string,
+    body: {
+      offerRevisionId: string;
+      ruleCode: string;
+      decision: "approved" | "rejected" | "returned_for_changes";
+      reason: string;
+    },
+  ) =>
+    request<Envelope<Record<string, unknown>>>(
+      `/booking-offers/${encodeURIComponent(offerId)}/approvals`,
+      { method: "POST", body, idempotent: true },
+    ),
+  confirmBookingFromOffer: (
+    draftRevisionId: string,
+    body: { expectedDraftRevisionId: string; confirmationReason: string },
+  ) =>
+    request<Envelope<BookingConfirmationResult>>(
+      `/booking-draft-revisions/${encodeURIComponent(draftRevisionId)}/confirm`,
+      { method: "POST", body, idempotent: true },
+    ),
   createBookingDraftRevision: (
     draftId: string,
     body: {
