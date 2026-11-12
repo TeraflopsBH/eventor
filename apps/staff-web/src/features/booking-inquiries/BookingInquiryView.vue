@@ -71,7 +71,7 @@ const {
           <aside class="inquiry-inbox">
             <div class="inquiry-inbox-heading">
               <strong>{{ t('bookingInquiry.inbox') }}</strong>
-              <span>{{ inquiryMeta?.totalCount ?? 0 }} total</span>
+              <span>{{ inquiryMeta?.totalCount ?? 0 }} {{ t("bookingInquiry.totalLabel") }}</span>
             </div>
             <div v-if="inquiryRows.length" class="inquiry-list">
               <button
@@ -94,7 +94,7 @@ const {
                 <span class="inquiry-list-meta">
                   {{ item.requestedStart ? formatDate(item.requestedStart) : "Date not specified" }}
                 </span>
-                <span class="inquiry-list-meta">Assigned: {{ resolveInquiryAssigneeName(item.assignedToMembershipId, principal?.membershipId, inquiryAssignees) }}</span>
+                <span class="inquiry-list-meta">{{ t("bookingInquiry.assignedPrefix") }} {{ resolveInquiryAssigneeName(item.assignedToMembershipId, principal?.membershipId, inquiryAssignees) }}</span>
               </button>
             </div>
             <p v-else class="muted inquiry-empty">{{ t('bookingInquiry.noMatches') }}</p>
@@ -105,7 +105,7 @@ const {
                 :disabled="busy || inquiryOffset === 0"
                 @click="loadInquiryList(Math.max(0, inquiryOffset - 25))"
               >{{ t('bookingInquiry.previous') }}</button>
-              <span>{{ inquiryMeta?.totalCount ?? 0 }} inquiries</span>
+              <span>{{ inquiryMeta?.totalCount ?? 0 }} {{ t("bookingInquiry.inquiryCount") }}</span>
               <button
                 class="button button-quiet"
                 type="button"
@@ -120,7 +120,7 @@ const {
               <div>
                 <p class="eyebrow">{{ t('bookingInquiry.detail') }}</p>
                 <h3>{{ inquiryDetail.publicReference }}</h3>
-                <p class="fine-print">Received {{ formatDate(inquiryDetail.submittedAt) }} · Updated {{ formatDate(inquiryDetail.updatedAt) }}</p>
+                <p class="fine-print">{{ t("bookingInquiry.receivedUpdatedLine", { received: formatDate(inquiryDetail.submittedAt), updated: formatDate(inquiryDetail.updatedAt) }) }}</p>
               </div>
               <div class="inquiry-detail-actions">
                 <span
@@ -154,7 +154,7 @@ const {
             <section class="inquiry-card">
               <div class="inquiry-card-heading">
                 <h4>{{ t('bookingInquiry.submittedAnswers') }}</h4>
-                <span class="fine-print">Form revision {{ inquiryDetail.formRevisionId.slice(0, 8) }}</span>
+                <span class="fine-print">{{ t("bookingInquiry.formRevisionLabel", { revision: inquiryDetail.formRevisionId.slice(0, 8) }) }}</span>
               </div>
               <dl v-if="inquiryAnswerItems.length" class="answer-list">
                 <template v-for="answer in inquiryAnswerItems" :key="answer.code">
@@ -190,7 +190,7 @@ const {
                 <label>{{$t('bookingInquiry.auditReason')}}<textarea v-model="inquiryStatusReason" rows="3" maxlength="1000" placeholder="Explain the review decision or status change…"></textarea>
                 </label>
                 <p v-if="inquiryStatusChoice === 'declined' || inquiryStatusChoice === 'spam'" class="fine-print text-warning">
-                  This is a terminal status. The inquiry cannot be reopened or reassigned afterward.
+                  {{ t("bookingInquiry.terminalStatus") }}
                 </p>
                 <button class="button button-primary" type="button" :disabled="busy || inquiryStatusReason.trim().length < 3" @click="saveInquiryStatus">{{$t('bookingInquiry.saveStatus')}}</button>
               </section>
@@ -198,8 +198,7 @@ const {
               <section v-if="canConvertInquiry" class="inquiry-card">
                 <h4>{{ t('bookingInquiry.convertDraft') }}</h4>
                 <p class="fine-print">
-                  Creates a separate draft and immutable revision 1 from the submitted request. The original inquiry is retained.
-                  This step does not issue an offer, hold availability or confirm a booking.
+                  {{ t("bookingInquiry.conversionDetails") }}
                 </p>
                 <button class="button button-primary" type="button" :disabled="busy" @click="saveInquiryConversion">{{$t('bookingInquiry.createDraft')}}</button>
               </section>
@@ -210,8 +209,7 @@ const {
                   <span class="pill pill-neutral">{{ inquiryDetail.bookingDraft.status }} · revision {{ inquiryDetail.bookingDraft.currentRevisionNumber }}</span>
                 </div>
                 <p class="fine-print">
-                  This draft is separate from the original inquiry. Its revisions are immutable; editing creates a new revision.
-                  No offer, availability hold or booking confirmation is implied.
+                  {{ t("bookingInquiry.draftDetails") }}
                 </p>
                 <button
                   v-if="canReadBookingDraft"
@@ -220,7 +218,7 @@ const {
                   :disabled="busy"
                   @click="emit('open-booking-draft')"
                 >
-                  Open booking draft
+                  {{ t("bookingInquiry.openDraftButton") }}
                 </button>
                 <p v-else class="fine-print">{{ t('bookingInquiry.cannotReadDraft') }}</p>
               </section>
