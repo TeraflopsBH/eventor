@@ -126,6 +126,9 @@ export default {
       "bounced": "Odbijeno",
       "suppressed": "Obustavljeno",
       "pending": "Na čekanju"
+          "draft": "Nacrt",
+      "published": "Objavljeno",
+      "retired": "Povučeno",
     },
     "outcome": {
       "providerAccepted": "potvrđeno SMTP/prihvatanje pružaoca usluge",
@@ -148,6 +151,8 @@ export default {
     "campaignConfirmed": "Kampanja je potvrđena. Nijedna poruka nije stavljena u red niti poslana.",
     "campaignQueued": "Kampanja je stavljena u red. Dostava se izvršava asinhrono putem radnog procesa.",
     "campaignCancelled": "Kampanja je otkazana prije početka slanja."
+      "attempts": "pokušaja",
+    "auditPlaceholder": "Zabilježite kako je ishod provjeren…",
   },
   emailDelivery: {
     "eyebrow": "POSTAVKE ORGANIZACIJE",
@@ -217,6 +222,7 @@ export default {
     "webhookActivated": "Provjera potpisa Resend povratnih poziva je omogućena. Događaji dostave i odbijanja sada mogu ažurirati odgovarajuće pokušaje.",
     "callbackCopied": "Resend URL povratnog poziva je kopiran.",
     "clipboardDenied": "Pristup međuspremniku je odbijen. Ručno označite i kopirajte URL povratnog poziva."
+      "andEvent": "i",
   },
   bookingInquiry: {
     "venueBooking": "REZERVACIJE PROSTORA",
