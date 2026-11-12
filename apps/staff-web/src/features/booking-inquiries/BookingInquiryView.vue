@@ -40,7 +40,7 @@ const {
 
         <div class="inquiry-toolbar">
           <div class="inquiry-filters">
-            <label>Status
+            <label>{{$t('bookingInquiry.statusLabel')}}
               <select v-model="inquiryFilters.status" @change="loadInquiryList(0)">
                 <option value="">{{ t('bookingInquiry.allStatuses') }}</option>
                 <option value="received">{{ t('bookingInquiry.received') }}</option>
@@ -51,7 +51,7 @@ const {
                 <option value="spam">{{ t('bookingInquiry.spam') }}</option>
               </select>
             </label>
-            <label v-if="inquiryCapabilities.canAssign">Assigned to
+            <label v-if="inquiryCapabilities.canAssign">{{$t('bookingInquiry.assignedLabel')}}
               <select v-model="inquiryFilters.assignedToMembershipId" @change="loadInquiryList(0)">
                 <option value="">{{ t('bookingInquiry.allStaff') }}</option>
                 <option v-for="member in inquiryAssignees" :key="member.membershipId" :value="member.membershipId">
