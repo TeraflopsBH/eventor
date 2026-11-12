@@ -77,6 +77,13 @@ async function loadForm(): Promise<void> {
 
 async function submitInquiry(): Promise<void> {
   if (!form.value || submitting.value) return;
+  const missingChoice = form.value.fieldSchema.fields.find(field =>
+    field.required && field.type === "multiselect" && selectedValues(field.code).length === 0,
+  );
+  if (missingChoice) {
+    error.value = t("publicBookingForm.requiredChoice", { field: missingChoice.label || missingChoice.code });
+    return;
+  }
   submitting.value = true;
   error.value = "";
   const normalizedAnswers: Record<string, unknown> = {};
