@@ -95,18 +95,18 @@ const bookingOfferState = useBookingOffers({
 const commercialBookingWorkspace = { ...bookingDraftState, ...bookingOfferState, busy };
 
 const bookingTaxProfileState = useBookingTaxProfiles({
-  api, busy, pageError, pageNotice, activeTab, clearMessages, showError,
+  api, busy, pageError, pageNotice, activeTab, clearMessages, showError, translate,
 });
 const { publishedTaxProfileRevisions, loadBookingTaxProfiles } = bookingTaxProfileState;
 
 const bookingPriceListState = useBookingPriceLists({
   api, busy, pageError, pageNotice, activeTab, clearMessages, showError,
-  publishedTaxProfileRevisions, loadBookingTaxProfiles,
+  publishedTaxProfileRevisions, loadBookingTaxProfiles, translate,
 });
 
 
 const bookingApprovalPolicyState = useBookingApprovalPolicies({
-  api, busy, pageError, pageNotice, activeTab, clearMessages, showError,
+  api, busy, pageError, pageNotice, activeTab, clearMessages, showError, translate,
 });
 
 
