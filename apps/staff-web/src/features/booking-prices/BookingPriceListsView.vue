@@ -74,7 +74,7 @@ const {
             <p v-if="!bookingPriceLists.length" class="muted">{{ t("commercialConfiguration.priceView.no_price_lists_are_configured_for_this_organization") }}</p>
             <div v-if="selectedPriceList" class="policy-summary">
               <strong>{{ selectedPriceList.name }}</strong>
-              <span>{{ selectedPriceList.code }} · {{ selectedPriceList.scopeKind }} · {{ statusLabel(selectedPriceList.status) }}</span>
+              <span>{{ selectedPriceList.code }} · {{ enumLabel(selectedPriceList.scopeKind) }} · {{ statusLabel(selectedPriceList.status) }}</span>
               <small class="mono">{{ selectedPriceList.priceListId }}</small>
             </div>
           </section>
