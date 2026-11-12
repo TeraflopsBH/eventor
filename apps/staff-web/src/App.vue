@@ -759,7 +759,7 @@ async function saveInquiryAssignment(): Promise<void> {
     pageNotice.value = "The assignment has not changed.";
     return;
   }
-  const nextName = resolveInquiryAssigneeName(assignedToMembershipId, principal?.membershipId, inquiryAssignees);
+  const nextName = resolveInquiryAssigneeName(assignedToMembershipId, principal.value?.membershipId, inquiryAssignees.value);
   if (!window.confirm(`Assign ${detail.publicReference} to ${nextName}?`)) return;
   clearMessages();
   busy.value = true;
