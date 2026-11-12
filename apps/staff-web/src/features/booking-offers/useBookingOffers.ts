@@ -203,7 +203,7 @@ async function issueBookingOffer(): Promise<void> {
     const result = await api.issueBookingOffer(offer.offerId, bookingOfferIssueRequestKey.value);
     bookingOfferAcceptanceToken.value = result.data.acceptanceToken;
     await refreshBookingOfferData();
-    pageNotice.value = t("commercialBooking.offerIssued");
+    pageNotice.value = t("commercialBooking.offerIssuedNotice");
   } catch (error) {
     showError(error);
   } finally {
@@ -220,7 +220,7 @@ async function emailBookingOffer(): Promise<void> {
   busy.value = true;
   try {
     if (!bookingOfferEmailRequestKey.value) {
-      if (!globalThis.crypto?.randomUUID) throw new Error("This browser cannot create a secure idempotency key.");
+      if (!globalThis.crypto?.randomUUID) throw new Error(t("commercialBooking.secureIdempotencyUnavailable"));
       bookingOfferEmailRequestKey.value = globalThis.crypto.randomUUID();
     }
     const result = await api.queueBookingOfferEmail(offer.offerId, token, bookingOfferEmailRequestKey.value);
@@ -353,7 +353,7 @@ async function confirmBookingFromAcceptedOffer(): Promise<void> {
     pageError.value = t("commercialBooking.bookingConfirmationReasonMin");
     return;
   }
-  if (!window.confirm(t("commercialBooking.confirmBooking"))) return;
+  if (!window.confirm(t("commercialBooking.confirmBookingPrompt"))) return;
   clearMessages();
   busy.value = true;
   try {
