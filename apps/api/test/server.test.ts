@@ -91,6 +91,7 @@ function makePool() {
   let customerOfferDecisionCalls = 0;
   let bookingOfferApprovalDecisionCalls = 0;
   let bookingOfferApprovalStatusCalls = 0;
+  let bookingConfirmationCalls = 0;
   const customerOfferDecisionReplays = new Map<string, { requestHash: string; response: Record<string, unknown> }>();
   const deliveryTests = new Map<string, string>();
 
@@ -202,6 +203,22 @@ function makePool() {
         } }], rowCount: 1 };
       }
 
+      if (normalized.includes("eogp.confirm_booking_from_offer(")) {
+        bookingConfirmationCalls += 1;
+        commandCalls.push({ sql: normalized, values });
+        return { rows: [{ result: {
+          bookingId: "24242424-2424-4242-8242-242424242424",
+          bookingCode: "BKG-ABCDEF123456",
+          status: "confirmed",
+          offerId: "18181818-1818-4181-8181-181818181818",
+          offerRevisionId: "18181818-1818-4181-8181-181818181819",
+          draftRevisionId: values[1],
+          confirmedAt: "2026-11-12T13:00:00.000Z",
+          spaceReservationsConfirmed: 1,
+          resourceReservationsConfirmed: 2,
+          replayed: false,
+        } }], rowCount: 1 };
+      }
       if (normalized.includes("eogp.decide_booking_offer_approval(")) {
         bookingOfferApprovalDecisionCalls += 1;
         commandCalls.push({ sql: normalized, values });
@@ -706,6 +723,7 @@ function makePool() {
     get customerOfferDecisionCalls() { return customerOfferDecisionCalls; },
     get bookingOfferApprovalDecisionCalls() { return bookingOfferApprovalDecisionCalls; },
     get bookingOfferApprovalStatusCalls() { return bookingOfferApprovalStatusCalls; },
+    get bookingConfirmationCalls() { return bookingConfirmationCalls; },
   };
 }
 
