@@ -306,6 +306,9 @@ BEGIN
   IF jsonb_array_length(v_revision.tax_codes)=0 AND v_revision.tax_basis<>'not_applicable' THEN
     RAISE EXCEPTION 'add at least one tax code or explicitly mark tax as not applicable before publication' USING ERRCODE='22023';
   END IF;
+  IF jsonb_array_length(v_revision.tax_codes)>0 AND v_revision.tax_basis='not_applicable' THEN
+    RAISE EXCEPTION 'a not-applicable tax profile cannot contain tax codes' USING ERRCODE='22023';
+  END IF;
   UPDATE eogp.booking_tax_profile_revisions SET state='published',published_at=v_published
    WHERE organization_id=p_organization_id AND id=p_revision_id;
   INSERT INTO eogp.audit_events(organization_id,actor_organization_id,actor_membership_id,actor_kind,
