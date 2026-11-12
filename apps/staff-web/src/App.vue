@@ -1179,13 +1179,20 @@ async function createBookingApprovalPolicyRevision(): Promise<void> {
     pageError.value = error instanceof Error ? error.message : "Approval policy rules are invalid JSON.";
     return;
   }
-  if (!window.confirm("Create a new immutable draft revision of this approval policy? Any existing offers keep their already-pinned approval requirements.")) return;
+  const latest = selectedApprovalPolicyLatestRevision.value;
+  if (!window.confirm(
+    latest?.state === "draft"
+      ? "Save changes to this exact draft revision? The draft remains unpublished until you explicitly publish it."
+      : "Create a new immutable draft revision? Any existing offers keep their already-pinned approval requirements.",
+  )) return;
   clearMessages();
   busy.value = true;
   try {
-    const result = await api.createBookingApprovalPolicyRevision(policy.policyId, parsed as BookingApprovalRule[]);
+    const result = latest?.state === "draft"
+      ? await api.updateBookingApprovalPolicyDraftRevision(policy.policyId, latest.revisionId, parsed as BookingApprovalRule[])
+      : await api.createBookingApprovalPolicyRevision(policy.policyId, parsed as BookingApprovalRule[]);
     await loadBookingApprovalPolicies();
-    pageNotice.value = "Approval policy revision " + result.data.revisionNumber + " created as a draft. Earlier published revisions and offer snapshots remain unchanged.";
+    pageNotice.value = "Approval policy revision " + result.data.revisionNumber + " saved as a draft. Publish it explicitly when ready.";
   } catch (error) {
     showError(error);
   } finally {
@@ -1912,7 +1919,7 @@ onMounted(() => { void refreshSession(); });
           <div class="policy-revision-heading">
             <div>
               <h3>Rule editor · {{ selectedApprovalPolicy.name }}</h3>
-              <p class="fine-print">Create a new draft revision by editing the JSON below, then publish it as a separate explicit action. The backend validates rule semantics and permissions.</p>
+              <p class="fine-print">Edit the latest draft revision or start the next revision after publication. Publish it as a separate explicit action. The backend validates rule semantics and permissions.</p>
             </div>
             <span class="pill" :class="selectedApprovalPolicyLatestRevision?.state === 'published' ? 'pill-success' : 'pill-warning'">
               Latest: {{ selectedApprovalPolicyLatestRevision?.state ?? "No revision" }}
