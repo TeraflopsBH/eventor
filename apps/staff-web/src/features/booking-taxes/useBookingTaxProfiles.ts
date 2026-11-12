@@ -3,9 +3,9 @@ type StaffTab = "delivery" | "campaign" | "inquiries" | "approvals" | "prices" |
 import type { BookingTaxProfile, BookingTaxProfileRevisionInput, BookingTaxCode } from "../../api";
 interface Dependencies {
   api: typeof import("../../api").api; busy: Ref<boolean>; pageError: Ref<string>; pageNotice: Ref<string>;
-  activeTab: Ref<StaffTab>; clearMessages: () => void; showError: (error: unknown) => void;
+  activeTab: Ref<StaffTab>; clearMessages: () => void; showError: (error: unknown) => void; translate: (key: string, params?: Record<string, string | number>) => string;
 }
-export function useBookingTaxProfiles({ api, busy, pageError, pageNotice, activeTab, clearMessages, showError }: Dependencies) {
+export function useBookingTaxProfiles({ api, busy, pageError, pageNotice, activeTab, clearMessages, showError, translate }: Dependencies) {
 const bookingTaxProfiles = ref<BookingTaxProfile[]>([]);
 const selectedTaxProfileId = ref("");
 const taxProfileCreateForm = reactive({
@@ -61,26 +61,26 @@ async function openBookingTaxProfiles(): Promise<void> {
 function selectBookingTaxProfile(id: string): void { selectedTaxProfileId.value = id; syncTaxProfileEditor(); }
 
 function taxProfileRevisionPayload(): BookingTaxProfileRevisionInput {
-  if (!/^[A-Z]{3}$/.test(taxProfileRevisionForm.currency.trim().toUpperCase())) throw new Error("Currency must be a three-letter uppercase code.");
-  if (!Number.isInteger(taxProfileRevisionForm.roundingScale) || taxProfileRevisionForm.roundingScale < 0 || taxProfileRevisionForm.roundingScale > 4) throw new Error("Rounding decimal places must be an integer from 0 to 4.");
+  if (!/^[A-Z]{3}$/.test(taxProfileRevisionForm.currency.trim().toUpperCase())) throw new Error(translate("commercialConfiguration.taxCurrency"));
+  if (!Number.isInteger(taxProfileRevisionForm.roundingScale) || taxProfileRevisionForm.roundingScale < 0 || taxProfileRevisionForm.roundingScale > 4) throw new Error(translate("commercialConfiguration.taxRounding"));
   const taxCodes: unknown = JSON.parse(taxCodesJson.value);
-  if (!Array.isArray(taxCodes) || taxCodes.length > 200) throw new Error("Tax codes must be a JSON array with at most 200 entries.");
+  if (!Array.isArray(taxCodes) || taxCodes.length > 200) throw new Error(translate("commercialConfiguration.taxCodesLimit"));
   const seen = new Set<string>();
   for (const value of taxCodes) {
-    if (!value || typeof value !== "object" || Array.isArray(value)) throw new Error("Each tax code must be an object.");
+    if (!value || typeof value !== "object" || Array.isArray(value)) throw new Error(translate("commercialConfiguration.taxCodeObject"));
     const row = value as Record<string, unknown>;
     if (typeof row.taxCode !== "string" || !/^[A-Za-z0-9][A-Za-z0-9._-]{0,79}$/.test(row.taxCode) ||
         typeof row.label !== "string" || !row.label.trim() ||
         !["percentage","zero_rated","exempt","out_of_scope","manual"].includes(String(row.treatment)) ||
         !(row.rate === null || (typeof row.rate === "number" && Number.isFinite(row.rate) && row.rate >= 0 && row.rate <= 100))) {
-      throw new Error("Each tax code needs a valid taxCode, label, treatment and numeric/null rate.");
+      throw new Error(translate("commercialConfiguration.taxCodeFields"));
     }
-    if (seen.has(row.taxCode)) throw new Error("Tax codes must be unique within a profile revision.");
+    if (seen.has(row.taxCode)) throw new Error(translate("commercialConfiguration.taxCodeUnique"));
     seen.add(row.taxCode);
     if ((row.treatment === "percentage" && typeof row.rate !== "number") ||
-        (row.treatment !== "percentage" && row.rate !== null)) throw new Error("Only percentage tax codes may have a rate.");
+        (row.treatment !== "percentage" && row.rate !== null)) throw new Error(translate("commercialConfiguration.taxRateTreatment"));
   }
-  if (taxProfileRevisionForm.taxBasis === "not_applicable" && taxCodes.length > 0) throw new Error("A not-applicable tax profile cannot contain tax codes.");
+  if (taxProfileRevisionForm.taxBasis === "not_applicable" && taxCodes.length > 0) throw new Error(translate("commercialConfiguration.taxNotApplicable"));
   return {
     jurisdictionCode: taxProfileRevisionForm.jurisdictionCode.trim() || null,
     registrationIdentifier: taxProfileRevisionForm.registrationIdentifier.trim() || null,
@@ -97,9 +97,9 @@ function taxProfileRevisionPayload(): BookingTaxProfileRevisionInput {
 async function createBookingTaxProfile(): Promise<void> {
   const code=taxProfileCreateForm.code.trim(), name=taxProfileCreateForm.name.trim();
   if (code.length<2 || !/^[A-Za-z0-9][A-Za-z0-9._-]*$/.test(code) || !name || !/^[A-Z]{3}$/.test(taxProfileCreateForm.currency)) {
-    pageError.value="Enter a valid profile code, name and three-letter currency."; return;
+    pageError.value=translate("commercialConfiguration.taxCreateFields"); return;
   }
-  if (!window.confirm("Create an organization tax profile with an unpublished first revision?")) return;
+  if (!window.confirm(translate("commercialConfiguration.taxCreateConfirm"))) return;
   clearMessages(); busy.value=true;
   try {
     const result=await api.createBookingTaxProfile({
@@ -110,14 +110,14 @@ async function createBookingTaxProfile(): Promise<void> {
     selectedTaxProfileId.value=result.data.taxProfileId;
     taxProfileCreateForm.code=""; taxProfileCreateForm.name="";
     await loadBookingTaxProfiles();
-    pageNotice.value="Tax profile created. Add its tax codes and publish the first revision.";
+    pageNotice.value=translate("commercialConfiguration.taxCreated");
   } catch(error){showError(error);} finally{busy.value=false;}
 }
 
 async function createBookingTaxProfileRevision(): Promise<void> {
   const profile=selectedTaxProfile.value, latest=selectedTaxProfileLatestRevision.value;
   if(!profile || profile.status!=="active" || latest?.state==="draft")return;
-  if(!window.confirm("Create a successor draft revision? Existing price lists and offers keep their currently pinned tax revision."))return;
+  if(!window.confirm(translate("commercialConfiguration.taxSuccessorConfirm")))return;
   clearMessages();busy.value=true;
   try{
     await api.createBookingTaxProfileRevision(profile.taxProfileId,{
@@ -128,7 +128,7 @@ async function createBookingTaxProfileRevision(): Promise<void> {
       effectiveFrom:taxProfileRevisionForm.effectiveFrom?new Date(taxProfileRevisionForm.effectiveFrom).toISOString():null,
       effectiveUntil:taxProfileRevisionForm.effectiveUntil?new Date(taxProfileRevisionForm.effectiveUntil).toISOString():null,
     });
-    await loadBookingTaxProfiles();pageNotice.value="Successor tax profile draft created. Review its copied tax codes before saving.";
+    await loadBookingTaxProfiles();pageNotice.value=translate("commercialConfiguration.taxSuccessorCreated");
   }catch(error){showError(error);}finally{busy.value=false;}
 }
 
@@ -136,23 +136,23 @@ async function saveBookingTaxProfileDraft(): Promise<void> {
   const profile=selectedTaxProfile.value,revision=selectedTaxProfileLatestRevision.value;
   if(!profile||!revision||revision.state!=="draft")return;
   let body:BookingTaxProfileRevisionInput;
-  try{body=taxProfileRevisionPayload();}catch(error){pageError.value=error instanceof Error?error.message:"Invalid tax profile revision.";return;}
-  if(!window.confirm("Save this tax profile draft? It remains inactive until explicitly published."))return;
+  try{body=taxProfileRevisionPayload();}catch(error){pageError.value=error instanceof Error?error.message:translate("commercialConfiguration.taxInvalidRevision");return;}
+  if(!window.confirm(translate("commercialConfiguration.taxSaveConfirm")))return;
   clearMessages();busy.value=true;
   try{
     const result=await api.updateBookingTaxProfileDraftRevision(profile.taxProfileId,revision.revisionId,body);
-    await loadBookingTaxProfiles();pageNotice.value="Tax profile revision "+result.data.revisionNumber+" saved as draft.";
+    await loadBookingTaxProfiles();pageNotice.value=translate("commercialConfiguration.taxSaved", { revision: result.data.revisionNumber });
   }catch(error){showError(error);}finally{busy.value=false;}
 }
 
 async function publishBookingTaxProfileRevision(): Promise<void> {
   const profile=selectedTaxProfile.value,revision=selectedTaxProfileLatestRevision.value;
   if(!profile||!revision||revision.state!=="draft")return;
-  if(!window.confirm("Publish this exact tax profile revision? It becomes immutable and can be selected by compatible price lists."))return;
+  if(!window.confirm(translate("commercialConfiguration.taxPublishConfirm")))return;
   clearMessages();busy.value=true;
   try{
     const result=await api.publishBookingTaxProfileRevision(profile.taxProfileId,revision.revisionId);
-    await loadBookingTaxProfiles();pageNotice.value="Tax profile revision "+result.data.revisionNumber+" published.";
+    await loadBookingTaxProfiles();pageNotice.value=translate("commercialConfiguration.taxPublished", { revision: result.data.revisionNumber });
   }catch(error){showError(error);}finally{busy.value=false;}
 }
 return { bookingTaxProfiles, selectedTaxProfileId, taxProfileCreateForm, taxProfileRevisionForm, taxCodesJson, selectedTaxProfile, selectedTaxProfileLatestRevision, publishedTaxProfileRevisions, syncTaxProfileEditor, loadBookingTaxProfiles, openBookingTaxProfiles, selectBookingTaxProfile, taxProfileRevisionPayload, createBookingTaxProfile, createBookingTaxProfileRevision, saveBookingTaxProfileDraft, publishBookingTaxProfileRevision };
