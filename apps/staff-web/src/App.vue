@@ -210,7 +210,7 @@ onMounted(() => {
 
       <BookingCancellationPoliciesView v-else-if="activeTab === 'cancellations'" :workspace="{ ...bookingCancellationPolicyState, busy }" />
 
-      <OrganizationLocaleView v-else-if="activeTab === 'settings'" :busy="busy" :page-notice="pageNotice" :show-error="showError" :translate="translate" />
+      <OrganizationLocaleView v-else-if="activeTab === 'settings'" :busy="busy" :page-notice="pageNotice" :show-error="showError" :translate="translate" :on-default-locale-changed="(value) => { if (principal?.userLocale === null) locale = value; }" />
 
       <CampaignWorkspaceView v-else :workspace="campaignWorkspace" />
     
