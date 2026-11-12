@@ -508,6 +508,7 @@ export default {
       "requires_organization_level_booking_manage_permission": "Requires organization-level booking.manage permission.",
     },
     "approvalView": {
+    "and_separation_of_duties": "and",
       "organization_commercial_controls": "ORGANIZATION COMMERCIAL CONTROLS",
       "booking_approval_policies": "Booking approval policies",
       "create_versioned_rules_that_determine_which_offers_requ": "Create versioned rules that determine which offers require internal approval. Published revisions are immutable and only affect offers created against that revision.",
