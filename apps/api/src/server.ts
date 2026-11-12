@@ -21,7 +21,7 @@ type JsonRequestBody<Path extends keyof paths, Method extends keyof paths[Path]>
   paths[Path][Method] extends { requestBody: { content: { "application/json": infer Body } } }
     ? Body : never;
 type SessionCreateBody = JsonRequestBody<"/auth/session", "post">;
-type LocalePreferenceBody = { locale: "bs-BA" | "en" };
+type LocalePreferenceBody = { locale: "bs-BA" | "en" | null };
 type OrganizationLocaleBody = { defaultLocale: "bs-BA" | "en" };
 type ReservationReleaseBody = JsonRequestBody<"/bookings/{bookingId}/reservations/release", "post">;
 type EventChangeBody = JsonRequestBody<"/events/{eventId}/change-requests", "post">;
@@ -179,7 +179,7 @@ const publicBookingInquiryHeaders = {
   },
   additionalProperties: true,
 } as const;
-const localePreferenceBody = { type: "object", required: ["locale"], properties: { locale: { type: "string", enum: ["bs-BA","en"] } }, additionalProperties: false } as const;
+const localePreferenceBody = { type: "object", required: ["locale"], properties: { locale: { type: ["string","null"], enum: ["bs-BA","en",null] } }, additionalProperties: false } as const;
 const organizationLocaleBody = { type: "object", required: ["defaultLocale"], properties: { defaultLocale: { type: "string", enum: ["bs-BA","en"] } }, additionalProperties: false } as const;
 const publicBookingInquiryBody = {
   type: "object",
