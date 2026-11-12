@@ -77,17 +77,24 @@ async function loadForm(): Promise<void> {
 
 async function submitInquiry(): Promise<void> {
   if (!form.value || submitting.value) return;
-  const missingChoice = form.value.fieldSchema.fields.find(field => {
+  const invalidChoice = form.value.fieldSchema.fields.find(field => {
     if (field.type !== "multiselect") return false;
+    const count = selectedValues(field.code).length;
     const minimum = Math.max(field.required ? 1 : 0, field.minItems ?? 0);
-    return selectedValues(field.code).length < minimum;
+    return count < minimum || (field.maxItems !== undefined && count > field.maxItems);
   });
-  if (missingChoice) {
-    const minimum = Math.max(missingChoice.required ? 1 : 0, missingChoice.minItems ?? 0);
-    error.value = t("publicBookingForm.selectMinimum", {
-      field: missingChoice.label || missingChoice.code,
-      count: minimum,
-    });
+  if (invalidChoice) {
+    const count = selectedValues(invalidChoice.code).length;
+    const minimum = Math.max(invalidChoice.required ? 1 : 0, invalidChoice.minItems ?? 0);
+    error.value = count < minimum
+      ? t("publicBookingForm.selectMinimum", {
+          field: invalidChoice.label || invalidChoice.code,
+          count: minimum,
+        })
+      : t("publicBookingForm.selectMaximum", {
+          field: invalidChoice.label || invalidChoice.code,
+          count: invalidChoice.maxItems ?? 0,
+        });
     return;
   }
   submitting.value = true;
