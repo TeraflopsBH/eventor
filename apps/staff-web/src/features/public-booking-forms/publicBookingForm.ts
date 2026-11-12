@@ -218,3 +218,14 @@ export function validatePublicBookingAnswers(
   }
   return null;
 }
+
+/** Normalize known schema fields while retaining unknown historical answer keys. */
+export function mergePublicBookingAnswers(
+  fields: readonly PublicBookingFormField[],
+  answers: Readonly<Record<string, unknown>>,
+): Record<string, unknown> {
+  return {
+    ...answers,
+    ...normalizePublicBookingAnswers(fields, answers),
+  };
+}
