@@ -25,6 +25,7 @@ DECLARE
     'eogp.get_booking_approval_policies(uuid,uuid)',
     'eogp.create_booking_approval_policy(uuid,uuid,text,text)',
     'eogp.create_booking_approval_policy_revision(uuid,uuid,uuid,jsonb)',
+    'eogp.update_booking_approval_policy_draft_revision(uuid,uuid,uuid,uuid,jsonb)',
     'eogp.publish_booking_approval_policy_revision(uuid,uuid,uuid,uuid)'
   ];
 BEGIN
