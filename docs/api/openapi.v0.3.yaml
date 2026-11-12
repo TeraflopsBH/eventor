@@ -722,7 +722,7 @@ paths:
       tags: ["Booking Administration"]
       operationId: createBookingApprovalPolicyRevision
       summary: "Append a draft revision to an approval policy"
-      description: "Requires booking.manage. Rules are validated by the database command and the new revision is created as a draft. It does not mutate existing revisions or change requirements already pinned to existing offers."
+      description: "Requires booking.manage. Rules are validated by the database command and a new revision is created as a draft. A new successor can only be created after the previous latest draft is published. Existing offer snapshots are not changed."
       security: [{ StaffSession: [], StaffCsrf: [] }]
       parameters:
         - $ref: '#/components/parameters/PBookingApprovalPolicyId'
@@ -735,6 +735,35 @@ paths:
       responses:
         '201':
           description: "Draft approval policy revision created."
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/DataEnvelope' }
+        '400': { $ref: '#/components/responses/BadRequest' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '404': { $ref: '#/components/responses/NotFound' }
+        '409': { $ref: '#/components/responses/Conflict' }
+        '422': { $ref: '#/components/responses/UnprocessableEntity' }
+        '500': { $ref: '#/components/responses/InternalServerError' }
+  "/booking-approval-policies/{policyId}/revisions/{revisionId}":
+    put:
+      tags: ["Booking Administration"]
+      operationId: updateBookingApprovalPolicyDraftRevision
+      summary: "Update the latest draft approval policy revision"
+      description: "Requires booking.manage. Only the latest draft revision may be updated. Publication makes the revision immutable; updating an older or published revision is rejected."
+      security: [{ StaffSession: [], StaffCsrf: [] }]
+      parameters:
+        - $ref: '#/components/parameters/PBookingApprovalPolicyId'
+        - $ref: '#/components/parameters/PBookingApprovalPolicyRevisionId'
+        - $ref: '#/components/parameters/IdempotencyKey'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/BookingApprovalPolicyRevisionRequest' }
+      responses:
+        '201':
+          description: "Draft approval policy revision updated."
           content:
             application/json:
               schema: { $ref: '#/components/schemas/DataEnvelope' }
