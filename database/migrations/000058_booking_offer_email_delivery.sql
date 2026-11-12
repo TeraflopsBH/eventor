@@ -232,7 +232,8 @@ CREATE FUNCTION eogp.claim_booking_offer_email_delivery(
   delivery_id uuid,offer_id uuid,offer_revision_id uuid,
   capability_ciphertext bytea,recipient_ciphertext bytea,
   credentials_ciphertext bytea,smtp_settings jsonb,
-  sender_email text,sender_name text,reply_to text
+  sender_email text,sender_name text,reply_to text,
+  valid_until timestamptz,currency text,total_amount numeric
 )
 LANGUAGE plpgsql
 SECURITY DEFINER
@@ -291,8 +292,11 @@ BEGIN
          v_delivery.capability_ciphertext,v_delivery.recipient_ciphertext,
          config.credentials_ciphertext,config.settings,
          config.settings->>'senderEmail',config.settings->>'senderName',
-         config.settings->>'replyTo'
+         config.settings->>'replyTo',revision.valid_until,revision.currency,revision.total_amount
     FROM eogp.organization_delivery_config_revisions config
+    JOIN eogp.booking_offer_revisions revision
+      ON revision.organization_id=v_delivery.organization_id
+     AND revision.id=v_delivery.offer_revision_id
    WHERE config.organization_id=p_organization_id
      AND config.id=v_delivery.delivery_config_revision_id;
 END;
