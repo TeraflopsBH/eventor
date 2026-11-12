@@ -1,4 +1,4 @@
-import type { BookingInquiryAssignee, BookingInquiryDetail } from "../../api";
+import type { BookingInquiryAssignee } from "../../api";
 import type { SupportedLocale } from "../../i18n";
 
 export function formatInquiryAnswer(
