@@ -1,5 +1,6 @@
 import { computed, ref, type ComputedRef, type Ref } from "vue";
 import { ApiError, api, type BookingDraftDetail } from "../../api";
+import { formatBookingAnswerItems } from "../booking-inquiries/presentation";
 
 type BookingDraftApi = typeof api;
 
@@ -37,6 +38,11 @@ export function useBookingDraft(dependencies: BookingDraftDependencies) {
   const requestedEnd = ref("");
   const timezone = ref("Europe/Sarajevo");
   const changeReason = ref("");
+
+  const sourceAnswerItems = computed(() => {
+    const revision = detail.value?.currentRevision;
+    return formatBookingAnswerItems(revision?.fieldSchema, revision?.values?.answers);
+  });
 
   const canManage = computed(() =>
     canManageDraftPermission.value &&
@@ -184,6 +190,7 @@ export function useBookingDraft(dependencies: BookingDraftDependencies) {
 
   return {
     detail,
+    sourceAnswerItems,
     editorOpen,
     valuesJson,
     spaceLinesJson,
