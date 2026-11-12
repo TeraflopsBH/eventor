@@ -191,6 +191,21 @@ const bookingDraftState = useBookingDraft({
 });
 resetBookingDraftState = bookingDraftState.reset;
 
+
+const {
+  detail: bookingDraftDetail,
+  editorOpen: bookingDraftEditorOpen,
+  valuesJson: bookingDraftValuesJson,
+  spaceLinesJson: bookingDraftSpaceLinesJson,
+  resourceLinesJson: bookingDraftResourceLinesJson,
+  requestedStart: bookingDraftRequestedStart,
+  requestedEnd: bookingDraftRequestedEnd,
+  timezone: bookingDraftTimezone,
+  changeReason: bookingDraftChangeReason,
+  canManage: canManageBookingDraft,
+  refresh: refreshBookingDraft,
+  saveRevision: saveBookingDraftRevision,
+} = bookingDraftState;
 const bookingOfferState = useBookingOffers({
   api, busy, pageError, pageNotice, principal, bookingDraftDetail,
   clearMessages, showError, refreshBookingDraft, refreshInquiryDetail: refreshInquiryDetailData,
@@ -210,20 +225,6 @@ const {
   copyBookingOfferCapability, canDecideBookingOfferRequirement, decideBookingOfferApproval,
   confirmBookingFromAcceptedOffer,
 } = bookingOfferState;
-const {
-  detail: bookingDraftDetail,
-  editorOpen: bookingDraftEditorOpen,
-  valuesJson: bookingDraftValuesJson,
-  spaceLinesJson: bookingDraftSpaceLinesJson,
-  resourceLinesJson: bookingDraftResourceLinesJson,
-  requestedStart: bookingDraftRequestedStart,
-  requestedEnd: bookingDraftRequestedEnd,
-  timezone: bookingDraftTimezone,
-  changeReason: bookingDraftChangeReason,
-  canManage: canManageBookingDraft,
-  refresh: refreshBookingDraft,
-  saveRevision: saveBookingDraftRevision,
-} = bookingDraftState;
 
 function showError(error: unknown): void {
   if (error instanceof ApiError) {
