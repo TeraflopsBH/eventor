@@ -19,7 +19,8 @@ This package contains the first deployable command API and a separate tenant-awa
 - `POST /booking-draft-revisions/{revisionId}/offers` — prepare a commercial offer from the exact current immutable draft revision; line prices come from a pinned published price list, and cancellation/approval policy revisions are pinned.
 - `POST /booking-offers/{offerId}/revisions` — create an immutable successor offer revision; superseding a prepared/issued revision requires an explicit flag and reason.
 - `GET /booking-offers/{offerId}` — read the permission-checked staff offer projection and revision/decision history.
-- `POST /booking-offers/{offerId}/issue` — explicitly issue the latest prepared revision. A one-use customer capability is deterministically derived from the dedicated `EVENTOR_BOOKING_CAPABILITY_KEY`; only its SHA-256 hash is stored, and the raw token is returned once (or deterministically re-derived on an idempotent replay).
+- `POST /booking-offers/{offerId}/issue` — explicitly issue the latest prepared revision. A one-use customer capability is deterministically derived from the dedicated `EVENTOR_BOOKING_CAPABILITY_KEY`; only its SHA-256 hash is stored, and the raw token is returned to staff once (or deterministically re-derived on an idempotent replay).
+- `POST /booking-offers/{offerId}/email` — explicitly queue the issued offer to the encrypted email address on its source inquiry. Requires the active customer capability returned by issue; uses the organisation's tested SMTP configuration and a separate idempotency key.
 - `GET /public/booking-offers/{offerId}` — read only the customer-visible terms using `X-External-Booking-Token`; does not consume the capability.
 - The staff-web customer page is served at `/offers/{offerId}#token={capability}`. The capability is kept in the URL fragment and sent only in the `X-External-Booking-Token` header; the page uses `no-referrer` and `noindex` metadata. Static hosting must route `/offers/*` to the SPA entry point.
 - `POST /booking-offers/{offerId}/accept` and `POST /booking-offers/{offerId}/reject` — customer decisions against the exact issued offer revision. Capabilities are single-use; decision payloads and customer-provided names/notes are encrypted and idempotent replay is supported.
@@ -82,7 +83,7 @@ Approval policy revisions contain JSON rules. Supported condition kinds are `alw
 
 Final confirmation is a separate staff command requiring `booking.confirm`, customer acceptance evidence, the exact current draft/offer revision and all pinned approvals. It preflights each required space/resource hold, creates the booking and immutable customer/price/cancellation snapshots, then calls the existing reservation conversion command in the same transaction. The database serializes capacity/overlap checks at conversion. A missing, expired or conflicting hold rolls back the booking row, snapshots, history and all reservation changes. A confirmed booking is idempotently returned on retry.
 
-The API/database and staff-web offer/approval/confirmation and approval-policy management surfaces are implemented. The staff-web SPA also serves a capability-protected customer offer page at `/offers/{offerId}`; it loads the public projection and records customer acceptance/rejection. Production use still needs offer email delivery through the configured SMTP transport and PostgreSQL functional/concurrency fixtures for the full commercial workflow. The schema smoke test checks installation/RLS/grants; it does not replace those end-to-end tests. Price-list, cancellation-policy and tax configuration management screens also remain outstanding; current offer preparation requires administrators to supply existing published revision IDs and item codes.
+The API/database and staff-web offer/approval/confirmation and approval-policy management surfaces are implemented. The staff-web SPA also serves a capability-protected customer offer page at `/offers/{offerId}`; it loads the public projection and records customer acceptance/rejection. Staff can explicitly queue an issued offer email to the source inquiry address. The worker sends it through the pinned, tested organisation SMTP revision; the encrypted capability is decrypted only in the worker and placed in the URL fragment. Temporary SMTP connection/time-out/4xx failures are retried up to five attempts; ambiguous submission is marked `uncertain` and is never automatically resent. SMTP acceptance is recorded as `sent`, not proof of inbox delivery. Offer email jobs do not currently use Resend delivery callbacks. PostgreSQL functional/concurrency fixtures for the full commercial workflow remain outstanding. The schema smoke test checks installation/RLS/grants; it does not replace those end-to-end tests. Price-list, cancellation-policy and tax configuration management screens also remain outstanding; current offer preparation requires administrators to supply existing published revision IDs and item codes.
 
 ## Organization-owned SMTP
 
@@ -149,7 +150,7 @@ The API uses two independent database pools:
 - `eventor_runtime` for tenant-scoped application commands.
 - `eventor_auth` for global identity lookup, password-hash verification, login throttling and opaque session storage.
 
-The notification worker connects separately as `eventor_worker`. Do not run API or worker processes with migration/owner credentials. The worker can discover only tenant IDs and can read SMTP/contact ciphertext only through narrowly scoped delivery functions; it cannot directly select delivery configuration tables. It also polls a tenant-ID-only expiry queue and expires due issued booking offers in tenant-scoped batches. The queue is refreshed by offer/revision triggers; expiry appends system decision history and audit records and revokes every outstanding capability for the expired revision.
+The notification worker connects separately as `eventor_worker`. Do not run API or worker processes with migration/owner credentials. The worker can discover only tenant IDs and can read SMTP/contact ciphertext only through narrowly scoped delivery functions; it cannot directly select delivery configuration tables. It polls separate tenant-ID-only queues for campaign email, booking offer email and offer expiry. Offer email claims return only the exact issued revision, encrypted destination/capability, and pinned SMTP configuration; worker completion records audited outcomes and retry state.
 
 Configure separate, cryptographically random 32-byte keys, base64-encoded in deployment secrets:
 
@@ -160,7 +161,7 @@ Configure separate, cryptographically random 32-byte keys, base64-encoded in dep
 - `EVENTOR_PUBLIC_INQUIRY_FINGERPRINT_KEY`
 - `EVENTOR_BOOKING_CAPABILITY_KEY`
 
-Never reuse one key for another purpose. The API requires all six keys; the notification worker requires the contact-encryption and delivery-credential keys. The public inquiry API uses the contact key for tenant-bound ECP1 encryption and its dedicated public-inquiry fingerprint key for source/idempotency fingerprints. Keep `EVENTOR_BOOKING_CAPABILITY_KEY` stable while any issued customer offer links remain valid; rotating it invalidates those links and prevents deterministic capability re-derivation for an issue idempotency replay. Rotate only after outstanding capabilities have expired/revoked or after an explicit re-issue plan. Key rotation for encryption keys requires an explicit re-encryption procedure. Replacing an encryption key alone makes existing ciphertext unreadable.
+Never reuse one key for another purpose. The API requires all six keys; the notification worker requires the contact-encryption and delivery-credential keys. Set `EVENTOR_PUBLIC_APP_BASE_URL` on the worker to the externally reachable HTTPS staff-web origin (including any application path prefix) before enabling offer email delivery; without it, offer email jobs remain queued. The public inquiry API uses the contact key for tenant-bound ECP1 encryption and its dedicated public-inquiry fingerprint key for source/idempotency fingerprints. Keep `EVENTOR_BOOKING_CAPABILITY_KEY` stable while any issued customer offer links remain valid; rotating it invalidates those links and prevents deterministic capability re-derivation for an issue idempotency replay. Rotate only after outstanding capabilities have expired/revoked or after an explicit re-issue plan. Key rotation for encryption keys requires an explicit re-encryption procedure. Replacing an encryption key alone makes existing ciphertext unreadable.
 
 Both database connection URLs should use TLS with certificate and hostname verification in production (for example, PostgreSQL `sslmode=verify-full` with a trusted CA). Configure database passwords outside this repository.
 
@@ -203,7 +204,7 @@ npm run build
 npm run start:worker
 ```
 
-The API requires `EVENTOR_RUNTIME_DATABASE_URL`, `EVENTOR_AUTH_DATABASE_URL`, `EVENTOR_ALLOWED_ORIGINS`, `EVENTOR_AUTH_FINGERPRINT_KEY`, `EVENTOR_FIELD_ENCRYPTION_KEY`, `EVENTOR_CONTACT_ENCRYPTION_KEY`, `EVENTOR_DELIVERY_CREDENTIALS_KEY`, `EVENTOR_PUBLIC_INQUIRY_FINGERPRINT_KEY` and `EVENTOR_BOOKING_CAPABILITY_KEY`. The worker requires `EVENTOR_WORKER_DATABASE_URL`, `EVENTOR_CONTACT_ENCRYPTION_KEY` and `EVENTOR_DELIVERY_CREDENTIALS_KEY`.
+The API requires `EVENTOR_RUNTIME_DATABASE_URL`, `EVENTOR_AUTH_DATABASE_URL`, `EVENTOR_ALLOWED_ORIGINS`, `EVENTOR_AUTH_FINGERPRINT_KEY`, `EVENTOR_FIELD_ENCRYPTION_KEY`, `EVENTOR_CONTACT_ENCRYPTION_KEY`, `EVENTOR_DELIVERY_CREDENTIALS_KEY`, `EVENTOR_PUBLIC_INQUIRY_FINGERPRINT_KEY` and `EVENTOR_BOOKING_CAPABILITY_KEY`. The worker requires `EVENTOR_WORKER_DATABASE_URL`, `EVENTOR_CONTACT_ENCRYPTION_KEY` and `EVENTOR_DELIVERY_CREDENTIALS_KEY`. Offer email delivery additionally requires the worker-only `EVENTOR_PUBLIC_APP_BASE_URL`.
 
 ## Tests
 
@@ -218,9 +219,7 @@ CI regenerates OpenAPI TypeScript declarations, runs strict TypeScript compilati
 
 ## Remaining integration work
 
-- Add offer email delivery through the organization's configured SMTP transport and a customer-facing browser page that consumes the public review API; no offer email is automatically sent by the issue command.
 - Add price-list, cancellation-policy and tax configuration workspaces. Current offer preparation uses explicit published revision UUIDs and price-list item codes; no GHB pricing, cancellation terms or tax rates are hardcoded.
-- Add a background expiry sweep for offers whose validity deadline passes without a customer action; a late accept/reject request does persist the terminal expired state.
 - Add PostgreSQL end-to-end fixtures for offer/approval/confirmation, including forced overlap/capacity failures and concurrent confirmation; current added smoke coverage verifies installation, RLS, function grants and API route behavior.
 - Expand the staff UI to the remaining event, booking, venue and guest workflows.
 - Implement an SMS provider adapter only when a concrete provider is selected; keep it optional and tenant-configurable.
