@@ -17,6 +17,7 @@ DECLARE
     'eogp.issue_booking_offer(uuid,uuid,uuid,text)',
     'eogp.get_booking_offer(uuid,uuid,uuid)',
     'eogp.resolve_booking_offer_capability(uuid,text)',
+    'eogp.get_public_booking_offer_with_capability(uuid,text)',
     'eogp.decide_booking_offer_with_capability(uuid,text,text,text,text,bytea,bytea,text,bytea)',
     'eogp.decide_booking_offer_approval(uuid,uuid,uuid,uuid,text,text,text)',
     'eogp.get_booking_offer_approval_status(uuid,uuid,uuid)',
@@ -74,6 +75,18 @@ BEGIN
       AND NOT t.tgisinternal
   ) THEN
     RAISE EXCEPTION 'pinned approval-requirement evaluation trigger is missing';
+  END IF;
+
+  IF NOT EXISTS (
+    SELECT 1 FROM pg_catalog.pg_trigger t
+    JOIN pg_catalog.pg_class r ON r.oid=t.tgrelid
+    JOIN pg_catalog.pg_namespace n ON n.oid=r.relnamespace
+    WHERE n.nspname='eogp'
+      AND r.relname='booking_offer_revisions'
+      AND t.tgname='booking_offer_revision_terminal_capability_revoke'
+      AND NOT t.tgisinternal
+  ) THEN
+    RAISE EXCEPTION 'terminal offer transition capability-revoke trigger is missing';
   END IF;
 
   IF to_regprocedure('eogp.digest(bytea,text)') IS NULL THEN
