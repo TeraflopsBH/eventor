@@ -241,3 +241,6 @@ The booking inquiry and commercial booking workspaces now use feature-scoped `bo
 
 
 The public customer booking-offer page now uses the `publicOffer` English/Bosnian catalogue and provides an explicit language choice. Date and number formatting follow that selected locale. Customer-entered names/notes, organization-authored cancellation terms, currency codes, tax basis values and API/domain values remain unchanged.
+
+
+Booking inquiry, draft and offer composables now receive the active locale translator from the application composition layer. Inquiry assignment/status/conversion/annotation confirmations and feedback, draft JSON/revision validation and notices, and offer preparation/issuance/email reconciliation/retry/approval/booking confirmation messages are localized through the `bookingInquiry` and `commercialBooking` catalogues. Workflow commands, domain enum values, API payloads, idempotency, immutable revision behavior and server-enforced availability/authorization remain unchanged. Server-originated API error messages are still displayed as returned; this change localizes client-owned workflow messages.
