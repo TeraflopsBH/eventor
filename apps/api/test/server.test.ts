@@ -1360,6 +1360,7 @@ test("staff inquiry inbox decrypts authorized projections and routes assignment,
   assert.equal(offerEmailHistory.json<{ data: Array<{ status: string }>; meta: { totalCount: number; counts: Record<string, number> } }>().data[0]?.status, "uncertain");
   assert.equal(offerEmailHistory.json<{ meta: { totalCount: number; counts: Record<string, number> } }>().meta.totalCount, 1);
   assert.equal(mock.bookingOfferEmailListCalls, 1);
+  assert.doesNotMatch(JSON.stringify(offerEmailHistory.json()), /customer@example\.test|ciphertext|acceptanceToken/);
 
   const offerEmailReconciled = await app.inject({
     method: "POST",
@@ -1369,6 +1370,14 @@ test("staff inquiry inbox decrypts authorized projections and routes assignment,
   });
   assert.equal(offerEmailReconciled.statusCode, 201);
   assert.equal(offerEmailReconciled.json<{ data: { status: string } }>().data.status, "failed");
+  assert.equal(mock.bookingOfferEmailReconcileCalls, 1);
+  const offerEmailReconcileReplay = await app.inject({
+    method: "POST",
+    url: "/booking-offer-email-deliveries/21212121-2121-4121-8121-212121212121/reconcile",
+    headers: { "idempotency-key": "reconcile-booking-offer-email-0001" },
+    payload: { resolution: "confirmed_not_sent", reason: "Checked the SMTP server queue logs." },
+  });
+  assert.equal(offerEmailReconcileReplay.statusCode, 201);
   assert.equal(mock.bookingOfferEmailReconcileCalls, 1);
 
   const offerEmailRetry = await app.inject({
@@ -1380,6 +1389,14 @@ test("staff inquiry inbox decrypts authorized projections and routes assignment,
   assert.equal(offerEmailRetry.statusCode, 201);
   assert.equal(offerEmailRetry.json<{ data: { status: string; manualRetryCount: number } }>().data.status, "queued");
   assert.equal(offerEmailRetry.json<{ data: { manualRetryCount: number } }>().data.manualRetryCount, 1);
+  assert.equal(mock.bookingOfferEmailRetryCalls, 1);
+  const offerEmailRetryReplay = await app.inject({
+    method: "POST",
+    url: "/booking-offer-email-deliveries/21212121-2121-4121-8121-212121212121/retry",
+    headers: { "idempotency-key": "retry-booking-offer-email-0001" },
+    payload: { reason: "Verified non-acceptance; SMTP configuration is now corrected." },
+  });
+  assert.equal(offerEmailRetryReplay.statusCode, 201);
   assert.equal(mock.bookingOfferEmailRetryCalls, 1);
 
   const successorOffer = await app.inject({
