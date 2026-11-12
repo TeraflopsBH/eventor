@@ -41,7 +41,7 @@ function idempotencyKey(): string {
 async function request<T>(
   path: string,
   options: {
-    method?: "GET" | "POST" | "DELETE";
+    method?: "GET" | "POST" | "PUT" | "DELETE";
     body?: unknown;
     idempotent?: boolean;
     idempotencyKey?: string;
@@ -598,6 +598,15 @@ export const api = {
     request<Envelope<BookingApprovalPolicyMutationResult>>(
       `/booking-approval-policies/${encodeURIComponent(policyId)}/revisions`,
       { method: "POST", body: { rules }, idempotent: true },
+    ),
+  updateBookingApprovalPolicyDraftRevision: (
+    policyId: string,
+    revisionId: string,
+    rules: BookingApprovalRule[],
+  ) =>
+    request<Envelope<BookingApprovalPolicyMutationResult>>(
+      `/booking-approval-policies/${encodeURIComponent(policyId)}/revisions/${encodeURIComponent(revisionId)}`,
+      { method: "PUT", body: { rules }, idempotent: true },
     ),
   publishBookingApprovalPolicyRevision: (policyId: string, revisionId: string) =>
     request<Envelope<BookingApprovalPolicyMutationResult>>(
