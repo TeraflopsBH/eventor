@@ -32,14 +32,14 @@ For percentage treatments, the calculation uses each priced offer line's pinned 
 - Exclusive basis: tax = taxable amount × rate / 100.
 - Inclusive basis: included tax = gross amount × rate / (100 + rate).
 - Zero-rated, exempt and out-of-scope treatments contribute zero, while remaining distinct in the line-level calculation snapshot.
-- The configured rounding method is applied as per-line, grouped by tax code, or once at invoice total, using the configured 0–4 decimal scale.
+- The configured rounding method is applied as per-line, grouped by tax code, or once at invoice total, using the configured 0–4 decimal scale. The snapshot includes line-level unrounded/rounded amounts where applicable and grouped tax-code amounts for per-tax-code/invoice-total methods.
 - A not-applicable profile produces zero tax and a recorded calculation method.
 
 The offer's terms_snapshot now stores the calculation result, including the exact profile revision ID, currency/basis, rounding settings, calculation method, unrounded aggregate and line classifications. The offer revision's tax and total amount columns preserve four decimal places. Confirmed booking snapshots already hash and retain the complete offer terms snapshot.
 
 ### Explicit manual boundaries
 
-A tax code configured as manual requires a positive invoice-level tax amount. Any positive manually supplied tax amount continues to require an internal reason and booking.approve; it is recorded as a manual override in the calculation snapshot. This supports exceptional cases without pretending the platform knows the legal calculation.
+A tax code configured as manual requires a positive invoice-level tax amount. Any positive manually supplied tax amount continues to require an internal reason and booking.approve; it is recorded as a manual override in the calculation snapshot. Manual overrides are invoice-level and are not allocated across individual lines or tax codes. This supports exceptional cases without pretending the platform knows the legal calculation.
 
 Price adjustments (fees, discounts and credits) do not yet carry tax classifications. When a tax profile is selected, an offer containing adjustments cannot use automatic calculation with a zero tax amount; staff must supply an audited invoice-level override. This prevents silently calculating tax on an incomplete taxable base. Per-adjustment tax classification/allocation is a separate follow-up.
 
