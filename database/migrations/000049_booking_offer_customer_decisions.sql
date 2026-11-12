@@ -174,25 +174,6 @@ BEGIN
   END IF;
 
   IF v_revision.valid_until IS NOT NULL AND v_revision.valid_until <= v_now THEN
-    UPDATE eogp.booking_offer_revisions
-       SET state = 'expired'
-     WHERE organization_id = v_capability.organization_id
-       AND id = v_revision.id;
-    UPDATE eogp.booking_offers
-       SET status = 'expired'
-     WHERE organization_id = v_capability.organization_id
-       AND id = p_offer_id;
-    UPDATE eogp.external_action_capabilities
-       SET use_count = use_count + 1,
-           revoked_at = v_now
-     WHERE organization_id = v_capability.organization_id
-       AND id = v_capability.id;
-    INSERT INTO eogp.booking_offer_decision_history (
-      organization_id,offer_id,offer_revision_id,decision,actor_kind,external_capability_id,reason_code
-    ) VALUES (
-      v_capability.organization_id,p_offer_id,v_revision.id,'expired',
-      'system',NULL,'offer_expired_on_customer_decision'
-    );
     RAISE EXCEPTION 'booking offer has expired'
       USING ERRCODE = '55000';
   END IF;
