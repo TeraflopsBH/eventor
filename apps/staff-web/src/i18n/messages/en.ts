@@ -93,6 +93,7 @@ export default {
     remove: "Remove",
     removeField: "Remove field",
     translations: "Translations",
+    translationNameRequired: "Enter a translated form name before saving translated content.",
     translationHelp: "Translate the form name and every authored field label, description, hint, placeholder and option label.",
     translatedFormName: "Translated form name",
     description: "Description",
