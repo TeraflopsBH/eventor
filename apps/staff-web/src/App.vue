@@ -25,6 +25,8 @@ import { useEmailDelivery } from "./features/email-delivery/useEmailDelivery";
 import EmailDeliveryView from "./features/email-delivery/EmailDeliveryView.vue";
 import CommercialBookingWorkspaceView from "./features/booking-drafts/CommercialBookingWorkspaceView.vue";
 import { api } from "./api";
+import { useBookingForms } from "./features/booking-forms/useBookingForms";
+import BookingFormsView from "./features/booking-forms/BookingFormsView.vue";
 
 const { locale, t } = useI18n();
 const translate = (key: string, params?: Record<string, string | number>): string => t(key as never, params as never);
@@ -36,7 +38,7 @@ const localeOptions: Array<{ value: SupportedLocale; label: string }> = [
 
 const isPublicOfferPage = /^\/offers\/[0-9a-fA-F-]{36}\/?$/.test(window.location.pathname);
 const isPublicBookingFormPage = /^\/book\/[A-Za-z0-9][A-Za-z0-9-]{1,79}\/[A-Za-z0-9][A-Za-z0-9_-]{1,79}\/?$/.test(window.location.pathname);
-const activeTab = ref<"delivery" | "campaign" | "inquiries" | "approvals" | "prices" | "cancellations" | "taxes" | "settings">("delivery");
+const activeTab = ref<"delivery" | "campaign" | "inquiries" | "approvals" | "prices" | "cancellations" | "taxes" | "forms" | "settings">("delivery");
 const busy = ref(false);
 const pageError = ref("");
 const pageNotice = ref("");
@@ -119,6 +121,8 @@ const bookingApprovalPolicyState = useBookingApprovalPolicies({
   api, busy, pageError, pageNotice, activeTab, clearMessages, showError, translate,
 });
 
+
+const bookingFormState = useBookingForms({ api, busy, pageError, pageNotice, clearMessages, showError, translate });
 
 const bookingCancellationPolicyState = useBookingCancellationPolicies({
   api, busy, pageError, pageNotice, activeTab, clearMessages, showError, translate,
@@ -209,6 +213,8 @@ onMounted(() => {
         </template>
       </BookingInquiryView>
 
+
+      <BookingFormsView v-else-if="activeTab === 'forms'" :workspace="{ ...bookingFormState, busy }" />
 
       <BookingPriceListsView v-else-if="activeTab === 'prices'" :workspace="{ ...bookingPriceListState, busy }" />
 
