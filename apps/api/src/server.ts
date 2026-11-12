@@ -1434,6 +1434,62 @@ export function buildApi(dependencies: ApiDependencies): FastifyInstance {
   );
 
 
+
+  server.get<{ Params: { offerId: string } }>(
+    "/booking-offers/:offerId/approvals",
+    { schema: { params: bookingOfferParams } },
+    async (request, reply) => {
+      const principal = request.staffPrincipal!;
+      const client = await dependencies.pool.connect();
+      try {
+        await client.query("BEGIN");
+        await client.query("SELECT set_config('app.organization_id',$1,true)", [principal.organizationId]);
+        const result = await client.query<ResultRow>(
+          "SELECT eogp.get_booking_offer_approval_status($1::uuid,$2::uuid,$3::uuid) AS result",
+          [principal.organizationId, request.params.offerId, principal.membershipId],
+        );
+        await client.query("COMMIT");
+        return reply.code(200).send({ data: result.rows[0]?.result ?? null });
+      } catch (error) {
+        try { await client.query("ROLLBACK"); } catch { /* preserve the read error */ }
+        throw databaseError(error);
+      } finally {
+        client.release();
+      }
+    },
+  );
+
+  server.post<{
+    Params: { offerId: string };
+    Body: { offerRevisionId: string; ruleCode: string; decision: "approved" | "rejected" | "returned_for_changes"; reason: string };
+  }>(
+    "/booking-offers/:offerId/approvals",
+    {
+      schema: {
+        params: bookingOfferParams,
+        headers: idempotencyHeaders,
+        body: bookingOfferApprovalBody,
+      },
+    },
+    async (request, reply) => {
+      const principal = request.staffPrincipal!;
+      return withCommand(
+        request, reply, "decideBookingOfferApproval",
+        { offerId: request.params.offerId, ...request.body },
+        async (client) => {
+          const result = await client.query<ResultRow>(
+            "SELECT eogp.decide_booking_offer_approval($1::uuid,$2::uuid,$3::uuid,$4::uuid,$5::text,$6::text,$7::text) AS result",
+            [
+              principal.organizationId, request.params.offerId, request.body.offerRevisionId,
+              principal.membershipId, request.body.ruleCode, request.body.decision, request.body.reason,
+            ],
+          );
+          return result.rows[0]?.result as Record<string, unknown>;
+        },
+      );
+    },
+  );
+
   const submitPublicOfferDecision = async (
     request: FastifyRequest,
     reply: FastifyReply,
