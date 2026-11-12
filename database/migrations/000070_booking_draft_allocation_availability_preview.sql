@@ -74,7 +74,7 @@ BEGIN
            AND block.ends_at > (proposed.line->>'startsAt')::timestamptz
            AND (
              block.status IN ('confirmed','blocked')
-             OR (block.status = 'held' AND block.expires_at > clock_timestamp())
+             OR (block.status = 'held' AND block.expires_at > greatest(clock_timestamp(), (proposed.line->>'startsAt')::timestamptz))
            )
       ) conflicts ON true
   )
@@ -137,7 +137,7 @@ BEGIN
                     AND reservation.ends_at > p_resource_starts_at
                     AND (
                       reservation.status IN ('confirmed','blocked')
-                      OR (reservation.status = 'held' AND reservation.expires_at > clock_timestamp())
+                      OR (reservation.status = 'held' AND reservation.expires_at > greatest(clock_timestamp(), p_resource_starts_at))
                     )
                  UNION ALL
                  SELECT least(reservation.ends_at, p_resource_ends_at,
