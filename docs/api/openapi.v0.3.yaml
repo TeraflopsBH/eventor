@@ -6222,7 +6222,20 @@ components:
         currency: { type: string, pattern: '^[A-Z]{3}$' }
         taxBasis: { type: string, enum: [inclusive, exclusive, not_applicable, to_be_confirmed] }
         validUntil: { type: string, format: date-time }
-        adjustments: { type: array, items: { type: object, additionalProperties: true } }
+        adjustments:
+          type: array
+          description: "When a published tax profile is selected, each adjustment must explicitly declare allocationMethod. tax_code requires taxCode; proportional_to_lines omits taxCode and allocates across priced-line tax codes; not_applicable is required for a not_applicable profile. Without a selected profile, legacy adjustment payloads remain accepted."
+          items:
+            type: object
+            required: [code, label, kind, amount]
+            properties:
+              code: { type: string, minLength: 1, maxLength: 80 }
+              label: { type: string, minLength: 1, maxLength: 250 }
+              kind: { type: string, enum: [fee, discount, credit] }
+              amount: { type: number, exclusiveMinimum: 0, maximum: 999999999999.99 }
+              allocationMethod: { type: string, enum: [tax_code, proportional_to_lines, not_applicable] }
+              taxCode: { type: string, minLength: 1, maxLength: 80 }
+            additionalProperties: false
         internalReason: { type: string, maxLength: 2000 }
     OfferAcceptanceRequest:
       type: object
