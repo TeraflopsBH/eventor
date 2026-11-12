@@ -288,14 +288,14 @@ const { busy } = props.workspace;
                       </div>
                       <div v-for="result in bookingDraftAllocationAvailabilityPreview.resources" :key="'resource-preview-' + result.index" class="allocation-preview-result">
                         <strong>{{ t("commercialBooking.resource") }} {{ result.index }}</strong>
-                        <span v-if="!result.checked" class="pill pill-neutral">{{ t("commercialBooking.resourceIntervalNotChecked") }}</span>
+                        <span v-if="!result.checked" class="pill pill-neutral">{{ t("commercialBooking.availabilityReason." + (result.reason ?? "resource_interval_missing")) }}</span>
                         <span v-else :class="result.available ? 'pill pill-success' : 'pill pill-warning'">
                           {{ result.available ? t("commercialBooking.availabilityAvailable") : t("commercialBooking.availabilityConflict") }}
                         </span>
                         <p v-if="result.checked" class="fine-print">
                           {{ t("commercialBooking.resourceAvailabilityQuantity", { requested: result.totalRequestedQuantity, available: result.availableQuantity ?? 0 }) }}
                         </p>
-                        <p v-if="result.reason && result.reason !== 'resource_interval_missing'" class="fine-print">
+                        <p v-if="result.reason && result.reason !== 'resource_interval_missing' && result.reason !== 'resource_interval_invalid'" class="fine-print">
                           {{ t("commercialBooking.availabilityReason." + result.reason) }}
                         </p>
                       </div>
