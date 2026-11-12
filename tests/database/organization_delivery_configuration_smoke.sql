@@ -14,7 +14,44 @@ DECLARE
   v_queue jsonb;
   v_campaign_id uuid;
   v_queued integer;
+  v_locale_settings jsonb;
+  v_locale_update jsonb;
+  v_original_locale text;
+  v_target_locale text;
 BEGIN
+  v_locale_settings := eogp.get_organization_locale_settings(
+    '22222222-2222-4222-8222-222222222222',
+    'bbbbbbbb-2222-4222-8222-bbbbbbbbbbbb'
+  );
+  IF (v_locale_settings ->> 'canManage')::boolean IS DISTINCT FROM true THEN
+    RAISE EXCEPTION 'organization locale projection did not honor organization.manage permission: %',v_locale_settings;
+  END IF;
+  v_original_locale := v_locale_settings ->> 'defaultLocale';
+  v_target_locale := CASE WHEN v_original_locale='en' THEN 'bs-BA' ELSE 'en' END;
+  v_locale_update := eogp.set_organization_default_locale(
+    '22222222-2222-4222-8222-222222222222',
+    'bbbbbbbb-2222-4222-8222-bbbbbbbbbbbb',
+    v_target_locale
+  );
+  IF v_locale_update ->> 'defaultLocale' IS DISTINCT FROM v_target_locale THEN
+    RAISE EXCEPTION 'organization default locale update failed: %',v_locale_update;
+  END IF;
+  PERFORM eogp.set_organization_default_locale(
+    '22222222-2222-4222-8222-222222222222',
+    'bbbbbbbb-2222-4222-8222-bbbbbbbbbbbb',
+    v_original_locale
+  );
+  BEGIN
+    PERFORM eogp.set_organization_default_locale(
+      '22222222-2222-4222-8222-bbbbbbbbbbbb',
+      'bbbbbbbb-2222-4222-8222-bbbbbbbbbbbb',
+      'fr'
+    );
+    RAISE EXCEPTION 'unsupported organization locale should have been rejected';
+  EXCEPTION WHEN SQLSTATE '22023' THEN
+    NULL;
+  END;
+
   IF has_table_privilege(current_user, 'eogp.organization_delivery_config_revisions', 'SELECT')
      OR has_table_privilege(current_user, 'eogp.organization_delivery_config_revisions', 'INSERT')
      OR has_table_privilege(current_user, 'eogp.organization_delivery_config_heads', 'SELECT')
