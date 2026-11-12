@@ -15,6 +15,10 @@ const props = defineProps<{
 }>();
 const { formatDate, formatMoney } = useInquiryPresentation();
 const { t } = useI18n();
+const inquiryStatusLabel = (status: string): string => {
+  const keys: Record<string, string> = { received: "received", under_review: "underReview", converted: "converted", declined: "declined", withdrawn: "withdrawn", spam: "spam" };
+  return keys[status] ? t(`bookingInquiry.${keys[status]}`) : status.replaceAll("_", " ");
+};
 const commercialStatusLabel = (value: string): string => {
   const keys: Record<string, string> = {
     draft: "stateDraft", issued: "stateIssued", accepted: "stateAccepted", rejected: "stateRejected",
@@ -63,7 +67,7 @@ const { busy } = props.workspace;
               <div class="inquiry-card-heading">
                 <div>
                   <h4>Booking draft · {{ bookingDraftDetail.draftId.slice(0, 8) }}</h4>
-                  <p class="fine-print">Current revision {{ bookingDraftDetail.currentRevisionNumber }} · {{ bookingDraftDetail.status }}</p>
+                  <p class="fine-print">Current revision {{ bookingDraftDetail.currentRevisionNumber }} · {{ commercialStatusLabel(bookingDraftDetail.status) }}</p>
                 </div>
                 <button class="button button-quiet" type="button" :disabled="busy" @click="bookingDraftEditorOpen = false">{{ t('commercialBooking.close') }}</button>
               </div>
@@ -199,7 +203,7 @@ const { busy } = props.workspace;
 
                 <div class="offer-command-row">
                   <button v-if="bookingOffer.currentRevision.state === 'draft'" class="button button-secondary" type="button" :disabled="busy" @click="issueBookingOffer">{{ t('commercialBooking.issueToCustomer') }}</button>
-                  <span v-else class="pill pill-neutral">This revision is {{ bookingOffer.currentRevision.state }}</span>
+                  <span v-else class="pill pill-neutral">{{ t("commercialBooking.thisRevisionState", { state: commercialStatusLabel(bookingOffer.currentRevision.state) }) }}</span>
                   <button class="button button-quiet" type="button" :disabled="busy" @click="loadBookingOffer">{{ t('commercialBooking.refreshOffer') }}</button>
                 </div>
 
@@ -294,10 +298,10 @@ const { busy } = props.workspace;
                     <div class="inquiry-card-heading">
                       <div>
                         <strong>{{ requirement.ruleCode }}</strong>
-                        <p class="fine-print">{{ requirement.approvedCount }} / {{ requirement.requiredApprovals }} approvals · separation of duties {{ requirement.separationOfDuties ? "required" : "not required" }}</p>
+                        <p class="fine-print">{{ t("commercialBooking.approvalSummary", { approved: requirement.approvedCount, required: requirement.requiredApprovals, separation: requirement.separationOfDuties ? t("commercialBooking.required") : t("commercialBooking.notRequired") }) }}</p>
                       </div>
                       <span class="pill" :class="requirement.blocked ? 'pill-danger' : requirement.approvedCount >= requirement.requiredApprovals ? 'pill-success' : 'pill-warning'">
-                        {{ requirement.blocked ? "Blocked" : requirement.approvedCount >= requirement.requiredApprovals ? "Satisfied" : "Pending" }}
+                        {{ requirement.blocked ? t("commercialBooking.blocked") : requirement.approvedCount >= requirement.requiredApprovals ? t("commercialBooking.satisfied") : t("commercialBooking.pending") }}
                       </span>
                     </div>
                     <ol v-if="requirement.decisions.length" class="history-list">
@@ -336,7 +340,7 @@ const { busy } = props.workspace;
                   <h5>{{$t('commercialBooking.offerHistory')}}</h5>
                   <ol class="history-list">
                     <li v-for="history in bookingOffer.revisionHistory" :key="history.offerRevisionId">
-                      <strong>Offer revision {{ history.revisionNumber }} · {{ history.state }}</strong>
+                      <strong>Offer revision {{ history.revisionNumber }} · {{ commercialStatusLabel(history.state) }}</strong>
                       <span>Draft revision {{ history.draftRevisionId }}</span>
                       <small>{{ formatDate(history.createdAt) }} · issued {{ formatDate(history.issuedAt) }}</small>
                     </li>
