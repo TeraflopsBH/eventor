@@ -93,6 +93,10 @@ function makePool() {
   let bookingOfferApprovalDecisionCalls = 0;
   let bookingOfferApprovalStatusCalls = 0;
   let bookingConfirmationCalls = 0;
+  let bookingApprovalPolicyListCalls = 0;
+  let bookingApprovalPolicyCreateCalls = 0;
+  let bookingApprovalPolicyRevisionCalls = 0;
+  let bookingApprovalPolicyPublishCalls = 0;
   const customerOfferDecisionReplays = new Map<string, { requestHash: string; response: Record<string, unknown> }>();
   const deliveryTests = new Map<string, string>();
 
@@ -653,6 +657,54 @@ function makePool() {
         commandCalls.push({ sql: normalized, values });
         return { rows: [{ result: { accepted: true, duplicate: false, attemptId: "95000000-0000-4000-8000-000000000001", status: values[4] } }], rowCount: 1 };
       }
+      if (normalized.includes("eogp.get_booking_approval_policies(")) {
+        bookingApprovalPolicyListCalls += 1;
+        commandCalls.push({ sql: normalized, values });
+        return { rows: [{ result: [{
+          policyId: "27272727-2727-4727-8727-272727272727",
+          code: "venue_bookings",
+          name: "Venue booking approvals",
+          status: "active",
+          latestRevisionId: "28282828-2828-4828-8828-282828282828",
+          revisions: [{
+            revisionId: "28282828-2828-4828-8828-282828282828",
+            revisionNumber: 1,
+            state: "published",
+            rules: [],
+            publishedAt: "2026-11-12T12:00:00.000Z",
+            createdAt: "2026-11-12T11:00:00.000Z",
+          }],
+        }] }], rowCount: 1 };
+      }
+      if (normalized.includes("eogp.create_booking_approval_policy(")) {
+        bookingApprovalPolicyCreateCalls += 1;
+        commandCalls.push({ sql: normalized, values });
+        return { rows: [{ result: {
+          policyId: "27272727-2727-4727-8727-272727272727",
+          state: "active",
+        } }], rowCount: 1 };
+      }
+      if (normalized.includes("eogp.create_booking_approval_policy_revision(")) {
+        bookingApprovalPolicyRevisionCalls += 1;
+        commandCalls.push({ sql: normalized, values });
+        return { rows: [{ result: {
+          policyId: values[1],
+          revisionId: "28282828-2828-4828-8828-282828282828",
+          revisionNumber: 1,
+          state: "draft",
+        } }], rowCount: 1 };
+      }
+      if (normalized.includes("eogp.publish_booking_approval_policy_revision(")) {
+        bookingApprovalPolicyPublishCalls += 1;
+        commandCalls.push({ sql: normalized, values });
+        return { rows: [{ result: {
+          policyId: values[1],
+          revisionId: values[2],
+          revisionNumber: 1,
+          state: "published",
+          publishedAt: "2026-11-12T12:00:00.000Z",
+        } }], rowCount: 1 };
+      }
       if (normalized.includes("eogp.get_organization_email_delivery_config(")) {
         return { rows: [{ result: {
           channel: "email", provider: "smtp", revision: 2,
@@ -751,6 +803,10 @@ function makePool() {
     get bookingOfferApprovalDecisionCalls() { return bookingOfferApprovalDecisionCalls; },
     get bookingOfferApprovalStatusCalls() { return bookingOfferApprovalStatusCalls; },
     get bookingConfirmationCalls() { return bookingConfirmationCalls; },
+    get bookingApprovalPolicyListCalls() { return bookingApprovalPolicyListCalls; },
+    get bookingApprovalPolicyCreateCalls() { return bookingApprovalPolicyCreateCalls; },
+    get bookingApprovalPolicyRevisionCalls() { return bookingApprovalPolicyRevisionCalls; },
+    get bookingApprovalPolicyPublishCalls() { return bookingApprovalPolicyPublishCalls; },
   };
 }
 
@@ -1403,6 +1459,99 @@ test("offer approvals are permission-gated, reasoned and scoped to an exact offe
   assert.equal(mock.bookingOfferApprovalStatusCalls, 1);
 });
 
+
+test("organization approval policies are created, versioned and published through audited commands", async (t) => {
+  const mock = makePool();
+  const app = makeApi(mock.pool);
+  t.after(async () => app.close());
+
+  const listed = await app.inject({
+    method: "GET",
+    url: "/organization/booking-approval-policies",
+  });
+  assert.equal(listed.statusCode, 200);
+  const policies = listed.json<{ data: Array<{ policyId: string; latestRevisionId: string; revisions: Array<{ state: string }> }> }>().data;
+  assert.equal(policies[0]?.policyId, "27272727-2727-4727-8727-272727272727");
+  assert.equal(policies[0]?.revisions[0]?.state, "published");
+  assert.equal(mock.bookingApprovalPolicyListCalls, 1);
+
+  const created = await app.inject({
+    method: "POST",
+    url: "/organization/booking-approval-policies",
+    headers: { "idempotency-key": "create-approval-policy-001" },
+    payload: { code: "venue_bookings", name: "Venue booking approvals" },
+  });
+  assert.equal(created.statusCode, 201);
+  assert.equal(created.json<{ data: { state: string } }>().data.state, "active");
+  const createCall = mock.commandCalls.find((call) => call.sql.includes("eogp.create_booking_approval_policy("));
+  assert.ok(createCall);
+  assert.deepEqual(createCall.values, [
+    principal.organizationId, principal.membershipId, "venue_bookings", "Venue booking approvals",
+  ]);
+
+  const rules = [{
+    code: "high_value",
+    condition: { kind: "total_at_least", amount: 1000, currency: "BAM" },
+    requiredApprovals: 2,
+    permission: "booking.approve",
+    separationOfDuties: true,
+  }];
+  const policyId = "27272727-2727-4727-8727-272727272727";
+  const revision = await app.inject({
+    method: "POST",
+    url: \`/booking-approval-policies/\${policyId}/revisions\`,
+    headers: { "idempotency-key": "create-approval-policy-revision-001" },
+    payload: { rules },
+  });
+  assert.equal(revision.statusCode, 201);
+  const revisionData = revision.json<{ data: { revisionNumber: number; state: string } }>().data;
+  assert.equal(revisionData.revisionNumber, 1);
+  assert.equal(revisionData.state, "draft");
+  const revisionCall = mock.commandCalls.find((call) => call.sql.includes("eogp.create_booking_approval_policy_revision("));
+  assert.ok(revisionCall);
+  assert.deepEqual(revisionCall.values.slice(0, 3), [
+    principal.organizationId, policyId, principal.membershipId,
+  ]);
+  assert.deepEqual(JSON.parse(String(revisionCall.values[3])), rules);
+
+  const revisionId = "28282828-2828-4828-8828-282828282828";
+  const published = await app.inject({
+    method: "POST",
+    url: \`/booking-approval-policies/\${policyId}/revisions/\${revisionId}/publish\`,
+    headers: { "idempotency-key": "publish-approval-policy-revision-001" },
+    payload: {},
+  });
+  assert.equal(published.statusCode, 201);
+  assert.equal(published.json<{ data: { state: string } }>().data.state, "published");
+  const publishCall = mock.commandCalls.find((call) => call.sql.includes("eogp.publish_booking_approval_policy_revision("));
+  assert.ok(publishCall);
+  assert.deepEqual(publishCall.values, [
+    principal.organizationId, policyId, revisionId, principal.membershipId,
+  ]);
+
+  const invalid = await app.inject({
+    method: "POST",
+    url: \`/booking-approval-policies/\${policyId}/revisions\`,
+    headers: { "idempotency-key": "invalid-approval-policy-revision-001" },
+    payload: { rules: [{
+      code: "wrong_permission",
+      condition: { kind: "always" },
+      requiredApprovals: 1,
+      permission: "booking.confirm",
+      separationOfDuties: false,
+    }] },
+  });
+  assert.equal(invalid.statusCode, 400);
+  assert.equal(mock.bookingApprovalPolicyRevisionCalls, 1);
+
+  const anonymous = makeApi(mock.pool, { authenticated: false });
+  t.after(async () => anonymous.close());
+  const denied = await anonymous.inject({
+    method: "GET",
+    url: "/organization/booking-approval-policies",
+  });
+  assert.equal(denied.statusCode, 401);
+});
 
 test("public offer review shows only customer-safe terms using a purpose-bound capability", async (t) => {
   const mock = makePool();
