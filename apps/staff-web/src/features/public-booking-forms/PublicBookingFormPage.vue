@@ -84,7 +84,7 @@ async function submitInquiry(): Promise<void> {
   });
   if (missingChoice) {
     const minimum = Math.max(missingChoice.required ? 1 : 0, missingChoice.minItems ?? 0);
-    error.value = t("publicBookingForm.requiredChoice", {
+    error.value = t("publicBookingForm.selectMinimum", {
       field: missingChoice.label || missingChoice.code,
       count: minimum,
     });
