@@ -619,7 +619,7 @@ paths:
                             code: { type: string }
                             name: { type: string }
                             spaceKind: { type: string, enum: [building_area, level_area, room, zone, other] }
-                            capacity: { type: integer, minimum: 0, nullable: true }
+                            capacity: { type: [integer, 'null'], minimum: 0 }
                       resources:
                         type: array
                         items:
@@ -675,8 +675,8 @@ paths:
                     properties:
                       resourceTypeId: { type: string, format: uuid }
                       requestedQuantity: { type: number, exclusiveMinimum: 0, maximum: 999999999.999 }
-                resourceStartsAt: { type: string, format: date-time, nullable: true }
-                resourceEndsAt: { type: string, format: date-time, nullable: true }
+                resourceStartsAt: { type: [string, 'null'], format: date-time }
+                resourceEndsAt: { type: [string, 'null'], format: date-time }
       responses:
         '200':
           description: "Advisory allocation availability result."
