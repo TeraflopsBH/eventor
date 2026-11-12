@@ -1421,6 +1421,121 @@ export function buildApi(dependencies: ApiDependencies): FastifyInstance {
   );
 
 
+  const submitPublicOfferDecision = async (
+    request: FastifyRequest,
+    reply: FastifyReply,
+    decision: "accepted" | "rejected",
+    body: BookingOfferAcceptanceBody | BookingOfferRejectionBody,
+  ) => {
+    const offerId = (request.params as { offerId?: string }).offerId;
+    const token = request.headers["x-external-booking-token"];
+    const idempotencyKey = request.headers["idempotency-key"];
+    if (!offerId || !new RegExp(uuidPattern).test(offerId)) {
+      throw new ApiError(400, "INVALID_OFFER_ID", "A valid offer identifier is required.");
+    }
+    if (typeof token !== "string" || !/^[A-Za-z0-9_-]{43}$/.test(token)) {
+      throw new ApiError(401, "BOOKING_ACTION_CAPABILITY_REQUIRED", "A valid offer decision capability is required.");
+    }
+    if (typeof idempotencyKey !== "string" || idempotencyKey.length < 8 || idempotencyKey.length > 200) {
+      throw new ApiError(400, "IDEMPOTENCY_KEY_REQUIRED", "A valid Idempotency-Key header is required.");
+    }
+
+    const encryptionKey = dependencies.contactEncryptionKey;
+    if (!encryptionKey || encryptionKey.length !== 32) {
+      throw new ApiError(503, "BOOKING_OFFER_DECISION_ENCRYPTION_UNAVAILABLE", "Customer decision encryption is not configured.");
+    }
+    const tokenHash = createHash("sha256").update(token, "utf8").digest("hex");
+    const idempotencyHash = createHash("sha256").update(idempotencyKey, "utf8").digest("hex");
+    const payloadHash = requestHash({ offerId, decision, body }, encryptionKey);
+    const client = await dependencies.pool.connect();
+    try {
+      await client.query("BEGIN");
+      const contextResult = await client.query<ResultRow>(
+        "SELECT eogp.resolve_booking_offer_capability($1::uuid,$2::text) AS result",
+        [offerId, tokenHash],
+      );
+      const context = contextResult.rows[0]?.result as Record<string, unknown> | undefined;
+      const organizationId = context?.organizationId;
+      if (typeof organizationId !== "string" || !new RegExp(uuidPattern).test(organizationId)) {
+        throw new ApiError(401, "BOOKING_ACTION_CAPABILITY_INVALID", "The offer decision capability is invalid.");
+      }
+
+      let acceptanceNameCiphertext: Buffer | null = null;
+      let customerNoteCiphertext: Buffer | null = null;
+      let reasonCode: string | null = null;
+      let reasonCiphertext: Buffer | null = null;
+      if (decision === "accepted") {
+        const acceptance = body as BookingOfferAcceptanceBody;
+        if (acceptance.acceptanceName?.trim()) {
+          acceptanceNameCiphertext = encryptContactValue(
+            acceptance.acceptanceName.trim(), encryptionKey,
+            { organizationId, contactKind: "other" },
+          );
+        }
+        if (acceptance.acceptanceNote?.trim()) {
+          customerNoteCiphertext = encryptContactValue(
+            acceptance.acceptanceNote.trim(), encryptionKey,
+            { organizationId, contactKind: "other" },
+          );
+        }
+      } else {
+        const rejection = body as BookingOfferRejectionBody;
+        reasonCode = rejection.reasonCode.trim();
+        reasonCiphertext = encryptContactValue(
+          JSON.stringify({ reason: rejection.reason.trim() }), encryptionKey,
+          { organizationId, contactKind: "other" },
+        );
+        if (rejection.note?.trim()) {
+          customerNoteCiphertext = encryptContactValue(
+            rejection.note.trim(), encryptionKey,
+            { organizationId, contactKind: "other" },
+          );
+        }
+      }
+
+      const result = await client.query<ResultRow>(
+        "SELECT eogp.decide_booking_offer_with_capability($1::uuid,$2::text,$3::text,$4::text,$5::text,$6::bytea,$7::bytea,$8::text,$9::bytea) AS result",
+        [
+          offerId, tokenHash, decision, idempotencyHash, payloadHash,
+          acceptanceNameCiphertext, customerNoteCiphertext, reasonCode, reasonCiphertext,
+        ],
+      );
+      await client.query("COMMIT");
+      const data = result.rows[0]?.result as Record<string, unknown> | undefined;
+      if (!data) throw new ApiError(500, "OFFER_DECISION_RESULT_MISSING", "The offer decision did not return a result.");
+      return reply.code(201).send({ data });
+    } catch (error) {
+      try { await client.query("ROLLBACK"); } catch { /* preserve the decision error */ }
+      throw databaseError(error);
+    } finally {
+      client.release();
+    }
+  };
+
+  server.post<{ Params: { offerId: string }; Body: BookingOfferAcceptanceBody }>(
+    "/booking-offers/:offerId/accept",
+    {
+      schema: {
+        params: publicOfferDecisionParams,
+        headers: publicOfferDecisionHeaders,
+        body: bookingOfferAcceptanceBody,
+      },
+    },
+    async (request, reply) => submitPublicOfferDecision(request, reply, "accepted", request.body),
+  );
+
+  server.post<{ Params: { offerId: string }; Body: BookingOfferRejectionBody }>(
+    "/booking-offers/:offerId/reject",
+    {
+      schema: {
+        params: publicOfferDecisionParams,
+        headers: publicOfferDecisionHeaders,
+        body: bookingOfferRejectionBody,
+      },
+    },
+    async (request, reply) => submitPublicOfferDecision(request, reply, "rejected", request.body),
+  );
+
   server.post<{ Params: { revisionId: string }; Body: BookingOfferCreateBody }>(
     "/booking-draft-revisions/:revisionId/offers",
     {
