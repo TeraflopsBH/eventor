@@ -89,6 +89,8 @@ function makePool() {
   let bookingOfferGetCalls = 0;
   let bookingOfferIssueCalls = 0;
   let customerOfferDecisionCalls = 0;
+  let bookingOfferApprovalDecisionCalls = 0;
+  let bookingOfferApprovalStatusCalls = 0;
   const customerOfferDecisionReplays = new Map<string, { requestHash: string; response: Record<string, unknown> }>();
   const deliveryTests = new Map<string, string>();
 
@@ -200,6 +202,36 @@ function makePool() {
         } }], rowCount: 1 };
       }
 
+      if (normalized.includes("eogp.decide_booking_offer_approval(")) {
+        bookingOfferApprovalDecisionCalls += 1;
+        commandCalls.push({ sql: normalized, values });
+        return { rows: [{ result: {
+          offerId: values[1],
+          offerRevisionId: values[2],
+          ruleCode: values[4],
+          decision: values[5],
+          approvedCount: values[5] === "approved" ? 1 : 0,
+          requiredApprovals: 2,
+          satisfied: false,
+        } }], rowCount: 1 };
+      }
+      if (normalized.includes("eogp.get_booking_offer_approval_status(")) {
+        bookingOfferApprovalStatusCalls += 1;
+        commandCalls.push({ sql: normalized, values });
+        return { rows: [{ result: {
+          offerId: values[1],
+          offerRevisionId: "18181818-1818-4181-8181-181818181819",
+          requirements: [{
+            ruleCode: "high_value",
+            condition: { kind: "total_at_least", amount: 1000, currency: "BAM" },
+            requiredApprovals: 2,
+            separationOfDuties: true,
+            approvedCount: 1,
+            blocked: false,
+            decisions: [{ membershipId: "cccccccc-2222-4222-8222-cccccccccccc", decision: "approved", reason: "Reviewed amount.", decidedAt: "2026-11-12T12:30:00.000Z" }],
+          }],
+        } }], rowCount: 1 };
+      }
       if (normalized.includes("eogp.resolve_booking_offer_capability(")) {
         commandCalls.push({ sql: normalized, values });
         return { rows: [{ result: {
@@ -672,6 +704,8 @@ function makePool() {
     get bookingOfferGetCalls() { return bookingOfferGetCalls; },
     get bookingOfferIssueCalls() { return bookingOfferIssueCalls; },
     get customerOfferDecisionCalls() { return customerOfferDecisionCalls; },
+    get bookingOfferApprovalDecisionCalls() { return bookingOfferApprovalDecisionCalls; },
+    get bookingOfferApprovalStatusCalls() { return bookingOfferApprovalStatusCalls; },
   };
 }
 
