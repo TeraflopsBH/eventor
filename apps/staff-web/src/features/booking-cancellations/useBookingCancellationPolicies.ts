@@ -62,7 +62,7 @@ async function saveBookingCancellationPolicyRevision(): Promise<void> {
   try {
     const parseObject = (value: string, label: string): Record<string, unknown> => {
       const parsed: unknown = JSON.parse(value);
-      if (!parsed || typeof parsed !== "object" || Array.isArray(parsed)) throw new Error(label + " must be a JSON object.");
+      if (!parsed || typeof parsed !== "object" || Array.isArray(parsed)) throw new Error(translate("commercialConfiguration.cancelObject", { label }));
       return parsed as Record<string, unknown>;
     };
     body = { customerMode: cancellationPolicyCustomerMode.value, publicTerms: cancellationPolicyPublicTerms.value.trim(),
