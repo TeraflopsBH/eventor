@@ -594,6 +594,7 @@ export const api = {
       {
         method: "POST", body, idempotent: true, idempotencyKey: requestKey,
         credentials: "omit",
+        skipCsrf: true,
         extraHeaders: { "X-External-Booking-Token": token },
       },
     ),
