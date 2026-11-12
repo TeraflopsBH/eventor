@@ -1,11 +1,12 @@
 <script setup lang="ts">
 import type { Ref } from "vue";
-import { formatInquiryDate } from "../booking-inquiries/presentation";
+import { useInquiryPresentation } from "../booking-inquiries/useInquiryPresentation";
 import type { useBookingCancellationPolicies } from "./useBookingCancellationPolicies";
 
 type Workspace = ReturnType<typeof useBookingCancellationPolicies> & { busy: Ref<boolean> };
 
 const props = defineProps<{ workspace: Workspace }>();
+const { formatDate } = useInquiryPresentation();
 
 const {
   cancellationPolicies,
@@ -46,7 +47,7 @@ const {
           <div class="policy-revision-heading"><div><h3>Revision editor · {{ selectedCancellationPolicy.name }}</h3><p class="fine-print">Edit the latest draft or create a successor after publication. Published revisions are immutable.</p></div>
             <span class="pill" :class="selectedCancellationPolicyLatestRevision?.state === 'published' ? 'pill-success' : 'pill-warning'">Latest: {{ selectedCancellationPolicyLatestRevision?.state ?? 'No revision' }}</span></div>
           <div v-if="selectedCancellationPolicyLatestRevision" class="policy-revision-meta"><span>Revision {{ selectedCancellationPolicyLatestRevision.revisionNumber }}</span>
-            <span>Created {{ formatInquiryDate(selectedCancellationPolicyLatestRevision.createdAt) }}</span><span>Published {{ formatInquiryDate(selectedCancellationPolicyLatestRevision.publishedAt) }}</span></div>
+            <span>Created {{ formatDate(selectedCancellationPolicyLatestRevision.createdAt) }}</span><span>Published {{ formatDate(selectedCancellationPolicyLatestRevision.publishedAt) }}</span></div>
           <label>Customer cancellation mode<select v-model="cancellationPolicyCustomerMode"><option value="request_only">Request only</option><option value="approval_required">Approval required</option><option value="self_service">Self-service</option></select></label>
           <label>Customer-facing terms<textarea v-model="cancellationPolicyPublicTerms" rows="6" maxlength="10000" placeholder="Enter the exact terms shown to customers."></textarea></label>
           <div class="field-grid"><label>Approval rules (JSON object)<textarea v-model="cancellationPolicyApprovalRulesJson" rows="7" spellcheck="false"></textarea></label>
@@ -58,7 +59,7 @@ const {
             <button v-if="selectedCancellationPolicyLatestRevision?.state === 'draft'" class="button button-primary" type="button" :disabled="busy" @click="publishBookingCancellationPolicyRevision">Publish latest revision</button></div>
           <div v-if="selectedCancellationPolicy.revisions.length" class="draft-revision-history"><h5>Revision history</h5><ol class="history-list">
             <li v-for="revision in selectedCancellationPolicy.revisions" :key="revision.revisionId"><strong>Revision {{ revision.revisionNumber }} · {{ revision.state }} · {{ revision.customerMode.replaceAll('_', ' ') }}</strong>
-              <span>Created {{ formatInquiryDate(revision.createdAt) }}</span><small>Published {{ formatInquiryDate(revision.publishedAt) }} · {{ revision.revisionId }}</small></li></ol></div>
+              <span>Created {{ formatDate(revision.createdAt) }}</span><small>Published {{ formatDate(revision.publishedAt) }} · {{ revision.revisionId }}</small></li></ol></div>
         </template><p v-else class="inquiry-detail-empty"><span class="brand-mark">E</span><strong>Select or create a cancellation policy</strong><span class="muted">Requires organization-level booking.manage permission.</span></p>
       </section>
 </template>
