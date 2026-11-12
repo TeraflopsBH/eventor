@@ -311,3 +311,33 @@ textarea:focus { border-color: var(--accent); box-shadow: 0 0 0 3px #f5863420; }
   .offer-command-row > button { width: 100%; }
   .offer-confirm-box > button { width: 100%; }
 }
+
+
+/* Organization booking approval policy editor */
+.approval-policy-workspace { display: grid; gap: 18px; }
+.approval-policy-workspace > .section-heading { align-items: start; }
+.approval-policy-workspace > .section-heading > div { max-width: 760px; }
+.approval-policy-workspace .inquiry-detail-grid { margin-top: 2px; }
+.approval-policy-workspace .inquiry-card { display: grid; align-content: start; gap: 14px; }
+.approval-policy-workspace .draft-revision-form { display: grid; gap: 14px; }
+.policy-summary { display: grid; gap: 5px; padding: 13px; border: 1px solid var(--border); border-radius: 8px; background: #ffffff05; }
+.policy-summary strong { font-size: 12px; }
+.policy-summary span, .policy-summary small { color: var(--muted); font-size: 10px; }
+.policy-summary small { overflow-wrap: anywhere; }
+.policy-revision-heading { display: flex; align-items: start; justify-content: space-between; gap: 16px; }
+.policy-revision-heading h3 { margin: 0 0 6px; }
+.policy-revision-heading .fine-print { margin: 0; }
+.policy-revision-meta { display: flex; flex-wrap: wrap; gap: 8px 18px; color: var(--muted); font-size: 10px; }
+.policy-revision-meta .mono { overflow-wrap: anywhere; }
+.policy-rule-reference { display: grid; gap: 9px; border: 1px solid var(--border); border-radius: 9px; padding: 15px; background: #ffffff04; }
+.policy-rule-reference > strong { font-size: 11px; }
+.policy-rule-reference ul { margin: 0; padding-left: 18px; display: grid; gap: 6px; color: #c7c7c7; font-size: 10px; line-height: 1.5; }
+.policy-rule-reference code { color: #f1c49e; }
+.policy-rule-reference pre { max-width: 100%; overflow: auto; margin: 0; padding: 12px; color: #dedede; background: #101010; border-radius: 7px; font-size: 10px; line-height: 1.55; }
+.approval-policy-workspace .form-actions { flex-wrap: wrap; }
+.approval-policy-workspace .inquiry-detail-empty { gap: 10px; min-height: 170px; }
+.approval-policy-workspace .inquiry-detail-empty .brand-mark { margin: 0; }
+@media (max-width: 620px) {
+  .policy-revision-heading { flex-direction: column; }
+  .approval-policy-workspace .form-actions > button { width: 100%; }
+}
