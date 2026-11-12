@@ -8,6 +8,7 @@ DECLARE
   v_public_projection_definition text;
   v_confirmation_definition text;
   v_offer_immutability_definition text;
+  v_tax_snapshot_definition text;
 BEGIN
   SELECT pg_get_functiondef(
     'eogp.save_booking_offer_revision(uuid,uuid,uuid,uuid,uuid,uuid,uuid,text,text,timestamptz,jsonb,jsonb,numeric,text,boolean)'::regprocedure
@@ -90,7 +91,12 @@ BEGIN
 
   -- The offer revision also pins the selected tax-profile configuration
   -- before insertion, so later profile changes cannot rewrite issued terms.
-  IF NOT EXISTS (
+  SELECT pg_get_functiondef('eogp.snapshot_booking_offer_tax_profile()'::regprocedure)
+    INTO v_tax_snapshot_definition;
+  IF position('taxConfiguration' IN v_tax_snapshot_definition)=0
+     OR position('taxProfileRevisionId' IN v_tax_snapshot_definition)=0
+     OR position('taxCodes' IN v_tax_snapshot_definition)=0
+     OR NOT EXISTS (
     SELECT 1
       FROM pg_catalog.pg_trigger trigger_row
       JOIN pg_catalog.pg_class relation ON relation.oid=trigger_row.tgrelid
