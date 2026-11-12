@@ -15,15 +15,14 @@ type BookingInquiryWorkspace = ReturnType<typeof useBookingInquiries> & {
 const props = defineProps<{ workspace: BookingInquiryWorkspace }>();
 const { formatDate } = useInquiryPresentation();
 const { t } = useI18n();
-const inquiry{{ t('bookingInquiry.status') }}Label = (status: string) => t(`bookingInquiry.${({ received: "received", under_review: "underReview", converted: "converted", declined: "declined", withdrawn: "withdrawn", spam: "spam" } as Record<string, string>)[status] ?? status}`);
 const emit = defineEmits<{ (event: "open-booking-draft"): void }>();
 
 const {
   inquiryRows, inquiryMeta, inquiryOffset, inquiryFilters, inquiryDetail, inquiryAssignees,
-  inquiryCapabilities, selectedInquiryId, inquiry{{ t('bookingInquiry.assignment') }}Choice, inquiry{{ t('bookingInquiry.status') }}Choice,
-  inquiry{{ t('bookingInquiry.status') }}Reason, inquiryAnnotationText, inquiry{{ t('bookingInquiry.status') }}Targets, inquiryAnswerItems,
-  canEditInquiry{{ t('bookingInquiry.assignment') }}, canConvertInquiry, loadInquiryList, openInquiry, refreshInquiryDetail,
-  saveInquiry{{ t('bookingInquiry.assignment') }}, saveInquiry{{ t('bookingInquiry.status') }}, saveInquiryConversion, saveInquiryAnnotation,
+  inquiryCapabilities, selectedInquiryId, inquiryAssignmentChoice, inquiryStatusChoice,
+  inquiryStatusReason, inquiryAnnotationText, inquiryStatusTargets, inquiryAnswerItems,
+  canEditInquiryAssignment, canConvertInquiry, loadInquiryList, openInquiry, refreshInquiryDetail,
+  saveInquiryAssignment, saveInquiryStatus, saveInquiryConversion, saveInquiryAnnotation,
   principal, busy, canReadBookingDraft,
 } = props.workspace;
 </script>
@@ -33,15 +32,15 @@ const {
         <div class="section-heading">
           <div>
             <p class="eyebrow">{{ t('bookingInquiry.venueBooking') }}</p>
-            <h2>{{ t('bookingInquiry.bookingInquiries') }}</h2>
-            <p class="muted">{{ t('bookingInquiry.inquiryDescription') }}</p>
+            <h2>{{ t('bookingInquiry.title') }}</h2>
+            <p class="muted">{{ t('bookingInquiry.description') }}</p>
           </div>
           <span class="pill pill-neutral">{{ t('bookingInquiry.permissionControlled') }}</span>
         </div>
 
         <div class="inquiry-toolbar">
           <div class="inquiry-filters">
-            <label>{{ t('bookingInquiry.status') }}
+            <label>Status
               <select v-model="inquiryFilters.status" @change="loadInquiryList(0)">
                 <option value="">{{ t('bookingInquiry.allStatuses') }}</option>
                 <option value="received">{{ t('bookingInquiry.received') }}</option>
@@ -52,7 +51,7 @@ const {
                 <option value="spam">{{ t('bookingInquiry.spam') }}</option>
               </select>
             </label>
-            <label v-if="inquiryCapabilities.canAssign">{{ t('bookingInquiry.assignedTo') }}
+            <label v-if="inquiryCapabilities.canAssign">Assigned to
               <select v-model="inquiryFilters.assignedToMembershipId" @change="loadInquiryList(0)">
                 <option value="">{{ t('bookingInquiry.allStaff') }}</option>
                 <option v-for="member in inquiryAssignees" :key="member.membershipId" :value="member.membershipId">
@@ -62,7 +61,7 @@ const {
             </label>
           </div>
           <button class="button button-secondary" type="button" :disabled="busy" @click="loadInquiryList(inquiryOffset)">
-            {{ t('bookingInquiry.refresh{{ t('bookingInquiry.inbox') }}') }}
+            Refresh inbox
           </button>
         </div>
 
@@ -87,16 +86,16 @@ const {
                   <span
                     class="pill"
                     :class="item.status === 'declined' || item.status === 'spam' ? 'pill-danger' : item.status === 'under_review' ? 'pill-warning' : 'pill-neutral'"
-                  >{{ inquiryStatusLabel(item.status) }}</span>
+                  >{{ t(`bookingInquiry.${({ received: "received", under_review: "underReview", converted: "converted", declined: "declined", withdrawn: "withdrawn", spam: "spam" } as Record<string, string>)[item.status] ?? item.status}`) }}</span>
                 </span>
                 <strong class="inquiry-requester">{{ item.requesterName }}</strong>
                 <span class="inquiry-list-meta">
-                  {{ item.requested{{ t('bookingInquiry.start') }} ? formatDate(item.requested{{ t('bookingInquiry.start') }}) : "{{ t('bookingInquiry.dateNotSpecified') }}" }}
+                  {{ item.requestedStart ? formatDate(item.requestedStart) : "Date not specified" }}
                 </span>
-                <span class="inquiry-list-meta">{{ t('bookingInquiry.assigned') }} {{ resolveInquiryAssigneeName(item.assignedToMembershipId, principal?.membershipId, inquiryAssignees) }}</span>
+                <span class="inquiry-list-meta">Assigned: {{ resolveInquiryAssigneeName(item.assignedToMembershipId, principal?.membershipId, inquiryAssignees) }}</span>
               </button>
             </div>
-            <p v-else class="muted inquiry-empty">{{ t('bookingInquiry.noInquiries') }}</p>
+            <p v-else class="muted inquiry-empty">{{ t('bookingInquiry.noMatches') }}</p>
             <div class="pagination inquiry-pagination">
               <button
                 class="button button-quiet"
@@ -117,15 +116,15 @@ const {
           <div v-if="inquiryDetail" class="inquiry-detail">
             <div class="inquiry-detail-heading">
               <div>
-                <p class="eyebrow">{{ t('bookingInquiry.inquiryDetail') }}</p>
+                <p class="eyebrow">{{ t('bookingInquiry.detail') }}</p>
                 <h3>{{ inquiryDetail.publicReference }}</h3>
-                <p class="fine-print">{{ t('bookingInquiry.received') }} {{ formatDate(inquiryDetail.submittedAt) }} · Updated {{ formatDate(inquiryDetail.updatedAt) }}</p>
+                <p class="fine-print">Received {{ formatDate(inquiryDetail.submittedAt) }} · Updated {{ formatDate(inquiryDetail.updatedAt) }}</p>
               </div>
               <div class="inquiry-detail-actions">
                 <span
                   class="pill"
                   :class="inquiryDetail.status === 'declined' || inquiryDetail.status === 'spam' ? 'pill-danger' : inquiryDetail.status === 'under_review' ? 'pill-warning' : 'pill-neutral'"
-                >{{ inquiryStatusLabel(inquiryDetail.status) }}</span>
+                >{{ t(`bookingInquiry.${({ received: "received", under_review: "underReview", converted: "converted", declined: "declined", withdrawn: "withdrawn", spam: "spam" } as Record<string, string>)[inquiryDetail.status] ?? inquiryDetail.status}`) }}</span>
                 <button class="button button-quiet" type="button" :disabled="busy" @click="refreshInquiryDetail">{{ t('bookingInquiry.refreshDetail') }}</button>
               </div>
             </div>
@@ -134,18 +133,18 @@ const {
               <section class="inquiry-card">
                 <h4>{{ t('bookingInquiry.requester') }}</h4>
                 <dl>
-                  <dt>Name</dt><dd>{{ inquiryDetail.requesterName }}</dd>
-                  <dt>Email</dt><dd>{{ inquiryDetail.requesterEmail ?? "{{ t('bookingInquiry.notSupplied') }}" }}</dd>
-                  <dt>Phone</dt><dd>{{ inquiryDetail.requesterPhone ?? "{{ t('bookingInquiry.notSupplied') }}" }}</dd>
+                  <dt>{{ t('bookingInquiry.name') }}</dt><dd>{{ inquiryDetail.requesterName }}</dd>
+                  <dt>{{ t('bookingInquiry.email') }}</dt><dd>{{ inquiryDetail.requesterEmail ?? "Not supplied" }}</dd>
+                  <dt>{{ t('bookingInquiry.phone') }}</dt><dd>{{ inquiryDetail.requesterPhone ?? "Not supplied" }}</dd>
                 </dl>
               </section>
               <section class="inquiry-card">
                 <h4>{{ t('bookingInquiry.requestedBooking') }}</h4>
                 <dl>
-                  <dt>{{ t('bookingInquiry.start') }}</dt><dd>{{ formatDate(inquiryDetail.submittedValues.requested?.startAt ?? inquiryDetail.requested{{ t('bookingInquiry.start') }}) }}</dd>
-                  <dt>{{ t('bookingInquiry.end') }}</dt><dd>{{ formatDate(inquiryDetail.submittedValues.requested?.endAt ?? inquiryDetail.requested{{ t('bookingInquiry.end') }}) }}</dd>
-                  <dt>{{ t('bookingInquiry.timezone') }}</dt><dd>{{ inquiryDetail.submittedValues.requested?.timezone ?? inquiryDetail.requested{{ t('bookingInquiry.timezone') }} ?? "—" }}</dd>
-                  <dt>{{ t('bookingInquiry.spaces') }}</dt><dd>{{ inquiryDetail.submittedValues.requested?.spaceCodes?.join(", ") || "{{ t('bookingInquiry.notSpecified') }}" }}</dd>
+                  <dt>{{ t('bookingInquiry.start') }}</dt><dd>{{ formatDate(inquiryDetail.submittedValues.requested?.startAt ?? inquiryDetail.requestedStart) }}</dd>
+                  <dt>{{ t('bookingInquiry.end') }}</dt><dd>{{ formatDate(inquiryDetail.submittedValues.requested?.endAt ?? inquiryDetail.requestedEnd) }}</dd>
+                  <dt>{{ t('bookingInquiry.timezone') }}</dt><dd>{{ inquiryDetail.submittedValues.requested?.timezone ?? inquiryDetail.requestedTimezone ?? "—" }}</dd>
+                  <dt>{{ t('bookingInquiry.spaces') }}</dt><dd>{{ inquiryDetail.submittedValues.requested?.spaceCodes?.join(", ") || "Not specified" }}</dd>
                 </dl>
               </section>
             </div>
@@ -153,7 +152,7 @@ const {
             <section class="inquiry-card">
               <div class="inquiry-card-heading">
                 <h4>{{ t('bookingInquiry.submittedAnswers') }}</h4>
-                <span class="fine-print">{{ t('bookingInquiry.formRevision') }} {{ inquiryDetail.formRevisionId.slice(0, 8) }}</span>
+                <span class="fine-print">Form revision {{ inquiryDetail.formRevisionId.slice(0, 8) }}</span>
               </div>
               <dl v-if="inquiryAnswerItems.length" class="answer-list">
                 <template v-for="answer in inquiryAnswerItems" :key="answer.code">
@@ -164,48 +163,49 @@ const {
             </section>
 
             <div class="inquiry-detail-grid">
-              <section v-if="canEditInquiry{{ t('bookingInquiry.assignment') }}" class="inquiry-card">
+              <section v-if="canEditInquiryAssignment" class="inquiry-card">
                 <h4>{{ t('bookingInquiry.assignment') }}</h4>
-                <label>{{ t('bookingInquiry.responsibleStaff') }}
-                  <select v-model="inquiry{{ t('bookingInquiry.assignment') }}Choice">
+                <label>Responsible staff member
+                  <select v-model="inquiryAssignmentChoice">
                     <option value="unassigned">{{ t('bookingInquiry.unassigned') }}</option>
                     <option v-for="member in inquiryAssignees" :key="member.membershipId" :value="member.membershipId">
-                      {{ member.displayName }}{{ member.membershipId === principal?.membershipId ? " {{ t('bookingInquiry.you') }}" : "" }}
+                      {{ member.displayName }}{{ member.membershipId === principal?.membershipId ? " (you)" : "" }}
                     </option>
                   </select>
                 </label>
                 <p class="fine-print">{{ t('bookingInquiry.activeMembersOnly') }}</p>
-                <button class="button button-secondary" type="button" :disabled="busy" @click="saveInquiry{{ t('bookingInquiry.assignment') }}">{{ t('bookingInquiry.saveAssignment') }}</button>
+                <button class="button button-secondary" type="button" :disabled="busy" @click="saveInquiryAssignment">{{ t('bookingInquiry.saveAssignment') }}</button>
               </section>
 
-              <section v-if="inquiryCapabilities.canManage && inquiry{{ t('bookingInquiry.status') }}Targets.length" class="inquiry-card">
+              <section v-if="inquiryCapabilities.canManage && inquiryStatusTargets.length" class="inquiry-card">
                 <h4>{{ t('bookingInquiry.reviewStatus') }}</h4>
-                <label>{{ t('bookingInquiry.newStatus') }}
-                  <select v-model="inquiry{{ t('bookingInquiry.status') }}Choice">
+                <label>New status
+                  <select v-model="inquiryStatusChoice">
                     <option disabled value="">{{ t('bookingInquiry.chooseNextStatus') }}</option>
-                    <option v-for="status in inquiry{{ t('bookingInquiry.status') }}Targets" :key="status" :value="status">
-                      {{ inquiryStatusLabel(status) }}
+                    <option v-for="status in inquiryStatusTargets" :key="status" :value="status">
+                      {{ t(`bookingInquiry.${({ received: "received", under_review: "underReview", converted: "converted", declined: "declined", withdrawn: "withdrawn", spam: "spam" } as Record<string, string>)[status] ?? status}`) }}
                     </option>
                   </select>
                 </label>
-                <label>{{ t('bookingInquiry.auditReason') }}
-                  <textarea v-model="inquiry{{ t('bookingInquiry.status') }}Reason" rows="3" maxlength="1000" placeholder="{{ t('bookingInquiry.explainStatus') }}"></textarea>
+                <label>Audit reason
+                  <textarea v-model="inquiryStatusReason" rows="3" maxlength="1000" placeholder="Explain the review decision or status change…"></textarea>
                 </label>
-                <p v-if="inquiry{{ t('bookingInquiry.status') }}Choice === 'declined' || inquiry{{ t('bookingInquiry.status') }}Choice === 'spam'" class="fine-print text-warning">
-                  {{ t('bookingInquiry.terminalStatus') }}
+                <p v-if="inquiryStatusChoice === 'declined' || inquiryStatusChoice === 'spam'" class="fine-print text-warning">
+                  This is a terminal status. The inquiry cannot be reopened or reassigned afterward.
                 </p>
-                <button class="button button-primary" type="button" :disabled="busy || inquiry{{ t('bookingInquiry.status') }}Reason.trim().length < 3" @click="saveInquiry{{ t('bookingInquiry.status') }}">
-                  {{ t('bookingInquiry.saveStatus') }}
+                <button class="button button-primary" type="button" :disabled="busy || inquiryStatusReason.trim().length < 3" @click="saveInquiryStatus">
+                  Save status change
                 </button>
               </section>
 
               <section v-if="canConvertInquiry" class="inquiry-card">
                 <h4>{{ t('bookingInquiry.convertDraft') }}</h4>
                 <p class="fine-print">
-                  {{ t('bookingInquiry.conversionInfo') }}
+                  Creates a separate draft and immutable revision 1 from the submitted request. The original inquiry is retained.
+                  This step does not issue an offer, hold availability or confirm a booking.
                 </p>
                 <button class="button button-primary" type="button" :disabled="busy" @click="saveInquiryConversion">
-                  {{ t('bookingInquiry.createDraft') }}
+                  Create booking draft
                 </button>
               </section>
 
@@ -215,7 +215,8 @@ const {
                   <span class="pill pill-neutral">{{ inquiryDetail.bookingDraft.status }} · revision {{ inquiryDetail.bookingDraft.currentRevisionNumber }}</span>
                 </div>
                 <p class="fine-print">
-                  {{ t('bookingInquiry.draftInfo') }}
+                  This draft is separate from the original inquiry. Its revisions are immutable; editing creates a new revision.
+                  No offer, availability hold or booking confirmation is implied.
                 </p>
                 <button
                   v-if="canReadBookingDraft"
@@ -224,7 +225,7 @@ const {
                   :disabled="busy"
                   @click="emit('open-booking-draft')"
                 >
-                  {{ t('bookingInquiry.openDraft') }}
+                  Open booking draft
                 </button>
                 <p v-else class="fine-print">{{ t('bookingInquiry.cannotReadDraft') }}</p>
               </section>
@@ -247,8 +248,8 @@ const {
               </div>
               <p v-else class="muted">{{ t('bookingInquiry.noNotes') }}</p>
               <form v-if="inquiryCapabilities.canAnnotate" class="inquiry-note-form" @submit.prevent="saveInquiryAnnotation">
-                <label>{{ t('bookingInquiry.addInternalNote') }}
-                  <textarea v-model="inquiryAnnotationText" rows="3" maxlength="4000" placeholder="{{ t('bookingInquiry.notePlaceholder') }}"></textarea>
+                <label>Add an internal note
+                  <textarea v-model="inquiryAnnotationText" rows="3" maxlength="4000" placeholder="Record an internal observation or follow-up…"></textarea>
                 </label>
                 <div class="form-actions">
                   <button class="button button-secondary" type="submit" :disabled="busy || !inquiryAnnotationText.trim()">{{ t('bookingInquiry.addNote') }}</button>
@@ -260,18 +261,18 @@ const {
 
             <div class="inquiry-detail-grid">
               <section class="inquiry-card">
-                <h4>{{ t('bookingInquiry.status') }} history</h4>
+                <h4>{{ t('bookingInquiry.statusHistory') }}</h4>
                 <ol v-if="inquiryDetail.statusHistory.length" class="history-list">
                   <li v-for="(history, index) in inquiryDetail.statusHistory" :key="`${history.occurredAt}-${index}`">
-                    <strong>{{ history.previous{{ t('bookingInquiry.status') }} ?? "{{ t('bookingInquiry.created') }}" }} → {{ history.new{{ t('bookingInquiry.status') }} }}</strong>
-                    <span>{{ history.reason ?? "{{ t('bookingInquiry.noReason') }}" }}</span>
+                    <strong>{{ history.previousStatus ?? "Created" }} → {{ history.newStatus }}</strong>
+                    <span>{{ history.reason ?? "No reason supplied" }}</span>
                     <small>{{ history.actorKind }} · {{ formatDate(history.occurredAt) }}</small>
                   </li>
                 </ol>
                 <p v-else class="muted">{{ t('bookingInquiry.noStatusChanges') }}</p>
               </section>
               <section class="inquiry-card">
-                <h4>{{ t('bookingInquiry.assignment') }} history</h4>
+                <h4>{{ t('bookingInquiry.assignmentHistory') }}</h4>
                 <ol v-if="inquiryDetail.assignmentHistory.length" class="history-list">
                   <li v-for="(history, index) in inquiryDetail.assignmentHistory" :key="`${history.occurredAt}-${index}`">
                     <strong>{{ resolveInquiryAssigneeName(history.previousAssigneeMembershipId, principal?.membershipId, inquiryAssignees) }} → {{ resolveInquiryAssigneeName(history.newAssigneeMembershipId, principal?.membershipId, inquiryAssignees) }}</strong>
