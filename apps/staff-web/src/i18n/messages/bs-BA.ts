@@ -828,7 +828,7 @@ export default {
     invalidAddress: "Adresa ovog obrasca za rezervaciju nije ispravna.",
     unavailable: "Ovaj obrazac za rezervaciju nije dostupan.",
     intro: "Popunite podatke u nastavku kako bi organizacija mogla pregledati vaš upit.",
-    contentLanguageNote: "Sadržaj obrasca organizacija je pripremila na jeziku: {language}. Jezik interfejsa možete promijeniti iznad.",
+    contentLanguageNote: "Dio sadržaja obrasca i dalje je prikazan na jeziku: {language}.",
     contactDetails: "Vaši kontakt podaci",
     fullName: "Ime i prezime",
     email: "E-mail adresa",
