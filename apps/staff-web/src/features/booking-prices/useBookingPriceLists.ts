@@ -4,7 +4,7 @@ import type { BookingPriceList, BookingPriceListItem, BookingTaxProfileRevision 
 type PublishedTaxProfileRevision = BookingTaxProfileRevision & { profileCode: string; profileName: string; profileId: string };
 interface Dependencies {
   api: typeof import("../../api").api; busy: Ref<boolean>; pageError: Ref<string>; pageNotice: Ref<string>;
-  activeTab: Ref<StaffTab>; clearMessages: () => void; showError: (error: unknown) => void;
+  activeTab: Ref<StaffTab>; clearMessages: () => void; showError: (error: unknown) => void; translate: (key: string, params?: Record<string, string | number>) => string;
   publishedTaxProfileRevisions: ComputedRef<PublishedTaxProfileRevision[]>;
   loadBookingTaxProfiles: () => Promise<void>;
 }
@@ -66,17 +66,17 @@ async function createBookingPriceList(): Promise<void> {
   const code = priceListCreateForm.code.trim();
   const name = priceListCreateForm.name.trim();
   if (code.length < 2 || code.length > 80 || !/^[A-Za-z0-9][A-Za-z0-9._-]*$/.test(code) || !name) {
-    pageError.value = "Enter a valid price-list code and name.";
+    pageError.value = translate("commercialConfiguration.priceCodeName");
     return;
   }
-  if (!window.confirm("Create this organization price list? It starts as an unpublished draft with no items.")) return;
+  if (!window.confirm(translate("commercialConfiguration.priceCreateConfirm"))) return;
   clearMessages(); busy.value = true;
   try {
     const result = await api.createBookingPriceList({ code, name, currency: priceListCreateForm.currency, taxBasis: priceListCreateForm.taxBasis });
     priceListCreateForm.code = ""; priceListCreateForm.name = "";
     selectedPriceListId.value = result.data.priceListId;
     await loadBookingPriceLists();
-    pageNotice.value = "Price list created. Add line items and explicitly publish the draft before using it in an offer.";
+    pageNotice.value = translate("commercialConfiguration.priceCreated");
   } catch (error) { showError(error); }
   finally { busy.value = false; }
 }
@@ -85,7 +85,7 @@ async function createBookingPriceListRevision(): Promise<void> {
   const priceList = selectedPriceList.value;
   const latest = selectedPriceListLatestRevision.value;
   if (!priceList || priceList.status !== "active" || latest?.state === "draft") return;
-  if (!window.confirm("Create a successor draft revision? Published revisions and offers using them remain unchanged.")) return;
+  if (!window.confirm(translate("commercialConfiguration.priceSuccessorConfirm"))) return;
   clearMessages(); busy.value = true;
   try {
     const result = await api.createBookingPriceListRevision(priceList.priceListId, {
@@ -95,7 +95,7 @@ async function createBookingPriceListRevision(): Promise<void> {
       effectiveUntil: priceListRevisionForm.effectiveUntil ? new Date(priceListRevisionForm.effectiveUntil).toISOString() : null,
     });
     await loadBookingPriceLists();
-    pageNotice.value = "Draft price-list revision " + result.data.revisionNumber + " created. Add its items before publication.";
+    pageNotice.value = translate("commercialConfiguration.priceRevisionCreated", { revision: result.data.revisionNumber });
   } catch (error) { showError(error); }
   finally { busy.value = false; }
 }
@@ -107,23 +107,23 @@ async function saveBookingPriceListDraft(): Promise<void> {
   let items: unknown;
   try {
     items = JSON.parse(priceListItemsJson.value);
-    if (!Array.isArray(items) || items.length > 500) throw new Error("Items must be a JSON array containing no more than 500 entries.");
+    if (!Array.isArray(items) || items.length > 500) throw new Error(translate("commercialConfiguration.priceItemsLimit"));
     const codes = new Set<string>();
     for (const item of items) {
-      if (!item || typeof item !== "object" || Array.isArray(item)) throw new Error("Each price item must be an object.");
+      if (!item || typeof item !== "object" || Array.isArray(item)) throw new Error(translate("commercialConfiguration.priceItemObject"));
       const row = item as Record<string, unknown>;
       if (typeof row.itemCode !== "string" || typeof row.label !== "string" || typeof row.unit !== "string" ||
           typeof row.unitAmount !== "number" || !Number.isFinite(row.unitAmount) || row.unitAmount < 0) {
-        throw new Error("Each item needs itemCode, label, unit and a non-negative numeric unitAmount.");
+        throw new Error(translate("commercialConfiguration.priceItemFields"));
       }
-      if (codes.has(row.itemCode)) throw new Error("Price item codes must be unique within a revision.");
+      if (codes.has(row.itemCode)) throw new Error(translate("commercialConfiguration.priceItemUnique"));
       codes.add(row.itemCode);
     }
   } catch (error) {
-    pageError.value = error instanceof Error ? error.message : "Price-list items are invalid JSON.";
+    pageError.value = error instanceof Error ? error.message : translate("commercialConfiguration.priceItemsInvalid");
     return;
   }
-  if (!window.confirm("Replace the complete item set on this draft revision? Published revisions are not affected.")) return;
+  if (!window.confirm(translate("commercialConfiguration.priceSaveConfirm"))) return;
   clearMessages(); busy.value = true;
   try {
     const result = await api.updateBookingPriceListDraftRevision(priceList.priceListId, revision.revisionId, {
@@ -135,7 +135,7 @@ async function saveBookingPriceListDraft(): Promise<void> {
     });
     await api.setBookingPriceListTaxProfileRevision(priceList.priceListId, revision.revisionId, priceListTaxProfileRevisionId.value || null);
     await loadBookingPriceLists();
-    pageNotice.value = "Draft saved with " + (result.data.itemCount ?? 0) + " price item(s). It remains unpublished.";
+    pageNotice.value = translate("commercialConfiguration.priceSaved", { count: result.data.itemCount ?? 0 });
   } catch (error) { showError(error); }
   finally { busy.value = false; }
 }
@@ -144,12 +144,12 @@ async function publishBookingPriceListRevision(): Promise<void> {
   const priceList = selectedPriceList.value;
   const revision = selectedPriceListLatestRevision.value;
   if (!priceList || !revision || revision.state !== "draft") return;
-  if (!window.confirm("Publish this exact price-list revision? It becomes immutable and may be selected for new offers.")) return;
+  if (!window.confirm(translate("commercialConfiguration.pricePublishConfirm"))) return;
   clearMessages(); busy.value = true;
   try {
     const result = await api.publishBookingPriceListRevision(priceList.priceListId, revision.revisionId);
     await loadBookingPriceLists();
-    pageNotice.value = "Price-list revision " + result.data.revisionNumber + " published and locked.";
+    pageNotice.value = translate("commercialConfiguration.pricePublished", { revision: result.data.revisionNumber });
   } catch (error) { showError(error); }
   finally { busy.value = false; }
 }
