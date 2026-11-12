@@ -1499,7 +1499,7 @@ test("organization approval policies are created, versioned and published throug
   const policyId = "27272727-2727-4727-8727-272727272727";
   const revision = await app.inject({
     method: "POST",
-    url: \`/booking-approval-policies/\${policyId}/revisions\`,
+    url: `/booking-approval-policies/${policyId}/revisions`,
     headers: { "idempotency-key": "create-approval-policy-revision-001" },
     payload: { rules },
   });
@@ -1517,7 +1517,7 @@ test("organization approval policies are created, versioned and published throug
   const revisionId = "28282828-2828-4828-8828-282828282828";
   const published = await app.inject({
     method: "POST",
-    url: \`/booking-approval-policies/\${policyId}/revisions/\${revisionId}/publish\`,
+    url: `/booking-approval-policies/${policyId}/revisions/${revisionId}/publish`,
     headers: { "idempotency-key": "publish-approval-policy-revision-001" },
     payload: {},
   });
@@ -1531,7 +1531,7 @@ test("organization approval policies are created, versioned and published throug
 
   const invalid = await app.inject({
     method: "POST",
-    url: \`/booking-approval-policies/\${policyId}/revisions\`,
+    url: `/booking-approval-policies/${policyId}/revisions`,
     headers: { "idempotency-key": "invalid-approval-policy-revision-001" },
     payload: { rules: [{
       code: "wrong_permission",
