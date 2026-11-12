@@ -360,7 +360,7 @@ export interface BookingDraftResourceAvailabilityResult {
   availableQuantity: number | null;
   checked: boolean;
   available: boolean | null;
-  reason: "resource_interval_missing" | "resource_unavailable" | "no_active_resource_pools" | "resource_capacity_conflict" | null;
+  reason: "resource_interval_missing" | "resource_interval_invalid" | "resource_unavailable" | "no_active_resource_pools" | "resource_capacity_conflict" | null;
 }
 
 export interface BookingDraftAllocationAvailabilityPreview {
