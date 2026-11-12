@@ -132,7 +132,8 @@ BEGIN
   END IF;
   IF p_resolution IS NULL OR p_resolution NOT IN ('confirmed_sent','confirmed_not_sent')
      OR length(btrim(coalesce(p_reason,''))) NOT BETWEEN 3 AND 1000
-     OR length(coalesce(p_provider_message_reference,''))>998 THEN
+     OR length(coalesce(p_provider_message_reference,''))>998
+     OR (p_resolution='confirmed_not_sent' AND nullif(btrim(p_provider_message_reference),'') IS NOT NULL) THEN
     RAISE EXCEPTION 'invalid offer email reconciliation decision' USING ERRCODE='22023';
   END IF;
 
