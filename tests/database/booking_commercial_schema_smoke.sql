@@ -10,7 +10,8 @@ DECLARE
     'booking_approval_policy_revisions',
     'booking_offer_decision_history',
     'booking_offer_approval_decisions',
-    'booking_offer_capability_idempotency'
+    'booking_offer_capability_idempotency',
+    'booking_offer_email_deliveries'
   ];
   v_required_functions text[] := ARRAY[
     'eogp.save_booking_offer_revision(uuid,uuid,uuid,uuid,uuid,uuid,uuid,text,text,timestamptz,jsonb,jsonb,numeric,text,boolean)',
@@ -26,7 +27,8 @@ DECLARE
     'eogp.create_booking_approval_policy(uuid,uuid,text,text)',
     'eogp.create_booking_approval_policy_revision(uuid,uuid,uuid,jsonb)',
     'eogp.update_booking_approval_policy_draft_revision(uuid,uuid,uuid,uuid,jsonb)',
-    'eogp.publish_booking_approval_policy_revision(uuid,uuid,uuid,uuid)'
+    'eogp.publish_booking_approval_policy_revision(uuid,uuid,uuid,uuid)',
+    'eogp.queue_booking_offer_email_delivery(uuid,uuid,uuid,text,text,bytea)'
   ];
 BEGIN
   FOREACH v_name IN ARRAY v_required_tables LOOP
@@ -57,7 +59,9 @@ BEGIN
      OR has_table_privilege(current_user,'eogp.booking_offer_approval_decisions','SELECT')
      OR has_table_privilege(current_user,'eogp.booking_approval_policies','SELECT')
      OR has_table_privilege(current_user,'eogp.booking_approval_policy_revisions','SELECT')
-     OR has_table_privilege(current_user,'eogp.booking_offer_expiry_tenant_queue','SELECT') THEN
+     OR has_table_privilege(current_user,'eogp.booking_offer_expiry_tenant_queue','SELECT')
+     OR has_table_privilege(current_user,'eogp.booking_offer_email_deliveries','SELECT')
+     OR has_table_privilege(current_user,'eogp.booking_offer_email_delivery_tenant_queue','SELECT') THEN
     RAISE EXCEPTION 'runtime role has direct table read access to protected commercial data';
   END IF;
 
@@ -138,6 +142,19 @@ BEGIN
       AND NOT t.tgisinternal
   ) THEN
     RAISE EXCEPTION 'booking offer expiry queue triggers are missing';
+  END IF;
+
+  IF NOT has_table_privilege('eventor_worker','eogp.booking_offer_email_delivery_tenant_queue','SELECT')
+     OR NOT has_function_privilege('eventor_worker','eogp.discover_pending_booking_offer_email_tenants()','EXECUTE')
+     OR NOT has_function_privilege('eventor_worker','eogp.claim_booking_offer_email_delivery(uuid)','EXECUTE')
+     OR NOT has_function_privilege('eventor_worker','eogp.complete_booking_offer_email_delivery(uuid,uuid,text,text,text)','EXECUTE') THEN
+    RAISE EXCEPTION 'worker role is missing booking offer email queue permissions';
+  END IF;
+
+  IF has_function_privilege(current_user,'eogp.discover_pending_booking_offer_email_tenants()','EXECUTE')
+     OR has_function_privilege(current_user,'eogp.claim_booking_offer_email_delivery(uuid)','EXECUTE')
+     OR has_function_privilege(current_user,'eogp.complete_booking_offer_email_delivery(uuid,uuid,text,text,text)','EXECUTE') THEN
+    RAISE EXCEPTION 'runtime role can invoke worker-only booking offer email functions';
   END IF;
 
   IF to_regprocedure('eogp.digest(bytea,text)') IS NULL THEN
