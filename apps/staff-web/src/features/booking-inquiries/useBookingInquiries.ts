@@ -11,9 +11,11 @@ interface BookingInquiriesOptions {
   pageError: Ref<string>; pageNotice: Ref<string>; api: ApiClient;
   clearMessages: () => void; showError: (error: unknown) => void;
   clearBookingDraftState: () => void;
+  translate: (key: string, params?: Record<string, string | number>) => string;
 }
 
 export function useBookingInquiries(options: BookingInquiriesOptions) {
+  const t = options.translate;
   const inquiryRows = ref<BookingInquiryListItem[]>([]);
   const inquiryMeta = ref<PageMeta | null>(null);
   const inquiryOffset = ref(0);
@@ -99,54 +101,52 @@ export function useBookingInquiries(options: BookingInquiriesOptions) {
     const detail = inquiryDetail.value;
     if (!detail || !inquiryCapabilities.value.canAssign) return;
     const membershipId = inquiryAssignmentChoice.value === "unassigned" ? null : inquiryAssignmentChoice.value;
-    if (membershipId === detail.assignedToMembershipId) { options.pageNotice.value = "The assignment has not changed."; return; }
+    if (membershipId === detail.assignedToMembershipId) { options.pageNotice.value = t("bookingInquiry.assignmentUnchanged"); return; }
     const name = resolveInquiryAssigneeName(membershipId, options.principal.value?.membershipId, inquiryAssignees.value);
-    if (!window.confirm(`Assign ${detail.publicReference} to ${name}?`)) return;
+    if (!window.confirm(t("bookingInquiry.confirmAssign", { reference: detail.publicReference, name }))) return;
     options.clearMessages(); options.busy.value = true;
     try {
       await options.api.assignBookingInquiry(detail.inquiryId, membershipId);
       await Promise.all([refreshInquiryDetailData(), refreshInquiryListData()]);
-      options.pageNotice.value = "Inquiry assignment saved.";
+      options.pageNotice.value = t("bookingInquiry.assignmentSaved");
     } catch (error) { options.showError(error); inquiryAssignmentChoice.value = detail.assignedToMembershipId ?? "unassigned"; }
     finally { options.busy.value = false; }
   }
   async function saveInquiryStatus(): Promise<void> {
     const detail = inquiryDetail.value, status = inquiryStatusChoice.value, reason = inquiryStatusReason.value.trim();
     if (!detail || !inquiryCapabilities.value.canManage || !status) return;
-    if (reason.length < 3) { options.pageError.value = "Enter an audit reason of at least 3 characters."; return; }
-    if (!window.confirm(status === "declined" || status === "spam"
-      ? `Move ${detail.publicReference} to ${status}? This is a terminal status and cannot be reopened.`
-      : `Change ${detail.publicReference} to ${status.replaceAll("_", " ")}?`)) return;
+    if (reason.length < 3) { options.pageError.value = t("bookingInquiry.auditReasonMin"); return; }
+    const statusLabel = t(`bookingInquiry.${({ received: "received", under_review: "underReview", declined: "declined", spam: "spam" } as Record<string, string>)[status] ?? "received"}`);
+    const confirmation = status === "declined" || status === "spam" ? t("bookingInquiry.confirmTerminalStatus", { reference: detail.publicReference, status: statusLabel }) : t("bookingInquiry.confirmStatusChange", { reference: detail.publicReference, status: statusLabel });
+    if (!window.confirm(confirmation)) return;
     options.clearMessages(); options.busy.value = true;
     try {
       await options.api.changeBookingInquiryStatus(detail.inquiryId, { status, reason });
       inquiryStatusReason.value = "";
       await Promise.all([refreshInquiryDetailData(), refreshInquiryListData()]);
-      options.pageNotice.value = `Inquiry status changed to ${status.replaceAll("_", " ")}.`;
+      options.pageNotice.value = t("bookingInquiry.statusChanged", { status: statusLabel });
     } catch (error) { options.showError(error); } finally { options.busy.value = false; }
   }
   async function saveInquiryConversion(): Promise<void> {
     const detail = inquiryDetail.value;
     if (!detail || !canConvertInquiry.value) return;
-    if (!window.confirm(`Convert ${detail.publicReference} into a separate booking draft? The original inquiry will be preserved, but its status will become converted. This does not issue an offer, reserve resources or confirm a booking.`)) return;
+    if (!window.confirm(t("bookingInquiry.confirmConversion", { reference: detail.publicReference }))) return;
     options.clearMessages(); options.busy.value = true;
     try {
       const result = await options.api.convertBookingInquiryToDraft(detail.inquiryId);
       await Promise.all([refreshInquiryDetailData(), refreshInquiryListData()]);
-      options.pageNotice.value = result.data.changed
-        ? `Booking draft created (revision ${result.data.revisionNumber}). Draft ID: ${result.data.draftId}. No offer or reservation has been created.`
-        : `This inquiry was already converted. Existing draft ID: ${result.data.draftId}.`;
+      options.pageNotice.value = result.data.changed ? t("bookingInquiry.conversionCreated", { revision: result.data.revisionNumber, id: result.data.draftId }) : t("bookingInquiry.conversionAlreadyDone", { id: result.data.draftId });
     } catch (error) { options.showError(error); } finally { options.busy.value = false; }
   }
   async function saveInquiryAnnotation(): Promise<void> {
     const detail = inquiryDetail.value, annotation = inquiryAnnotationText.value.trim();
     if (!detail || !inquiryCapabilities.value.canAnnotate) return;
-    if (annotation.length < 1 || annotation.length > 4000) { options.pageError.value = "Enter an internal note between 1 and 4,000 characters."; return; }
+    if (annotation.length < 1 || annotation.length > 4000) { options.pageError.value = t("bookingInquiry.annotationLength"); return; }
     options.clearMessages(); options.busy.value = true;
     try {
       await options.api.addBookingInquiryAnnotation(detail.inquiryId, annotation);
       inquiryAnnotationText.value = ""; await refreshInquiryDetailData();
-      options.pageNotice.value = "Internal note added. It is visible only to authorized staff.";
+      options.pageNotice.value = t("bookingInquiry.annotationSaved");
     } catch (error) { options.showError(error); } finally { options.busy.value = false; }
   }
   function reset(): void {
