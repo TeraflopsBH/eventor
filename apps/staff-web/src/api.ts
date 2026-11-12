@@ -722,13 +722,15 @@ export interface PublicBookingFormField {
   description?: string;
   helpText?: string;
   placeholder?: string;
-  required: boolean;
+  required?: boolean;
   options?: Array<{ value: string; label: string }>;
   minLength?: number;
   maxLength?: number;
   min?: number;
   max?: number;
   integer?: boolean;
+  minItems?: number;
+  maxItems?: number;
 }
 export interface PublicBookingForm {
   organizationId: string;
