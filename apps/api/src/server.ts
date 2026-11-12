@@ -114,6 +114,7 @@ type Command = (client: PoolClient) => Promise<Record<string, unknown>>;
 interface PublicBookingInquiryBody {
   readonly formCode: string;
   readonly formRevisionId: string;
+  readonly customerLocale?: "bs-BA" | "en";
   readonly requester: {
     readonly displayName: string;
     readonly email?: string;
@@ -181,6 +182,7 @@ const publicBookingInquiryBody = {
   properties: {
     formCode: { type: "string", minLength: 2, maxLength: 80, pattern: "^[A-Za-z0-9][A-Za-z0-9_-]*$" },
     formRevisionId: { type: "string", pattern: uuidPattern },
+    customerLocale: { type: "string", enum: ["bs-BA", "en"] },
     requester: {
       type: "object",
       required: ["displayName"],
@@ -1349,7 +1351,7 @@ export function buildApi(dependencies: ApiDependencies): FastifyInstance {
           stableJson({ organizationSlug: request.params.organizationSlug, body }),
         );
         const submitted = await client.query<ResultRow>(
-          "SELECT eogp.submit_public_booking_inquiry($1::text,$2::text,$3::uuid,$4::text,$5::text,$6::text,$7::bytea,$8::bytea,$9::text,$10::bytea,$11::text,$12::bytea,$13::timestamptz,$14::timestamptz,$15::text) AS result",
+          "SELECT eogp.submit_public_booking_inquiry_with_locale($1::text,$2::text,$3::uuid,$4::text,$5::text,$6::text,$7::bytea,$8::bytea,$9::text,$10::bytea,$11::text,$12::bytea,$13::timestamptz,$14::timestamptz,$15::text,$16::text) AS result",
           [
             request.params.organizationSlug,
             body.formCode,
@@ -1366,6 +1368,7 @@ export function buildApi(dependencies: ApiDependencies): FastifyInstance {
             requestedStart,
             requestedEnd,
             submittedValues.requested.timezone,
+            body.customerLocale ?? null,
           ],
         );
         const result = submitted.rows[0]?.result;
