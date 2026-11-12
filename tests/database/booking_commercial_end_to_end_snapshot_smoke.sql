@@ -33,7 +33,9 @@ DECLARE
   v_offer_id uuid;
   v_offer_revision_id uuid;
   v_booking_id uuid;
-  v_token_sha256 text := repeat('a',64);
+  v_token_sha256 text := encode(eogp.digest(convert_to(gen_random_uuid()::text,'UTF8'),'sha256'),'hex');
+  v_idempotency_key_sha256 text := encode(eogp.digest(convert_to(gen_random_uuid()::text,'UTF8'),'sha256'),'hex');
+  v_request_sha256 text := encode(eogp.digest(convert_to(gen_random_uuid()::text,'UTF8'),'sha256'),'hex');
   v_prepared jsonb;
   v_result jsonb;
   v_public_offer jsonb;
@@ -242,7 +244,7 @@ BEGIN
 
   -- Customer acceptance is recorded through the single-use capability command.
   v_result:=eogp.decide_booking_offer_with_capability(
-    v_offer_id,v_token_sha256,'accepted',repeat('b',64),repeat('c',64),
+    v_offer_id,v_token_sha256,'accepted',v_idempotency_key_sha256,v_request_sha256,
     v_ciphertext,NULL,NULL,NULL
   );
   IF v_result->>'decision'<>'accepted' OR coalesce((v_result->>'replayed')::boolean,true) THEN
