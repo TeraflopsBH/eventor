@@ -7,7 +7,7 @@ type Workspace = ReturnType<typeof useStaffSession> & {
   busy: Ref<boolean>;
   pageError: Ref<string>;
   pageNotice: Ref<string>;
-  activeTab: Ref<"delivery" | "campaign" | "inquiries" | "approvals" | "prices" | "cancellations" | "taxes">;
+  activeTab: Ref<"delivery" | "campaign" | "inquiries" | "approvals" | "prices" | "cancellations" | "taxes" | "settings">;
   locale: WritableComputedRef<string>;
   localeOptions: Array<{ value: SupportedLocale; label: string }>;
   openInquiryWorkspace: () => Promise<void>;
@@ -33,7 +33,7 @@ const {
         <span class="brand-mark">E</span>
         <span>EVENTOR <small>{{ $t("app.staffWorkspace") }}</small></span>
       </a>
-      <label class="locale-picker">{{ $t("app.language") }} <select v-model="locale"><option v-for="option in localeOptions" :key="option.value" :value="option.value">{{ option.label }}</option></select></label>
+      <label class="locale-picker">{{ $t("app.language") }} <select v-model="locale" @change="props.workspace.saveLocalePreference(locale)"><option v-for="option in localeOptions" :key="option.value" :value="option.value">{{ option.label }}</option></select></label>
       <div v-if="principal" class="account">
         <div class="account-copy">
           <strong>{{ selectedOrganization }}</strong>
@@ -88,6 +88,9 @@ const {
       </nav>
 
       
+      <nav class="tabs" :aria-label="$t('navigation.settings')">
+        <button :class="{ active: activeTab === 'settings' }" @click="activeTab = 'settings'">{{ $t("navigation.settings") }}</button>
+      </nav>
       <slot />
     </template>
 
