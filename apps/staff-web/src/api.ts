@@ -47,6 +47,7 @@ async function request<T>(
     idempotencyKey?: string;
     extraHeaders?: Record<string, string>;
     credentials?: RequestCredentials;
+    skipCsrf?: boolean;
   } = {},
 ): Promise<T> {
   const method = options.method ?? "GET";
@@ -56,10 +57,10 @@ async function request<T>(
   for (const [name, value] of Object.entries(options.extraHeaders ?? {})) headers.set(name, value);
   if (method !== "GET") {
     const csrf = readCookie(csrfCookieName);
-    if (path !== "/auth/session" && !csrf) {
+    if (path !== "/auth/session" && !options.skipCsrf && !csrf) {
       throw new Error("The CSRF cookie is missing. Sign in again before continuing.");
     }
-    if (csrf) headers.set("X-CSRF-Token", csrf);
+    if (csrf && !options.skipCsrf) headers.set("X-CSRF-Token", csrf);
     if (options.idempotent) headers.set("Idempotency-Key", options.idempotencyKey ?? idempotencyKey());
   }
 
@@ -578,6 +579,7 @@ export const api = {
       {
         method: "POST", body, idempotent: true, idempotencyKey: requestKey,
         credentials: "omit",
+        skipCsrf: true,
         extraHeaders: { "X-External-Booking-Token": token },
       },
     ),
