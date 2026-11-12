@@ -74,25 +74,21 @@ BEGIN
     END IF;
   END LOOP;
 
-  IF has_table_privilege(current_user,'eogp.booking_offers','SELECT')
-     OR has_table_privilege(current_user,'eogp.booking_offer_revisions','SELECT')
-     OR has_table_privilege(current_user,'eogp.external_action_capabilities','SELECT')
-     OR has_table_privilege(current_user,'eogp.booking_offer_capability_lookup','SELECT')
-     OR has_table_privilege(current_user,'eogp.booking_offer_decision_history','SELECT')
-     OR has_table_privilege(current_user,'eogp.booking_offer_approval_decisions','SELECT')
-     OR has_table_privilege(current_user,'eogp.booking_approval_policies','SELECT')
-     OR has_table_privilege(current_user,'eogp.booking_approval_policy_revisions','SELECT')
-     OR has_table_privilege(current_user,'eogp.booking_offer_expiry_tenant_queue','SELECT')
-     OR has_table_privilege(current_user,'eogp.booking_offer_email_deliveries','SELECT')
-     OR has_table_privilege(current_user,'eogp.booking_offer_email_delivery_tenant_queue','SELECT')
-     OR has_table_privilege(current_user,'eogp.booking_price_lists','SELECT')
-     OR has_table_privilege(current_user,'eogp.booking_price_list_revisions','SELECT')
-     OR has_table_privilege(current_user,'eogp.booking_price_items','SELECT')
-     OR has_table_privilege(current_user,'eogp.cancellation_policies','SELECT')
-     OR has_table_privilege(current_user,'eogp.cancellation_policy_revisions','SELECT')
-     OR has_table_privilege(current_user,'eogp.booking_tax_profiles','SELECT')
-     OR has_table_privilege(current_user,'eogp.booking_tax_profile_revisions','SELECT') THEN
-    RAISE EXCEPTION 'runtime role has direct table read access to protected commercial data';
+  SELECT string_agg(table_name, ', ' ORDER BY table_name)
+    INTO v_name
+    FROM unnest(ARRAY[
+      'booking_offers','booking_offer_revisions','external_action_capabilities',
+      'booking_offer_capability_lookup','booking_offer_decision_history',
+      'booking_offer_approval_decisions','booking_approval_policies',
+      'booking_approval_policy_revisions','booking_offer_expiry_tenant_queue',
+      'booking_offer_email_deliveries','booking_offer_email_delivery_tenant_queue',
+      'booking_price_lists','booking_price_list_revisions','booking_price_items',
+      'cancellation_policies','cancellation_policy_revisions',
+      'booking_tax_profiles','booking_tax_profile_revisions'
+    ]) AS protected(table_name)
+   WHERE has_table_privilege(current_user,format('eogp.%I',table_name),'SELECT');
+  IF v_name IS NOT NULL THEN
+    RAISE EXCEPTION 'runtime role has direct table read access to protected commercial data: %',v_name;
   END IF;
 
   IF to_regprocedure('eogp.allocate_booking_offer_adjustment_tax(uuid,uuid,jsonb,jsonb,text)') IS NULL THEN
