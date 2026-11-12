@@ -934,6 +934,12 @@ test("staff and organization locale preferences are validated and organization w
   assert.equal(userPreference.statusCode, 200);
   assert.deepEqual(userPreference.json().data, { userLocale: "en" });
 
+  const resetUserPreference = await app.inject({
+    method: "PATCH", url: "/me/preferences", payload: { locale: null },
+  });
+  assert.equal(resetUserPreference.statusCode, 200);
+  assert.deepEqual(resetUserPreference.json().data, { userLocale: null });
+
   const unsupportedUserLocale = await app.inject({
     method: "PATCH", url: "/me/preferences", payload: { locale: "fr" },
   });
