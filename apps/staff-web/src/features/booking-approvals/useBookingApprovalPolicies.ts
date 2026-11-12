@@ -99,8 +99,8 @@ async function createBookingApprovalPolicyRevision(): Promise<void> {
   const latest = selectedApprovalPolicyLatestRevision.value;
   if (!window.confirm(
     latest?.state === "draft"
-      ? "Save changes to this exact draft revision? The draft remains unpublished until you explicitly publish it."
-      : "Create a new immutable draft revision? Any existing offers keep their already-pinned approval requirements.",
+      ? translate("commercialConfiguration.approvalSaveDraftConfirm")
+      : translate("commercialConfiguration.approvalSuccessorConfirm"),
   )) return;
   clearMessages();
   busy.value = true;
