@@ -218,9 +218,12 @@ BEGIN
     RAISE EXCEPTION 'organization context mismatch' USING ERRCODE='42501';
   END IF;
   PERFORM eogp.assert_booking_commercial_permission(p_organization_id,p_actor_membership_id,ARRAY['booking.manage']::text[]);
-  IF p_currency !~ '^[A-Z]{3}$' OR p_tax_basis NOT IN ('inclusive','exclusive','not_applicable')
-     OR p_rounding_method NOT IN ('per_line','per_tax_code','invoice_total')
-     OR p_rounding_scale NOT BETWEEN 0 AND 4
+  IF p_currency IS NULL OR p_currency !~ '^[A-Z]{3}$'
+     OR p_tax_basis IS NULL OR p_tax_basis NOT IN ('inclusive','exclusive','not_applicable')
+     OR p_rounding_method IS NULL OR p_rounding_method NOT IN ('per_line','per_tax_code','invoice_total')
+     OR p_rounding_scale IS NULL OR p_rounding_scale NOT BETWEEN 0 AND 4
+     OR (p_jurisdiction_code IS NOT NULL AND length(btrim(p_jurisdiction_code))>100)
+     OR (p_registration_identifier IS NOT NULL AND length(btrim(p_registration_identifier))>120)
      OR (p_effective_from IS NOT NULL AND p_effective_until IS NOT NULL AND p_effective_until<=p_effective_from) THEN
     RAISE EXCEPTION 'tax profile revision settings are invalid' USING ERRCODE='22023';
   END IF;
@@ -257,7 +260,13 @@ BEGIN
     RAISE EXCEPTION 'organization context mismatch' USING ERRCODE='42501';
   END IF;
   PERFORM eogp.assert_booking_commercial_permission(p_organization_id,p_actor_membership_id,ARRAY['booking.manage']::text[]);
-  IF p_currency IS NULL OR p_currency !~ '^[A-Z]{3}
+  IF p_currency IS NULL OR p_currency !~ '^[A-Z]{3}$'
+     OR p_tax_basis IS NULL OR p_tax_basis NOT IN ('inclusive','exclusive','not_applicable')
+     OR p_rounding_method IS NULL OR p_rounding_method NOT IN ('per_line','per_tax_code','invoice_total')
+     OR p_rounding_scale IS NULL OR p_rounding_scale NOT BETWEEN 0 AND 4
+     OR (p_jurisdiction_code IS NOT NULL AND length(btrim(p_jurisdiction_code))>100)
+     OR (p_registration_identifier IS NOT NULL AND length(btrim(p_registration_identifier))>120)
+     OR (p_effective_from IS NOT NULL AND p_effective_until IS NOT NULL AND p_effective_until<=p_effective_from) THEN
     RAISE EXCEPTION 'tax profile revision settings are invalid' USING ERRCODE='22023';
   END IF;
   PERFORM eogp.validate_booking_tax_codes(p_tax_codes);
