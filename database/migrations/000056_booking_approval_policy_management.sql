@@ -222,6 +222,10 @@ BEGIN
    ORDER BY revision_number DESC
    LIMIT 1
    FOR UPDATE;
+  IF FOUND AND v_latest.state = 'draft' THEN
+    RAISE EXCEPTION 'update the latest draft revision instead of creating another revision'
+      USING ERRCODE = '55000';
+  END IF;
   v_revision_number := coalesce(v_latest.revision_number,0)+1;
 
   INSERT INTO eogp.booking_approval_policy_revisions(
@@ -240,6 +244,78 @@ BEGIN
 
   RETURN jsonb_build_object(
     'policyId',p_policy_id,'revisionId',v_revision_id,'revisionNumber',v_revision_number,'state','draft'
+  );
+END;
+$function$;
+
+CREATE FUNCTION eogp.update_booking_approval_policy_draft_revision(
+  p_organization_id uuid,
+  p_policy_id uuid,
+  p_revision_id uuid,
+  p_actor_membership_id uuid,
+  p_rules jsonb
+) RETURNS jsonb
+LANGUAGE plpgsql
+SECURITY DEFINER
+SET search_path = pg_catalog,eogp
+AS $function$
+DECLARE
+  v_policy eogp.booking_approval_policies%ROWTYPE;
+  v_revision eogp.booking_approval_policy_revisions%ROWTYPE;
+  v_latest_revision_id uuid;
+BEGIN
+  IF eogp.current_organization_id() IS DISTINCT FROM p_organization_id THEN
+    RAISE EXCEPTION 'organization context mismatch' USING ERRCODE = '42501';
+  END IF;
+  PERFORM eogp.assert_booking_commercial_permission(
+    p_organization_id,p_actor_membership_id,ARRAY['booking.manage']::text[]
+  );
+  PERFORM eogp.validate_booking_approval_policy_rules(p_rules);
+
+  SELECT * INTO v_policy
+    FROM eogp.booking_approval_policies
+   WHERE organization_id=p_organization_id AND id=p_policy_id
+   FOR UPDATE;
+  IF NOT FOUND OR v_policy.status <> 'active' THEN
+    RAISE EXCEPTION 'active booking approval policy not found' USING ERRCODE = 'P0002';
+  END IF;
+
+  SELECT revision.id INTO v_latest_revision_id
+    FROM eogp.booking_approval_policy_revisions revision
+   WHERE revision.organization_id=p_organization_id
+     AND revision.policy_id=p_policy_id
+   ORDER BY revision.revision_number DESC
+   LIMIT 1;
+  IF v_latest_revision_id IS DISTINCT FROM p_revision_id THEN
+    RAISE EXCEPTION 'only the latest draft revision may be updated' USING ERRCODE = '40001';
+  END IF;
+
+  SELECT * INTO v_revision
+    FROM eogp.booking_approval_policy_revisions
+   WHERE organization_id=p_organization_id AND policy_id=p_policy_id AND id=p_revision_id
+   FOR UPDATE;
+  IF NOT FOUND OR v_revision.state <> 'draft' THEN
+    RAISE EXCEPTION 'latest draft approval policy revision is required'
+      USING ERRCODE = '55000';
+  END IF;
+
+  UPDATE eogp.booking_approval_policy_revisions
+     SET rules=p_rules
+   WHERE organization_id=p_organization_id AND id=p_revision_id;
+
+  INSERT INTO eogp.audit_events(
+    organization_id,actor_organization_id,actor_membership_id,actor_kind,
+    action,aggregate_type,aggregate_id,reason_code,safe_metadata
+  ) VALUES (
+    p_organization_id,p_organization_id,p_actor_membership_id,'membership',
+    'booking.approval_policy.draft_revision_updated','booking_approval_policy',p_policy_id,
+    'approval_policy_draft_revision_updated',
+    jsonb_build_object('revisionId',p_revision_id,'revisionNumber',v_revision.revision_number,'ruleCount',jsonb_array_length(p_rules))
+  );
+
+  RETURN jsonb_build_object(
+    'policyId',p_policy_id,'revisionId',p_revision_id,
+    'revisionNumber',v_revision.revision_number,'state','draft'
   );
 END;
 $function$;
@@ -322,8 +398,13 @@ REVOKE ALL ON FUNCTION eogp.create_booking_approval_policy(uuid,uuid,text,text)
   FROM PUBLIC,eventor_runtime,eventor_worker,eventor_auth;
 REVOKE ALL ON FUNCTION eogp.create_booking_approval_policy_revision(uuid,uuid,uuid,jsonb)
   FROM PUBLIC,eventor_runtime,eventor_worker,eventor_auth;
+REVOKE ALL ON FUNCTION eogp.update_booking_approval_policy_draft_revision(uuid,uuid,uuid,uuid,jsonb)
+  FROM PUBLIC,eventor_runtime,eventor_worker,eventor_auth;
 REVOKE ALL ON FUNCTION eogp.publish_booking_approval_policy_revision(uuid,uuid,uuid,uuid)
   FROM PUBLIC,eventor_runtime,eventor_worker,eventor_auth;
+
+GRANT EXECUTE ON FUNCTION eogp.update_booking_approval_policy_draft_revision(uuid,uuid,uuid,uuid,jsonb)
+  TO eventor_runtime;
 
 GRANT EXECUTE ON FUNCTION eogp.get_booking_approval_policies(uuid,uuid),
   eogp.create_booking_approval_policy(uuid,uuid,text,text),
