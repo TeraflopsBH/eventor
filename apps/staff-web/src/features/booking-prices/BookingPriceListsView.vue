@@ -9,7 +9,7 @@ type Workspace = ReturnType<typeof useBookingPriceLists> & { busy: Ref<boolean> 
 const props = defineProps<{ workspace: Workspace }>();
 const { formatDate } = useInquiryPresentation();
 const { t } = useI18n();
-const statusLabel = (value: string) => { const key = `commercialConfiguration.viewValues.${value}`; const translated = t(key); return translated === key ? value : translated; };
+const statusLabel = (value: string) => { const key = `commercialConfiguration.viewValues.${value}`; const translated = t(key as never) as string; return translated === key ? value : translated; };
 const enumLabel = (value: string) => statusLabel(value);
 
 const {
@@ -92,7 +92,7 @@ const {
           </div>
           <div v-if="selectedPriceListLatestRevision" class="policy-revision-meta">
             <span>{{ t("commercialConfiguration.priceView.revision") }} {{ selectedPriceListLatestRevision.revisionNumber }}</span>
-            <span>{{ selectedPriceListLatestRevision.currency }} · {{ selectedPriceListLatestRevision.taxBasis.replaceAll("_", " ") }}</span>
+            <span>{{ selectedPriceListLatestRevision.currency }} · {{ enumLabel(selectedPriceListLatestRevision.taxBasis) }}</span>
             <span>{{ t("commercialConfiguration.priceView.created") }} {{ formatDate(selectedPriceListLatestRevision.createdAt) }}</span>
             <span>{{ t("commercialConfiguration.priceView.published") }} {{ formatDate(selectedPriceListLatestRevision.publishedAt) }}</span>
             <span class="mono">{{ selectedPriceListLatestRevision.revisionId }}</span>
@@ -113,7 +113,7 @@ const {
           <label>{{ t("commercialConfiguration.priceView.published_tax_profile_revision") }}
             <select v-model="priceListTaxProfileRevisionId" :disabled="selectedPriceListLatestRevision?.state !== 'draft'">
               <option value="">{{ t("commercialConfiguration.priceView.no_tax_profile_selected") }}</option>
-              <option v-for="taxRevision in compatibleTaxProfileRevisions" :key="taxRevision.revisionId" :value="taxRevision.revisionId">{{ taxRevision.profileCode }} · {{ taxRevision.profileName }} · rev {{ taxRevision.revisionNumber }}</option>
+              <option v-for="taxRevision in compatibleTaxProfileRevisions" :key="taxRevision.revisionId" :value="taxRevision.revisionId">{{ taxRevision.profileCode }} · {{ taxRevision.profileName }} · ver. {{ taxRevision.revisionNumber }}</option>
             </select>
           </label>
           <p class="fine-print">{{ t("commercialConfiguration.priceView.a_selected_tax_profile_must_match_the_price_list_curren") }}</p>
