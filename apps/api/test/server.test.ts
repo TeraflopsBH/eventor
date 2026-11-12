@@ -1243,6 +1243,61 @@ test("staff inquiry inbox decrypts authorized projections and routes assignment,
 });
 
 
+
+test("offer approvals are permission-gated, reasoned and scoped to an exact offer revision", async (t) => {
+  const mock = makePool();
+  const app = makeApi(mock.pool);
+  t.after(async () => app.close());
+  const offerId = "18181818-1818-4181-8181-181818181818";
+  const offerRevisionId = "18181818-1818-4181-8181-181818181819";
+
+  const decision = await app.inject({
+    method: "POST",
+    url: `/booking-offers/${offerId}/approvals`,
+    headers: { "idempotency-key": "offer-approval-0001" },
+    payload: {
+      offerRevisionId,
+      ruleCode: "high_value",
+      decision: "approved",
+      reason: "Reviewed the pricing and approved the offer.",
+    },
+  });
+  assert.equal(decision.statusCode, 201);
+  const decisionData = decision.json<{
+    data: { offerId: string; offerRevisionId: string; ruleCode: string; approvedCount: number; requiredApprovals: number; satisfied: boolean };
+  }>().data;
+  assert.equal(decisionData.offerId, offerId);
+  assert.equal(decisionData.offerRevisionId, offerRevisionId);
+  assert.equal(decisionData.ruleCode, "high_value");
+  assert.equal(decisionData.approvedCount, 1);
+  assert.equal(decisionData.requiredApprovals, 2);
+  assert.equal(decisionData.satisfied, false);
+  assert.equal(mock.bookingOfferApprovalDecisionCalls, 1);
+  const approvalCall = mock.commandCalls.find((call) => call.sql.includes("eogp.decide_booking_offer_approval("));
+  assert.ok(approvalCall);
+  assert.deepEqual(approvalCall.values, [
+    principal.organizationId,
+    offerId,
+    offerRevisionId,
+    principal.membershipId,
+    "high_value",
+    "approved",
+    "Reviewed the pricing and approved the offer.",
+  ]);
+
+  const status = await app.inject({
+    method: "GET",
+    url: `/booking-offers/${offerId}/approvals`,
+  });
+  assert.equal(status.statusCode, 200);
+  const statusData = status.json<{ data: { requirements: Array<{ ruleCode: string; approvedCount: number; requiredApprovals: number; blocked: boolean }> } }>().data;
+  assert.equal(statusData.requirements[0]?.ruleCode, "high_value");
+  assert.equal(statusData.requirements[0]?.approvedCount, 1);
+  assert.equal(statusData.requirements[0]?.requiredApprovals, 2);
+  assert.equal(statusData.requirements[0]?.blocked, false);
+  assert.equal(mock.bookingOfferApprovalStatusCalls, 1);
+});
+
 test("customer offer acceptance and rejection use a one-use purpose-bound capability without a staff session", async (t) => {
   const mock = makePool();
   const contactKey = Buffer.alloc(32, 10);
