@@ -1,7 +1,10 @@
 <script setup lang="ts">
-import { computed, onMounted, reactive, ref, watch } from "vue";
+import { computed, onMounted, ref, watch } from "vue";
 import { useI18n } from "vue-i18n";
 import type { SupportedLocale } from "./i18n";
+import PublicBookingOfferPage from "./features/public-booking-offers/PublicBookingOfferPage.vue";
+import StaffApplicationShell from "./features/application-shell/StaffApplicationShell.vue";
+import { useStaffSession } from "./features/application-shell/useStaffSession";
 import { useBookingInquiries } from "./features/booking-inquiries/useBookingInquiries";
 import { useBookingDraft } from "./features/booking-drafts/useBookingDraft";
 import { useBookingOffers } from "./features/booking-offers/useBookingOffers";
@@ -19,7 +22,7 @@ import CampaignWorkspaceView from "./features/campaigns/CampaignWorkspaceView.vu
 import { useEmailDelivery } from "./features/email-delivery/useEmailDelivery";
 import EmailDeliveryView from "./features/email-delivery/EmailDeliveryView.vue";
 import { formatBookingMoney, formatInquiryDate } from "./features/booking-inquiries/presentation";
-import { api, ApiError, type Principal, type PublicBookingOffer } from "./api";
+import { api } from "./api";
 
 const { locale } = useI18n();
 watch(locale, (value) => { document.documentElement.lang = value; }, { immediate: true });
@@ -28,35 +31,21 @@ const localeOptions: Array<{ value: SupportedLocale; label: string }> = [
   { value: "en", label: "English" },
 ];
 
-const publicOfferMatch = window.location.pathname.match(/^\/offers\/([0-9a-fA-F-]{36})\/?$/);
-const isPublicOfferPage = Boolean(publicOfferMatch);
-const publicOfferId = publicOfferMatch?.[1] ?? "";
-const publicOfferToken = ref(new URLSearchParams(window.location.hash.slice(1)).get("token") ?? "");
-const publicOffer = ref<PublicBookingOffer | null>(null);
-const publicOfferLoading = ref(isPublicOfferPage);
-const publicOfferError = ref("");
-const publicOfferDecision = ref<"accepted" | "rejected" | null>(null);
-const publicAcceptanceName = ref("");
-const publicAcceptanceNote = ref("");
-const publicRejectionReason = ref("");
-const publicRejectionNote = ref("");
-const publicDecisionBusy = ref(false);
-const publicDecisionKey = ref("");
-const publicDecisionKind = ref<"accepted" | "rejected" | null>(null);
-const principal = ref<Principal | null>(null);
-const loadingSession = ref(true);
+const isPublicOfferPage = /^\/offers\/[0-9a-fA-F-]{36}\/?$/.test(window.location.pathname);
 const activeTab = ref<"delivery" | "campaign" | "inquiries" | "approvals" | "prices" | "cancellations" | "taxes">("delivery");
 const busy = ref(false);
 const pageError = ref("");
 const pageNotice = ref("");
 
-const loginForm = reactive({ email: "", password: "", organizationSlug: "" });
+let loadEmailConfiguration: () => Promise<void> = async () => {};
+let resetWorkspace: () => void = () => {};
+const staffSessionState = useStaffSession({
+  api, busy, pageError, pageNotice, clearMessages,
+  loadConfiguration: () => loadEmailConfiguration(),
+  resetWorkspace: () => resetWorkspace(),
+});
+const { principal, loadingSession, loginForm, selectedOrganization, showError, refreshSession, signIn, signOut } = staffSessionState;
 
-const selectedOrganization = computed(() =>
-  principal.value?.memberships?.find((membership) => membership.selected)?.organizationName
-  ?? principal.value?.organizationId
-  ?? "",
-);
 const canReadBookingDraft = computed(() =>
   inquiryCapabilities.value.canReadDraft && Boolean(inquiryDetail.value?.bookingDraft),
 );
@@ -156,83 +145,19 @@ const emailDeliveryState = useEmailDelivery({
   api, busy, pageError, pageNotice, clearMessages, showError,
 });
 const { configuration, loadConfiguration } = emailDeliveryState;
+loadEmailConfiguration = loadConfiguration;
+resetWorkspace = (): void => {
+  emailDeliveryState.reset();
+  campaignState.reset();
+  resetBookingInquiries();
+};
+const staffShellWorkspace = {
+  ...staffSessionState, busy, pageError, pageNotice, activeTab, locale, localeOptions,
+};
 const campaignWorkspace = { ...campaignState, busy, configuration };
 const emailDeliveryWorkspace = { ...emailDeliveryState, busy };
 
 
-
-function showError(error: unknown): void {
-  if (error instanceof ApiError) {
-    if (error.status === 401) {
-      principal.value = null;
-      emailDeliveryState.reset();
-      campaignState.reset();
-      resetBookingInquiries();
-      pageError.value = "Your session has expired. Please sign in again.";
-      return;
-    }
-    if (error.status === 403) {
-      pageError.value = `Permission denied: ${error.message}`;
-      return;
-    }
-    pageError.value = `${error.message} [${error.code}]`;
-    return;
-  }
-  pageError.value = error instanceof Error ? error.message : "An unexpected error occurred.";
-}
-
-async function refreshSession(): Promise<void> {
-  loadingSession.value = true;
-  try {
-    const result = await api.me();
-    principal.value = result.data;
-    await loadConfiguration();
-  } catch (error) {
-    if (error instanceof ApiError && error.status === 401) {
-      principal.value = null;
-    } else {
-      showError(error);
-    }
-  } finally {
-    loadingSession.value = false;
-  }
-}
-
-async function signIn(): Promise<void> {
-  clearMessages();
-  busy.value = true;
-  try {
-    await api.login({
-      email: loginForm.email.trim(),
-      password: loginForm.password,
-      organizationSlug: loginForm.organizationSlug.trim(),
-    });
-    loginForm.password = "";
-    await refreshSession();
-    if (principal.value) pageNotice.value = "Signed in successfully.";
-  } catch (error) {
-    showError(error);
-  } finally {
-    busy.value = false;
-  }
-}
-
-async function signOut(): Promise<void> {
-  clearMessages();
-  busy.value = true;
-  try {
-    await api.logout();
-    principal.value = null;
-    emailDeliveryState.reset();
-    campaignState.reset();
-    resetBookingInquiries();
-    pageNotice.value = "You have been signed out.";
-  } catch (error) {
-    showError(error);
-  } finally {
-    busy.value = false;
-  }
-}
 
 async function openBookingDraft(): Promise<void> {
   const draftReference = inquiryDetail.value?.bookingDraft;
@@ -268,251 +193,16 @@ async function openBookingDraft(): Promise<void> {
 
 
 
-function createPublicDecisionKey(): string {
-  return globalThis.crypto.randomUUID();
-}
-
-async function loadPublicBookingOffer(): Promise<void> {
-  publicOfferLoading.value = true;
-  publicOfferError.value = "";
-  if (!publicOfferId || !/^[0-9a-fA-F-]{36}$/.test(publicOfferId)) {
-    publicOfferError.value = "This offer link is invalid.";
-    publicOfferLoading.value = false;
-    return;
-  }
-  if (!/^[A-Za-z0-9_-]{43}$/.test(publicOfferToken.value)) {
-    publicOfferError.value = "This offer link is incomplete. Open the original link supplied by the organization.";
-    publicOfferLoading.value = false;
-    return;
-  }
-  try {
-    const result = await api.getPublicBookingOffer(publicOfferId, publicOfferToken.value);
-    publicOffer.value = result.data;
-  } catch (error) {
-    publicOfferError.value = error instanceof ApiError && error.status === 410
-      ? "This offer has expired."
-      : error instanceof Error ? error.message : "The offer could not be loaded.";
-  } finally {
-    publicOfferLoading.value = false;
-  }
-}
-
-async function submitPublicOfferAcceptance(): Promise<void> {
-  const name = publicAcceptanceName.value.trim();
-  if (!name) {
-    publicOfferError.value = "Enter your name to record acceptance.";
-    return;
-  }
-  if (!publicOfferId || !publicOfferToken.value || !publicOffer || publicOffer.value.status !== "issued") return;
-  publicDecisionBusy.value = true;
-  publicOfferError.value = "";
-  if (publicDecisionKind.value !== "accepted") {
-    publicDecisionKey.value = createPublicDecisionKey();
-    publicDecisionKind.value = "accepted";
-  }
-  try {
-    await api.acceptPublicBookingOffer(
-      publicOfferId,
-      publicOfferToken.value,
-      { acceptanceName: name, acceptanceNote: publicAcceptanceNote.value.trim() || undefined },
-      publicDecisionKey.value,
-    );
-    publicOfferDecision.value = "accepted";
-  } catch (error) {
-    publicOfferError.value = error instanceof Error ? error.message : "Acceptance could not be recorded.";
-  } finally {
-    publicDecisionBusy.value = false;
-  }
-}
-
-async function submitPublicOfferRejection(): Promise<void> {
-  const reason = publicRejectionReason.value.trim();
-  if (reason.length < 3) {
-    publicOfferError.value = "Please provide a reason of at least 3 characters.";
-    return;
-  }
-  if (!publicOfferId || !publicOfferToken.value || !publicOffer || publicOffer.value.status !== "issued") return;
-  publicDecisionBusy.value = true;
-  publicOfferError.value = "";
-  if (publicDecisionKind.value !== "rejected") {
-    publicDecisionKey.value = createPublicDecisionKey();
-    publicDecisionKind.value = "rejected";
-  }
-  try {
-    await api.rejectPublicBookingOffer(
-      publicOfferId,
-      publicOfferToken.value,
-      { reasonCode: "customer_declined", reason, note: publicRejectionNote.value.trim() || undefined },
-      publicDecisionKey.value,
-    );
-    publicOfferDecision.value = "rejected";
-  } catch (error) {
-    publicOfferError.value = error instanceof Error ? error.message : "Rejection could not be recorded.";
-  } finally {
-    publicDecisionBusy.value = false;
-  }
-}
-
-function formatPublicDate(value: string | null | undefined, timezone?: string | null): string {
-  if (!value) return "Not specified";
-  const date = new Date(value);
-  if (Number.isNaN(date.getTime())) return value;
-  try {
-    return new Intl.DateTimeFormat(undefined, {
-      dateStyle: "medium", timeStyle: "short",
-      ...(timezone ? { timeZone: timezone } : {}),
-    }).format(date);
-  } catch {
-    return new Intl.DateTimeFormat(undefined, { dateStyle: "medium", timeStyle: "short" }).format(date);
-  }
-}
-
 onMounted(() => {
-  if (isPublicOfferPage) void loadPublicBookingOffer();
-  else void refreshSession();
+  if (!isPublicOfferPage) void refreshSession();
 });
 </script>
 
 <template>
-  <main v-if="isPublicOfferPage" class="public-offer-shell">
-    <header class="public-offer-header">
-      <a class="brand" href="/" aria-label="Eventor"><span class="brand-mark">E</span><span>EVENTOR <small>BOOKING OFFER</small></span></a>
-      <span class="public-security-note">Secure customer link</span>
-    </header>
-    <section v-if="publicOfferLoading" class="public-offer-panel" aria-live="polite">
-      <span class="spinner"></span><p>Loading your offer…</p>
-    </section>
-    <section v-else-if="publicOfferError && !publicOffer" class="public-offer-panel">
-      <p class="eyebrow">BOOKING OFFER</p><h1>Offer unavailable</h1><p class="muted">{{ publicOfferError }}</p>
-    </section>
-    <template v-else-if="publicOffer">
-      <section class="public-offer-hero">
-        <p class="eyebrow">BOOKING OFFER · REVISION {{ publicOffer.revisionNumber }}</p>
-        <h1>Review your booking offer</h1>
-        <p class="muted">Please review the requested arrangements, pricing and cancellation terms before recording your decision.</p>
-        <span class="pill" :class="publicOffer.status === 'expired' ? 'pill-warning' : 'pill-success'">{{ publicOffer.status === "expired" ? "Expired" : "Awaiting your decision" }}</span>
-      </section>
-      <section class="public-offer-panel">
-        <div class="public-offer-summary">
-          <div><span>Offer valid until</span><strong>{{ formatPublicDate(publicOffer.validUntil) }}</strong></div>
-          <div><span>Requested start</span><strong>{{ formatPublicDate(publicOffer.terms.requestedStart, publicOffer.terms.timezone) }}</strong></div>
-          <div><span>Requested end</span><strong>{{ formatPublicDate(publicOffer.terms.requestedEnd, publicOffer.terms.timezone) }}</strong></div>
-        </div>
-        <h2>Venue and resources</h2>
-        <div v-if="publicOffer.terms.spaces.length" class="public-offer-list">
-          <div v-for="(space, index) in publicOffer.terms.spaces" :key="index" class="public-offer-line">
-            <div><strong>{{ space.name }}</strong><span>{{ space.blockKind.replaceAll("_", " ") }} · {{ formatPublicDate(space.startsAt, publicOffer.terms.timezone) }} – {{ formatPublicDate(space.endsAt, publicOffer.terms.timezone) }}</span></div>
-            <span v-if="space.requestedCapacity">Capacity {{ space.requestedCapacity }}</span>
-          </div>
-        </div>
-        <p v-else class="muted">No venue-space line items.</p>
-        <div v-if="publicOffer.terms.resources.length" class="public-offer-list">
-          <div v-for="(resource, index) in publicOffer.terms.resources" :key="index" class="public-offer-line">
-            <strong>{{ resource.label }}</strong><span>Quantity {{ resource.requestedQuantity }}</span>
-          </div>
-        </div>
-        <h2>Price breakdown</h2>
-        <div class="public-offer-list">
-          <div v-for="(line, index) in publicOffer.terms.lineItems" :key="index" class="public-offer-line">
-            <div><strong>{{ line.label }}</strong><span>{{ line.quantity }} {{ line.unit }} × {{ line.unitAmount.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 4 }) }} {{ publicOffer.currency }}</span></div>
-            <strong>{{ line.lineTotal.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 }) }} {{ publicOffer.currency }}</strong>
-          </div>
-          <div v-for="(adjustment, index) in publicOffer.terms.adjustments" :key="'adjustment-' + index" class="public-offer-line">
-            <span>{{ adjustment.label }} ({{ adjustment.kind }})</span><strong>{{ adjustment.amount.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 }) }} {{ publicOffer.currency }}</strong>
-          </div>
-          <div class="public-offer-total"><span>Total</span><strong>{{ publicOffer.totalAmount.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 }) }} {{ publicOffer.currency }}</strong></div>
-        </div>
-        <h2>Cancellation terms</h2>
-        <p class="public-cancellation-terms">{{ publicOffer.terms.cancellationTerms || "No cancellation terms were supplied." }}</p>
-        <p class="fine-print">Tax basis: {{ publicOffer.terms.taxBasis }} · Tax amount: {{ publicOffer.taxAmount.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 }) }} {{ publicOffer.currency }}</p>
-      </section>
-      <section v-if="publicOffer.status === 'issued' && !publicOfferDecision" class="public-offer-panel public-offer-actions">
-        <div><p class="eyebrow">YOUR DECISION</p><h2>Accept this offer</h2></div>
-        <form @submit.prevent="submitPublicOfferAcceptance">
-          <label>Your full name<input v-model="publicAcceptanceName" required maxlength="250" autocomplete="name" /></label>
-          <label>Optional note<textarea v-model="publicAcceptanceNote" maxlength="1000" rows="3"></textarea></label>
-          <button class="button button-primary" type="submit" :disabled="publicDecisionBusy">{{ publicDecisionBusy ? "Recording…" : "Accept offer" }}</button>
-        </form>
-        <div class="public-reject">
-          <h3>Decline this offer</h3>
-          <form @submit.prevent="submitPublicOfferRejection">
-            <label>Reason<textarea v-model="publicRejectionReason" required minlength="3" maxlength="2000" rows="3"></textarea></label>
-            <label>Optional note<textarea v-model="publicRejectionNote" maxlength="1000" rows="2"></textarea></label>
-            <button class="button button-quiet" type="submit" :disabled="publicDecisionBusy">{{ publicDecisionBusy ? "Recording…" : "Decline offer" }}</button>
-          </form>
-        </div>
-      </section>
-      <section v-else-if="publicOfferDecision" class="public-offer-panel">
-        <h2>{{ publicOfferDecision === "accepted" ? "Acceptance recorded" : "Your response was recorded" }}</h2>
-        <p class="muted">{{ publicOfferDecision === "accepted" ? "Thank you. Your acceptance has been securely recorded. The organization will complete its internal approval and booking-confirmation steps separately." : "Your decision to decline this offer has been securely recorded." }}</p>
-      </section>
-      <p v-if="publicOfferError" class="public-offer-error" role="alert">{{ publicOfferError }}</p>
-      <footer class="public-offer-footer">This customer link is private. Anyone who has it may be able to act on this offer. Do not forward it.</footer>
-    </template>
-  </main>
-  <main v-else class="app-shell">
-    <header class="topbar">
-      <a class="brand" href="/" aria-label="Eventor staff home">
-        <span class="brand-mark">E</span>
-        <span>EVENTOR <small>{{ $t("app.staffWorkspace") }}</small></span>
-      </a>
-      <label class="locale-picker">Language <select v-model="locale"><option v-for="option in localeOptions" :key="option.value" :value="option.value">{{ option.label }}</option></select></label>
-      <div v-if="principal" class="account">
-        <div class="account-copy">
-          <strong>{{ selectedOrganization }}</strong>
-          <span>{{ $t("app.authenticatedSession") }}</span>
-        </div>
-        <button class="button button-quiet" :disabled="busy" @click="signOut">{{ $t("app.signOut") }}</button>
-      </div>
-    </header>
-
-    <section v-if="loadingSession" class="loading-panel" aria-live="polite">
-      <span class="spinner"></span> {{ $t("app.checkingSession") }}
-    </section>
-
-    <section v-else-if="!principal" class="login-layout">
-      <div class="intro-panel">
-        <p class="eyebrow">{{ $t("auth.platformEyebrow") }}</p>
-        <h1>{{ $t("auth.headline") }}</h1>
-        <p class="muted">{{ $t("auth.description") }}</p>
-        <div class="security-note"><span class="status-dot"></span> {{ $t("auth.security") }}</div>
-      </div>
-      <form class="panel login-panel" @submit.prevent="signIn">
-        <p class="eyebrow">{{ $t("auth.staffAccess") }}</p>
-        <h2>{{ $t("auth.signIn") }}</h2>
-        <label>{{ $t("auth.email") }}<input v-model="loginForm.email" type="email" autocomplete="username" required maxlength="320" /></label>
-        <label>{{ $t("auth.organization") }}<input v-model="loginForm.organizationSlug" autocomplete="organization" required minlength="2" maxlength="80" /></label>
-        <label>{{ $t("auth.password") }}<input v-model="loginForm.password" type="password" autocomplete="current-password" required minlength="12" maxlength="1024" /></label>
-        <button class="button button-primary full-width" type="submit" :disabled="busy">
-          {{ busy ? $t("auth.signingIn") : $t("auth.signInSecurely") }}
-        </button>
-        <p class="fine-print">{{ $t("auth.passwordNote") }}</p>
-      </form>
-    </section>
-
-    <template v-else>
-      <section class="welcome-row">
-        <div>
-          <p class="eyebrow">{{ $t("workspace.organization") }}</p>
-          <h1>{{ $t("workspace.overview") }}</h1>
-          <p class="muted">{{ $t("workspace.description") }}</p>
-        </div>
-        <div class="session-chip"><span class="status-dot"></span> {{ $t("workspace.active") }}</div>
-      </section>
-
-      <nav class="tabs" aria-label="Staff workspace sections">
-        <button :class="{ active: activeTab === 'delivery' }" @click="activeTab = 'delivery'">{{ $t("navigation.delivery") }}</button>
-        <button :class="{ active: activeTab === 'campaign' }" @click="activeTab = 'campaign'">{{ $t("navigation.campaigns") }}</button>
-        <button :class="{ active: activeTab === 'inquiries' }" @click="openInquiryWorkspace">{{ $t("navigation.inquiries") }}</button>
-        <button :class="{ active: activeTab === 'approvals' }" @click="openBookingApprovalPolicies">{{ $t("navigation.approvals") }}</button>
-        <button :class="{ active: activeTab === 'prices' }" @click="openBookingPriceLists">{{ $t("navigation.prices") }}</button>
-        <button :class="{ active: activeTab === 'cancellations' }" @click="openBookingCancellationPolicies">{{ $t("navigation.cancellations") }}</button>
-        <button :class="{ active: activeTab === 'taxes' }" @click="openBookingTaxProfiles">{{ $t("navigation.taxes") }}</button>
-      </nav>
-
-      <EmailDeliveryView v-if="activeTab === 'delivery'" :workspace="emailDeliveryWorkspace" />
-
-      <BookingInquiryView
+  <PublicBookingOfferPage v-if="isPublicOfferPage" />
+  <StaffApplicationShell v-else :workspace="staffShellWorkspace">
+    <EmailDeliveryView v-if="activeTab === 'delivery'" :workspace="emailDeliveryWorkspace" />
+    <BookingInquiryView
         v-else-if="activeTab === 'inquiries'"
         :workspace="{ ...bookingInquiryState, principal, busy, canReadBookingDraft }"
         @open-booking-draft="openBookingDraft"
@@ -834,11 +524,6 @@ onMounted(() => {
       <BookingCancellationPoliciesView v-else-if="activeTab === 'cancellations'" :workspace="{ ...bookingCancellationPolicyState, busy }" />
 
       <CampaignWorkspaceView v-else :workspace="campaignWorkspace" />
-    </template>
-
-    <div v-if="pageError" class="message message-error" role="alert">{{ pageError }}</div>
-    <div v-if="pageNotice" class="message message-success" role="status">{{ pageNotice }}</div>
-
-    <footer class="footer"><span>EVENTOR · STAFF WORKSPACE</span><span>Self-hosted · Organization-scoped · API-authoritative</span></footer>
-  </main>
+    
+  </StaffApplicationShell>
 </template>
