@@ -282,6 +282,9 @@ const { busy } = props.workspace;
                         <span :class="result.available ? 'pill pill-success' : 'pill pill-warning'">
                           {{ result.available ? t("commercialBooking.availabilityAvailable") : t("commercialBooking.availabilityConflict") }}
                         </span>
+                        <p v-if="result.reason === 'space_unavailable'" class="fine-print">
+                          {{ t("commercialBooking.availabilityReason.space_unavailable") }}
+                        </p>
                         <p v-for="(conflict, conflictIndex) in result.conflicts" :key="conflictIndex" class="fine-print">
                           {{ t("commercialBooking.conflictKind." + conflict.kind) }} · {{ formatDate(conflict.startsAt) }} – {{ formatDate(conflict.endsAt) }}
                         </p>
