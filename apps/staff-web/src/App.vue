@@ -1497,7 +1497,7 @@ async function createBookingTaxProfileRevision(): Promise<void> {
     await api.createBookingTaxProfileRevision(profile.taxProfileId,{
       jurisdictionCode:taxProfileRevisionForm.jurisdictionCode.trim()||null,
       registrationIdentifier:taxProfileRevisionForm.registrationIdentifier.trim()||null,
-      currency:taxProfileRevisionForm.currency,taxBasis:taxProfileRevisionForm.taxBasis,
+      currency:taxProfileRevisionForm.currency.trim().toUpperCase(),taxBasis:taxProfileRevisionForm.taxBasis,
       roundingMethod:taxProfileRevisionForm.roundingMethod,roundingScale:taxProfileRevisionForm.roundingScale,
       effectiveFrom:taxProfileRevisionForm.effectiveFrom?new Date(taxProfileRevisionForm.effectiveFrom).toISOString():null,
       effectiveUntil:taxProfileRevisionForm.effectiveUntil?new Date(taxProfileRevisionForm.effectiveUntil).toISOString():null,
