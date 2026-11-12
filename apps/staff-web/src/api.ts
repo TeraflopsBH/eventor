@@ -374,6 +374,42 @@ export interface BookingInquiryAssignee {
   displayName: string;
 }
 
+
+export interface BookingCancellationPolicyRevision {
+  revisionId: string;
+  revisionNumber: number;
+  customerMode: "request_only" | "approval_required" | "self_service";
+  publicTerms: string;
+  approvalRules: Record<string, unknown>;
+  commercialRules: Record<string, unknown>;
+  noticeRules: Record<string, unknown>;
+  state: "draft" | "published" | "retired";
+  publishedAt: string | null;
+  createdAt: string;
+}
+export interface BookingCancellationPolicy {
+  policyId: string;
+  code: string;
+  name: string;
+  status: "active" | "retired";
+  latestRevisionId: string | null;
+  revisions: BookingCancellationPolicyRevision[];
+}
+export interface BookingCancellationPolicyMutationResult {
+  policyId: string;
+  revisionId?: string;
+  revisionNumber?: number;
+  state: "active" | "draft" | "published";
+  publishedAt?: string;
+}
+export interface BookingCancellationPolicyRevisionInput {
+  customerMode: "request_only" | "approval_required" | "self_service";
+  publicTerms: string;
+  approvalRules: Record<string, unknown>;
+  commercialRules: Record<string, unknown>;
+  noticeRules: Record<string, unknown>;
+}
+
 export interface BookingOfferLineItemInput {
   itemCode: string;
   quantity: number;
@@ -803,6 +839,30 @@ export const api = {
   publishBookingApprovalPolicyRevision: (policyId: string, revisionId: string) =>
     request<Envelope<BookingApprovalPolicyMutationResult>>(
       `/booking-approval-policies/${encodeURIComponent(policyId)}/revisions/${encodeURIComponent(revisionId)}/publish`,
+      { method: "POST", body: {}, idempotent: true },
+    ),
+
+  getBookingCancellationPolicies: () =>
+    request<Envelope<BookingCancellationPolicy[]>>("/organization/booking-cancellation-policies"),
+  createBookingCancellationPolicy: (body: { code: string; name: string }) =>
+    request<Envelope<BookingCancellationPolicyMutationResult>>(
+      "/organization/booking-cancellation-policies", { method: "POST", body, idempotent: true },
+    ),
+  createBookingCancellationPolicyRevision: (policyId: string, body: BookingCancellationPolicyRevisionInput) =>
+    request<Envelope<BookingCancellationPolicyMutationResult>>(
+      `/booking-cancellation-policies/${encodeURIComponent(policyId)}/revisions`,
+      { method: "POST", body, idempotent: true },
+    ),
+  updateBookingCancellationPolicyDraftRevision: (
+    policyId: string, revisionId: string, body: BookingCancellationPolicyRevisionInput,
+  ) =>
+    request<Envelope<BookingCancellationPolicyMutationResult>>(
+      `/booking-cancellation-policies/${encodeURIComponent(policyId)}/revisions/${encodeURIComponent(revisionId)}`,
+      { method: "PUT", body, idempotent: true },
+    ),
+  publishBookingCancellationPolicyRevision: (policyId: string, revisionId: string) =>
+    request<Envelope<BookingCancellationPolicyMutationResult>>(
+      `/booking-cancellation-policies/${encodeURIComponent(policyId)}/revisions/${encodeURIComponent(revisionId)}/publish`,
       { method: "POST", body: {}, idempotent: true },
     ),
   getBookingOfferApprovals: (offerId: string) =>
