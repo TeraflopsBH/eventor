@@ -58,7 +58,7 @@ const {
                 </select>
               </label>
               <button class="button button-primary" type="submit" :disabled="busy || priceListCreateForm.code.trim().length < 2 || !priceListCreateForm.name.trim()">{{ t("commercialConfiguration.priceView.create_price_list") }}</button>
-              <p class="fine-print">{{ t("commercialConfiguration.priceView.currency") }} and tax basis are explicit organization inputs. Eventor does not assume GHB prices or tax treatment.</p>
+              <p class="fine-print">{{ t("commercialConfiguration.priceView.currency_and_tax_basis_are_explicit_organization_inputs") }}</p>
             </form>
           </section>
           <section class="inquiry-card">
@@ -110,19 +110,19 @@ const {
             <label>{{ t("commercialConfiguration.priceView.effective_from") }}<input v-model="priceListRevisionForm.effectiveFrom" type="datetime-local" /></label>
             <label>{{ t("commercialConfiguration.priceView.effective_until") }}<input v-model="priceListRevisionForm.effectiveUntil" type="datetime-local" /></label>
           </div>
-          <label>{{ t("commercialConfiguration.priceView.published") }} tax-profile revision
+          <label>{{ t("commercialConfiguration.priceView.published_tax_profile_revision") }}
             <select v-model="priceListTaxProfileRevisionId" :disabled="selectedPriceListLatestRevision?.state !== 'draft'">
               <option value="">{{ t("commercialConfiguration.priceView.no_tax_profile_selected") }}</option>
               <option v-for="taxRevision in compatibleTaxProfileRevisions" :key="taxRevision.revisionId" :value="taxRevision.revisionId">{{ taxRevision.profileCode }} · {{ taxRevision.profileName }} · rev {{ taxRevision.revisionNumber }}</option>
             </select>
           </label>
-          <p class="fine-print">A selected tax profile must match the price-list currency and tax basis. Every price item must use a tax{{ t("commercialConfiguration.priceView.code") }} from its catalogue; not-applicable profiles require null tax{{ t("commercialConfiguration.priceView.code") }} values. The selected revision is copied into each offer's immutable terms snapshot.</p>
+          <p class="fine-print">{{ t("commercialConfiguration.priceView.a_selected_tax_profile_must_match_the_price_list_curren") }}</p>
           <label>{{ t("commercialConfiguration.priceView.price_items_json_array") }}
             <textarea v-model="priceListItemsJson" rows="16" spellcheck="false" :disabled="selectedPriceListLatestRevision?.state !== 'draft'"></textarea>
           </label>
           <div class="policy-rule-reference">
             <strong>{{ t("commercialConfiguration.priceView.item_format") }}</strong>
-            <p class="fine-print">Each item has a stable item{{ t("commercialConfiguration.priceView.code") }}, customer-facing label, unit, unitAmount, optional tax{{ t("commercialConfiguration.priceView.code") }}, quantityMin (default 1) and quantityMax (optional). Amounts are non-negative decimal values.</p>
+            <p class="fine-print">{{ t("commercialConfiguration.priceView.each_item_has_a_stable_itemcode_customer_facing_label_u") }}</p>
             <pre>[
   {
     "itemCode": "MAIN_HALL_DAY",
@@ -142,7 +142,7 @@ const {
             <button v-if="selectedPriceListLatestRevision?.state === 'draft'" class="button button-primary" type="button" :disabled="busy || !selectedPriceListLatestRevision?.items.length" @click="publishBookingPriceListRevision">{{ t("commercialConfiguration.priceView.publish_revision") }}</button>
           </div>
           <div v-if="selectedPriceList.revisions.length" class="draft-revision-history">
-            <h5>{{ t("commercialConfiguration.priceView.revision") }} history</h5>
+            <h5>{{ t("commercialConfiguration.priceView.revision_history") }}</h5>
             <ol class="history-list">
               <li v-for="revision in selectedPriceList.revisions" :key="revision.revisionId">
                 <strong>{{ t("commercialConfiguration.priceView.revision") }} {{ revision.revisionNumber }} · {{ statusLabel(revision.state) }} · {{ revision.items.length }} {{ t("commercialConfiguration.priceView.item_s") }}</strong>
