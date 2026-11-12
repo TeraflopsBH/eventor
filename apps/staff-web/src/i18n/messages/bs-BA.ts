@@ -93,6 +93,7 @@ export default {
     remove: "Ukloni",
     removeField: "Ukloni polje",
     translations: "Prevodi",
+    translationNameRequired: "Unesite prevedeni naziv obrasca prije čuvanja prevedenog sadržaja.",
     translationHelp: "Prevedite naziv obrasca i sve oznake, opise, pomoćni tekst, rezervni tekst i nazive opcija.",
     translatedFormName: "Prevedeni naziv obrasca",
     description: "Opis",
