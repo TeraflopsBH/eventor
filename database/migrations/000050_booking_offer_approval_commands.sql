@@ -92,8 +92,8 @@ BEGIN
 
   SELECT coalesce(sum((adjustment->>'amount')::numeric),0)
     INTO v_discount_total
-    FROM jsonb_array_elements(coalesce(p_terms->'adjustments','[]'::jsonb)) adjustment
-   WHERE adjustment->>'kind' IN ('discount','credit');
+    FROM jsonb_array_elements(coalesce(p_terms->'adjustments','[]'::jsonb)) AS adjustments(adjustment)
+   WHERE adjustments.adjustment->>'kind' IN ('discount','credit');
 
   FOR v_rule IN SELECT value FROM jsonb_array_elements(p_rules)
   LOOP
@@ -163,8 +163,8 @@ BEGIN
               USING ERRCODE = '22023';
           END IF;
           SELECT EXISTS (
-            SELECT 1 FROM jsonb_array_elements(coalesce(p_terms->'adjustments','[]'::jsonb)) adjustment
-             WHERE adjustment->>'kind'=v_adjustment_kind
+            SELECT 1 FROM jsonb_array_elements(coalesce(p_terms->'adjustments','[]'::jsonb)) AS adjustments(adjustment)
+             WHERE adjustments.adjustment->>'kind'=v_adjustment_kind
           ) INTO v_matches;
         ELSE
           v_matches := jsonb_array_length(coalesce(p_terms->'adjustments','[]'::jsonb)) > 0;
@@ -300,9 +300,9 @@ BEGIN
       USING ERRCODE = '55000';
   END IF;
 
-  SELECT item INTO v_rule
-    FROM jsonb_array_elements(v_revision.approval_requirements_snapshot) item
-   WHERE item->>'code'=p_rule_code;
+  SELECT requirement.value INTO v_rule
+    FROM jsonb_array_elements(v_revision.approval_requirements_snapshot) AS requirement(value)
+   WHERE requirement.value->>'code'=p_rule_code;
   IF NOT FOUND THEN
     RAISE EXCEPTION 'this offer revision has no approval requirement with that rule code'
       USING ERRCODE = '22023';
@@ -401,10 +401,10 @@ BEGIN
     'requirements',(
       SELECT coalesce(jsonb_agg(
         jsonb_build_object(
-          'ruleCode',requirement->>'code',
-          'condition',requirement->'condition',
-          'requiredApprovals',(requirement->>'requiredApprovals')::integer,
-          'separationOfDuties',(requirement->>'separationOfDuties')::boolean,
+          'ruleCode',requirements.requirement->>'code',
+          'condition',requirements.requirement->'condition',
+          'requiredApprovals',(requirements.requirement->>'requiredApprovals')::integer,
+          'separationOfDuties',(requirements.requirement->>'separationOfDuties')::boolean,
           'approvedCount',(
             SELECT count(*)::integer
               FROM eogp.booking_offer_approval_decisions decision
@@ -435,7 +435,7 @@ BEGIN
           )
         )
       ),'[]'::jsonb)
-        FROM jsonb_array_elements(revision.approval_requirements_snapshot) requirement
+        FROM jsonb_array_elements(revision.approval_requirements_snapshot) AS requirements(requirement)
     )
   )
     INTO v_result
