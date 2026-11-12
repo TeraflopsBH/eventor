@@ -38,15 +38,15 @@ BEGIN
      OR (p_status IS NOT NULL AND p_status NOT IN ('queued','sending','sent','failed','uncertain')) THEN
     RAISE EXCEPTION 'invalid offer email delivery page or status filter' USING ERRCODE='22023';
   END IF;
+  PERFORM eogp.assert_booking_commercial_permission(
+    p_organization_id,p_actor_membership_id,ARRAY['booking.manage']::text[]
+  );
   IF NOT EXISTS (
     SELECT 1 FROM eogp.booking_offers offer
      WHERE offer.organization_id=p_organization_id AND offer.id=p_offer_id
   ) THEN
     RAISE EXCEPTION 'booking offer not found' USING ERRCODE='P0002';
   END IF;
-  PERFORM eogp.assert_booking_commercial_permission(
-    p_organization_id,p_actor_membership_id,ARRAY['booking.manage']::text[]
-  );
 
   SELECT count(*)::integer INTO v_total
     FROM eogp.booking_offer_email_deliveries delivery
