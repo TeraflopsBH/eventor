@@ -54,6 +54,21 @@ interface DeliveryCompletionRow extends QueryResultRow {
 interface ResendMessageReferenceRow extends QueryResultRow {
   reference: string;
 }
+interface BookingOfferEmailJobRow extends QueryResultRow {
+  delivery_id: string;
+  offer_id: string;
+  offer_revision_id: string;
+  capability_ciphertext: Buffer;
+  recipient_ciphertext: Buffer;
+  credentials_ciphertext: Buffer | null;
+  smtp_settings: SmtpSettings;
+  sender_email: string;
+  sender_name: string;
+  reply_to: string | null;
+  valid_until: Date | string;
+  currency: string;
+  total_amount: string | number;
+}
 
 export interface NotificationWorkerTotals {
   readonly tenantsVisited: number;
@@ -67,6 +82,11 @@ export interface NotificationWorkerTotals {
   readonly emailUncertain: number;
   readonly emailRetriesScheduled: number;
   readonly bookingOffersExpired: number;
+  readonly bookingOfferEmailAttempts: number;
+  readonly bookingOfferEmailSent: number;
+  readonly bookingOfferEmailFailed: number;
+  readonly bookingOfferEmailUncertain: number;
+  readonly bookingOfferEmailRetriesScheduled: number;
 }
 export interface NotificationWorkerOptions {
   readonly batchSize?: number;
@@ -75,6 +95,7 @@ export interface NotificationWorkerOptions {
   readonly errorPollMs?: number;
   readonly contactEncryptionKey?: Buffer;
   readonly deliveryCredentialsEncryptionKey?: Buffer;
+  readonly publicAppBaseUrl?: string;
   readonly smtpTransportFactory?: SmtpTransportFactory;
   readonly onBatch?: (totals: NotificationWorkerTotals) => void;
   readonly onError?: (error: unknown) => void;
@@ -96,6 +117,11 @@ function emptyTotals(): NotificationWorkerTotals {
     emailUncertain: 0,
     emailRetriesScheduled: 0,
     bookingOffersExpired: 0,
+    bookingOfferEmailAttempts: 0,
+    bookingOfferEmailSent: 0,
+    bookingOfferEmailFailed: 0,
+    bookingOfferEmailUncertain: 0,
+    bookingOfferEmailRetriesScheduled: 0,
   };
 }
 
@@ -339,6 +365,123 @@ export async function processPendingEmailDeliveries(
   return totals;
 }
 
+export async function processPendingBookingOfferEmailDeliveries(
+  pool: Pool,
+  contactEncryptionKey: Buffer,
+  deliveryCredentialsEncryptionKey: Buffer,
+  publicAppBaseUrl: string,
+  batchSize = 20,
+  maxTenantsPerPoll = 100,
+  factory: SmtpTransportFactory = createSmtpTransport,
+): Promise<NotificationWorkerTotals> {
+  if (!Buffer.isBuffer(contactEncryptionKey) || contactEncryptionKey.length !== 32
+      || !Buffer.isBuffer(deliveryCredentialsEncryptionKey) || deliveryCredentialsEncryptionKey.length !== 32) {
+    throw new TypeError("Offer email delivery requires separate 32-byte contact and delivery-credential keys.");
+  }
+  if (!Number.isInteger(batchSize) || batchSize < 1 || batchSize > 100) {
+    throw new RangeError("batchSize must be an integer between 1 and 100.");
+  }
+  if (!Number.isInteger(maxTenantsPerPoll) || maxTenantsPerPoll < 1 || maxTenantsPerPoll > 1000) {
+    throw new RangeError("maxTenantsPerPoll must be an integer between 1 and 1000.");
+  }
+  const appUrl = new URL(publicAppBaseUrl);
+  if (appUrl.protocol !== "https:" || appUrl.username || appUrl.password || appUrl.search || appUrl.hash) {
+    throw new TypeError("The public application base URL must be HTTPS and contain no credentials, query or fragment.");
+  }
+  const baseUrl = appUrl.toString().replace(/\/+$/, "");
+  const tenants = await pool.query<PendingTenantRow>(
+    "SELECT organization_id FROM eogp.discover_pending_booking_offer_email_tenants()",
+  );
+  const totals = { ...emptyTotals() };
+  for (const tenant of tenants.rows.slice(0, maxTenantsPerPoll)) {
+    let tenantAttempts = 0;
+    while (tenantAttempts < batchSize) {
+      const job = await inTenantTransaction(pool, tenant.organization_id, async (client) => {
+        const claimed = await client.query<BookingOfferEmailJobRow>(
+          "SELECT * FROM eogp.claim_booking_offer_email_delivery($1::uuid)",
+          [tenant.organization_id],
+        );
+        return claimed.rows[0] ?? null;
+      });
+      if (!job) break;
+
+      let outcome: "sent" | "failed" | "uncertain" = "failed";
+      let failureCode: string | null = null;
+      let messageReference: string | null = null;
+      let transport: ReturnType<SmtpTransportFactory> | null = null;
+      try {
+        const credentials = job.credentials_ciphertext
+          ? decryptDeliveryCredentials(job.credentials_ciphertext, deliveryCredentialsEncryptionKey, {
+              organizationId: tenant.organization_id,
+              channel: "email",
+            })
+          : null;
+        const destination = decryptContactValue(job.recipient_ciphertext, contactEncryptionKey, {
+          organizationId: tenant.organization_id,
+          contactKind: "email",
+        });
+        const capability = decryptContactValue(job.capability_ciphertext, contactEncryptionKey, {
+          organizationId: tenant.organization_id,
+          contactKind: "other",
+        });
+        if (!/^[A-Za-z0-9_-]{43}$/.test(capability)) {
+          throw new TypeError("Contact ciphertext contains an invalid booking offer capability.");
+        }
+        const reviewUrl = `${baseUrl}/offers/${job.offer_id}#token=${encodeURIComponent(capability)}`;
+        const validUntil = new Date(job.valid_until);
+        const validity = Number.isNaN(validUntil.getTime()) ? "the stated validity deadline" : validUntil.toISOString();
+        const sender = job.sender_name.trim() || job.sender_email;
+        const total = new Intl.NumberFormat("en", {
+          style: "currency", currency: job.currency,
+        }).format(Number(job.total_amount));
+        const subject = `Booking offer from ${sender}`;
+        const text = [
+          "You have received a booking offer.",
+          "",
+          `Offer total: ${total}`,
+          `Valid until: ${validity}`,
+          "",
+          "Review the offer and accept or reject it using this secure link:",
+          reviewUrl,
+          "",
+          "This link is personal. Do not forward it to anyone else.",
+        ].join("\n");
+        transport = factory(job.smtp_settings, credentials);
+        const sent = await transport.sendMail({ to: destination, subject, text });
+        if (!sent.accepted.some((address) => address.toLowerCase() === destination.toLowerCase())) {
+          const error = new Error("SMTP server did not accept the offer recipient.") as Error & { responseCode: number };
+          error.responseCode = 550;
+          throw error;
+        }
+        outcome = "sent";
+        messageReference = sent.messageId || null;
+      } catch (error) {
+        const classification = classifySmtpFailure(error);
+        outcome = classification.outcome;
+        failureCode = classification.code;
+      } finally {
+        transport?.close();
+      }
+
+      const completed = await inTenantTransaction(pool, tenant.organization_id, async (client) => {
+        const result = await client.query<DeliveryCompletionRow>(
+          "SELECT eogp.complete_booking_offer_email_delivery($1::uuid,$2::uuid,$3::text,$4::text,$5::text) AS result",
+          [tenant.organization_id, job.delivery_id, outcome, failureCode, messageReference],
+        );
+        return result.rows[0]?.result;
+      });
+      totals.bookingOfferEmailAttempts += 1;
+      if (outcome === "sent") totals.bookingOfferEmailSent += 1;
+      else if (outcome === "uncertain") totals.bookingOfferEmailUncertain += 1;
+      else totals.bookingOfferEmailFailed += 1;
+      if (completed?.retryScheduled) totals.bookingOfferEmailRetriesScheduled += 1;
+      tenantAttempts += 1;
+    }
+    if (tenantAttempts > 0) totals.tenantsVisited += 1;
+  }
+  return totals;
+}
+
 export async function processExpiredBookingOffers(
   pool: Pool,
   batchSize = 100,
@@ -408,6 +551,12 @@ export async function runEventNotificationWorker(
           pool, contactKey, deliveryKey, batchSize, maxTenantsPerPoll,
           options.smtpTransportFactory,
         );
+        const offerEmails = options.publicAppBaseUrl
+          ? await processPendingBookingOfferEmailDeliveries(
+              pool, contactKey, deliveryKey, options.publicAppBaseUrl,
+              batchSize, maxTenantsPerPoll, options.smtpTransportFactory,
+            )
+          : { ...emptyTotals() };
         const expiries = await processExpiredBookingOffers(pool, 100, maxTenantsPerPoll);
         const totals: NotificationWorkerTotals = {
           tenantsVisited: previews.tenantsVisited + deliveries.tenantsVisited + expiries.tenantsVisited,
@@ -421,9 +570,14 @@ export async function runEventNotificationWorker(
           emailUncertain: deliveries.emailUncertain,
           emailRetriesScheduled: deliveries.emailRetriesScheduled,
           bookingOffersExpired: expiries.expired,
+          bookingOfferEmailAttempts: offerEmails.bookingOfferEmailAttempts,
+          bookingOfferEmailSent: offerEmails.bookingOfferEmailSent,
+          bookingOfferEmailFailed: offerEmails.bookingOfferEmailFailed,
+          bookingOfferEmailUncertain: offerEmails.bookingOfferEmailUncertain,
+          bookingOfferEmailRetriesScheduled: offerEmails.bookingOfferEmailRetriesScheduled,
         };
-        if (totals.processed > 0 || totals.emailAttempts > 0 || totals.bookingOffersExpired > 0) options.onBatch?.(totals);
-        if (totals.processed === 0 && totals.emailAttempts === 0 && totals.bookingOffersExpired === 0) await sleep(idlePollMs);
+        if (totals.processed > 0 || totals.emailAttempts > 0 || totals.bookingOffersExpired > 0 || totals.bookingOfferEmailAttempts > 0) options.onBatch?.(totals);
+        if (totals.processed === 0 && totals.emailAttempts === 0 && totals.bookingOffersExpired === 0 && totals.bookingOfferEmailAttempts === 0) await sleep(idlePollMs);
       } catch (error) {
         options.onError?.(error);
         await sleep(errorPollMs);
