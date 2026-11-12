@@ -1,8 +1,9 @@
 <script setup lang="ts">
 import type { ComputedRef, Ref } from "vue";
 import type { Principal } from "../../api";
-import { formatInquiryDate, resolveInquiryAssigneeName } from "./presentation";
+import { resolveInquiryAssigneeName } from "./presentation";
 import type { useBookingInquiries } from "./useBookingInquiries";
+import { useInquiryPresentation } from "./useInquiryPresentation";
 
 type BookingInquiryWorkspace = ReturnType<typeof useBookingInquiries> & {
   principal: Ref<Principal | null>;
@@ -11,6 +12,7 @@ type BookingInquiryWorkspace = ReturnType<typeof useBookingInquiries> & {
 };
 
 const props = defineProps<{ workspace: BookingInquiryWorkspace }>();
+const { formatDate } = useInquiryPresentation();
 const emit = defineEmits<{ (event: "open-booking-draft"): void }>();
 
 const {
@@ -86,7 +88,7 @@ const {
                 </span>
                 <strong class="inquiry-requester">{{ item.requesterName }}</strong>
                 <span class="inquiry-list-meta">
-                  {{ item.requestedStart ? formatInquiryDate(item.requestedStart) : "Date not specified" }}
+                  {{ item.requestedStart ? formatDate(item.requestedStart) : "Date not specified" }}
                 </span>
                 <span class="inquiry-list-meta">Assigned: {{ resolveInquiryAssigneeName(item.assignedToMembershipId, principal?.membershipId, inquiryAssignees) }}</span>
               </button>
@@ -114,7 +116,7 @@ const {
               <div>
                 <p class="eyebrow">INQUIRY DETAIL</p>
                 <h3>{{ inquiryDetail.publicReference }}</h3>
-                <p class="fine-print">Received {{ formatInquiryDate(inquiryDetail.submittedAt) }} · Updated {{ formatInquiryDate(inquiryDetail.updatedAt) }}</p>
+                <p class="fine-print">Received {{ formatDate(inquiryDetail.submittedAt) }} · Updated {{ formatDate(inquiryDetail.updatedAt) }}</p>
               </div>
               <div class="inquiry-detail-actions">
                 <span
@@ -137,8 +139,8 @@ const {
               <section class="inquiry-card">
                 <h4>Requested booking</h4>
                 <dl>
-                  <dt>Start</dt><dd>{{ formatInquiryDate(inquiryDetail.submittedValues.requested?.startAt ?? inquiryDetail.requestedStart) }}</dd>
-                  <dt>End</dt><dd>{{ formatInquiryDate(inquiryDetail.submittedValues.requested?.endAt ?? inquiryDetail.requestedEnd) }}</dd>
+                  <dt>Start</dt><dd>{{ formatDate(inquiryDetail.submittedValues.requested?.startAt ?? inquiryDetail.requestedStart) }}</dd>
+                  <dt>End</dt><dd>{{ formatDate(inquiryDetail.submittedValues.requested?.endAt ?? inquiryDetail.requestedEnd) }}</dd>
                   <dt>Timezone</dt><dd>{{ inquiryDetail.submittedValues.requested?.timezone ?? inquiryDetail.requestedTimezone ?? "—" }}</dd>
                   <dt>Spaces</dt><dd>{{ inquiryDetail.submittedValues.requested?.spaceCodes?.join(", ") || "Not specified" }}</dd>
                 </dl>
@@ -239,7 +241,7 @@ const {
               <div v-if="inquiryDetail.annotations.length" class="inquiry-note-list">
                 <article v-for="note in inquiryDetail.annotations" :key="note.annotationId" class="inquiry-note">
                   <p>{{ note.annotation }}</p>
-                  <span>{{ formatInquiryDate(note.createdAt) }}</span>
+                  <span>{{ formatDate(note.createdAt) }}</span>
                 </article>
               </div>
               <p v-else class="muted">No internal notes have been added.</p>
@@ -262,7 +264,7 @@ const {
                   <li v-for="(history, index) in inquiryDetail.statusHistory" :key="`${history.occurredAt}-${index}`">
                     <strong>{{ history.previousStatus ?? "Created" }} → {{ history.newStatus }}</strong>
                     <span>{{ history.reason ?? "No reason supplied" }}</span>
-                    <small>{{ history.actorKind }} · {{ formatInquiryDate(history.occurredAt) }}</small>
+                    <small>{{ history.actorKind }} · {{ formatDate(history.occurredAt) }}</small>
                   </li>
                 </ol>
                 <p v-else class="muted">No status changes recorded.</p>
@@ -272,7 +274,7 @@ const {
                 <ol v-if="inquiryDetail.assignmentHistory.length" class="history-list">
                   <li v-for="(history, index) in inquiryDetail.assignmentHistory" :key="`${history.occurredAt}-${index}`">
                     <strong>{{ resolveInquiryAssigneeName(history.previousAssigneeMembershipId, principal?.membershipId, inquiryAssignees) }} → {{ resolveInquiryAssigneeName(history.newAssigneeMembershipId, principal?.membershipId, inquiryAssignees) }}</strong>
-                    <small>{{ formatInquiryDate(history.occurredAt) }}</small>
+                    <small>{{ formatDate(history.occurredAt) }}</small>
                   </li>
                 </ol>
                 <p v-else class="muted">No assignment changes recorded.</p>
