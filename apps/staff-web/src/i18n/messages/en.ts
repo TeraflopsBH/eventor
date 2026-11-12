@@ -151,8 +151,6 @@ export default {
     "campaignConfirmed": "Campaign confirmed. No messages have been queued or sent.",
     "campaignQueued": "Campaign queued. Delivery is handled asynchronously by the worker.",
     "campaignCancelled": "Campaign cancelled before sending began."
-      "attempts": "attempts",
-    "auditPlaceholder": "Record how the outcome was verified…",
   },
   emailDelivery: {
     "eyebrow": "ORGANIZATION SETTINGS",
