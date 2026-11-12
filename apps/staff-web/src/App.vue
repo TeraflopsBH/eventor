@@ -33,7 +33,7 @@ const localeOptions: Array<{ value: SupportedLocale; label: string }> = [
 ];
 
 const isPublicOfferPage = /^\/offers\/[0-9a-fA-F-]{36}\/?$/.test(window.location.pathname);
-const activeTab = ref<"delivery" | "campaign" | "inquiries" | "approvals" | "prices" | "cancellations" | "taxes">("delivery");
+const activeTab = ref<"delivery" | "campaign" | "inquiries" | "approvals" | "prices" | "cancellations" | "taxes" | "settings">("delivery");
 const busy = ref(false);
 const pageError = ref("");
 const pageNotice = ref("");
@@ -45,6 +45,7 @@ const staffSessionState = useStaffSession({
   loadConfiguration: () => loadEmailConfiguration(),
   resetWorkspace: () => resetWorkspace(),
   translate,
+  applyLocale: (value) => { locale.value = value as SupportedLocale; },
 });
 const { principal, showError, refreshSession } = staffSessionState;
 
