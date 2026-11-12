@@ -212,7 +212,7 @@ test("public form localized content rejects unsupported locales, unknown fields/
     { en: { formName: "", fields: {} } },
     { en: { formName: "Form", fields: { unknown_field: { label: "Unknown" } } } },
     { en: { formName: "Form", fields: { layout: { options: { unknown: "Unknown" } } } } },
-    { en: { formName: "Form", fields: { layout: { label: " ".repeat(1) } } },
+    { en: { formName: "Form", fields: { layout: { label: " ".repeat(1) } } } },
     { en: { formName: "Form", fields: { layout: { unexpected: "value" } } } },
   ];
   for (const contentTranslations of invalidTranslations) {
