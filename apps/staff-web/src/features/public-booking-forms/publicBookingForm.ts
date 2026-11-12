@@ -151,3 +151,70 @@ export function buildPublicBookingInquirySubmission(
     answers: normalizePublicBookingAnswers(form.fieldSchema.fields, answers),
   };
 }
+
+export type PublicBookingAnswerIssue =
+  | { code: string; kind: "required" | "invalidNumber" | "integer" | "invalidOption" }
+  | { code: string; kind: "minimum" | "maximum"; limit: number }
+  | { code: string; kind: "minLength" | "maxLength"; limit: number };
+
+export function validatePublicBookingAnswers(
+  fields: readonly PublicBookingFormField[],
+  answers: Readonly<Record<string, unknown>>,
+): PublicBookingAnswerIssue | null {
+  for (const field of fields) {
+    const value = answers[field.code];
+    const empty = value === null || value === undefined || value === "";
+    if (field.required) {
+      const missing = field.type === "checkbox"
+        ? value !== true
+        : field.type === "multiselect"
+          ? selectedPublicBookingValues(answers, field.code).length === 0
+          : empty;
+      if (missing) return { code: field.code, kind: "required" };
+    }
+    if (empty) continue;
+    if (field.type === "multiselect") {
+      const selected = selectedPublicBookingValues(answers, field.code);
+      const minimum = Math.max(field.required ? 1 : 0, field.minItems ?? 0);
+      if (selected.length < minimum) return { code: field.code, kind: "minimum", limit: minimum };
+      if (field.maxItems !== undefined && selected.length > field.maxItems) {
+        return { code: field.code, kind: "maximum", limit: field.maxItems };
+      }
+      if (selected.some((item) => !(field.options ?? []).some((option) => option.value === item))) {
+        return { code: field.code, kind: "invalidOption" };
+      }
+      continue;
+    }
+    if (field.type === "select") {
+      if (typeof value !== "string" || !(field.options ?? []).some((option) => option.value === value)) {
+        return { code: field.code, kind: "invalidOption" };
+      }
+      continue;
+    }
+    if (field.type === "checkbox") {
+      if (typeof value !== "boolean") return { code: field.code, kind: "invalidOption" };
+      continue;
+    }
+    if (field.type === "number") {
+      const number = typeof value === "number" ? value : Number(value);
+      if (!Number.isFinite(number)) return { code: field.code, kind: "invalidNumber" };
+      if (field.integer && !Number.isInteger(number)) return { code: field.code, kind: "integer" };
+      if (field.min !== undefined && number < field.min) {
+        return { code: field.code, kind: "minimum", limit: field.min };
+      }
+      if (field.max !== undefined && number > field.max) {
+        return { code: field.code, kind: "maximum", limit: field.max };
+      }
+      continue;
+    }
+    if (typeof value === "string") {
+      if (field.minLength !== undefined && value.length < field.minLength) {
+        return { code: field.code, kind: "minLength", limit: field.minLength };
+      }
+      if (field.maxLength !== undefined && value.length > field.maxLength) {
+        return { code: field.code, kind: "maxLength", limit: field.maxLength };
+      }
+    }
+  }
+  return null;
+}
