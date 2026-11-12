@@ -1,4 +1,4 @@
-import { computed, ref, type ComputedRef, type Ref } from "vue";
+import { computed, ref, watch, type ComputedRef, type Ref } from "vue";
 import { ApiError, api, type BookingDraftAllocationAvailabilityPreview, type BookingDraftAllocationOptions, type BookingDraftDetail, type BookingDraftSpaceLine, type PublicBookingFormField } from "../../api";
 import { initializePublicBookingAnswers, mergePublicBookingAnswers, validatePublicBookingAnswers } from "../public-booking-forms/publicBookingForm";
 import { formatBookingAnswerItems } from "../booking-inquiries/presentation";
@@ -64,6 +64,9 @@ export function useBookingDraft(dependencies: BookingDraftDependencies) {
     allocationAvailabilityPreview.value !== null
     && allocationAvailabilityPreviewKey.value === allocationPreviewInputKey.value
   );
+  watch(allocationPreviewInputKey, () => {
+    allocationAvailabilityPreviewKey.value = "";
+  }, { flush: "sync" });
 
   const sourceAnswerItems = computed(() => {
     const revision = detail.value?.currentRevision;
