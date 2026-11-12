@@ -1,0 +1,14 @@
+# Reviewed Gitleaks generic-api-key false positives.
+# The API test values below are synthetic idempotency-key fixtures, not credentials.
+# The documentation values are SHA-256 checksums of imported source artifacts.
+# Keep these exact fingerprints scoped to the reviewed historical findings; do not
+# add broad path/rule allowlists, and re-review if the matching lines change.
+f902f4a60194b40d65fc550546716317708ed0c7:apps/api/test/server.test.ts:generic-api-key:603
+f902f4a60194b40d65fc550546716317708ed0c7:apps/api/test/server.test.ts:generic-api-key:612
+4942d5660daaa9077e273d47bcd2be9c73ec1b4d:apps/api/test/server.test.ts:generic-api-key:497
+ef0bcc518e3fbe691a91c7e482bf94a36e5fdba5:apps/api/test/server.test.ts:generic-api-key:401
+7d7c5fec40acd8d116dd6b10433e650b16741dc7:apps/api/test/server.test.ts:generic-api-key:577
+fcd62c3351c50f2068b9788877b399805ddf8720:docs/database/SCHEMA_DESIGN_v0.3.md:generic-api-key:64
+c50fe59438bdd69537770f41763f8de1f4049f2e:docs/database/SCHEMA_DESIGN_v0.3.md:generic-api-key:63
+e93a2e98644fe8c393519fe07b1eab6801eb7f1b:docs/DESIGN_RECONCILIATION_v0.2.md:generic-api-key:125
+0db186a6eec7ae0d258c9e7bfffd76458ee682b3:docs/DESIGN_RECONCILIATION_v0.2.md:generic-api-key:125
