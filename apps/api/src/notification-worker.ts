@@ -428,7 +428,7 @@ export async function processPendingBookingOfferEmailDeliveries(
           throw new TypeError("Contact ciphertext contains an invalid booking offer capability.");
         }
         const reviewUrl = `${baseUrl}/offers/${job.offer_id}#token=${encodeURIComponent(capability)}`;
-        const validUntil = new Date(job.valid_until);
+        const validUntil = job.valid_until instanceof Date ? job.valid_until : new Date(job.valid_until);
         const validity = Number.isNaN(validUntil.getTime()) ? "the stated validity deadline" : validUntil.toISOString();
         const sender = job.sender_name.trim() || job.sender_email;
         const total = new Intl.NumberFormat("en", {
