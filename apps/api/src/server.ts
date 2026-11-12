@@ -892,9 +892,9 @@ export function buildApi(dependencies: ApiDependencies): FastifyInstance {
     const publicBookingInquiryWrite = request.method === "POST" &&
       /^\/public\/organizations\/[^/]+\/booking-inquiries$/.test(pathname);
     const publicOfferDecision = request.method === "POST" &&
-      /^\/booking-offers\/[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89abAB][0-9a-f]{3}-[0-9a-f]{12}\/(accept|reject)$/.test(pathname);
+      /^\/booking-offers\/[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}\/(accept|reject)$/.test(pathname);
     const publicOfferView = request.method === "GET" &&
-      /^\/public\/booking-offers\/[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89abAB][0-9a-f]{3}-[0-9a-f]{12}$/.test(pathname);
+      /^\/public\/booking-offers\/[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}$/.test(pathname);
     if (publicBookingFormRead || publicBookingInquiryWrite || publicOfferDecision || publicOfferView) {
       // Public intake and purpose-bound offer decisions authenticate through their own capability.
       request.staffPrincipal = null;
