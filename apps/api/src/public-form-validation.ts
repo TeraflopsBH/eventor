@@ -74,7 +74,7 @@ function isDateTime(value: string): boolean {
 function parseSchema(fieldSchema: unknown): readonly PublicFormField[] {
   if (!isRecord(fieldSchema)) throw new PublicFormSchemaError();
   const version = fieldSchema.schemaVersion === undefined ? 1 : fieldSchema.schemaVersion;
-  const schemaProperties = new Set(["schemaVersion", "fields"]);
+  const schemaProperties = new Set(["schemaVersion", "fields", "contentTranslations"]);
   if (version !== 1 || !Array.isArray(fieldSchema.fields) || fieldSchema.fields.length > 100 ||
       Object.keys(fieldSchema).some((key) => !schemaProperties.has(key))) {
     throw new PublicFormSchemaError();
@@ -190,7 +190,66 @@ function parseSchema(fieldSchema: unknown): readonly PublicFormField[] {
     fields.push(field);
   }
 
+  validateContentTranslations(fieldSchema.contentTranslations, fields);
   return fields;
+}
+
+function validateContentTranslations(
+  value: unknown,
+  fields: readonly PublicFormField[],
+): void {
+  if (value === undefined) return;
+  if (!isRecord(value) || Object.keys(value).some(locale => locale !== "bs-BA" && locale !== "en")) {
+    throw new PublicFormSchemaError();
+  }
+  const fieldsByCode = new Map(fields.map(field => [field.code, field]));
+  for (const rawTranslation of Object.values(value)) {
+    if (!isRecord(rawTranslation) ||
+        Object.keys(rawTranslation).some(key => key !== "formName" && key !== "fields") ||
+        typeof rawTranslation.formName !== "string" ||
+        rawTranslation.formName.trim().length < 1 || rawTranslation.formName.length > 200 ||
+        !isRecord(rawTranslation.fields) ||
+        Object.keys(rawTranslation.fields).some(code => !fieldsByCode.has(code))) {
+      throw new PublicFormSchemaError();
+    }
+    for (const [code, rawField] of Object.entries(rawTranslation.fields)) {
+      const field = fieldsByCode.get(code)!;
+      if (!isRecord(rawField) ||
+          Object.keys(rawField).some(key =>
+            !["label", "description", "helpText", "placeholder", "options"].includes(key),
+          )) {
+        throw new PublicFormSchemaError();
+      }
+      for (const key of ["label", "placeholder"]) {
+        const item = rawField[key];
+        if (item !== undefined &&
+            (typeof item !== "string" || item.trim().length < 1 || item.length > 200)) {
+          throw new PublicFormSchemaError();
+        }
+      }
+      for (const key of ["description", "helpText"]) {
+        const item = rawField[key];
+        if (item !== undefined &&
+            (typeof item !== "string" || item.trim().length < 1 || item.length > 1000)) {
+          throw new PublicFormSchemaError();
+        }
+      }
+      if (rawField.options !== undefined) {
+        if ((field.type !== "select" && field.type !== "multiselect") ||
+            !isRecord(rawField.options) ||
+            Object.keys(rawField.options).some(optionValue =>
+              !field.options.some(option => option.value === optionValue),
+            )) {
+          throw new PublicFormSchemaError();
+        }
+        for (const label of Object.values(rawField.options)) {
+          if (typeof label !== "string" || label.trim().length < 1 || label.length > 200) {
+            throw new PublicFormSchemaError();
+          }
+        }
+      }
+    }
+  }
 }
 
 function validateFieldAnswer(field: PublicFormField, value: unknown): boolean {
