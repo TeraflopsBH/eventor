@@ -162,6 +162,16 @@ BEGIN
     );
   END LOOP;
 
+  IF EXISTS (
+    SELECT 1
+      FROM jsonb_array_elements(p_line_items||v_tax_lines) AS source(line)
+     WHERE nullif(line->>'taxCode','') IS NOT NULL
+     GROUP BY line->>'taxCode'
+    HAVING sum((line->>'lineTotal')::numeric)<0
+  ) THEN
+    RAISE EXCEPTION 'discounts and credits cannot reduce a tax-code base below zero' USING ERRCODE='22023';
+  END IF;
+
   RETURN jsonb_build_object('taxLines',v_tax_lines,'adjustments',v_adjustments);
 END;
 $function$;
