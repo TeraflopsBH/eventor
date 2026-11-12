@@ -6,6 +6,7 @@
   "scripts": {
     "typecheck": "vue-tsc --noEmit -p tsconfig.json",
     "build": "vue-tsc --noEmit -p tsconfig.json && vite build",
+    "test": "node --experimental-strip-types --test test/*.test.mjs",
     "dev": "vite --host 0.0.0.0",
     "preview": "vite preview --host 0.0.0.0"
   },
