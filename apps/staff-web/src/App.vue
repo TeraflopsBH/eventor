@@ -2497,7 +2497,7 @@ onMounted(() => {
           <div class="form-actions">
             <button v-if="selectedPriceListLatestRevision?.state !== 'draft'" class="button button-secondary" type="button" :disabled="busy" @click="createBookingPriceListRevision">Create successor draft revision</button>
             <button v-if="selectedPriceListLatestRevision?.state === 'draft'" class="button button-secondary" type="button" :disabled="busy" @click="saveBookingPriceListDraft">Save draft</button>
-            <button v-if="selectedPriceListLatestRevision?.state === 'draft'" class="button button-primary" type="button" :disabled="busy || !selectedPriceListLatestRevision.items.length" @click="publishBookingPriceListRevision">Publish revision</button>
+            <button v-if="selectedPriceListLatestRevision?.state === 'draft'" class="button button-primary" type="button" :disabled="busy || !selectedPriceListLatestRevision?.items.length" @click="publishBookingPriceListRevision">Publish revision</button>
           </div>
           <div v-if="selectedPriceList.revisions.length" class="draft-revision-history">
             <h5>Revision history</h5>
