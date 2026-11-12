@@ -85,7 +85,8 @@ BEGIN
        OR jsonb_typeof(v_item->'taxCode') IS DISTINCT FROM 'string'
        OR jsonb_typeof(v_item->'label') IS DISTINCT FROM 'string'
        OR jsonb_typeof(v_item->'treatment') IS DISTINCT FROM 'string'
-       OR (v_item ? 'rate' AND jsonb_typeof(v_item->'rate') NOT IN ('number','null')) THEN
+       OR (v_item ? 'rate' AND jsonb_typeof(v_item->'rate') NOT IN ('number','null'))
+       OR (v_item - 'taxCode' - 'label' - 'treatment' - 'rate') <> '{}'::jsonb THEN
       RAISE EXCEPTION 'each tax code requires taxCode, label and treatment' USING ERRCODE='22023';
     END IF;
     v_code:=btrim(v_item->>'taxCode'); v_label:=btrim(v_item->>'label');
@@ -126,6 +127,47 @@ BEGIN
       WHERE r.organization_id=p.organization_id AND r.tax_profile_id=p.id)
   ) ORDER BY p.code),'[]'::jsonb) INTO v_result
   FROM eogp.booking_tax_profiles p WHERE p.organization_id=p_organization_id;
+  RETURN v_result;
+END;
+$function$;
+
+CREATE OR REPLACE FUNCTION eogp.get_booking_price_lists(p_organization_id uuid,p_actor_membership_id uuid)
+RETURNS jsonb
+LANGUAGE plpgsql SECURITY DEFINER
+SET search_path=pg_catalog,eogp
+AS $function$
+DECLARE v_result jsonb;
+BEGIN
+  IF eogp.current_organization_id() IS DISTINCT FROM p_organization_id THEN
+    RAISE EXCEPTION 'organization context mismatch' USING ERRCODE='42501';
+  END IF;
+  PERFORM eogp.assert_booking_commercial_permission(
+    p_organization_id,p_actor_membership_id,ARRAY['booking.manage']::text[]
+  );
+  SELECT coalesce(jsonb_agg(jsonb_build_object(
+    'priceListId',p.id,'code',p.code,'name',p.name,'scopeKind',p.scope_kind,
+    'scopeVenueId',p.scope_venue_id,'scopeSpaceId',p.scope_space_id,
+    'status',p.status,'createdAt',p.created_at,
+    'latestRevisionId',(SELECT r.id FROM eogp.booking_price_list_revisions r
+      WHERE r.organization_id=p.organization_id AND r.price_list_id=p.id
+      ORDER BY r.revision_number DESC LIMIT 1),
+    'revisions',(SELECT coalesce(jsonb_agg(jsonb_build_object(
+      'revisionId',r.id,'revisionNumber',r.revision_number,'currency',r.currency,
+      'taxBasis',r.tax_basis,'taxProfileRevisionId',r.tax_profile_revision_id,'state',r.state,'effectiveFrom',r.effective_from,
+      'effectiveUntil',r.effective_until,'publishedAt',r.published_at,'createdAt',r.created_at,
+      'items',(SELECT coalesce(jsonb_agg(jsonb_build_object(
+        'itemCode',i.item_code,'label',i.label,'unit',i.unit,'unitAmount',i.unit_amount,
+        'taxCode',i.tax_code,'quantityMin',i.quantity_min,'quantityMax',i.quantity_max
+      ) ORDER BY i.item_code),'[]'::jsonb)
+      FROM eogp.booking_price_items i
+      WHERE i.organization_id=r.organization_id AND i.price_list_revision_id=r.id)
+    ) ORDER BY r.revision_number DESC),'[]'::jsonb)
+    FROM eogp.booking_price_list_revisions r
+    WHERE r.organization_id=p.organization_id AND r.price_list_id=p.id)
+  ) ORDER BY p.code),'[]'::jsonb)
+  INTO v_result
+  FROM eogp.booking_price_lists p
+  WHERE p.organization_id=p_organization_id;
   RETURN v_result;
 END;
 $function$;
