@@ -103,7 +103,7 @@ DECLARE
   v_adjustment_count integer := 0;
   v_subtotal numeric(14,2) := 0;
   v_total numeric(14,2) := 0;
-  v_tax numeric(14,2) := coalesce(p_tax_amount,0);
+  v_tax numeric;
   v_lines jsonb := '[]'::jsonb;
   v_adjustments jsonb := '[]'::jsonb;
   v_adjustment_amount numeric;
@@ -131,6 +131,7 @@ BEGIN
     RAISE EXCEPTION 'offer currency, tax basis, validity or tax amount is invalid'
       USING ERRCODE = '22023';
   END IF;
+  v_tax := p_tax_amount;
   IF p_line_items IS NULL OR jsonb_typeof(p_line_items) <> 'array' THEN
     RAISE EXCEPTION 'offer line items must be a JSON array' USING ERRCODE = '22023';
   END IF;
@@ -224,6 +225,30 @@ BEGIN
       RAISE EXCEPTION 'published active approval-policy revision not found' USING ERRCODE = '23503';
     END IF;
   END IF;
+
+  SELECT coalesce(jsonb_agg(jsonb_build_object(
+    'venueSpaceId',line.venue_space_id,
+    'blockKind',line.block_kind,
+    'startsAt',line.starts_at,
+    'endsAt',line.ends_at,
+    'requestedCapacity',line.requested_capacity
+  ) ORDER BY line.starts_at,line.id),'[]'::jsonb)
+    INTO v_space_lines
+    FROM eogp.booking_draft_space_lines line
+   WHERE line.organization_id=p_organization_id
+     AND line.draft_revision_id=p_draft_revision_id;
+
+  SELECT coalesce(jsonb_agg(jsonb_build_object(
+    'resourceTypeId',line.resource_type_id,
+    'lineCode',line.line_code,
+    'label',line.label_snapshot,
+    'requestedQuantity',line.requested_quantity,
+    'values',line.value_snapshot
+  ) ORDER BY line.line_code,line.id),'[]'::jsonb)
+    INTO v_resource_lines
+    FROM eogp.booking_resource_lines line
+   WHERE line.organization_id=p_organization_id
+     AND line.draft_revision_id=p_draft_revision_id;
 
   FOR v_line IN SELECT value FROM jsonb_array_elements(p_line_items)
   LOOP
@@ -404,6 +429,8 @@ BEGIN
       'requestedStart',v_requested_start,
       'requestedEnd',v_requested_end,
       'timezone',v_timezone,
+      'spaceLines',v_space_lines,
+      'resourceLines',v_resource_lines,
       'currency',p_currency,
       'taxBasis',p_tax_basis,
       'lineItems',v_lines,
