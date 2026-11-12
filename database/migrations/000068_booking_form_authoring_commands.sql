@@ -128,7 +128,8 @@ CREATE FUNCTION eogp.save_booking_form_draft(
 LANGUAGE plpgsql SECURITY DEFINER
 SET search_path=pg_catalog,eogp
 AS $function$
-DECLARE v_revision eogp.booking_form_revisions%ROWTYPE; v_latest_id uuid;
+DECLARE v_revision eogp.booking_form_revisions%ROWTYPE;
+  v_form eogp.booking_form_definitions%ROWTYPE; v_latest_id uuid;
 BEGIN
   IF eogp.current_organization_id() IS DISTINCT FROM p_organization_id THEN
     RAISE EXCEPTION 'organization context mismatch' USING ERRCODE='42501';
@@ -141,6 +142,11 @@ BEGIN
      OR jsonb_typeof(p_field_schema->'fields') IS DISTINCT FROM 'array'
      OR jsonb_array_length(p_field_schema->'fields')>100 THEN
     RAISE EXCEPTION 'booking form draft schema is invalid' USING ERRCODE='22023';
+  END IF;
+  SELECT * INTO v_form FROM eogp.booking_form_definitions
+   WHERE organization_id=p_organization_id AND id=p_form_id FOR UPDATE;
+  IF NOT FOUND OR v_form.status<>'active' THEN
+    RAISE EXCEPTION 'active booking form not found' USING ERRCODE='P0002';
   END IF;
   SELECT id INTO v_latest_id FROM eogp.booking_form_revisions
    WHERE organization_id=p_organization_id AND form_definition_id=p_form_id
