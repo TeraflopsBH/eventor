@@ -7,7 +7,7 @@ type Workspace = ReturnType<typeof useStaffSession> & {
   busy: Ref<boolean>;
   pageError: Ref<string>;
   pageNotice: Ref<string>;
-  activeTab: Ref<string>;
+  activeTab: Ref<"delivery" | "campaign" | "inquiries" | "approvals" | "prices" | "cancellations" | "taxes">;
   locale: WritableComputedRef<string>;
   localeOptions: Array<{ value: SupportedLocale; label: string }>;
   openInquiryWorkspace: () => Promise<void>;
