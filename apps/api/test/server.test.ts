@@ -84,6 +84,10 @@ function makePool() {
   let bookingInquiryConversionCalls = 0;
   let bookingDraftGetCalls = 0;
   let bookingDraftRevisionCalls = 0;
+  let bookingOfferPrepareCalls = 0;
+  let bookingOfferSuccessorCalls = 0;
+  let bookingOfferGetCalls = 0;
+  let bookingOfferIssueCalls = 0;
   const deliveryTests = new Map<string, string>();
 
   const client = {
@@ -191,6 +195,57 @@ function makePool() {
           previousRevisionNumber: 1,
           status: "draft",
           changed: true,
+        } }], rowCount: 1 };
+      }
+
+      if (normalized.includes("eogp.save_booking_offer_revision(")) {
+        commandCalls.push({ sql: normalized, values });
+        if (values[3] !== null) bookingOfferSuccessorCalls += 1;
+        else bookingOfferPrepareCalls += 1;
+        return { rows: [{ result: {
+          offerId: values[3] ?? "18181818-1818-4181-8181-181818181818",
+          offerRevisionId: values[3] !== null ? "19191919-1919-4191-8191-191919191919" : "18181818-1818-4181-8181-181818181819",
+          draftRevisionId: values[1],
+          revisionNumber: values[3] !== null ? 2 : 1,
+          state: "draft",
+          currency: values[7],
+          taxBasis: values[8],
+          subtotal: 250,
+          taxAmount: values[12],
+          totalAmount: 275,
+          validUntil: values[9],
+        } }], rowCount: 1 };
+      }
+      if (normalized.includes("eogp.get_booking_offer(")) {
+        bookingOfferGetCalls += 1;
+        commandCalls.push({ sql: normalized, values });
+        return { rows: [{ result: {
+          offerId: values[1],
+          status: "issued",
+          currentRevision: {
+            offerRevisionId: "18181818-1818-4181-8181-181818181819",
+            revisionNumber: 1,
+            state: "issued",
+            currency: "BAM",
+            subtotal: 250,
+            taxAmount: 25,
+            totalAmount: 275,
+            terms: { lineItems: [{ itemCode: "HALL-RENTAL", label: "Hall rental", quantity: 1, unitAmount: 250, lineTotal: 250 }] },
+          },
+          revisionHistory: [],
+          decisionHistory: [],
+        } }], rowCount: 1 };
+      }
+      if (normalized.includes("eogp.issue_booking_offer(")) {
+        bookingOfferIssueCalls += 1;
+        commandCalls.push({ sql: normalized, values });
+        return { rows: [{ result: {
+          offerId: values[1],
+          offerRevisionId: "18181818-1818-4181-8181-181818181819",
+          revisionNumber: 1,
+          state: "issued",
+          validUntil: "2026-12-01T12:00:00.000Z",
+          capabilityId: "20202020-2020-4020-8020-202020202020",
         } }], rowCount: 1 };
       }
       if (normalized.includes("eogp.convert_booking_inquiry_to_draft(")) {
@@ -581,6 +636,10 @@ function makePool() {
     get bookingInquiryConversionCalls() { return bookingInquiryConversionCalls; },
     get bookingDraftGetCalls() { return bookingDraftGetCalls; },
     get bookingDraftRevisionCalls() { return bookingDraftRevisionCalls; },
+    get bookingOfferPrepareCalls() { return bookingOfferPrepareCalls; },
+    get bookingOfferSuccessorCalls() { return bookingOfferSuccessorCalls; },
+    get bookingOfferGetCalls() { return bookingOfferGetCalls; },
+    get bookingOfferIssueCalls() { return bookingOfferIssueCalls; },
   };
 }
 
