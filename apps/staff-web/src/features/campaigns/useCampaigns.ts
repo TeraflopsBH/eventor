@@ -1,5 +1,5 @@
 import { computed, reactive, ref, type Ref } from "vue";
-import type { CampaignListItem, CampaignProgress, CampaignReview, DeliveryAttempt } from "../../api";
+import type { CampaignListItem, CampaignProgress, CampaignReview, DeliveryAttempt, PageMeta } from "../../api";
 
 interface CampaignsDependencies {
   api: typeof import("../../api").api;
@@ -15,11 +15,11 @@ export function useCampaigns({ api, busy, pageError, pageNotice, clearMessages, 
   const campaign = ref<CampaignReview | null>(null);
   const campaignProgress = ref<CampaignProgress | null>(null);
   const deliveryAttempts = ref<DeliveryAttempt[]>([]);
-  const deliveryMeta = ref<{ limit: number; offset: number; totalCount: number } | null>(null);
+  const deliveryMeta = ref<PageMeta | null>(null);
   const deliveryStatusFilter = ref("");
   const deliveryOffset = ref(0);
   const campaigns = ref<CampaignListItem[]>([]);
-  const campaignListMeta = ref<{ limit: number; offset: number; totalCount: number } | null>(null);
+  const campaignListMeta = ref<PageMeta | null>(null);
   const campaignListOffset = ref(0);
   const operatorResolution = reactive<Record<string, string>>({});
   const operatorReason = reactive<Record<string, string>>({});
