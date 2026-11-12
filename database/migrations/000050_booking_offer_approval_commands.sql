@@ -415,7 +415,7 @@ BEGIN
               FROM eogp.booking_offer_approval_decisions decision
              WHERE decision.organization_id=offer.organization_id
                AND decision.offer_revision_id=revision.id
-               AND decision.rule_code=requirements.requirement->>'code'
+               AND decision.rule_code=(requirements.requirement->>'code')
                AND decision.decision='approved'
           ),
           'blocked',EXISTS(
@@ -423,7 +423,7 @@ BEGIN
               FROM eogp.booking_offer_approval_decisions decision
              WHERE decision.organization_id=offer.organization_id
                AND decision.offer_revision_id=revision.id
-               AND decision.rule_code=requirements.requirement->>'code'
+               AND decision.rule_code=(requirements.requirement->>'code')
                AND decision.decision<>'approved'
           ),
           'decisions',(
@@ -436,7 +436,7 @@ BEGIN
               FROM eogp.booking_offer_approval_decisions decision
              WHERE decision.organization_id=offer.organization_id
                AND decision.offer_revision_id=revision.id
-               AND decision.rule_code=requirements.requirement->>'code'
+               AND decision.rule_code=(requirements.requirement->>'code')
           )
         )
       ),'[]'::jsonb)
