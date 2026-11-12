@@ -252,6 +252,68 @@ const bookingApprovalPolicyRevisionParams = {
   },
   additionalProperties: false,
 } as const;
+const bookingPriceListParams = {
+  type: "object", required: ["priceListId"],
+  properties: { priceListId: { type: "string", pattern: uuidPattern } },
+  additionalProperties: false,
+} as const;
+const bookingPriceListRevisionParams = {
+  type: "object", required: ["priceListId", "revisionId"],
+  properties: {
+    priceListId: { type: "string", pattern: uuidPattern },
+    revisionId: { type: "string", pattern: uuidPattern },
+  },
+  additionalProperties: false,
+} as const;
+const bookingPriceListCreateBody = {
+  type: "object", required: ["code", "name", "currency", "taxBasis"],
+  properties: {
+    code: { type: "string", minLength: 2, maxLength: 80, pattern: "^[A-Za-z0-9][A-Za-z0-9._-]*$" },
+    name: { type: "string", minLength: 1, maxLength: 250 },
+    scopeKind: { type: "string", enum: ["organization", "venue", "space"], default: "organization" },
+    scopeVenueId: { type: ["string", "null"], pattern: uuidPattern },
+    scopeSpaceId: { type: ["string", "null"], pattern: uuidPattern },
+    currency: { type: "string", pattern: "^[A-Z]{3}$" },
+    taxBasis: { type: "string", enum: ["inclusive", "exclusive", "not_applicable", "to_be_confirmed"] },
+  },
+  additionalProperties: false,
+} as const;
+const bookingPriceListRevisionBody = {
+  type: "object", required: ["currency", "taxBasis"],
+  properties: {
+    currency: { type: "string", pattern: "^[A-Z]{3}$" },
+    taxBasis: { type: "string", enum: ["inclusive", "exclusive", "not_applicable", "to_be_confirmed"] },
+    effectiveFrom: { type: ["string", "null"], format: "date-time" },
+    effectiveUntil: { type: ["string", "null"], format: "date-time" },
+  },
+  additionalProperties: false,
+} as const;
+const bookingPriceListDraftBody = {
+  type: "object", required: ["currency", "taxBasis", "items"],
+  properties: {
+    currency: { type: "string", pattern: "^[A-Z]{3}$" },
+    taxBasis: { type: "string", enum: ["inclusive", "exclusive", "not_applicable", "to_be_confirmed"] },
+    effectiveFrom: { type: ["string", "null"], format: "date-time" },
+    effectiveUntil: { type: ["string", "null"], format: "date-time" },
+    items: {
+      type: "array", maxItems: 500,
+      items: {
+        type: "object", required: ["itemCode", "label", "unit", "unitAmount"],
+        properties: {
+          itemCode: { type: "string", minLength: 1, maxLength: 100, pattern: "^[A-Za-z0-9][A-Za-z0-9._-]*$" },
+          label: { type: "string", minLength: 1, maxLength: 250 },
+          unit: { type: "string", minLength: 1, maxLength: 40 },
+          unitAmount: { type: "number", minimum: 0 },
+          taxCode: { type: ["string", "null"], maxLength: 80 },
+          quantityMin: { type: "number", minimum: 0, default: 1 },
+          quantityMax: { type: ["number", "null"], minimum: 0 },
+        },
+        additionalProperties: false,
+      },
+    },
+  },
+  additionalProperties: false,
+} as const;
 const bookingApprovalPolicyCreateBody = {
   type: "object",
   required: ["code", "name"],
@@ -1550,6 +1612,136 @@ export function buildApi(dependencies: ApiDependencies): FastifyInstance {
   );
 
 
+
+  server.get(
+    "/organization/booking-price-lists",
+    async (request, reply) => {
+      const principal = request.staffPrincipal!;
+      const client = await dependencies.pool.connect();
+      try {
+        await client.query("BEGIN");
+        await client.query("SELECT set_config('app.organization_id',$1,true)", [principal.organizationId]);
+        const result = await client.query<ResultRow>(
+          "SELECT eogp.get_booking_price_lists($1::uuid,$2::uuid) AS result",
+          [principal.organizationId, principal.membershipId],
+        );
+        await client.query("COMMIT");
+        return reply.code(200).send({ data: result.rows[0]?.result ?? [] });
+      } catch (error) {
+        try { await client.query("ROLLBACK"); } catch { /* preserve the read error */ }
+        throw databaseError(error);
+      } finally {
+        client.release();
+      }
+    },
+  );
+
+  server.post<{
+    Body: {
+      code: string; name: string; scopeKind?: "organization" | "venue" | "space";
+      scopeVenueId?: string | null; scopeSpaceId?: string | null;
+      currency: string; taxBasis: "inclusive" | "exclusive" | "not_applicable" | "to_be_confirmed";
+    };
+  }>(
+    "/organization/booking-price-lists",
+    { schema: { headers: idempotencyHeaders, body: bookingPriceListCreateBody } },
+    async (request, reply) => {
+      const principal = request.staffPrincipal!;
+      return withCommand(request, reply, "createBookingPriceList", request.body, async (client) => {
+        const result = await client.query<ResultRow>(
+          "SELECT eogp.create_booking_price_list($1::uuid,$2::uuid,$3::text,$4::text,$5::text,$6::uuid,$7::uuid,$8::text,$9::text) AS result",
+          [
+            principal.organizationId, principal.membershipId, request.body.code, request.body.name,
+            request.body.scopeKind ?? "organization", request.body.scopeVenueId ?? null,
+            request.body.scopeSpaceId ?? null, request.body.currency, request.body.taxBasis,
+          ],
+        );
+        return result.rows[0]?.result as Record<string, unknown>;
+      });
+    },
+  );
+
+  server.post<{
+    Params: { priceListId: string };
+    Body: {
+      currency: string; taxBasis: "inclusive" | "exclusive" | "not_applicable" | "to_be_confirmed";
+      effectiveFrom?: string | null; effectiveUntil?: string | null;
+    };
+  }>(
+    "/booking-price-lists/:priceListId/revisions",
+    { schema: { params: bookingPriceListParams, headers: idempotencyHeaders, body: bookingPriceListRevisionBody } },
+    async (request, reply) => {
+      const principal = request.staffPrincipal!;
+      return withCommand(
+        request, reply, "createBookingPriceListRevision",
+        { priceListId: request.params.priceListId, ...request.body },
+        async (client) => {
+          const result = await client.query<ResultRow>(
+            "SELECT eogp.create_booking_price_list_revision($1::uuid,$2::uuid,$3::uuid,$4::text,$5::text,$6::timestamptz,$7::timestamptz) AS result",
+            [
+              principal.organizationId, request.params.priceListId, principal.membershipId,
+              request.body.currency, request.body.taxBasis, request.body.effectiveFrom ?? null,
+              request.body.effectiveUntil ?? null,
+            ],
+          );
+          return result.rows[0]?.result as Record<string, unknown>;
+        },
+      );
+    },
+  );
+
+  server.put<{
+    Params: { priceListId: string; revisionId: string };
+    Body: {
+      currency: string; taxBasis: "inclusive" | "exclusive" | "not_applicable" | "to_be_confirmed";
+      effectiveFrom?: string | null; effectiveUntil?: string | null;
+      items: Array<{
+        itemCode: string; label: string; unit: string; unitAmount: number;
+        taxCode?: string | null; quantityMin?: number; quantityMax?: number | null;
+      }>;
+    };
+  }>(
+    "/booking-price-lists/:priceListId/revisions/:revisionId",
+    { schema: { params: bookingPriceListRevisionParams, headers: idempotencyHeaders, body: bookingPriceListDraftBody } },
+    async (request, reply) => {
+      const principal = request.staffPrincipal!;
+      return withCommand(
+        request, reply, "replaceBookingPriceListDraftItems",
+        { priceListId: request.params.priceListId, revisionId: request.params.revisionId, ...request.body },
+        async (client) => {
+          const result = await client.query<ResultRow>(
+            "SELECT eogp.replace_booking_price_list_draft_items($1::uuid,$2::uuid,$3::uuid,$4::uuid,$5::text,$6::text,$7::timestamptz,$8::timestamptz,$9::jsonb) AS result",
+            [
+              principal.organizationId, request.params.priceListId, request.params.revisionId,
+              principal.membershipId, request.body.currency, request.body.taxBasis,
+              request.body.effectiveFrom ?? null, request.body.effectiveUntil ?? null,
+              JSON.stringify(request.body.items),
+            ],
+          );
+          return result.rows[0]?.result as Record<string, unknown>;
+        },
+      );
+    },
+  );
+
+  server.post<{ Params: { priceListId: string; revisionId: string } }>(
+    "/booking-price-lists/:priceListId/revisions/:revisionId/publish",
+    { schema: { params: bookingPriceListRevisionParams, headers: idempotencyHeaders } },
+    async (request, reply) => {
+      const principal = request.staffPrincipal!;
+      return withCommand(
+        request, reply, "publishBookingPriceListRevision",
+        { priceListId: request.params.priceListId, revisionId: request.params.revisionId },
+        async (client) => {
+          const result = await client.query<ResultRow>(
+            "SELECT eogp.publish_booking_price_list_revision($1::uuid,$2::uuid,$3::uuid,$4::uuid) AS result",
+            [principal.organizationId, request.params.priceListId, request.params.revisionId, principal.membershipId],
+          );
+          return result.rows[0]?.result as Record<string, unknown>;
+        },
+      );
+    },
+  );
 
   server.get(
     "/organization/booking-approval-policies",
