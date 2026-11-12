@@ -102,7 +102,7 @@ GRANT EXECUTE ON FUNCTION eogp.submit_public_booking_inquiry_with_locale(
 -- Non-consuming customer projection for the exact issued offer bound to a
 -- purpose-specific, single-use capability. The projection deliberately omits
 -- internal approval rules, actor details, contact data and internal reasons.
-CREATE FUNCTION eogp.get_public_booking_offer_with_capability(
+CREATE OR REPLACE FUNCTION eogp.get_public_booking_offer_with_capability(
   p_offer_id uuid,
   p_token_sha256 text
 ) RETURNS jsonb
@@ -255,6 +255,8 @@ GRANT EXECUTE ON FUNCTION eogp.get_public_booking_offer_with_capability(uuid,tex
   TO eventor_runtime;
 
 
+DROP FUNCTION eogp.claim_booking_offer_email_delivery(uuid);
+
 CREATE FUNCTION eogp.claim_booking_offer_email_delivery(
   p_organization_id uuid
 ) RETURNS TABLE(
@@ -395,3 +397,8 @@ CREATE FUNCTION eogp.complete_booking_offer_email_delivery(
   p_delivery_id uuid,
   p_outcome text,
 
+
+REVOKE ALL ON FUNCTION eogp.claim_booking_offer_email_delivery(uuid)
+  FROM PUBLIC,eventor_runtime,eventor_auth;
+GRANT EXECUTE ON FUNCTION eogp.claim_booking_offer_email_delivery(uuid)
+  TO eventor_worker;
