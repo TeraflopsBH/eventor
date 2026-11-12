@@ -3,7 +3,7 @@ import { createCipheriv, createHash, createHmac, randomBytes, randomUUID } from 
 import type { Pool, PoolClient, QueryResultRow } from "pg";
 import { decryptDeliveryCredentialBundle, decryptDeliveryCredentials, encryptDeliveryCredentialBundle, encryptDeliveryCredentials } from "./delivery-credentials-crypto.js";
 import { decryptContactValue, encryptContactValue } from "./contact-crypto.js";
-import { PublicFormAnswersError, PublicFormSchemaError, validatePublicFormAnswers } from "./public-form-validation.js";
+import { PublicFormAnswersError, PublicFormSchemaError, validatePublicFormAnswers, validatePublicFormSchema } from "./public-form-validation.js";
 import { verifyResendWebhookSignature } from "./resend-webhook.js";
 import { classifySmtpFailure, sendSmtpTestMessage, type SmtpSettings, type SmtpTransportFactory } from "./smtp-transport.js";
 import type { paths } from "./generated/openapi.js";
@@ -269,6 +269,37 @@ const bookingCancellationPolicyRevisionParams = {
   properties: {
     policyId: { type: "string", pattern: uuidPattern },
     revisionId: { type: "string", pattern: uuidPattern },
+  },
+  additionalProperties: false,
+} as const;
+const bookingFormParams = {
+  type: "object", required: ["formId"],
+  properties: { formId: { type: "string", pattern: uuidPattern } },
+  additionalProperties: false,
+} as const;
+const bookingFormRevisionParams = {
+  type: "object", required: ["formId", "revisionId"],
+  properties: {
+    formId: { type: "string", pattern: uuidPattern },
+    revisionId: { type: "string", pattern: uuidPattern },
+  },
+  additionalProperties: false,
+} as const;
+const bookingFormCreateBody = {
+  type: "object", required: ["code", "name", "locale", "fieldSchema"],
+  properties: {
+    code: { type: "string", minLength: 2, maxLength: 80, pattern: "^[A-Za-z0-9][A-Za-z0-9._-]*$" },
+    name: { type: "string", minLength: 1, maxLength: 250 },
+    locale: { type: "string", enum: ["bs-BA", "en"] },
+    fieldSchema: { type: "object", maxProperties: 10, additionalProperties: true },
+  },
+  additionalProperties: false,
+} as const;
+const bookingFormDraftBody = {
+  type: "object", required: ["locale", "fieldSchema"],
+  properties: {
+    locale: { type: "string", enum: ["bs-BA", "en"] },
+    fieldSchema: { type: "object", maxProperties: 10, additionalProperties: true },
   },
   additionalProperties: false,
 } as const;
@@ -1760,6 +1791,103 @@ export function buildApi(dependencies: ApiDependencies): FastifyInstance {
   );
 
 
+
+  server.get(
+    "/organization/booking-forms",
+    async (request, reply) => {
+      const principal = request.staffPrincipal!;
+      const client = await dependencies.pool.connect();
+      try {
+        await client.query("BEGIN");
+        await client.query("SELECT set_config('app.organization_id',$1,true)", [principal.organizationId]);
+        const result = await client.query<ResultRow>(
+          "SELECT eogp.get_booking_forms($1::uuid,$2::uuid) AS result",
+          [principal.organizationId, principal.membershipId],
+        );
+        await client.query("COMMIT");
+        return reply.code(200).send({ data: result.rows[0]?.result ?? [] });
+      } catch (error) {
+        try { await client.query("ROLLBACK"); } catch { /* preserve the read error */ }
+        throw databaseError(error);
+      } finally { client.release(); }
+    },
+  );
+
+  server.post<{
+    Body: { code: string; name: string; locale: "bs-BA" | "en"; fieldSchema: Record<string, unknown> };
+  }>(
+    "/organization/booking-forms",
+    { schema: { headers: idempotencyHeaders, body: bookingFormCreateBody } },
+    async (request, reply) => {
+      const principal = request.staffPrincipal!;
+      try { validatePublicFormSchema(request.body.fieldSchema); }
+      catch { throw new ApiError(422, "BOOKING_FORM_SCHEMA_INVALID", "The booking form schema is invalid."); }
+      return withCommand(request, reply, "createBookingForm", request.body, async (client) => {
+        const result = await client.query<ResultRow>(
+          "SELECT eogp.create_booking_form($1::uuid,$2::uuid,$3::text,$4::text,$5::text,$6::jsonb) AS result",
+          [principal.organizationId, principal.membershipId, request.body.code, request.body.name,
+            request.body.locale, JSON.stringify(request.body.fieldSchema)],
+        );
+        return result.rows[0]?.result as Record<string, unknown>;
+      });
+    },
+  );
+
+  server.post<{ Params: { formId: string } }>(
+    "/booking-forms/:formId/revisions",
+    { schema: { params: bookingFormParams, headers: idempotencyHeaders } },
+    async (request, reply) => {
+      const principal = request.staffPrincipal!;
+      return withCommand(request, reply, "createBookingFormRevision",
+        { formId: request.params.formId }, async (client) => {
+          const result = await client.query<ResultRow>(
+            "SELECT eogp.create_booking_form_revision($1::uuid,$2::uuid,$3::uuid) AS result",
+            [principal.organizationId, request.params.formId, principal.membershipId],
+          );
+          return result.rows[0]?.result as Record<string, unknown>;
+        });
+    },
+  );
+
+  server.put<{
+    Params: { formId: string; revisionId: string };
+    Body: { locale: "bs-BA" | "en"; fieldSchema: Record<string, unknown> };
+  }>(
+    "/booking-forms/:formId/revisions/:revisionId",
+    { schema: { params: bookingFormRevisionParams, headers: idempotencyHeaders, body: bookingFormDraftBody } },
+    async (request, reply) => {
+      const principal = request.staffPrincipal!;
+      try { validatePublicFormSchema(request.body.fieldSchema); }
+      catch { throw new ApiError(422, "BOOKING_FORM_SCHEMA_INVALID", "The booking form schema is invalid."); }
+      return withCommand(request, reply, "saveBookingFormDraft",
+        { formId: request.params.formId, revisionId: request.params.revisionId, ...request.body },
+        async (client) => {
+          const result = await client.query<ResultRow>(
+            "SELECT eogp.save_booking_form_draft($1::uuid,$2::uuid,$3::uuid,$4::uuid,$5::text,$6::jsonb) AS result",
+            [principal.organizationId, request.params.formId, request.params.revisionId,
+              principal.membershipId, request.body.locale, JSON.stringify(request.body.fieldSchema)],
+          );
+          return result.rows[0]?.result as Record<string, unknown>;
+        });
+    },
+  );
+
+  server.post<{ Params: { formId: string; revisionId: string } }>(
+    "/booking-forms/:formId/revisions/:revisionId/publish",
+    { schema: { params: bookingFormRevisionParams, headers: idempotencyHeaders } },
+    async (request, reply) => {
+      const principal = request.staffPrincipal!;
+      return withCommand(request, reply, "publishBookingFormRevision",
+        { formId: request.params.formId, revisionId: request.params.revisionId },
+        async (client) => {
+          const result = await client.query<ResultRow>(
+            "SELECT eogp.publish_booking_form_revision($1::uuid,$2::uuid,$3::uuid,$4::uuid) AS result",
+            [principal.organizationId, request.params.formId, request.params.revisionId, principal.membershipId],
+          );
+          return result.rows[0]?.result as Record<string, unknown>;
+        });
+    },
+  );
 
   server.get(
     "/organization/booking-price-lists",
