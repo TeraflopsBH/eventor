@@ -121,9 +121,9 @@ const bookingOfferApprovalReasons = reactive<Record<string, string>>({});
 const approvalPolicies = ref<BookingApprovalPolicy[]>([]);
 const bookingPriceLists = ref<BookingPriceList[]>([]);
 const selectedPriceListId = ref("");
-const priceListCreateForm = reactive({ code: "", name: "", currency: "BAM", taxBasis: "to_be_confirmed" as "inclusive" | "exclusive" | "not_applicable" | "to_be_confirmed" });
+const priceListCreateForm = reactive({ code: "", name: "", currency: "", taxBasis: "to_be_confirmed" as "inclusive" | "exclusive" | "not_applicable" | "to_be_confirmed" });
 const priceListRevisionForm = reactive({
-  currency: "BAM",
+  currency: "",
   taxBasis: "to_be_confirmed" as "inclusive" | "exclusive" | "not_applicable" | "to_be_confirmed",
   effectiveFrom: "",
   effectiveUntil: "",
@@ -1258,10 +1258,10 @@ async function loadBookingPriceLists(): Promise<void> {
 
 function syncSelectedPriceListDraft(): void {
   const revision = selectedPriceListLatestRevision.value;
-  priceListRevisionForm.currency = revision?.currency ?? "BAM";
+  priceListRevisionForm.currency = revision?.currency ?? "";
   priceListRevisionForm.taxBasis = revision?.taxBasis ?? "to_be_confirmed";
-  priceListRevisionForm.effectiveFrom = revision?.effectiveFrom ? revision.effectiveFrom.slice(0, 16) : "";
-  priceListRevisionForm.effectiveUntil = revision?.effectiveUntil ? revision.effectiveUntil.slice(0, 16) : "";
+  priceListRevisionForm.effectiveFrom = revision?.state === "draft" && revision.effectiveFrom ? revision.effectiveFrom.slice(0, 16) : "";
+  priceListRevisionForm.effectiveUntil = revision?.state === "draft" && revision.effectiveUntil ? revision.effectiveUntil.slice(0, 16) : "";
   priceListItemsJson.value = JSON.stringify(revision?.items ?? [], null, 2);
 }
 
