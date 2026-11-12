@@ -1081,6 +1081,8 @@ async function emailBookingOffer(): Promise<void> {
     }
     const result = await api.queueBookingOfferEmail(offer.offerId, token, bookingOfferEmailRequestKey.value);
     bookingOfferEmailRequestKey.value = "";
+    bookingOfferEmailStatusFilter.value = "";
+    bookingOfferEmailOffset.value = 0;
     await refreshBookingOfferEmailData();
     pageNotice.value = result.data.created
       ? "Offer email queued. SMTP delivery will be handled by the background worker."
@@ -1114,6 +1116,8 @@ async function reconcileBookingOfferEmail(delivery: BookingOfferEmailDelivery): 
         ? bookingOfferEmailReference[delivery.deliveryId]?.trim() || undefined
         : undefined,
     });
+    bookingOfferEmailStatusFilter.value = "";
+    bookingOfferEmailOffset.value = 0;
     await refreshBookingOfferEmailData();
     pageNotice.value = resolution === "confirmed_sent"
       ? "Delivery recorded as SMTP-accepted. No email was sent by reconciliation."
@@ -1136,6 +1140,8 @@ async function retryBookingOfferEmail(delivery: BookingOfferEmailDelivery): Prom
   busy.value = true;
   try {
     await api.retryBookingOfferEmailDelivery(delivery.deliveryId, reason);
+    bookingOfferEmailStatusFilter.value = "";
+    bookingOfferEmailOffset.value = 0;
     await refreshBookingOfferEmailData();
     pageNotice.value = "One-time offer email retry queued. Further ambiguous submissions will require manual investigation and cannot be retried again.";
   } catch (error) {
@@ -2091,6 +2097,7 @@ onMounted(() => {
                         <span>Manual retries: {{ delivery.manualRetryCount }} / 1</span>
                         <span>Queued: {{ formatInquiryDate(delivery.createdAt) }}</span>
                         <span>Last update: {{ formatInquiryDate(delivery.updatedAt) }}</span>
+                        <span v-if="delivery.status === 'queued'">Next attempt: {{ formatInquiryDate(delivery.nextAttemptAt) }}</span>
                         <span v-if="delivery.sentAt">SMTP accepted: {{ formatInquiryDate(delivery.sentAt) }}</span>
                         <span v-if="delivery.lastFailureCode">Failure: {{ delivery.lastFailureCode }}</span>
                         <span v-if="delivery.lastOperatorResolution">Operator resolution: {{ delivery.lastOperatorResolution.replaceAll("_", " ") }}</span>
