@@ -37,6 +37,17 @@ CREATE TRIGGER booking_offer_capability_lookup_insert
   AFTER INSERT ON eogp.external_action_capabilities
   FOR EACH ROW EXECUTE FUNCTION eogp.index_booking_offer_capability();
 
+-- Populate the private lookup for any offer capabilities created before
+-- this migration is applied (for example, during staged deployment/replay).
+INSERT INTO eogp.booking_offer_capability_lookup (
+  token_sha256,organization_id,capability_id
+)
+SELECT capability.token_sha256,capability.organization_id,capability.id
+  FROM eogp.external_action_capabilities capability
+ WHERE capability.action_code='offer_accept'
+   AND capability.offer_revision_id IS NOT NULL
+ON CONFLICT (token_sha256) DO NOTHING;
+
 REVOKE ALL ON FUNCTION eogp.index_booking_offer_capability()
   FROM PUBLIC,eventor_runtime,eventor_worker,eventor_auth;
 
