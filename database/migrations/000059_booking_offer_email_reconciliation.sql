@@ -86,6 +86,13 @@ BEGIN
              WHERE latest.organization_id=offer.organization_id AND latest.offer_id=offer.id
           )
       )
+      AND NOT EXISTS (
+        SELECT 1 FROM eogp.booking_offer_email_deliveries other
+         WHERE other.organization_id=page.organization_id
+           AND other.offer_revision_id=page.offer_revision_id
+           AND other.id<>page.id
+           AND other.status IN ('queued','sending','sent','uncertain')
+      )
   ) ORDER BY page.created_at DESC,page.id DESC),'[]'::jsonb)
     INTO v_items
     FROM (
@@ -236,6 +243,13 @@ BEGIN
               FROM eogp.booking_offer_revisions latest
              WHERE latest.organization_id=offer.organization_id AND latest.offer_id=offer.id
           )
+     )
+     OR EXISTS (
+       SELECT 1 FROM eogp.booking_offer_email_deliveries other
+        WHERE other.organization_id=p_organization_id
+          AND other.offer_revision_id=v_delivery.offer_revision_id
+          AND other.id<>v_delivery.id
+          AND other.status IN ('queued','sending','sent','uncertain')
      ) THEN
     RAISE EXCEPTION 'offer email is not eligible for an operator-authorized retry'
       USING ERRCODE='55000';
