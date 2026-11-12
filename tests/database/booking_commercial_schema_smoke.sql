@@ -212,13 +212,13 @@ BEGIN
     JOIN pg_catalog.pg_class r ON r.oid=t.tgrelid
     JOIN pg_catalog.pg_namespace n ON n.oid=r.relnamespace
     WHERE n.nspname='eogp' AND r.relname='booking_price_list_revisions'
-      AND t.tgname='booking_price_list_revision_guard' AND NOT t.tgisinternal
+      AND t.tgname='booking_price_list_revisions_published_immutable_guard' AND NOT t.tgisinternal
   ) OR NOT EXISTS (
     SELECT 1 FROM pg_catalog.pg_trigger t
     JOIN pg_catalog.pg_class r ON r.oid=t.tgrelid
     JOIN pg_catalog.pg_namespace n ON n.oid=r.relnamespace
     WHERE n.nspname='eogp' AND r.relname='booking_price_items'
-      AND t.tgname='booking_price_item_revision_guard' AND NOT t.tgisinternal
+      AND t.tgname='booking_price_items_published_parent_guard' AND NOT t.tgisinternal
   ) THEN
     RAISE EXCEPTION 'price-list revision and item immutability guards are missing';
   END IF;
