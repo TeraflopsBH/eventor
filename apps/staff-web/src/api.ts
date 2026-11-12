@@ -482,6 +482,26 @@ export interface BookingOfferIssueResult extends Record<string, unknown> {
   offerId: string;
   offerRevisionId: string;
 }
+export interface BookingOfferEmailDelivery {
+  deliveryId: string;
+  offerRevisionId: string;
+  status: "queued" | "sending" | "sent" | "failed" | "uncertain";
+  attemptCount: number;
+  manualRetryCount: number;
+  nextAttemptAt: string;
+  createdAt: string;
+  updatedAt: string;
+  sentAt: string | null;
+  lastFailureCode: string | null;
+  lastOperatorResolution: "confirmed_sent" | "confirmed_not_sent" | null;
+  lastOperatorAt: string | null;
+  canReconcile: boolean;
+  canRetry: boolean;
+}
+export interface BookingOfferEmailDeliveryPage {
+  readonly data: BookingOfferEmailDelivery[];
+  readonly meta: PageMeta & { counts: Record<string, number> };
+}
 
 export interface BookingConfirmationResult {
   bookingId: string;
@@ -651,6 +671,28 @@ export const api = {
     request<Envelope<{ deliveryId: string; status: string; created: boolean }>>(
       `/booking-offers/${encodeURIComponent(offerId)}/email`,
       { method: "POST", body: { acceptanceToken }, idempotent: true, idempotencyKey: requestKey },
+    ),
+  getBookingOfferEmailDeliveries: (offerId: string, options: { status?: string; limit?: number; offset?: number } = {}) => {
+    const query = new URLSearchParams();
+    if (options.status) query.set("status", options.status);
+    if (options.limit !== undefined) query.set("limit", String(options.limit));
+    if (options.offset !== undefined) query.set("offset", String(options.offset));
+    return request<BookingOfferEmailDeliveryPage>(
+      `/booking-offers/${encodeURIComponent(offerId)}/email-deliveries${query.size ? `?${query.toString()}` : ""}`,
+    );
+  },
+  reconcileBookingOfferEmailDelivery: (
+    deliveryId: string,
+    body: { resolution: "confirmed_sent" | "confirmed_not_sent"; reason: string; providerMessageReference?: string },
+    requestKey?: string,
+  ) => request<Envelope<{ deliveryId: string; status: string; canRetry: boolean }>>(
+    `/booking-offer-email-deliveries/${encodeURIComponent(deliveryId)}/reconcile`,
+    { method: "POST", body, idempotent: true, idempotencyKey: requestKey },
+  ),
+  retryBookingOfferEmailDelivery: (deliveryId: string, reason: string, requestKey?: string) =>
+    request<Envelope<{ deliveryId: string; status: string; manualRetryCount: number }>>(
+      `/booking-offer-email-deliveries/${encodeURIComponent(deliveryId)}/retry`,
+      { method: "POST", body: { reason }, idempotent: true, idempotencyKey: requestKey },
     ),
   getBookingApprovalPolicies: () =>
     request<Envelope<BookingApprovalPolicy[]>>("/organization/booking-approval-policies"),
