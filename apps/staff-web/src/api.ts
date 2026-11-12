@@ -725,7 +725,7 @@ export interface BookingFormTranslation {
   }>;
 }
 export interface BookingFormSchema {
-  schemaVersion: 1;
+  schemaVersion?: 1;
   fields: BookingFormField[];
   contentTranslations?: Partial<Record<"bs-BA" | "en", BookingFormTranslation>>;
 }
