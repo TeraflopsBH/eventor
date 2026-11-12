@@ -24,7 +24,7 @@ const {
 </script>
 
 <template>
-      <section v-else-if="activeTab === 'inquiries'" class="panel inquiry-panel">
+      <section class="panel inquiry-panel">
         <div class="section-heading">
           <div>
             <p class="eyebrow">VENUE BOOKING</p>
