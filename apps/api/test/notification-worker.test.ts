@@ -166,7 +166,7 @@ test("booking offer email worker decrypts the queued capability and sends throug
   };
   const client = {
     async query(sql: string, values: unknown[] = []) {
-      const normalized = sql.replace(/\\s+/g, " ").trim();
+      const normalized = sql.replace(/\s+/g, " ").trim();
       calls.push(normalized);
       if (normalized.startsWith("SELECT * FROM eogp.claim_booking_offer_email_delivery")) {
         return { rows: [job], rowCount: 1 };
