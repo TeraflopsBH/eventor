@@ -44,6 +44,7 @@ type BookingOfferAcceptanceBody = {
   acceptanceName?: string;
   acceptanceNote?: string;
 };
+type BookingOfferEmailBody = { acceptanceToken: string };
 type BookingOfferRejectionBody = {
   reasonCode: string;
   reason: string;
@@ -351,6 +352,12 @@ const bookingOfferSuccessorBody = {
   additionalProperties: false,
 } as const;
 const bookingOfferIssueBody = { type: "object", properties: {}, additionalProperties: false } as const;
+const bookingOfferEmailBody = {
+  type: "object",
+  required: ["acceptanceToken"],
+  properties: { acceptanceToken: { type: "string", pattern: "^[A-Za-z0-9_-]{43}$" } },
+  additionalProperties: false,
+} as const;
 const bookingConfirmationBody = {
   type: "object",
   required: ["expectedDraftRevisionId", "confirmationReason"],
@@ -2028,6 +2035,48 @@ export function buildApi(dependencies: ApiDependencies): FastifyInstance {
       );
       const data = command.body.data as Record<string, unknown>;
       return reply.code(command.status).send({ data: { ...data, acceptanceToken } });
+    },
+  );
+
+  server.post<{ Params: { offerId: string }; Body: BookingOfferEmailBody }>(
+    "/booking-offers/:offerId/email",
+    {
+      schema: {
+        params: bookingOfferParams,
+        headers: idempotencyHeaders,
+        body: bookingOfferEmailBody,
+      },
+    },
+    async (request, reply) => {
+      const encryptionKey = dependencies.contactEncryptionKey;
+      if (!encryptionKey || encryptionKey.length !== 32) {
+        throw new ApiError(503, "BOOKING_OFFER_DECISION_ENCRYPTION_UNAVAILABLE", "Customer capability encryption is not configured.");
+      }
+      const token = request.body.acceptanceToken;
+      if (!/^[A-Za-z0-9_-]{43}$/.test(token)) {
+        throw new ApiError(422, "BOOKING_ACTION_CAPABILITY_INVALID", "A valid customer offer capability is required.");
+      }
+      const tokenHash = createHash("sha256").update(token, "utf8").digest("hex");
+      const encryptedToken = encryptContactValue(token, encryptionKey, {
+        organizationId: request.staffPrincipal!.organizationId,
+        contactKind: "other",
+      });
+      const principal = request.staffPrincipal!;
+      return withCommand(
+        request, reply, "queueBookingOfferEmailDelivery",
+        { offerId: request.params.offerId, capabilityTokenSha256: tokenHash },
+        async (client) => {
+          const result = await client.query<ResultRow>(
+            "SELECT eogp.queue_booking_offer_email_delivery($1::uuid,$2::uuid,$3::uuid,$4::text,$5::text,$6::bytea) AS result",
+            [
+              principal.organizationId, request.params.offerId, principal.membershipId,
+              createHash("sha256").update(String(request.headers["idempotency-key"]), "utf8").digest("hex"),
+              tokenHash, encryptedToken,
+            ],
+          );
+          return result.rows[0]?.result as Record<string, unknown>;
+        },
+      );
     },
   );
 
