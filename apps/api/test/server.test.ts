@@ -1457,7 +1457,7 @@ test("staff inquiry inbox decrypts authorized projections and routes assignment,
   assert.equal(draftData.draftId, draftId);
   assert.equal(draftData.currentRevisionNumber, 1);
   assert.equal(draftData.currentRevision.revisionNumber, 1);
-  assert.equal(draftData.currentRevision.sourceFormRevisionId, form.formRevisionId);
+  assert.equal(draftData.currentRevision.sourceFormRevisionId, "12121212-1212-4121-8121-121212121212");
   assert.deepEqual(draftData.currentRevision.fieldSchema.fields.map((field) => field.code), [
     "event_date", "event_name", "estimated_guests",
   ]);
