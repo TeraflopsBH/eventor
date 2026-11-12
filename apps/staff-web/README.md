@@ -57,3 +57,10 @@ A successful SMTP test enables only the configuration revision tested. Saving a 
 The staff-web booking-draft workspace loads the active organization allocation catalogue through the authenticated, draft-read-authorized API. Structured space rows select an active venue space and capture usage phase, start/end timestamps and optional expected attendance. Resource rows select a reservable resource type and capture requested quantity. The API's catalogue capacity is explicitly distinguished from live availability; server-side allocation and final booking confirmation checks remain authoritative.
 
 Run the focused helper tests with npm test from apps/staff-web; the new booking-draft-allocations.test.mjs covers catalogue membership, interval/offset validation, capacity bounds, duplicate prevention and normalization. This slice is in draft PR #74, stacked on PR #73. Local tests, typecheck, production build, migration execution and browser validation remain pending; CI was not triggered while the monthly Actions allowance is exhausted.
+
+
+## Booking allocation availability preview
+
+The booking-draft allocation editor includes an explicit availability check. It reports overlapping active space holds, confirmed bookings and maintenance blocks for each proposed space interval, and estimates available pooled-resource quantities over the overall requested booking interval. Results are invalidated when the draft, dates or allocation rows change. Resource capacity is not checked until both overall booking dates are supplied.
+
+The preview is read-only and advisory. It does not reserve inventory and cannot guarantee that availability remains unchanged; the existing server-side revision and final booking-confirmation checks remain authoritative. API route coverage is included in apps/api/test/server.test.ts.
