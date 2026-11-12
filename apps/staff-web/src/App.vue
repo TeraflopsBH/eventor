@@ -44,7 +44,7 @@ const staffSessionState = useStaffSession({
   loadConfiguration: () => loadEmailConfiguration(),
   resetWorkspace: () => resetWorkspace(),
 });
-const { principal, loadingSession, loginForm, selectedOrganization, showError, refreshSession, signIn, signOut } = staffSessionState;
+const { principal, showError, refreshSession } = staffSessionState;
 
 const canReadBookingDraft = computed(() =>
   inquiryCapabilities.value.canReadDraft && Boolean(inquiryDetail.value?.bookingDraft),
