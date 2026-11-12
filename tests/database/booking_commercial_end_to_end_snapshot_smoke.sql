@@ -142,6 +142,9 @@ BEGIN
     v_org,v_approval_policy_id,v_approval_revision_1,v_creator
   );
 
+  -- The offer-creator trigger captures the authenticated actor for separation-of-duties checks.
+  PERFORM set_config('app.actor_membership_id',v_creator::text,true);
+
   -- Prepare the offer through the real command. The $10 fee and $10 discount
   -- both affect the taxable base; the 20% result is therefore $20 tax.
   v_prepared:=eogp.save_booking_offer_revision(
@@ -326,8 +329,8 @@ BEGIN
   -- Re-read after the rejected mutation attempts to ensure no financial drift.
   IF (SELECT total_amount FROM eogp.booking_offer_revisions
        WHERE organization_id=v_org AND id=v_offer_revision_id)<>120.00
-     OR (SELECT price_snapshot->>'totalAmount' FROM eogp.booking_confirmed_snapshots
-       WHERE organization_id=v_org AND booking_id=v_booking_id)<>'120.0000' THEN
+     OR (SELECT (price_snapshot->>'totalAmount')::numeric FROM eogp.booking_confirmed_snapshots
+       WHERE organization_id=v_org AND booking_id=v_booking_id)<>120.00 THEN
     RAISE EXCEPTION 'offer or confirmed snapshot changed after attempted mutation';
   END IF;
 END;
