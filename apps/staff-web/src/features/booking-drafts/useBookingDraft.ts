@@ -64,8 +64,11 @@ export function useBookingDraft(dependencies: BookingDraftDependencies) {
     allocationAvailabilityPreview.value !== null
     && allocationAvailabilityPreviewKey.value === allocationPreviewInputKey.value
   );
+  let allocationPreviewRequestSequence = 0;
   watch(allocationPreviewInputKey, () => {
+    allocationPreviewRequestSequence += 1;
     allocationAvailabilityPreviewKey.value = "";
+    allocationAvailabilityPreviewBusy.value = false;
   }, { flush: "sync" });
 
   const sourceAnswerItems = computed(() => {
@@ -86,6 +89,8 @@ export function useBookingDraft(dependencies: BookingDraftDependencies) {
   );
 
   function populateEditor(draft: BookingDraftDetail): void {
+    allocationPreviewRequestSequence += 1;
+    allocationAvailabilityPreviewBusy.value = false;
     allocationAvailabilityPreview.value = null;
     allocationAvailabilityPreviewKey.value = "";
     const revision = draft.currentRevision;
@@ -106,6 +111,7 @@ export function useBookingDraft(dependencies: BookingDraftDependencies) {
   }
 
   function reset(): void {
+    allocationPreviewRequestSequence += 1;
     detail.value = null;
     editorOpen.value = false;
     valuesJson.value = "{}";
@@ -172,6 +178,7 @@ export function useBookingDraft(dependencies: BookingDraftDependencies) {
 
     clearMessages();
     allocationAvailabilityPreviewBusy.value = true;
+    const requestSequence = ++allocationPreviewRequestSequence;
     const requestedKey = allocationPreviewInputKey.value;
     try {
       const result = await bookingApi.previewBookingDraftAllocationAvailability(draft.draftId, {
@@ -186,12 +193,16 @@ export function useBookingDraft(dependencies: BookingDraftDependencies) {
         resourceStartsAt: requestedStart.value.trim() || null,
         resourceEndsAt: requestedEnd.value.trim() || null,
       });
-      allocationAvailabilityPreview.value = result.data;
-      allocationAvailabilityPreviewKey.value = requestedKey;
+      if (requestSequence === allocationPreviewRequestSequence) {
+        allocationAvailabilityPreview.value = result.data;
+        allocationAvailabilityPreviewKey.value = requestedKey;
+      }
     } catch (error) {
-      showError(error);
+      if (requestSequence === allocationPreviewRequestSequence) showError(error);
     } finally {
-      allocationAvailabilityPreviewBusy.value = false;
+      if (requestSequence === allocationPreviewRequestSequence) {
+        allocationAvailabilityPreviewBusy.value = false;
+      }
     }
   }
 
