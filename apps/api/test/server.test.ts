@@ -1367,7 +1367,7 @@ test("staff inquiry inbox decrypts authorized projections and routes assignment,
     headers: { "idempotency-key": "reconcile-booking-offer-email-0001" },
     payload: { resolution: "confirmed_not_sent", reason: "Checked the SMTP server queue logs." },
   });
-  assert.equal(offerEmailReconciled.statusCode, 200);
+  assert.equal(offerEmailReconciled.statusCode, 201);
   assert.equal(offerEmailReconciled.json<{ data: { status: string } }>().data.status, "failed");
   assert.equal(mock.bookingOfferEmailReconcileCalls, 1);
 
@@ -1377,7 +1377,7 @@ test("staff inquiry inbox decrypts authorized projections and routes assignment,
     headers: { "idempotency-key": "retry-booking-offer-email-0001" },
     payload: { reason: "Verified non-acceptance; SMTP configuration is now corrected." },
   });
-  assert.equal(offerEmailRetry.statusCode, 200);
+  assert.equal(offerEmailRetry.statusCode, 201);
   assert.equal(offerEmailRetry.json<{ data: { status: string; manualRetryCount: number } }>().data.status, "queued");
   assert.equal(offerEmailRetry.json<{ data: { manualRetryCount: number } }>().data.manualRetryCount, 1);
   assert.equal(mock.bookingOfferEmailRetryCalls, 1);
