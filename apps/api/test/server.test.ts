@@ -88,6 +88,8 @@ function makePool() {
   let bookingOfferSuccessorCalls = 0;
   let bookingOfferGetCalls = 0;
   let bookingOfferIssueCalls = 0;
+  let customerOfferDecisionCalls = 0;
+  const customerOfferDecisionReplays = new Map<string, { requestHash: string; response: Record<string, unknown> }>();
   const deliveryTests = new Map<string, string>();
 
   const client = {
@@ -198,6 +200,35 @@ function makePool() {
         } }], rowCount: 1 };
       }
 
+      if (normalized.includes("eogp.resolve_booking_offer_capability(")) {
+        commandCalls.push({ sql: normalized, values });
+        return { rows: [{ result: {
+          organizationId: principal.organizationId,
+          offerId: values[0],
+          offerRevisionId: "18181818-1818-4181-8181-181818181819",
+        } }], rowCount: 1 };
+      }
+      if (normalized.includes("eogp.decide_booking_offer_with_capability(")) {
+        customerOfferDecisionCalls += 1;
+        commandCalls.push({ sql: normalized, values });
+        const replayKey = String(values[1]) + "|" + String(values[3]);
+        const stored = customerOfferDecisionReplays.get(replayKey);
+        if (stored) {
+          if (stored.requestHash !== String(values[4])) {
+            throw Object.assign(new Error("idempotency conflict"), { code: "55000" });
+          }
+          return { rows: [{ result: { ...stored.response, replayed: true } }], rowCount: 1 };
+        }
+        const response = {
+          offerId: values[0],
+          offerRevisionId: "18181818-1818-4181-8181-181818181819",
+          decision: values[2],
+          decidedAt: "2026-11-12T12:00:00.000Z",
+          replayed: false,
+        };
+        customerOfferDecisionReplays.set(replayKey, { requestHash: String(values[4]), response });
+        return { rows: [{ result: response }], rowCount: 1 };
+      }
       if (normalized.includes("eogp.save_booking_offer_revision(")) {
         commandCalls.push({ sql: normalized, values });
         if (values[3] !== null) bookingOfferSuccessorCalls += 1;
@@ -640,6 +671,7 @@ function makePool() {
     get bookingOfferSuccessorCalls() { return bookingOfferSuccessorCalls; },
     get bookingOfferGetCalls() { return bookingOfferGetCalls; },
     get bookingOfferIssueCalls() { return bookingOfferIssueCalls; },
+    get customerOfferDecisionCalls() { return customerOfferDecisionCalls; },
   };
 }
 
