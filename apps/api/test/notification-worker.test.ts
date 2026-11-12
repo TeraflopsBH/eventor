@@ -138,7 +138,7 @@ test("booking offer email worker decrypts the queued capability and sends throug
     { organizationId, contactKind: "other" },
   );
   const calls: string[] = [];
-  let sentMessage: { to: string; subject: string; text: string } | null = null;
+  const sentMessages: Array<{ to: string; subject: string; text: string }> = [];
   let closed = false;
   const job = {
     delivery_id: deliveryId,
@@ -189,7 +189,7 @@ test("booking offer email worker decrypts the queued capability and sends throug
   const factory: SmtpTransportFactory = () => ({
     async verify() { return true; },
     async sendMail(message) {
-      sentMessage = message;
+      sentMessages.push(message);
       return { messageId: "smtp-message-id", accepted: [message.to] };
     },
     close() { closed = true; },
@@ -203,7 +203,8 @@ test("booking offer email worker decrypts the queued capability and sends throug
   assert.equal(result.bookingOfferEmailFailed, 0);
   assert.equal(result.bookingOfferEmailUncertain, 0);
   assert.equal(closed, true);
-  assert.ok(sentMessage);
+  assert.equal(sentMessages.length, 1);
+  const sentMessage = sentMessages[0]!;
   assert.equal(sentMessage.to, "customer@example.test");
   assert.match(sentMessage.text, new RegExp(
     `https://eventor\\.example\\.test/offers/${offerId}#token=${capability}`,
