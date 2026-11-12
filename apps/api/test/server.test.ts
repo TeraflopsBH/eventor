@@ -1037,6 +1037,94 @@ test("staff inquiry inbox decrypts authorized projections and routes assignment,
   });
   assert.equal(mock.bookingDraftGetCalls, 2);
   assert.equal(mock.bookingDraftRevisionCalls, 1);
+
+  const offerBody = {
+    priceListRevisionId: "21212121-2121-4121-8121-212121212121",
+    cancellationPolicyRevisionId: "22222222-2222-4222-8222-222222222222",
+    approvalPolicyRevisionId: "23232323-2323-4323-8323-232323232323",
+    currency: "BAM",
+    taxBasis: "exclusive" as const,
+    validUntil: "2026-12-01T12:00:00.000Z",
+    lineItems: [{ itemCode: "HALL-RENTAL", quantity: 1 }],
+    adjustments: [],
+    taxAmount: 25,
+  };
+  const offerPrepared = await app.inject({
+    method: "POST",
+    url: "/booking-draft-revisions/16161616-1616-4161-8161-161616161616/offers",
+    headers: { "idempotency-key": "prepare-booking-offer-0001" },
+    payload: offerBody,
+  });
+  assert.equal(offerPrepared.statusCode, 201);
+  const preparedData = offerPrepared.json<{ data: { offerId: string; offerRevisionId: string; state: string; totalAmount: number } }>().data;
+  assert.equal(preparedData.offerId, "18181818-1818-4181-8181-181818181818");
+  assert.equal(preparedData.state, "draft");
+  assert.equal(preparedData.totalAmount, 275);
+  assert.equal(mock.bookingOfferPrepareCalls, 1);
+  const prepareCall = mock.commandCalls.find((call) => call.sql.includes("eogp.save_booking_offer_revision("));
+  assert.ok(prepareCall);
+  assert.deepEqual(prepareCall.values.slice(0, 4), [
+    principal.organizationId,
+    "16161616-1616-4161-8161-161616161616",
+    principal.membershipId,
+    null,
+  ]);
+  assert.deepEqual(JSON.parse(String(prepareCall.values[9])), offerBody.lineItems);
+  assert.deepEqual(JSON.parse(String(prepareCall.values[10])), []);
+
+  const offerRead = await app.inject({
+    method: "GET",
+    url: "/booking-offers/18181818-1818-4181-8181-181818181818",
+  });
+  assert.equal(offerRead.statusCode, 200);
+  assert.equal(
+    offerRead.json<{ data: { currentRevision: { state: string; totalAmount: number } } }>().data.currentRevision.state,
+    "issued",
+  );
+  assert.equal(mock.bookingOfferGetCalls, 1);
+
+  const offerIssued = await app.inject({
+    method: "POST",
+    url: "/booking-offers/18181818-1818-4181-8181-181818181818/issue",
+    headers: { "idempotency-key": "issue-booking-offer-0001" },
+    payload: {},
+  });
+  assert.equal(offerIssued.statusCode, 201);
+  const issueData = offerIssued.json<{ data: { state: string; acceptanceToken: string } }>().data;
+  assert.equal(issueData.state, "issued");
+  assert.match(issueData.acceptanceToken, /^[A-Za-z0-9_-]{43}$/);
+  assert.equal(mock.bookingOfferIssueCalls, 1);
+
+  const offerIssueReplay = await app.inject({
+    method: "POST",
+    url: "/booking-offers/18181818-1818-4181-8181-181818181818/issue",
+    headers: { "idempotency-key": "issue-booking-offer-0001" },
+    payload: {},
+  });
+  assert.equal(offerIssueReplay.statusCode, 201);
+  assert.equal(
+    offerIssueReplay.json<{ data: { acceptanceToken: string } }>().data.acceptanceToken,
+    issueData.acceptanceToken,
+  );
+  assert.equal(mock.bookingOfferIssueCalls, 1);
+
+  const successorOffer = await app.inject({
+    method: "POST",
+    url: "/booking-offers/18181818-1818-4181-8181-181818181818/revisions",
+    headers: { "idempotency-key": "revise-booking-offer-0001" },
+    payload: {
+      draftRevisionId: "16161616-1616-4161-8161-161616161616",
+      ...offerBody,
+      internalReason: "Correcting the venue rental rate.",
+      supersedeCurrentOffer: true,
+    },
+  });
+  assert.equal(successorOffer.statusCode, 201);
+  assert.equal(
+    successorOffer.json<{ data: { revisionNumber: number; state: string } }>().data.revisionNumber,
+    2,
+  );
+  assert.equal(mock.bookingOfferSuccessorCalls, 1);
   const revisionCall = mock.commandCalls.find((call) => call.sql.includes("eogp.create_booking_draft_revision("));
   assert.ok(revisionCall);
   assert.deepEqual(revisionCall.values.slice(0, 4), [
