@@ -358,6 +358,31 @@ const bookingOfferEmailBody = {
   properties: { acceptanceToken: { type: "string", pattern: "^[A-Za-z0-9_-]{43}$" } },
   additionalProperties: false,
 } as const;
+const bookingOfferEmailDeliveryQuery = {
+  type: "object",
+  properties: {
+    status: { type: "string", enum: ["queued","sending","sent","failed","uncertain"] },
+    limit: { type: "integer", minimum: 1, maximum: 100, default: 25 },
+    offset: { type: "integer", minimum: 0, maximum: 10000, default: 0 },
+  },
+  additionalProperties: false,
+} as const;
+const bookingOfferEmailReconciliationBody = {
+  type: "object",
+  required: ["resolution","reason"],
+  properties: {
+    resolution: { type: "string", enum: ["confirmed_sent","confirmed_not_sent"] },
+    reason: { type: "string", minLength: 3, maxLength: 1000 },
+    providerMessageReference: { type: "string", maxLength: 998 },
+  },
+  additionalProperties: false,
+} as const;
+const bookingOfferEmailRetryBody = {
+  type: "object",
+  required: ["reason"],
+  properties: { reason: { type: "string", minLength: 3, maxLength: 1000 } },
+  additionalProperties: false,
+} as const;
 const bookingConfirmationBody = {
   type: "object",
   required: ["expectedDraftRevisionId", "confirmationReason"],
@@ -1988,6 +2013,97 @@ export function buildApi(dependencies: ApiDependencies): FastifyInstance {
       } finally {
         client.release();
       }
+    },
+  );
+
+  server.get<{
+    Params: { offerId: string };
+    Querystring: { status?: string; limit?: number; offset?: number };
+  }>(
+    "/booking-offers/:offerId/email-deliveries",
+    { schema: { params: bookingOfferParams, querystring: bookingOfferEmailDeliveryQuery } },
+    async (request, reply) => {
+      const principal = request.staffPrincipal!;
+      const limit = request.query.limit ?? 25;
+      const offset = request.query.offset ?? 0;
+      const client = await dependencies.pool.connect();
+      try {
+        await client.query("BEGIN");
+        await client.query("SELECT set_config('app.organization_id',$1,true)", [principal.organizationId]);
+        const result = await client.query<ResultRow>(
+          "SELECT eogp.list_booking_offer_email_deliveries($1::uuid,$2::uuid,$3::uuid,$4::text,$5::integer,$6::integer) AS result",
+          [principal.organizationId,request.params.offerId,principal.membershipId,request.query.status ?? null,limit,offset],
+        );
+        await client.query("COMMIT");
+        const projection = result.rows[0]?.result as {
+          items?: unknown[];
+          page?: { total?: number };
+          counts?: Record<string,number>;
+        } | undefined;
+        return reply.code(200).send({
+          data: projection?.items ?? [],
+          meta: { limit,offset,totalCount: projection?.page?.total ?? 0,counts: projection?.counts ?? {} },
+        });
+      } catch (error) {
+        try { await client.query("ROLLBACK"); } catch { /* preserve the read error */ }
+        throw databaseError(error);
+      } finally {
+        client.release();
+      }
+    },
+  );
+
+  server.post<{
+    Params: { deliveryId: string };
+    Body: { resolution: string; reason: string; providerMessageReference?: string };
+  }>(
+    "/booking-offer-email-deliveries/:deliveryId/reconcile",
+    {
+      schema: {
+        params: { type: "object", required: ["deliveryId"], properties: { deliveryId: { type: "string", pattern: uuidPattern } }, additionalProperties: false },
+        headers: idempotencyHeaders,
+        body: bookingOfferEmailReconciliationBody,
+      },
+    },
+    async (request, reply) => {
+      const principal = request.staffPrincipal!;
+      return withCommand(request,reply,"reconcileBookingOfferEmailDelivery",
+        { deliveryId:request.params.deliveryId,resolution:request.body.resolution,reason:request.body.reason,
+          providerMessageReference:request.body.providerMessageReference ?? null },
+        async (client) => {
+          const result = await client.query<ResultRow>(
+            "SELECT eogp.reconcile_booking_offer_email_delivery($1::uuid,$2::uuid,$3::uuid,$4::text,$5::text,$6::text) AS result",
+            [principal.organizationId,request.params.deliveryId,principal.membershipId,
+              request.body.resolution,request.body.reason,request.body.providerMessageReference ?? null],
+          );
+          return result.rows[0]?.result as Record<string,unknown>;
+        });
+    },
+  );
+
+  server.post<{
+    Params: { deliveryId: string };
+    Body: { reason: string };
+  }>(
+    "/booking-offer-email-deliveries/:deliveryId/retry",
+    {
+      schema: {
+        params: { type: "object", required: ["deliveryId"], properties: { deliveryId: { type: "string", pattern: uuidPattern } }, additionalProperties: false },
+        headers: idempotencyHeaders,
+        body: bookingOfferEmailRetryBody,
+      },
+    },
+    async (request, reply) => {
+      const principal = request.staffPrincipal!;
+      return withCommand(request,reply,"retryBookingOfferEmailDelivery",
+        { deliveryId:request.params.deliveryId,reason:request.body.reason },
+        async (client) => {
+          const result = await client.query<ResultRow>(
+            "SELECT eogp.retry_booking_offer_email_delivery($1::uuid,$2::uuid,$3::uuid,$4::text) AS result",
+            [principal.organizationId,request.params.deliveryId,principal.membershipId,request.body.reason],
+          );
+          return result.rows[0]?.result as Record<string,unknown>;
+        });
     },
   );
 
