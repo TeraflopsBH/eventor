@@ -89,7 +89,7 @@ const {
                 <input :value="resendWebhook.callbackUrl" type="url" readonly />
               </label>
               <button class="button button-quiet" type="button" @click="copyResendWebhookUrl">{{ $t("emailDelivery.copyUrl") }}</button>
-              <p class="fine-print">{{ $t("emailDelivery.resendInstructions") }} <code>email.delivered</code> and <code>email.bounced</code>{{ $t("emailDelivery.resendInstructionsEnd") }}</p>
+              <p class="fine-print">{{ $t("emailDelivery.resendInstructions") }} <code>email.delivered</code> {{ $t("emailDelivery.andEvent") }} <code>email.bounced</code>{{ $t("emailDelivery.resendInstructionsEnd") }}</p>
               <label>{{ $t("emailDelivery.signingSecret") }}
                 <input v-model="resendWebhookSigningSecret" type="password" autocomplete="off" maxlength="512" placeholder="whsec_…" />
               </label>
