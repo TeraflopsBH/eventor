@@ -236,6 +236,76 @@ paths:
         '409': { $ref: '#/components/responses/Conflict' }
         '422': { $ref: '#/components/responses/UnprocessableEntity' }
         '500': { $ref: '#/components/responses/InternalServerError' }
+  "/me/preferences":
+    patch:
+      tags: ["Authentication"]
+      operationId: updateStaffLocalePreference
+      summary: "Save the authenticated user's global language preference"
+      description: "The preference belongs to the global user account and follows the user across organizations. Supported values are bs-BA and en."
+      security: [{ StaffSession: [], StaffCsrf: [] }]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [locale]
+              additionalProperties: false
+              properties:
+                locale: { type: string, enum: [bs-BA, en] }
+      responses:
+        '200':
+          description: "User language preference saved."
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/DataEnvelope' }
+        '400': { $ref: '#/components/responses/BadRequest' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '500': { $ref: '#/components/responses/InternalServerError' }
+  "/organization/locale":
+    get:
+      tags: ["Authentication"]
+      operationId: getOrganizationLocaleSettings
+      summary: "Read the active organization's default language"
+      description: "Returns the organization default and whether the active membership can manage it. The setting is a fallback, not a forced staff language."
+      security: [{ StaffSession: [] }]
+      responses:
+        '200':
+          description: "Organization language settings and current membership capability."
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/DataEnvelope' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '500': { $ref: '#/components/responses/InternalServerError' }
+    patch:
+      tags: ["Authentication"]
+      operationId: setOrganizationDefaultLocale
+      summary: "Change the active organization's default language"
+      description: "Requires organization.manage. Existing user preferences and inquiry language snapshots are not changed."
+      security: [{ StaffSession: [], StaffCsrf: [] }]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [defaultLocale]
+              additionalProperties: false
+              properties:
+                defaultLocale: { type: string, enum: [bs-BA, en] }
+      responses:
+        '200':
+          description: "Organization default language updated."
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/DataEnvelope' }
+        '400': { $ref: '#/components/responses/BadRequest' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '422': { $ref: '#/components/responses/UnprocessableEntity' }
+        '500': { $ref: '#/components/responses/InternalServerError' }
   "/auth/session":
     delete:
       tags: ["Authentication"]
