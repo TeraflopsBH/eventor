@@ -833,6 +833,7 @@ export default {
     fullName: "Full name",
     email: "Email address",
     phone: "Phone number",
+    selectMaximum: "Select no more than {count} options for {field}.",
     selectMinimum: "Select at least {count} option(s) for {field}.",
     chooseOption: "Choose an option",
     dateTimeOffsetHelp: "Enter an ISO 8601 date and time including its UTC offset, for example 2026-11-12T14:30:00+01:00.",
