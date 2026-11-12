@@ -1,5 +1,6 @@
 import { computed, ref, type ComputedRef, type Ref } from "vue";
-import { ApiError, api, type BookingDraftDetail } from "../../api";
+import { ApiError, api, type BookingDraftDetail, type PublicBookingFormField } from "../../api";
+import { initializePublicBookingAnswers, normalizePublicBookingAnswers, validatePublicBookingAnswers } from "../public-booking-forms/publicBookingForm";
 import { formatBookingAnswerItems } from "../booking-inquiries/presentation";
 
 type BookingDraftApi = typeof api;
@@ -32,6 +33,8 @@ export function useBookingDraft(dependencies: BookingDraftDependencies) {
   const detail = ref<BookingDraftDetail | null>(null);
   const editorOpen = ref(false);
   const valuesJson = ref("{}");
+  const draftAnswers = ref<Record<string, unknown>>({});
+  const sourceFormFields = computed<PublicBookingFormField[]>(() => detail.value?.currentRevision?.fieldSchema?.fields ?? []);
   const spaceLinesJson = ref("[]");
   const resourceLinesJson = ref("[]");
   const requestedStart = ref("");
@@ -53,6 +56,13 @@ export function useBookingDraft(dependencies: BookingDraftDependencies) {
   function populateEditor(draft: BookingDraftDetail): void {
     const revision = draft.currentRevision;
     valuesJson.value = JSON.stringify(revision?.values ?? {}, null, 2);
+    const storedAnswers = revision?.values?.answers;
+    draftAnswers.value = {
+      ...initializePublicBookingAnswers(revision?.fieldSchema?.fields ?? []),
+      ...(storedAnswers && typeof storedAnswers === "object" && !Array.isArray(storedAnswers)
+        ? storedAnswers as Record<string, unknown>
+        : {}),
+    };
     spaceLinesJson.value = JSON.stringify(
       (revision?.spaceLines ?? []).map((line) => ({
         venueSpaceId: line.venueSpaceId,
@@ -83,6 +93,7 @@ export function useBookingDraft(dependencies: BookingDraftDependencies) {
     detail.value = null;
     editorOpen.value = false;
     valuesJson.value = "{}";
+    draftAnswers.value = {};
     spaceLinesJson.value = "[]";
     resourceLinesJson.value = "[]";
     requestedStart.value = "";
@@ -124,16 +135,31 @@ export function useBookingDraft(dependencies: BookingDraftDependencies) {
     let spaceLines: Array<Record<string, unknown>>;
     let resourceLines: Array<Record<string, unknown>>;
     try {
-      const parsedValues: unknown = JSON.parse(valuesJson.value);
       const parsedSpaces: unknown = JSON.parse(spaceLinesJson.value);
       const parsedResources: unknown = JSON.parse(resourceLinesJson.value);
-      if (!parsedValues || typeof parsedValues !== "object" || Array.isArray(parsedValues)) {
-        throw new Error(t("commercialBooking.jsonObjectRequired"));
-      }
       if (!Array.isArray(parsedSpaces) || !Array.isArray(parsedResources)) {
         throw new Error(t("commercialBooking.jsonArraysRequired"));
       }
-      values = parsedValues as Record<string, unknown>;
+      if (sourceFormFields.value.length) {
+        const issue = validatePublicBookingAnswers(sourceFormFields.value, draftAnswers.value);
+        if (issue) {
+          const field = sourceFormFields.value.find((item) => item.code === issue.code);
+          const label = field?.label?.trim() || issue.code;
+          const messageKey = "bookingInquiry.answerValidation." + issue.kind;
+          pageError.value = t(messageKey, { field: label, limit: "limit" in issue ? issue.limit : 0 });
+          return;
+        }
+        values = {
+          ...revision.values,
+          answers: normalizePublicBookingAnswers(sourceFormFields.value, draftAnswers.value),
+        };
+      } else {
+        const parsedValues: unknown = JSON.parse(valuesJson.value);
+        if (!parsedValues || typeof parsedValues !== "object" || Array.isArray(parsedValues)) {
+          throw new Error(t("commercialBooking.jsonObjectRequired"));
+        }
+        values = parsedValues as Record<string, unknown>;
+      }
       spaceLines = parsedSpaces as Array<Record<string, unknown>>;
       resourceLines = parsedResources as Array<Record<string, unknown>>;
     } catch (error) {
@@ -193,6 +219,8 @@ export function useBookingDraft(dependencies: BookingDraftDependencies) {
     sourceAnswerItems,
     editorOpen,
     valuesJson,
+    draftAnswers,
+    sourceFormFields,
     spaceLinesJson,
     resourceLinesJson,
     requestedStart,
