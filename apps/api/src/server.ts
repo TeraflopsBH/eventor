@@ -317,6 +317,19 @@ const bookingOfferApprovalBody = {
   additionalProperties: false,
 } as const;
 
+const publicOfferViewParams = {
+  type: "object", required: ["offerId"],
+  properties: { offerId: { type: "string", pattern: uuidPattern } },
+  additionalProperties: false,
+} as const;
+const publicOfferCapabilityHeaders = {
+  type: "object",
+  required: ["x-external-booking-token"],
+  properties: {
+    "x-external-booking-token": { type: "string", pattern: "^[A-Za-z0-9_-]{43}$" },
+  },
+  additionalProperties: true,
+} as const;
 const publicOfferDecisionParams = {
   type: "object", required: ["offerId"],
   properties: { offerId: { type: "string", pattern: uuidPattern } },
@@ -880,7 +893,9 @@ export function buildApi(dependencies: ApiDependencies): FastifyInstance {
       /^\/public\/organizations\/[^/]+\/booking-inquiries$/.test(pathname);
     const publicOfferDecision = request.method === "POST" &&
       /^\/booking-offers\/[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89abAB][0-9a-f]{3}-[0-9a-f]{12}\/(accept|reject)$/.test(pathname);
-    if (publicBookingFormRead || publicBookingInquiryWrite || publicOfferDecision) {
+    const publicOfferView = request.method === "GET" &&
+      /^\/public\/booking-offers\/[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89abAB][0-9a-f]{3}-[0-9a-f]{12}$/.test(pathname);
+    if (publicBookingFormRead || publicBookingInquiryWrite || publicOfferDecision || publicOfferView) {
       // Public intake and purpose-bound offer decisions authenticate through their own capability.
       request.staffPrincipal = null;
       return;
@@ -1532,6 +1547,40 @@ export function buildApi(dependencies: ApiDependencies): FastifyInstance {
           return result.rows[0]?.result as Record<string, unknown>;
         },
       );
+    },
+  );
+
+  server.get<{ Params: { offerId: string } }>(
+    "/public/booking-offers/:offerId",
+    {
+      schema: {
+        params: publicOfferViewParams,
+        headers: publicOfferCapabilityHeaders,
+      },
+    },
+    async (request, reply) => {
+      const token = request.headers["x-external-booking-token"];
+      if (typeof token !== "string" || !/^[A-Za-z0-9_-]{43}$/.test(token)) {
+        throw new ApiError(401, "BOOKING_ACTION_CAPABILITY_REQUIRED", "A valid offer review capability is required.");
+      }
+      const tokenHash = createHash("sha256").update(token, "utf8").digest("hex");
+      const client = await dependencies.pool.connect();
+      try {
+        await client.query("BEGIN");
+        const result = await client.query<ResultRow>(
+          "SELECT eogp.get_public_booking_offer_with_capability($1::uuid,$2::text) AS result",
+          [request.params.offerId, tokenHash],
+        );
+        await client.query("COMMIT");
+        const data = result.rows[0]?.result as Record<string, unknown> | undefined;
+        if (!data) throw new ApiError(404, "OFFER_NOT_FOUND", "The customer offer was not found.");
+        return reply.code(200).send({ data });
+      } catch (error) {
+        try { await client.query("ROLLBACK"); } catch { /* preserve the view error */ }
+        throw databaseError(error);
+      } finally {
+        client.release();
+      }
     },
   );
 
