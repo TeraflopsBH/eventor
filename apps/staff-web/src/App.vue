@@ -93,6 +93,7 @@ const bookingOfferIdInput = ref("");
 const bookingOfferAcceptanceToken = ref("");
 const bookingOfferConfirmationReason = ref("");
 const bookingOfferIssueRequestKey = ref("");
+const bookingOfferEmailRequestKey = ref("");
 const bookingOfferSupersedeCurrent = ref(false);
 const bookingOfferValidUntil = ref("");
 const bookingOfferTaxAmount = ref("");
@@ -1044,6 +1045,29 @@ async function issueBookingOffer(): Promise<void> {
   }
 }
 
+async function emailBookingOffer(): Promise<void> {
+  const offer = bookingOffer.value;
+  const token = bookingOfferAcceptanceToken.value;
+  if (!offer || !token || offer.currentRevision.state !== "issued") return;
+  if (!window.confirm("Queue this issued offer for email delivery to the email address supplied in the source inquiry? It will be sent through this organisation's tested SMTP configuration.")) return;
+  clearMessages();
+  busy.value = true;
+  try {
+    if (!bookingOfferEmailRequestKey.value) {
+      if (!globalThis.crypto?.randomUUID) throw new Error("This browser cannot create a secure idempotency key.");
+      bookingOfferEmailRequestKey.value = globalThis.crypto.randomUUID();
+    }
+    const result = await api.queueBookingOfferEmail(offer.offerId, token, bookingOfferEmailRequestKey.value);
+    bookingOfferEmailRequestKey.value = "";
+    pageNotice.value = result.data.created
+      ? "Offer email queued. SMTP delivery will be handled by the background worker."
+      : "Offer email request already exists (status: " + result.data.status + ").";
+  } catch (error) {
+    showError(error);
+  } finally {
+    busy.value = false;
+  }
+}
 async function copyBookingOfferCapability(): Promise<void> {
   if (!bookingOfferAcceptanceToken.value) return;
   try {
@@ -1948,9 +1972,9 @@ onMounted(() => {
 
                 <div v-if="bookingOfferAcceptanceToken" class="offer-capability-box">
                   <strong>Customer link — copy now</strong>
-                  <p class="fine-print">This is a bearer secret. It is shown only in this session, is not stored in the database as plaintext and is not automatically emailed. The public browser page and SMTP delivery integration remain pending.</p>
+                  <p class="fine-print">This is a bearer secret. It is shown only in this session and is not stored in the database as plaintext. Email delivery is a separate, explicit action and uses the source inquiry email address.</p>
                   <input :value="bookingOfferAcceptanceToken" type="password" readonly autocomplete="off" />
-                  <button class="button button-secondary" type="button" @click="copyBookingOfferCapability">Copy customer link</button>
+                  <div class="offer-command-row"><button class="button button-secondary" type="button" @click="copyBookingOfferCapability">Copy customer link</button><button v-if="bookingOffer.currentRevision.state === 'issued'" class="button button-secondary" type="button" :disabled="busy" @click="emailBookingOffer">Queue offer email</button></div>
                 </div>
 
                 <div v-if="bookingOfferApprovalStatus" class="offer-approval-list">
