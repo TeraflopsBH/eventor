@@ -84,6 +84,7 @@ export function useStaffSession({
       if (principal.value) principal.value.userLocale = result.data.userLocale;
       pageNotice.value = translate("localeSettings.userSaved");
     } catch (error) {
+      if (principal.value) applyLocale(principal.value.userLocale ?? principal.value.organizationDefaultLocale);
       showError(error);
     }
   }
