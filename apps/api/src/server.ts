@@ -70,7 +70,7 @@ export interface ApiDependencies {
   ) => Promise<CreatedStaffSession>;
   readonly revokeStaffSession?: (principal: StaffPrincipal) => Promise<void>;
   readonly getCurrentPrincipal?: (principal: StaffPrincipal) => Promise<Record<string, unknown>>;
-  readonly updateUserLocale?: (principal: StaffPrincipal, locale: "bs-BA" | "en") => Promise<void>;
+  readonly updateUserLocale?: (principal: StaffPrincipal, locale: "bs-BA" | "en" | null) => Promise<void>;
   readonly privateFieldEncryptionKey?: Buffer;
   readonly contactEncryptionKey?: Buffer;
   readonly bookingCapabilityKey?: Buffer;
