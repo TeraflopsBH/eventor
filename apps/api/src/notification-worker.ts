@@ -68,6 +68,7 @@ interface BookingOfferEmailJobRow extends QueryResultRow {
   valid_until: Date | string;
   currency: string;
   total_amount: string | number;
+  customer_locale?: string | null;
 }
 
 export interface NotificationWorkerTotals {
@@ -431,21 +432,27 @@ export async function processPendingBookingOfferEmailDeliveries(
         const validUntil = job.valid_until instanceof Date ? job.valid_until : new Date(job.valid_until);
         const validity = Number.isNaN(validUntil.getTime()) ? "the stated validity deadline" : validUntil.toISOString();
         const sender = job.sender_name.trim() || job.sender_email;
-        const total = new Intl.NumberFormat("en", {
+        const locale = job.customer_locale === "bs-BA" ? "bs-BA" : "en";
+        const bosnian = locale === "bs-BA";
+        const total = new Intl.NumberFormat(locale, {
           style: "currency", currency: job.currency, maximumFractionDigits: 4,
         }).format(Number(job.total_amount));
-        const subject = "Booking offer";
+        const subject = bosnian ? "Ponuda za rezervaciju" : "Booking offer";
         const text = [
-          "You have received a booking offer.",
-          `Offer from: ${sender}`,
+          bosnian ? "Primili ste ponudu za rezervaciju." : "You have received a booking offer.",
+          `${bosnian ? "Ponuda od" : "Offer from"}: ${sender}`,
           "",
-          `Offer total: ${total}`,
-          `Valid until: ${validity}`,
+          `${bosnian ? "Ukupan iznos ponude" : "Offer total"}: ${total}`,
+          `${bosnian ? "Važi do" : "Valid until"}: ${validity}`,
           "",
-          "Review the offer and accept or reject it using this secure link:",
+          bosnian
+            ? "Pregledajte ponudu i prihvatite je ili odbijte putem ove sigurne veze:"
+            : "Review the offer and accept or reject it using this secure link:",
           reviewUrl,
           "",
-          "This link is personal. Do not forward it to anyone else.",
+          bosnian
+            ? "Ova veza je lična. Nemojte je prosljeđivati drugim osobama."
+            : "This link is personal. Do not forward it to anyone else.",
         ].join("\n");
         transport = factory(job.smtp_settings, credentials);
         const sent = await transport.sendMail({ to: destination, subject, text });
