@@ -85,12 +85,10 @@ const {
         <button :class="{ active: activeTab === 'prices' }" @click="openBookingPriceLists">{{ $t("navigation.prices") }}</button>
         <button :class="{ active: activeTab === 'cancellations' }" @click="openBookingCancellationPolicies">{{ $t("navigation.cancellations") }}</button>
         <button :class="{ active: activeTab === 'taxes' }" @click="openBookingTaxProfiles">{{ $t("navigation.taxes") }}</button>
+        <button :class="{ active: activeTab === 'settings' }" @click="activeTab = 'settings'">{{ $t("navigation.settings") }}</button>
       </nav>
 
       
-      <nav class="tabs" :aria-label="$t('navigation.settings')">
-        <button :class="{ active: activeTab === 'settings' }" @click="activeTab = 'settings'">{{ $t("navigation.settings") }}</button>
-      </nav>
       <slot />
     </template>
 
