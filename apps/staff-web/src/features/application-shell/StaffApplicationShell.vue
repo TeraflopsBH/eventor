@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import type { Ref, WritableComputedRef } from "vue";
+import { computed, type Ref, type WritableComputedRef } from "vue";
 import type { SupportedLocale } from "../../i18n";
 import type { useStaffSession } from "./useStaffSession";
 
@@ -24,6 +24,13 @@ const {
   openInquiryWorkspace, openBookingApprovalPolicies, openBookingPriceLists,
   openBookingCancellationPolicies, openBookingTaxProfiles,
 } = props.workspace;
+const selectedLocale = computed({
+  get: () => locale.value as SupportedLocale,
+  set: (value: SupportedLocale) => {
+    locale.value = value;
+    void props.workspace.saveLocalePreference(value);
+  },
+});
 </script>
 
 <template>
@@ -33,7 +40,7 @@ const {
         <span class="brand-mark">E</span>
         <span>EVENTOR <small>{{ $t("app.staffWorkspace") }}</small></span>
       </a>
-      <label class="locale-picker">{{ $t("app.language") }} <select v-model="locale" @change="props.workspace.saveLocalePreference(locale)"><option v-for="option in localeOptions" :key="option.value" :value="option.value">{{ option.label }}</option></select></label>
+      <label class="locale-picker">{{ $t("app.language") }} <select v-model="selectedLocale"><option v-for="option in localeOptions" :key="option.value" :value="option.value">{{ option.label }}</option></select></label>
       <button v-if="principal?.userLocale" class="button button-quiet" :disabled="busy" @click="props.workspace.useOrganizationLocalePreference">{{ $t("localeSettings.useOrganization") }}</button>
       <div v-if="principal" class="account">
         <div class="account-copy">
