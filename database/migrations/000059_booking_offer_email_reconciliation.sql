@@ -140,6 +140,9 @@ BEGIN
     RAISE EXCEPTION 'invalid offer email reconciliation decision' USING ERRCODE='22023';
   END IF;
 
+  PERFORM eogp.assert_booking_commercial_permission(
+    p_organization_id,p_actor_membership_id,ARRAY['booking.manage']::text[]
+  );
   SELECT * INTO v_delivery
     FROM eogp.booking_offer_email_deliveries
    WHERE organization_id=p_organization_id AND id=p_delivery_id
@@ -147,9 +150,6 @@ BEGIN
   IF NOT FOUND THEN
     RAISE EXCEPTION 'booking offer email delivery not found' USING ERRCODE='P0002';
   END IF;
-  PERFORM eogp.assert_booking_commercial_permission(
-    p_organization_id,p_actor_membership_id,ARRAY['booking.manage']::text[]
-  );
   IF v_delivery.status<>'uncertain' THEN
     RAISE EXCEPTION 'only an uncertain offer email submission can be reconciled'
       USING ERRCODE='55000';
@@ -209,6 +209,9 @@ BEGIN
   IF length(btrim(coalesce(p_reason,''))) NOT BETWEEN 3 AND 1000 THEN
     RAISE EXCEPTION 'a retry reason between 3 and 1000 characters is required' USING ERRCODE='22023';
   END IF;
+  PERFORM eogp.assert_booking_commercial_permission(
+    p_organization_id,p_actor_membership_id,ARRAY['booking.manage']::text[]
+  );
   SELECT * INTO v_delivery
     FROM eogp.booking_offer_email_deliveries
    WHERE organization_id=p_organization_id AND id=p_delivery_id
@@ -216,9 +219,6 @@ BEGIN
   IF NOT FOUND THEN
     RAISE EXCEPTION 'booking offer email delivery not found' USING ERRCODE='P0002';
   END IF;
-  PERFORM eogp.assert_booking_commercial_permission(
-    p_organization_id,p_actor_membership_id,ARRAY['booking.manage']::text[]
-  );
   IF v_delivery.status IS DISTINCT FROM 'failed'
      OR v_delivery.last_operator_resolution IS DISTINCT FROM 'confirmed_not_sent'
      OR v_delivery.manual_retry_count>=1
