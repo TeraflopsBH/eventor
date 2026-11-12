@@ -100,6 +100,31 @@ INSERT INTO eogp.user_role_grants (
   'organization',
   'a7200000-0000-4000-8000-000000000001'
 );
+ 
+INSERT INTO eogp.roles (id,organization_id,code,name,scope_kind)
+VALUES (
+  'a7300000-0000-4000-8000-000000000003',
+  'a7000000-0000-4000-8000-000000000001',
+  'booking-form-manager',
+  'Booking Form Manager',
+  'organization'
+);
+INSERT INTO eogp.role_permissions (organization_id,role_id,permission_code)
+VALUES (
+  'a7000000-0000-4000-8000-000000000001',
+  'a7300000-0000-4000-8000-000000000003',
+  'booking.manage'
+);
+INSERT INTO eogp.user_role_grants (
+  organization_id,membership_id,role_id,scope_kind,granted_by_membership_id
+) VALUES (
+  'a7000000-0000-4000-8000-000000000001',
+  'a7200000-0000-4000-8000-000000000001',
+  'a7300000-0000-4000-8000-000000000003',
+  'organization',
+  'a7200000-0000-4000-8000-000000000001'
+);
+
 
 INSERT INTO eogp.booking_form_definitions (
   id,organization_id,scope_kind,form_code,name,status
@@ -125,6 +150,48 @@ INSERT INTO eogp.booking_form_revisions (
   'published',
   clock_timestamp()
 );
+
+-- The authorized staff path can create and publish a form, but cannot revise
+-- the immutable published snapshot through the draft-save command.
+DO $test$
+DECLARE
+  v_created jsonb;
+  v_form_id uuid;
+  v_revision_id uuid;
+BEGIN
+  v_created := eogp.create_booking_form(
+    'a7000000-0000-4000-8000-000000000001',
+    'a7200000-0000-4000-8000-000000000001',
+    'ci-command-authored',
+    'CI command-authored form',
+    'bs-BA',
+    '{"fields":[{"code":"category","type":"text","label":"Category","required":false}]}'::jsonb
+  );
+  v_form_id := (v_created->>'formId')::uuid;
+  v_revision_id := (v_created->>'revisionId')::uuid;
+
+  PERFORM eogp.publish_booking_form_revision(
+    'a7000000-0000-4000-8000-000000000001',
+    v_form_id,
+    v_revision_id,
+    'a7200000-0000-4000-8000-000000000001'
+  );
+
+  BEGIN
+    PERFORM eogp.save_booking_form_draft(
+      'a7000000-0000-4000-8000-000000000001',
+      v_form_id,
+      v_revision_id,
+      'a7200000-0000-4000-8000-000000000001',
+      'bs-BA',
+      '{"fields":[{"code":"tampered","type":"text","label":"Tampered"}]}'::jsonb
+    );
+    RAISE EXCEPTION 'published booking form revision was editable through the draft-save command';
+  EXCEPTION WHEN SQLSTATE '55000' THEN
+    NULL;
+  END;
+END;
+$test$;
 
 DO $test$
 DECLARE
