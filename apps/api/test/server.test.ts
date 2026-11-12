@@ -221,11 +221,11 @@ function makePool() {
         commandCalls.push({ sql: normalized, values });
         return { rows: [{ result: {
           offerId: values[1],
-          status: "issued",
+          status: "prepared",
           currentRevision: {
             offerRevisionId: "18181818-1818-4181-8181-181818181819",
             revisionNumber: 1,
-            state: "issued",
+            state: "draft",
             currency: "BAM",
             subtotal: 250,
             taxAmount: 25,
@@ -1069,8 +1069,8 @@ test("staff inquiry inbox decrypts authorized projections and routes assignment,
     principal.membershipId,
     null,
   ]);
-  assert.deepEqual(JSON.parse(String(prepareCall.values[9])), offerBody.lineItems);
-  assert.deepEqual(JSON.parse(String(prepareCall.values[10])), []);
+  assert.deepEqual(JSON.parse(String(prepareCall.values[10])), offerBody.lineItems);
+  assert.deepEqual(JSON.parse(String(prepareCall.values[11])), []);
 
   const offerRead = await app.inject({
     method: "GET",
@@ -1079,7 +1079,7 @@ test("staff inquiry inbox decrypts authorized projections and routes assignment,
   assert.equal(offerRead.statusCode, 200);
   assert.equal(
     offerRead.json<{ data: { currentRevision: { state: string; totalAmount: number } } }>().data.currentRevision.state,
-    "issued",
+    "draft",
   );
   assert.equal(mock.bookingOfferGetCalls, 1);
 
