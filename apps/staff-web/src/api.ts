@@ -494,6 +494,7 @@ export interface BookingOfferEmailDelivery {
   sentAt: string | null;
   lastFailureCode: string | null;
   lastOperatorResolution: "confirmed_sent" | "confirmed_not_sent" | null;
+  lastOperatorReason: string | null;
   lastOperatorAt: string | null;
   canReconcile: boolean;
   canRetry: boolean;
