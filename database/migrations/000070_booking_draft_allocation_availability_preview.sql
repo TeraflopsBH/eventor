@@ -25,10 +25,13 @@ BEGIN
   );
 
   IF p_space_lines IS NULL OR jsonb_typeof(p_space_lines) <> 'array'
-     OR jsonb_array_length(p_space_lines) > 50
-     OR p_resource_lines IS NULL OR jsonb_typeof(p_resource_lines) <> 'array'
+     OR p_resource_lines IS NULL OR jsonb_typeof(p_resource_lines) <> 'array' THEN
+    RAISE EXCEPTION 'allocation preview requires space/resource arrays'
+      USING ERRCODE = '22023';
+  END IF;
+  IF jsonb_array_length(p_space_lines) > 50
      OR jsonb_array_length(p_resource_lines) > 100 THEN
-    RAISE EXCEPTION 'allocation preview requires bounded space/resource arrays'
+    RAISE EXCEPTION 'allocation preview arrays exceed their configured limits'
       USING ERRCODE = '22023';
   END IF;
 
