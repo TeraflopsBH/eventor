@@ -60,9 +60,7 @@ const {
               </select>
             </label>
           </div>
-          <button class="button button-secondary" type="button" :disabled="busy" @click="loadInquiryList(inquiryOffset)">
-            Refresh inbox
-          </button>
+          <button class="button button-secondary" type="button" :disabled="busy" @click="loadInquiryList(inquiryOffset)">{{$t('bookingInquiry.refreshInbox')}}</button>
         </div>
 
         <div class="inquiry-layout">
@@ -165,8 +163,7 @@ const {
             <div class="inquiry-detail-grid">
               <section v-if="canEditInquiryAssignment" class="inquiry-card">
                 <h4>{{ t('bookingInquiry.assignment') }}</h4>
-                <label>Responsible staff member
-                  <select v-model="inquiryAssignmentChoice">
+                <label>{{$t('bookingInquiry.responsibleStaff')}}<select v-model="inquiryAssignmentChoice">
                     <option value="unassigned">{{ t('bookingInquiry.unassigned') }}</option>
                     <option v-for="member in inquiryAssignees" :key="member.membershipId" :value="member.membershipId">
                       {{ member.displayName }}{{ member.membershipId === principal?.membershipId ? " (you)" : "" }}
@@ -179,23 +176,19 @@ const {
 
               <section v-if="inquiryCapabilities.canManage && inquiryStatusTargets.length" class="inquiry-card">
                 <h4>{{ t('bookingInquiry.reviewStatus') }}</h4>
-                <label>New status
-                  <select v-model="inquiryStatusChoice">
+                <label>{{$t('bookingInquiry.newStatus')}}<select v-model="inquiryStatusChoice">
                     <option disabled value="">{{ t('bookingInquiry.chooseNextStatus') }}</option>
                     <option v-for="status in inquiryStatusTargets" :key="status" :value="status">
                       {{ t(`bookingInquiry.${({ received: "received", under_review: "underReview", converted: "converted", declined: "declined", withdrawn: "withdrawn", spam: "spam" } as Record<string, string>)[status] ?? status}`) }}
                     </option>
                   </select>
                 </label>
-                <label>Audit reason
-                  <textarea v-model="inquiryStatusReason" rows="3" maxlength="1000" placeholder="Explain the review decision or status change…"></textarea>
+                <label>{{$t('bookingInquiry.auditReason')}}<textarea v-model="inquiryStatusReason" rows="3" maxlength="1000" placeholder="Explain the review decision or status change…"></textarea>
                 </label>
                 <p v-if="inquiryStatusChoice === 'declined' || inquiryStatusChoice === 'spam'" class="fine-print text-warning">
                   This is a terminal status. The inquiry cannot be reopened or reassigned afterward.
                 </p>
-                <button class="button button-primary" type="button" :disabled="busy || inquiryStatusReason.trim().length < 3" @click="saveInquiryStatus">
-                  Save status change
-                </button>
+                <button class="button button-primary" type="button" :disabled="busy || inquiryStatusReason.trim().length < 3" @click="saveInquiryStatus">{{$t('bookingInquiry.saveStatus')}}</button>
               </section>
 
               <section v-if="canConvertInquiry" class="inquiry-card">
@@ -204,9 +197,7 @@ const {
                   Creates a separate draft and immutable revision 1 from the submitted request. The original inquiry is retained.
                   This step does not issue an offer, hold availability or confirm a booking.
                 </p>
-                <button class="button button-primary" type="button" :disabled="busy" @click="saveInquiryConversion">
-                  Create booking draft
-                </button>
+                <button class="button button-primary" type="button" :disabled="busy" @click="saveInquiryConversion">{{$t('bookingInquiry.createDraft')}}</button>
               </section>
 
               <section v-if="inquiryDetail.bookingDraft" class="inquiry-card">
@@ -248,8 +239,7 @@ const {
               </div>
               <p v-else class="muted">{{ t('bookingInquiry.noNotes') }}</p>
               <form v-if="inquiryCapabilities.canAnnotate" class="inquiry-note-form" @submit.prevent="saveInquiryAnnotation">
-                <label>Add an internal note
-                  <textarea v-model="inquiryAnnotationText" rows="3" maxlength="4000" placeholder="Record an internal observation or follow-up…"></textarea>
+                <label>{{$t('bookingInquiry.addInternalNote')}}<textarea v-model="inquiryAnnotationText" rows="3" maxlength="4000" placeholder="Record an internal observation or follow-up…"></textarea>
                 </label>
                 <div class="form-actions">
                   <button class="button button-secondary" type="submit" :disabled="busy || !inquiryAnnotationText.trim()">{{ t('bookingInquiry.addNote') }}</button>
