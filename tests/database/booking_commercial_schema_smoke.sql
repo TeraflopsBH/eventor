@@ -111,6 +111,12 @@ BEGIN
     RAISE EXCEPTION 'published approval policy revision immutability trigger is missing';
   END IF;
 
+  IF NOT has_table_privilege('eventor_worker','eogp.booking_offer_expiry_tenant_queue','SELECT')
+     OR NOT has_function_privilege('eventor_worker','eogp.discover_due_booking_offer_expiry_tenants()','EXECUTE')
+     OR NOT has_function_privilege('eventor_worker','eogp.expire_due_booking_offers(uuid,integer)','EXECUTE') THEN
+    RAISE EXCEPTION 'worker role is missing booking offer expiry queue permissions';
+  END IF;
+
   IF has_function_privilege(current_user,'eogp.discover_due_booking_offer_expiry_tenants()','EXECUTE')
      OR has_function_privilege(current_user,'eogp.expire_due_booking_offers(uuid,integer)','EXECUTE') THEN
     RAISE EXCEPTION 'runtime role can invoke worker-only booking offer expiry functions';
