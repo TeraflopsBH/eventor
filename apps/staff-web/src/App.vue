@@ -153,6 +153,11 @@ resetWorkspace = (): void => {
 };
 const staffShellWorkspace = {
   ...staffSessionState, busy, pageError, pageNotice, activeTab, locale, localeOptions,
+  openInquiryWorkspace,
+  openBookingApprovalPolicies: bookingApprovalPolicyState.openBookingApprovalPolicies,
+  openBookingPriceLists: bookingPriceListState.openBookingPriceLists,
+  openBookingCancellationPolicies: bookingCancellationPolicyState.openBookingCancellationPolicies,
+  openBookingTaxProfiles: bookingTaxProfileState.openBookingTaxProfiles,
 };
 const campaignWorkspace = { ...campaignState, busy, configuration };
 const emailDeliveryWorkspace = { ...emailDeliveryState, busy };
