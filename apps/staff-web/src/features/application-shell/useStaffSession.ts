@@ -78,7 +78,7 @@ export function useStaffSession({
   }
 
   async function saveLocalePreference(locale: string): Promise<void> {
-    if (locale !== "bs-BA" && locale !== "en") return;
+    if (!principal.value || (locale !== "bs-BA" && locale !== "en")) return;
     try {
       const result = await api.updateUserLocale(locale);
       if (principal.value) principal.value.userLocale = result.data.userLocale;
