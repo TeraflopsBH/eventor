@@ -16,6 +16,17 @@ The Vite development server listens on port 5173. Requests to `/api/*` are proxi
 
 For a different same-origin API prefix or reverse-proxy path at build/runtime, set `VITE_API_BASE_URL` (default: `/api`). Deploy the staff UI and API behind the same HTTPS origin so the API's `__Host-` Secure session and CSRF cookies work as designed. The API's `EVENTOR_ALLOWED_ORIGINS` must include the staff UI origin exactly.
 
+## Testing
+
+The staff-web package uses Node.js's built-in test runner and native TypeScript type stripping; no additional test framework or runtime dependency is required. With Node.js 22.16.0 installed:
+
+```sh
+cd apps/staff-web
+npm test
+```
+
+The focused suite covers booking-form schema validation, field ordering, translation-key migration, canonical/base-language editing, translation read purity, completeness counts, and save/publication validation gates. It imports the feature modules directly, so it does not require a browser or running API.
+
 ## Implemented UI
 
 - Staff sign-in, session restoration through `GET /me`, and server-side logout.
