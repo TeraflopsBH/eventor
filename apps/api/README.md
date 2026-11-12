@@ -15,6 +15,15 @@ This package contains the first deployable command API and a separate tenant-awa
 - `POST /booking-inquiries/{inquiryId}/status` — change inquiry review status with an audit reason.
 - `POST /booking-inquiries/{inquiryId}/annotations` — append an internal-only staff note.
 - `POST /booking-inquiries/{inquiryId}/create-draft` — atomically convert an open inquiry into a separate draft with immutable revision 1; replays return the same draft.
+
+- `POST /booking-draft-revisions/{revisionId}/offers` — prepare a commercial offer from the exact current immutable draft revision; line prices come from a pinned published price list, and cancellation/approval policy revisions are pinned.
+- `POST /booking-offers/{offerId}/revisions` — create an immutable successor offer revision; superseding a prepared/issued revision requires an explicit flag and reason.
+- `GET /booking-offers/{offerId}` — read the permission-checked staff offer projection and revision/decision history.
+- `POST /booking-offers/{offerId}/issue` — explicitly issue the latest prepared revision. A one-use customer capability is deterministically derived from the dedicated `EVENTOR_BOOKING_CAPABILITY_KEY`; only its SHA-256 hash is stored, and the raw token is returned once (or deterministically re-derived on an idempotent replay).
+- `GET /public/booking-offers/{offerId}` — read only the customer-visible terms using `X-External-Booking-Token`; does not consume the capability.
+- `POST /booking-offers/{offerId}/accept` and `POST /booking-offers/{offerId}/reject` — customer decisions against the exact issued offer revision. Capabilities are single-use; decision payloads and customer-provided names/notes are encrypted and idempotent replay is supported.
+- `GET /booking-offers/{offerId}/approvals` and `POST /booking-offers/{offerId}/approvals` — inspect the pinned approval requirements and append an authorized decision for one exact offer revision/rule. Rule counts, distinct approvers and configured separation-of-duties are enforced in PostgreSQL.
+- `POST /booking-draft-revisions/{revisionId}/confirm` — explicitly confirm the exact accepted and approved offer; creates booking snapshots/history and converts live space/resource holds in one transaction. The final reservation command serializes capacity and interval checks; any conflict rolls the complete confirmation back.
 - `GET /booking-drafts/{draftId}` — permission-checked current revision, decrypted values, field schema, space/resource lines and immutable revision history.
 - `POST /booking-drafts/{draftId}/revisions` — create an immutable successor revision with expected-revision concurrency, ECP1-encrypted values and validated space/resource lines.
 - `GET /public/organizations/{organizationSlug}/booking-forms/{formCode}` — public read of an active organization's latest published booking form and its versioned field schema.
@@ -191,7 +200,11 @@ CI regenerates OpenAPI TypeScript declarations, runs strict TypeScript compilati
 
 ## Remaining integration work
 
-- Implement booking offer creation/revisions, customer acceptance/rejection, approval and explicit booking confirmation with resource rechecks.
+- Add the staff-web offer preparation/revision/issue, approval queue/decision and explicit confirmation screens; the underlying API/database commands are present.
+- Add organization-facing approval-policy authoring/publication and price/tax configuration workspaces. The policy revision schema and supported rule evaluator exist, but no policy editor/management API is included yet.
+- Add booking offer email delivery through the organization's configured SMTP transport and a customer-facing browser page that consumes the public review API; no offer email is automatically sent by the issue command.
+- Add a background expiry sweep for offers whose validity deadline passes without a customer action; a late accept/reject request does persist the terminal expired state.
+- Add PostgreSQL end-to-end fixtures for offer/approval/confirmation, including forced overlap/capacity failures and concurrent confirmation; current added smoke coverage verifies installation, RLS, function grants and API route behavior.
 - Expand the staff UI to the remaining event, booking, venue and guest workflows.
 - Implement an SMS provider adapter only when a concrete provider is selected; keep it optional and tenant-configurable.
 - Extend provider-specific status handling only when another concrete provider is selected. Resend's raw-body signature verification, exact Message-ID correlation and delivered/bounced callbacks are implemented. SMTP acceptance alone remains `sent`, not `delivered`.
