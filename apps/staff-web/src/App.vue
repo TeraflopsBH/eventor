@@ -2704,7 +2704,7 @@ onMounted(() => {
               <option v-for="taxRevision in compatibleTaxProfileRevisions" :key="taxRevision.revisionId" :value="taxRevision.revisionId">{{ taxRevision.profileCode }} · {{ taxRevision.profileName }} · rev {{ taxRevision.revisionNumber }}</option>
             </select>
           </label>
-          <p class="fine-print">A selected tax profile must match the price-list currency and tax basis. Item taxCode values are checked against its catalogue. The selected revision is copied into every offer's immutable terms snapshot.</p>
+          <p class="fine-print">A selected tax profile must match the price-list currency and tax basis. Every price item must use a taxCode from its catalogue; not-applicable profiles require null taxCode values. The selected revision is copied into each offer's immutable terms snapshot.</p>
           <label>Price items (JSON array)
             <textarea v-model="priceListItemsJson" rows="16" spellcheck="false" :disabled="selectedPriceListLatestRevision?.state !== 'draft'"></textarea>
           </label>
