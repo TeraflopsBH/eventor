@@ -2,6 +2,7 @@
 import { computed, onMounted, reactive, ref, watch } from "vue";
 import { useI18n } from "vue-i18n";
 import type { SupportedLocale } from "./i18n";
+import { formatBookingMoney, formatInquiryAnswer, formatInquiryDate, resolveInquiryAssigneeName } from "./features/booking-inquiries/presentation";
 import { api, ApiError, type CampaignReview, type CampaignProgress, type CampaignListItem, type DeliveryAttempt, type PageMeta, type EmailConfiguration, type ResendWebhookConfiguration, type Principal, type BookingInquiryListItem, type BookingInquiryDetail, type BookingInquiryAssignee, type BookingInquiryCapabilities, type BookingOfferRecord, type BookingOfferEmailDelivery, type BookingOfferApprovalStatus, type BookingOfferApprovalRequirement, type BookingOfferWriteRequest, type BookingApprovalPolicy, type BookingApprovalRule, type BookingPriceList, type BookingPriceListItem, type BookingTaxProfile, type BookingTaxProfileRevisionInput, type BookingTaxCode, type BookingCancellationPolicy, type BookingCancellationPolicyRevisionInput, type PublicBookingOffer } from "./api";
 
 const { locale } = useI18n();
@@ -267,42 +268,6 @@ const inquiryAnswerItems = computed(() => {
     };
   });
 });
-
-function formatInquiryAnswer(
-  field: BookingInquiryDetail["fieldSchema"]["fields"][number] | undefined,
-  value: unknown,
-): string {
-  if (value === null || value === undefined || value === "") return "—";
-  if (typeof value === "boolean") return value ? "Yes" : "No";
-  if ((field?.type === "select" || field?.type === "multiselect") && typeof value === "string") {
-    return field.options?.find((option) => option.value === value)?.label ?? value;
-  }
-  if (value && typeof value === "object") return JSON.stringify(value);
-  return String(value);
-}
-
-function assigneeName(membershipId: string | null): string {
-  if (!membershipId) return "Unassigned";
-  if (membershipId === principal.value?.membershipId) return "You";
-  return inquiryAssignees.value.find((item) => item.membershipId === membershipId)?.displayName
-    ?? "Assigned member";
-}
-
-function formatInquiryDate(value: string | null | undefined): string {
-  if (!value) return "Not provided";
-  const parsed = new Date(value);
-  return Number.isNaN(parsed.getTime()) ? value : parsed.toLocaleString();
-}
-
-function formatBookingMoney(value: string | number, currency: string): string {
-  const amount = Number(value);
-  if (!Number.isFinite(amount)) return String(value) + " " + currency;
-  try {
-    return new Intl.NumberFormat(undefined, { style: "currency", currency, maximumFractionDigits: 4 }).format(amount);
-  } catch {
-    return amount.toFixed(2) + " " + currency;
-  }
-}
 
 function clearMessages(): void {
   pageError.value = "";
@@ -794,7 +759,7 @@ async function saveInquiryAssignment(): Promise<void> {
     pageNotice.value = "The assignment has not changed.";
     return;
   }
-  const nextName = assigneeName(assignedToMembershipId);
+  const nextName = resolveInquiryAssigneeName(assignedToMembershipId, principal?.membershipId, inquiryAssignees);
   if (!window.confirm(`Assign ${detail.publicReference} to ${nextName}?`)) return;
   clearMessages();
   busy.value = true;
@@ -2133,7 +2098,7 @@ onMounted(() => {
                 <span class="inquiry-list-meta">
                   {{ item.requestedStart ? formatInquiryDate(item.requestedStart) : "Date not specified" }}
                 </span>
-                <span class="inquiry-list-meta">Assigned: {{ assigneeName(item.assignedToMembershipId) }}</span>
+                <span class="inquiry-list-meta">Assigned: {{ resolveInquiryAssigneeName(item.assignedToMembershipId, principal?.membershipId, inquiryAssignees) }}</span>
               </button>
             </div>
             <p v-else class="muted inquiry-empty">No inquiries match these filters.</p>
@@ -2615,7 +2580,7 @@ onMounted(() => {
                 <h4>Assignment history</h4>
                 <ol v-if="inquiryDetail.assignmentHistory.length" class="history-list">
                   <li v-for="(history, index) in inquiryDetail.assignmentHistory" :key="`${history.occurredAt}-${index}`">
-                    <strong>{{ assigneeName(history.previousAssigneeMembershipId) }} → {{ assigneeName(history.newAssigneeMembershipId) }}</strong>
+                    <strong>{{ resolveInquiryAssigneeName(history.previousAssigneeMembershipId, principal?.membershipId, inquiryAssignees) }} → {{ resolveInquiryAssigneeName(history.newAssigneeMembershipId, principal?.membershipId, inquiryAssignees) }}</strong>
                     <small>{{ formatInquiryDate(history.occurredAt) }}</small>
                   </li>
                 </ol>
