@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { computed, onMounted, reactive, ref } from "vue";
-import { api, ApiError, type CampaignReview, type CampaignProgress, type CampaignListItem, type DeliveryAttempt, type PageMeta, type EmailConfiguration, type ResendWebhookConfiguration, type Principal, type BookingInquiryListItem, type BookingInquiryDetail, type BookingInquiryAssignee, type BookingInquiryCapabilities, type BookingOfferRecord, type BookingOfferEmailDelivery, type BookingOfferApprovalStatus, type BookingOfferApprovalRequirement, type BookingOfferWriteRequest, type BookingApprovalPolicy, type BookingApprovalRule, type BookingPriceList, type BookingPriceListItem, type PublicBookingOffer } from "./api";
+import { api, ApiError, type CampaignReview, type CampaignProgress, type CampaignListItem, type DeliveryAttempt, type PageMeta, type EmailConfiguration, type ResendWebhookConfiguration, type Principal, type BookingInquiryListItem, type BookingInquiryDetail, type BookingInquiryAssignee, type BookingInquiryCapabilities, type BookingOfferRecord, type BookingOfferEmailDelivery, type BookingOfferApprovalStatus, type BookingOfferApprovalRequirement, type BookingOfferWriteRequest, type BookingApprovalPolicy, type BookingApprovalRule, type BookingPriceList, type BookingPriceListItem, type BookingCancellationPolicy, type BookingCancellationPolicyRevisionInput, type PublicBookingOffer } from "./api";
 
 const publicOfferMatch = window.location.pathname.match(/^\/offers\/([0-9a-fA-F-]{36})\/?$/);
 const isPublicOfferPage = Boolean(publicOfferMatch);
@@ -19,7 +19,7 @@ const publicDecisionKey = ref("");
 const publicDecisionKind = ref<"accepted" | "rejected" | null>(null);
 const principal = ref<Principal | null>(null);
 const loadingSession = ref(true);
-const activeTab = ref<"delivery" | "campaign" | "inquiries" | "approvals" | "prices">("delivery");
+const activeTab = ref<"delivery" | "campaign" | "inquiries" | "approvals" | "prices" | "cancellations">("delivery");
 const busy = ref(false);
 const pageError = ref("");
 const pageNotice = ref("");
@@ -152,6 +152,19 @@ const selectedApprovalPolicyLatestRevision = computed(() => {
     ?? null;
 });
 
+const cancellationPolicies = ref<BookingCancellationPolicy[]>([]);
+const selectedCancellationPolicyId = ref("");
+const cancellationPolicyCreateForm = reactive({ code: "", name: "" });
+const cancellationPolicyCustomerMode = ref<"request_only" | "approval_required" | "self_service">("request_only");
+const cancellationPolicyPublicTerms = ref("");
+const cancellationPolicyApprovalRulesJson = ref("{}");
+const cancellationPolicyCommercialRulesJson = ref("{}");
+const cancellationPolicyNoticeRulesJson = ref("{}");
+const selectedCancellationPolicy = computed(() => cancellationPolicies.value.find((policy) => policy.policyId === selectedCancellationPolicyId.value) ?? null);
+const selectedCancellationPolicyLatestRevision = computed(() => {
+  const policy = selectedCancellationPolicy.value;
+  return policy?.revisions.find((revision) => revision.revisionId === policy.latestRevisionId) ?? policy?.revisions[0] ?? null;
+});
 const selectedOrganization = computed(() =>
   principal.value?.memberships?.find((membership) => membership.selected)?.organizationName
   ?? principal.value?.organizationId
