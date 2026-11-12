@@ -64,3 +64,6 @@ The booking-draft editor and commercial offer workspace presentation are extract
 
 
 The inquiry presentation helpers now require explicit locale and timezone inputs. A feature-owned `useInquiryPresentation.ts` composable bridges Vue I18n's active locale and the browser-resolved local timezone into the pure date/currency formatting functions, and resolves the empty-date label from the common catalogue. All booking inquiry and commercial configuration views that display these values use the shared presentation composable. Locale changes therefore affect presentation reactively; stored timestamps, ISO currency codes, exact monetary values and domain calculations remain unchanged.
+
+
+The booking inquiry and commercial booking workspace views consume feature-scoped `bookingInquiry` and `commercialBooking` namespaces from both locale catalogues. Domain status values remain the untranslated `value` of controls and API payloads; only their displayed labels are localized. Commercial identifiers, codes, currency values, tax-allocation method tokens, immutable snapshots and user-entered text are not translated. This keeps language selection strictly at the presentation boundary.
