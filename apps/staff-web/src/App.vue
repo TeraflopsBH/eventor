@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { computed, onMounted, reactive, ref } from "vue";
-import { api, ApiError, type CampaignReview, type CampaignProgress, type CampaignListItem, type DeliveryAttempt, type PageMeta, type EmailConfiguration, type ResendWebhookConfiguration, type Principal, type BookingInquiryListItem, type BookingInquiryDetail, type BookingInquiryAssignee, type BookingInquiryCapabilities, type BookingOfferRecord, type BookingOfferEmailDelivery, type BookingOfferApprovalStatus, type BookingOfferApprovalRequirement, type BookingOfferWriteRequest, type BookingApprovalPolicy, type BookingApprovalRule, type BookingPriceList, type BookingPriceListItem, type BookingCancellationPolicy, type BookingCancellationPolicyRevisionInput, type PublicBookingOffer } from "./api";
+import { api, ApiError, type CampaignReview, type CampaignProgress, type CampaignListItem, type DeliveryAttempt, type PageMeta, type EmailConfiguration, type ResendWebhookConfiguration, type Principal, type BookingInquiryListItem, type BookingInquiryDetail, type BookingInquiryAssignee, type BookingInquiryCapabilities, type BookingOfferRecord, type BookingOfferEmailDelivery, type BookingOfferApprovalStatus, type BookingOfferApprovalRequirement, type BookingOfferWriteRequest, type BookingApprovalPolicy, type BookingApprovalRule, type BookingPriceList, type BookingPriceListItem, type BookingTaxProfile, type BookingTaxProfileRevisionInput, type BookingTaxCode, type BookingCancellationPolicy, type BookingCancellationPolicyRevisionInput, type PublicBookingOffer } from "./api";
 
 const publicOfferMatch = window.location.pathname.match(/^\/offers\/([0-9a-fA-F-]{36})\/?$/);
 const isPublicOfferPage = Boolean(publicOfferMatch);
@@ -19,7 +19,7 @@ const publicDecisionKey = ref("");
 const publicDecisionKind = ref<"accepted" | "rejected" | null>(null);
 const principal = ref<Principal | null>(null);
 const loadingSession = ref(true);
-const activeTab = ref<"delivery" | "campaign" | "inquiries" | "approvals" | "prices" | "cancellations">("delivery");
+const activeTab = ref<"delivery" | "campaign" | "inquiries" | "approvals" | "prices" | "cancellations" | "taxes">("delivery");
 const busy = ref(false);
 const pageError = ref("");
 const pageNotice = ref("");
@@ -138,6 +138,32 @@ const selectedPriceListLatestRevision = computed(() => {
     ?? priceList?.revisions[0]
     ?? null;
 });
+
+const bookingTaxProfiles = ref<BookingTaxProfile[]>([]);
+const selectedTaxProfileId = ref("");
+const taxProfileCreateForm = reactive({
+  code: "", name: "", jurisdictionCode: "", registrationIdentifier: "", currency: "", taxBasis: "exclusive" as "inclusive" | "exclusive" | "not_applicable",
+});
+const taxProfileRevisionForm = reactive({
+  jurisdictionCode: "", registrationIdentifier: "", currency: "",
+  taxBasis: "exclusive" as "inclusive" | "exclusive" | "not_applicable",
+  roundingMethod: "invoice_total" as "per_line" | "per_tax_code" | "invoice_total",
+  roundingScale: 2, effectiveFrom: "", effectiveUntil: "",
+});
+const taxCodesJson = ref("[]");
+const priceListTaxProfileRevisionId = ref("");
+const selectedTaxProfile = computed(() =>
+  bookingTaxProfiles.value.find((profile) => profile.taxProfileId === selectedTaxProfileId.value) ?? null,
+);
+const selectedTaxProfileLatestRevision = computed(() => {
+  const profile = selectedTaxProfile.value;
+  return profile?.revisions.find((revision) => revision.revisionId === profile.latestRevisionId) ?? profile?.revisions[0] ?? null;
+});
+const publishedTaxProfileRevisions = computed(() => bookingTaxProfiles.value.flatMap((profile) =>
+  profile.status === "active" ? profile.revisions.filter((revision) => revision.state === "published").map((revision) => ({
+    ...revision, profileCode: profile.code, profileName: profile.name, profileId: profile.taxProfileId,
+  })) : [],
+));
 
 const selectedApprovalPolicyId = ref("");
 const approvalPolicyCreateForm = reactive({ code: "", name: "" });
@@ -1276,13 +1302,14 @@ function syncSelectedPriceListDraft(): void {
   priceListRevisionForm.effectiveFrom = revision?.state === "draft" && revision.effectiveFrom ? revision.effectiveFrom.slice(0, 16) : "";
   priceListRevisionForm.effectiveUntil = revision?.state === "draft" && revision.effectiveUntil ? revision.effectiveUntil.slice(0, 16) : "";
   priceListItemsJson.value = JSON.stringify(revision?.items ?? [], null, 2);
+  priceListTaxProfileRevisionId.value = revision?.taxProfileRevisionId ?? "";
 }
 
 async function openBookingPriceLists(): Promise<void> {
   activeTab.value = "prices";
   clearMessages();
   busy.value = true;
-  try { await loadBookingPriceLists(); }
+  try { await Promise.all([loadBookingPriceLists(), loadBookingTaxProfiles()]); }
   catch (error) { showError(error); }
   finally { busy.value = false; }
 }
@@ -1381,6 +1408,119 @@ async function publishBookingPriceListRevision(): Promise<void> {
     pageNotice.value = "Price-list revision " + result.data.revisionNumber + " published and locked.";
   } catch (error) { showError(error); }
   finally { busy.value = false; }
+}
+
+function syncTaxProfileEditor(): void {
+  const revision = selectedTaxProfileLatestRevision.value;
+  taxProfileRevisionForm.jurisdictionCode = revision?.jurisdictionCode ?? "";
+  taxProfileRevisionForm.registrationIdentifier = revision?.registrationIdentifier ?? "";
+  taxProfileRevisionForm.currency = revision?.currency ?? "";
+  taxProfileRevisionForm.taxBasis = revision?.taxBasis ?? "exclusive";
+  taxProfileRevisionForm.roundingMethod = revision?.roundingMethod ?? "invoice_total";
+  taxProfileRevisionForm.roundingScale = revision?.roundingScale ?? 2;
+  taxProfileRevisionForm.effectiveFrom = revision?.state === "draft" && revision.effectiveFrom ? revision.effectiveFrom.slice(0,16) : "";
+  taxProfileRevisionForm.effectiveUntil = revision?.state === "draft" && revision.effectiveUntil ? revision.effectiveUntil.slice(0,16) : "";
+  taxCodesJson.value = JSON.stringify(revision?.taxCodes ?? [], null, 2);
+}
+async function loadBookingTaxProfiles(): Promise<void> {
+  const result = await api.getBookingTaxProfiles();
+  bookingTaxProfiles.value = result.data;
+  if (selectedTaxProfileId.value && !result.data.some(profile => profile.taxProfileId === selectedTaxProfileId.value)) selectedTaxProfileId.value = "";
+  if (!selectedTaxProfileId.value && result.data.length) selectedTaxProfileId.value = result.data[0]!.taxProfileId;
+  syncTaxProfileEditor();
+}
+async function openBookingTaxProfiles(): Promise<void> {
+  activeTab.value = "taxes"; clearMessages(); busy.value = true;
+  try { await loadBookingTaxProfiles(); } catch (error) { showError(error); } finally { busy.value = false; }
+}
+function selectBookingTaxProfile(id: string): void { selectedTaxProfileId.value = id; syncTaxProfileEditor(); }
+function taxProfileRevisionPayload(): BookingTaxProfileRevisionInput {
+  const taxCodes: unknown = JSON.parse(taxCodesJson.value);
+  if (!Array.isArray(taxCodes) || taxCodes.length > 200) throw new Error("Tax codes must be a JSON array with at most 200 entries.");
+  const seen = new Set<string>();
+  for (const value of taxCodes) {
+    if (!value || typeof value !== "object" || Array.isArray(value)) throw new Error("Each tax code must be an object.");
+    const row = value as Record<string, unknown>;
+    if (typeof row.taxCode !== "string" || !/^[A-Za-z0-9][A-Za-z0-9._-]{0,79}$/.test(row.taxCode) ||
+        typeof row.label !== "string" || !row.label.trim() ||
+        !["percentage","zero_rated","exempt","out_of_scope","manual"].includes(String(row.treatment)) ||
+        !(row.rate === null || (typeof row.rate === "number" && Number.isFinite(row.rate) && row.rate >= 0 && row.rate <= 100))) {
+      throw new Error("Each tax code needs a valid taxCode, label, treatment and numeric/null rate.");
+    }
+    if (seen.has(row.taxCode)) throw new Error("Tax codes must be unique within a profile revision.");
+    seen.add(row.taxCode);
+    if ((row.treatment === "percentage" && typeof row.rate !== "number") ||
+        (row.treatment !== "percentage" && row.rate !== null)) throw new Error("Only percentage tax codes may have a rate.");
+  }
+  return {
+    jurisdictionCode: taxProfileRevisionForm.jurisdictionCode.trim() || null,
+    registrationIdentifier: taxProfileRevisionForm.registrationIdentifier.trim() || null,
+    currency: taxProfileRevisionForm.currency.trim().toUpperCase(),
+    taxBasis: taxProfileRevisionForm.taxBasis,
+    roundingMethod: taxProfileRevisionForm.roundingMethod,
+    roundingScale: taxProfileRevisionForm.roundingScale,
+    effectiveFrom: taxProfileRevisionForm.effectiveFrom ? new Date(taxProfileRevisionForm.effectiveFrom).toISOString() : null,
+    effectiveUntil: taxProfileRevisionForm.effectiveUntil ? new Date(taxProfileRevisionForm.effectiveUntil).toISOString() : null,
+    taxCodes: taxCodes as BookingTaxCode[],
+  };
+}
+async function createBookingTaxProfile(): Promise<void> {
+  const code=taxProfileCreateForm.code.trim(), name=taxProfileCreateForm.name.trim();
+  if (code.length<2 || !/^[A-Za-z0-9][A-Za-z0-9._-]*$/.test(code) || !name || !/^[A-Z]{3}$/.test(taxProfileCreateForm.currency)) {
+    pageError.value="Enter a valid profile code, name and three-letter currency."; return;
+  }
+  if (!window.confirm("Create an organization tax profile with an unpublished first revision?")) return;
+  clearMessages(); busy.value=true;
+  try {
+    const result=await api.createBookingTaxProfile({
+      code,name,jurisdictionCode:taxProfileCreateForm.jurisdictionCode.trim()||null,
+      registrationIdentifier:taxProfileCreateForm.registrationIdentifier.trim()||null,
+      currency:taxProfileCreateForm.currency.toUpperCase(),taxBasis:taxProfileCreateForm.taxBasis,
+    });
+    selectedTaxProfileId.value=result.data.taxProfileId;
+    taxProfileCreateForm.code=""; taxProfileCreateForm.name="";
+    await loadBookingTaxProfiles();
+    pageNotice.value="Tax profile created. Add its tax codes and publish the first revision.";
+  } catch(error){showError(error);} finally{busy.value=false;}
+}
+async function createBookingTaxProfileRevision(): Promise<void> {
+  const profile=selectedTaxProfile.value, latest=selectedTaxProfileLatestRevision.value;
+  if(!profile || profile.status!=="active" || latest?.state==="draft")return;
+  if(!window.confirm("Create a successor draft revision? Existing price lists and offers keep their currently pinned tax revision."))return;
+  clearMessages();busy.value=true;
+  try{
+    await api.createBookingTaxProfileRevision(profile.taxProfileId,{
+      jurisdictionCode:taxProfileRevisionForm.jurisdictionCode.trim()||null,
+      registrationIdentifier:taxProfileRevisionForm.registrationIdentifier.trim()||null,
+      currency:taxProfileRevisionForm.currency,taxBasis:taxProfileRevisionForm.taxBasis,
+      roundingMethod:taxProfileRevisionForm.roundingMethod,roundingScale:taxProfileRevisionForm.roundingScale,
+      effectiveFrom:taxProfileRevisionForm.effectiveFrom?new Date(taxProfileRevisionForm.effectiveFrom).toISOString():null,
+      effectiveUntil:taxProfileRevisionForm.effectiveUntil?new Date(taxProfileRevisionForm.effectiveUntil).toISOString():null,
+    });
+    await loadBookingTaxProfiles();pageNotice.value="Successor tax profile draft created. Review its copied tax codes before saving.";
+  }catch(error){showError(error);}finally{busy.value=false;}
+}
+async function saveBookingTaxProfileDraft(): Promise<void> {
+  const profile=selectedTaxProfile.value,revision=selectedTaxProfileLatestRevision.value;
+  if(!profile||!revision||revision.state!=="draft")return;
+  let body:BookingTaxProfileRevisionInput;
+  try{body=taxProfileRevisionPayload();}catch(error){pageError.value=error instanceof Error?error.message:"Invalid tax profile revision.";return;}
+  if(!window.confirm("Save this tax profile draft? It remains inactive until explicitly published."))return;
+  clearMessages();busy.value=true;
+  try{
+    const result=await api.updateBookingTaxProfileDraftRevision(profile.taxProfileId,revision.revisionId,body);
+    await loadBookingTaxProfiles();pageNotice.value="Tax profile revision "+result.data.revisionNumber+" saved as draft.";
+  }catch(error){showError(error);}finally{busy.value=false;}
+}
+async function publishBookingTaxProfileRevision(): Promise<void> {
+  const profile=selectedTaxProfile.value,revision=selectedTaxProfileLatestRevision.value;
+  if(!profile||!revision||revision.state!=="draft")return;
+  if(!window.confirm("Publish this exact tax profile revision? It becomes immutable and can be selected by compatible price lists."))return;
+  clearMessages();busy.value=true;
+  try{
+    const result=await api.publishBookingTaxProfileRevision(profile.taxProfileId,revision.revisionId);
+    await loadBookingTaxProfiles();pageNotice.value="Tax profile revision "+result.data.revisionNumber+" published.";
+  }catch(error){showError(error);}finally{busy.value=false;}
 }
 
 function loadCancellationPolicyEditor(): void {
@@ -1822,6 +1962,7 @@ onMounted(() => {
         <button :class="{ active: activeTab === 'approvals' }" @click="openBookingApprovalPolicies">Approval policies</button>
         <button :class="{ active: activeTab === 'prices' }" @click="openBookingPriceLists">Price lists</button>
         <button :class="{ active: activeTab === 'cancellations' }" @click="openBookingCancellationPolicies">Cancellation policies</button>
+        <button :class="{ active: activeTab === 'taxes' }" @click="openBookingTaxProfiles">Tax configuration</button>
       </nav>
 
       <section v-if="activeTab === 'delivery'" class="content-grid">
@@ -2705,6 +2846,50 @@ onMounted(() => {
           <strong>Select or create an approval policy</strong>
           <span class="muted">Policy management requires the organization-level booking.manage permission.</span>
         </p>
+      </section>
+
+      <section v-else-if="activeTab === 'taxes'" class="panel inquiry-panel approval-policy-workspace">
+        <div class="section-heading"><div><p class="eyebrow">ORGANIZATION COMMERCIAL CONFIGURATION</p><h2>Tax profiles</h2>
+          <p class="muted">Maintain jurisdiction-neutral tax identifiers, tax codes, rates and rounding settings as immutable revisions.</p></div>
+          <button class="button button-secondary" type="button" :disabled="busy" @click="loadBookingTaxProfiles">Refresh profiles</button></div>
+        <div class="inquiry-detail-grid">
+          <section class="inquiry-card"><h4>Create tax profile</h4><form class="draft-revision-form" @submit.prevent="createBookingTaxProfile">
+            <label>Profile code<input v-model="taxProfileCreateForm.code" required minlength="2" maxlength="80" /></label>
+            <label>Profile name<input v-model="taxProfileCreateForm.name" required maxlength="250" /></label>
+            <label>Jurisdiction / authority identifier<input v-model="taxProfileCreateForm.jurisdictionCode" maxlength="100" placeholder="Organization-defined identifier" /></label>
+            <label>Tax registration identifier<input v-model="taxProfileCreateForm.registrationIdentifier" maxlength="120" /></label>
+            <label>Currency<input v-model="taxProfileCreateForm.currency" required minlength="3" maxlength="3" pattern="[A-Z]{3}" /></label>
+            <label>Tax basis<select v-model="taxProfileCreateForm.taxBasis"><option value="inclusive">Inclusive</option><option value="exclusive">Exclusive</option><option value="not_applicable">Not applicable</option></select></label>
+            <button class="button button-primary" type="submit" :disabled="busy">Create profile</button></form></section>
+          <section class="inquiry-card"><h4>Existing profiles</h4><label>Select profile<select v-model="selectedTaxProfileId" @change="selectBookingTaxProfile(selectedTaxProfileId)">
+            <option value="">Choose a profile…</option><option v-for="profile in bookingTaxProfiles" :key="profile.taxProfileId" :value="profile.taxProfileId">{{ profile.code }} · {{ profile.name }} ({{ profile.status }})</option>
+          </select></label><p v-if="!bookingTaxProfiles.length" class="muted">No tax profiles are configured.</p>
+            <div v-if="selectedTaxProfile" class="policy-summary"><strong>{{ selectedTaxProfile.name }}</strong><span>{{ selectedTaxProfile.code }} · {{ selectedTaxProfile.status }}</span></div></section>
+        </div>
+        <template v-if="selectedTaxProfile"><div class="divider"></div>
+          <div class="policy-revision-heading"><div><h3>Revision editor · {{ selectedTaxProfile.name }}</h3><p class="fine-print">Published revisions are immutable. Create a successor to change rates or tax treatment; prior price lists and offers remain pinned.</p></div>
+            <span class="pill" :class="selectedTaxProfileLatestRevision?.state === 'published' ? 'pill-success' : 'pill-warning'">Latest: {{ selectedTaxProfileLatestRevision?.state ?? "No revision" }}</span></div>
+          <div v-if="selectedTaxProfileLatestRevision" class="policy-revision-meta"><span>Revision {{ selectedTaxProfileLatestRevision.revisionNumber }}</span><span>{{ selectedTaxProfileLatestRevision.currency }} · {{ selectedTaxProfileLatestRevision.taxBasis }}</span><span>Created {{ formatInquiryDate(selectedTaxProfileLatestRevision.createdAt) }}</span><span>Published {{ formatInquiryDate(selectedTaxProfileLatestRevision.publishedAt) }}</span></div>
+          <div class="field-grid">
+            <label>Jurisdiction / authority identifier<input v-model="taxProfileRevisionForm.jurisdictionCode" maxlength="100" /></label>
+            <label>Tax registration identifier<input v-model="taxProfileRevisionForm.registrationIdentifier" maxlength="120" /></label>
+            <label>Currency<input v-model="taxProfileRevisionForm.currency" required minlength="3" maxlength="3" pattern="[A-Z]{3}" /></label>
+            <label>Tax basis<select v-model="taxProfileRevisionForm.taxBasis"><option value="inclusive">Inclusive</option><option value="exclusive">Exclusive</option><option value="not_applicable">Not applicable</option></select></label>
+            <label>Rounding method<select v-model="taxProfileRevisionForm.roundingMethod"><option value="per_line">Per line</option><option value="per_tax_code">Per tax code</option><option value="invoice_total">Invoice total</option></select></label>
+            <label>Rounding decimal places<input v-model.number="taxProfileRevisionForm.roundingScale" type="number" min="0" max="4" /></label>
+            <label>Effective from<input v-model="taxProfileRevisionForm.effectiveFrom" type="datetime-local" /></label>
+            <label>Effective until<input v-model="taxProfileRevisionForm.effectiveUntil" type="datetime-local" /></label>
+          </div>
+          <label>Tax-code catalogue (JSON array)<textarea v-model="taxCodesJson" rows="14" spellcheck="false" :disabled="selectedTaxProfileLatestRevision?.state !== 'draft'"></textarea></label>
+          <div class="policy-rule-reference"><strong>Tax-code format</strong><p class="fine-print">Each entry has taxCode, label, treatment and rate. Treatments: percentage (rate required, 0–100), zero_rated, exempt, out_of_scope and manual (rate must be null). These are labels/configuration only; tax calculation and legal classification are not performed here.</p>
+            <pre>[{"taxCode":"STANDARD","label":"Standard rate","treatment":"percentage","rate":0}]</pre><p class="fine-print">The zero rate is a format example only, not a suggested statutory rate.</p></div>
+          <p class="fine-print">No country, tax authority, registration status, rate, exemption or legal treatment is assumed. Validate the profile with the organization's qualified tax adviser before use.</p>
+          <div class="form-actions"><button v-if="selectedTaxProfileLatestRevision?.state !== 'draft'" class="button button-secondary" type="button" :disabled="busy" @click="createBookingTaxProfileRevision">Create successor draft revision</button>
+            <button v-if="selectedTaxProfileLatestRevision?.state === 'draft'" class="button button-secondary" type="button" :disabled="busy" @click="saveBookingTaxProfileDraft">Save draft</button>
+            <button v-if="selectedTaxProfileLatestRevision?.state === 'draft'" class="button button-primary" type="button" :disabled="busy" @click="publishBookingTaxProfileRevision">Publish revision</button></div>
+          <div v-if="selectedTaxProfile.revisions.length" class="draft-revision-history"><h5>Revision history</h5><ol class="history-list"><li v-for="revision in selectedTaxProfile.revisions" :key="revision.revisionId"><strong>Revision {{ revision.revisionNumber }} · {{ revision.state }} · {{ revision.taxCodes.length }} tax code(s)</strong><span>{{ revision.currency }} · {{ revision.taxBasis }} · {{ revision.roundingMethod }}</span><small>Published {{ formatInquiryDate(revision.publishedAt) }} · {{ revision.revisionId }}</small></li></ol></div>
+        </template>
+        <p v-else class="inquiry-detail-empty"><span class="brand-mark">E</span><strong>Select or create a tax profile</strong><span class="muted">Requires organization-level booking.manage permission.</span></p>
       </section>
 
       <section v-else-if="activeTab === 'cancellations'" class="panel inquiry-panel approval-policy-workspace">
