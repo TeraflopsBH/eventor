@@ -21,6 +21,8 @@ type JsonRequestBody<Path extends keyof paths, Method extends keyof paths[Path]>
   paths[Path][Method] extends { requestBody: { content: { "application/json": infer Body } } }
     ? Body : never;
 type SessionCreateBody = JsonRequestBody<"/auth/session", "post">;
+type LocalePreferenceBody = { locale: "bs-BA" | "en" };
+type OrganizationLocaleBody = { defaultLocale: "bs-BA" | "en" };
 type ReservationReleaseBody = JsonRequestBody<"/bookings/{bookingId}/reservations/release", "post">;
 type EventChangeBody = JsonRequestBody<"/events/{eventId}/change-requests", "post">;
 type EventChangeDecisionBody = JsonRequestBody<"/event-change-requests/{requestId}/approve", "post">;
@@ -68,6 +70,7 @@ export interface ApiDependencies {
   ) => Promise<CreatedStaffSession>;
   readonly revokeStaffSession?: (principal: StaffPrincipal) => Promise<void>;
   readonly getCurrentPrincipal?: (principal: StaffPrincipal) => Promise<Record<string, unknown>>;
+  readonly updateUserLocale?: (principal: StaffPrincipal, locale: "bs-BA" | "en") => Promise<void>;
   readonly privateFieldEncryptionKey?: Buffer;
   readonly contactEncryptionKey?: Buffer;
   readonly bookingCapabilityKey?: Buffer;
@@ -176,6 +179,8 @@ const publicBookingInquiryHeaders = {
   },
   additionalProperties: true,
 } as const;
+const localePreferenceBody = { type: "object", required: ["locale"], properties: { locale: { type: "string", enum: ["bs-BA","en"] } }, additionalProperties: false } as const;
+const organizationLocaleBody = { type: "object", required: ["defaultLocale"], properties: { defaultLocale: { type: "string", enum: ["bs-BA","en"] } }, additionalProperties: false } as const;
 const publicBookingInquiryBody = {
   type: "object",
   required: ["formCode", "formRevisionId", "requester", "requested", "answers"],
@@ -1476,6 +1481,51 @@ export function buildApi(dependencies: ApiDependencies): FastifyInstance {
     return reply.code(200).send({ data });
   });
 
+
+
+  server.patch<{ Body: LocalePreferenceBody }>("/me/preferences", { schema: { body: localePreferenceBody } }, async (request, reply) => {
+    const principal = request.staffPrincipal!;
+    if (!dependencies.updateUserLocale) throw new ApiError(503, "USER_PREFERENCES_NOT_CONFIGURED", "Staff preferences are not available.");
+    await dependencies.updateUserLocale(principal, request.body.locale);
+    return reply.code(200).send({ data: { userLocale: request.body.locale } });
+  });
+
+  server.get("/organization/locale", async (request, reply) => {
+    const principal = request.staffPrincipal!;
+    const client = await dependencies.pool.connect();
+    try {
+      await client.query("BEGIN");
+      await client.query("SELECT set_config('app.organization_id',$1,true)", [principal.organizationId]);
+      const result = await client.query<ResultRow>(
+        "SELECT eogp.get_organization_locale_settings($1::uuid,$2::uuid) AS result",
+        [principal.organizationId,principal.membershipId],
+      );
+      await client.query("COMMIT");
+      return reply.code(200).send({ data: result.rows[0]?.result ?? null });
+    } catch (error) {
+      try { await client.query("ROLLBACK"); } catch { /* preserve the query error */ }
+      throw databaseError(error);
+    } finally { client.release(); }
+  });
+
+  server.patch<{ Body: OrganizationLocaleBody }>("/organization/locale", { schema: { body: organizationLocaleBody } }, async (request, reply) => {
+    const principal = request.staffPrincipal!;
+    const client = await dependencies.pool.connect();
+    try {
+      await client.query("BEGIN");
+      await client.query("SELECT set_config('app.organization_id',$1,true)", [principal.organizationId]);
+      await client.query("SELECT set_config('app.actor_membership_id',$1,true)", [principal.membershipId]);
+      const result = await client.query<ResultRow>(
+        "SELECT eogp.set_organization_default_locale($1::uuid,$2::uuid,$3::text) AS result",
+        [principal.organizationId,principal.membershipId,request.body.defaultLocale],
+      );
+      await client.query("COMMIT");
+      return reply.code(200).send({ data: result.rows[0]?.result ?? null });
+    } catch (error) {
+      try { await client.query("ROLLBACK"); } catch { /* preserve the command error */ }
+      throw databaseError(error);
+    } finally { client.release(); }
+  });
 
   server.get<{ Params: { organizationId: string } }>(
     "/organizations/:organizationId/booking-inquiry-capabilities",
