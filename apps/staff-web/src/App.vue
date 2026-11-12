@@ -11,7 +11,7 @@ import { useBookingApprovalPolicies } from "./features/booking-approvals/useBook
 import { useBookingCancellationPolicies } from "./features/booking-cancellations/useBookingCancellationPolicies";
 import BookingInquiryView from "./features/booking-inquiries/BookingInquiryView.vue";
 import { formatBookingMoney, formatInquiryDate } from "./features/booking-inquiries/presentation";
-import { api, ApiError, type CampaignReview, type CampaignProgress, type CampaignListItem, type DeliveryAttempt, type PageMeta, type EmailConfiguration, type ResendWebhookConfiguration, type PrincipalItemRevisionInputRevisionInput, type PublicBookingOffer } from "./api";
+import { api, ApiError, type CampaignReview, type CampaignProgress, type CampaignListItem, type DeliveryAttempt, type PageMeta, type EmailConfiguration, type ResendWebhookConfiguration, type Principal, type PublicBookingOffer } from "./api";
 
 const { locale } = useI18n();
 watch(locale, (value) => { document.documentElement.lang = value; }, { immediate: true });
