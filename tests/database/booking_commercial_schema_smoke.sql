@@ -151,6 +151,30 @@ BEGIN
     RAISE EXCEPTION 'worker role has direct access to booking offer email payloads';
   END IF;
 
+  IF EXISTS (
+    SELECT required.column_name
+      FROM (VALUES ('manual_retry_count'),('last_operator_resolution'),
+                   ('last_operator_reason'),('last_operator_membership_id'),('last_operator_at'))
+           AS required(column_name)
+     WHERE NOT EXISTS (
+       SELECT 1 FROM pg_catalog.pg_attribute attribute
+       JOIN pg_catalog.pg_class relation ON relation.oid=attribute.attrelid
+       JOIN pg_catalog.pg_namespace namespace ON namespace.oid=relation.relnamespace
+       WHERE namespace.nspname='eogp'
+         AND relation.relname='booking_offer_email_deliveries'
+         AND attribute.attname=required.column_name
+         AND attribute.attnum>0 AND NOT attribute.attisdropped
+     )
+  ) THEN
+    RAISE EXCEPTION 'booking offer email reconciliation metadata columns are missing';
+  END IF;
+
+  IF has_function_privilege('eventor_worker','eogp.list_booking_offer_email_deliveries(uuid,uuid,uuid,text,integer,integer)','EXECUTE')
+     OR has_function_privilege('eventor_worker','eogp.reconcile_booking_offer_email_delivery(uuid,uuid,uuid,text,text,text)','EXECUTE')
+     OR has_function_privilege('eventor_worker','eogp.retry_booking_offer_email_delivery(uuid,uuid,uuid,text)','EXECUTE') THEN
+    RAISE EXCEPTION 'worker role can invoke staff-only offer email operations';
+  END IF;
+
   IF has_table_privilege('eventor_runtime','eogp.booking_offer_email_deliveries','SELECT')
      OR NOT has_function_privilege('eventor_runtime','eogp.list_booking_offer_email_deliveries(uuid,uuid,uuid,text,integer,integer)','EXECUTE')
      OR NOT has_function_privilege('eventor_runtime','eogp.reconcile_booking_offer_email_delivery(uuid,uuid,uuid,text,text,text)','EXECUTE')
