@@ -90,7 +90,7 @@ BEGIN
   END;
   v_currency := p_terms->>'currency';
 
-  SELECT coalesce(sum((adjustment->>'amount')::numeric),0)
+  SELECT coalesce(sum((adjustments.adjustment->>'amount')::numeric),0)
     INTO v_discount_total
     FROM jsonb_array_elements(coalesce(p_terms->'adjustments','[]'::jsonb)) AS adjustments(adjustment)
    WHERE adjustments.adjustment->>'kind' IN ('discount','credit');
@@ -112,7 +112,12 @@ BEGIN
     v_permission := v_rule->>'permission';
     v_separation := (v_rule->>'separationOfDuties')::boolean;
     BEGIN
-      v_required := (v_rule->>'requiredApprovals')::integer;
+      v_amount := (v_rule->>'requiredApprovals')::numeric;
+      IF v_amount <> trunc(v_amount) THEN
+        RAISE EXCEPTION 'approval rule requiredApprovals must be an integer'
+          USING ERRCODE = '22023';
+      END IF;
+      v_required := v_amount::integer;
     EXCEPTION WHEN invalid_text_representation OR numeric_value_out_of_range THEN
       RAISE EXCEPTION 'approval rule requiredApprovals must be an integer'
         USING ERRCODE = '22023';
