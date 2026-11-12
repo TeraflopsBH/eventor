@@ -252,6 +252,19 @@ const bookingApprovalPolicyRevisionParams = {
   },
   additionalProperties: false,
 } as const;
+const bookingCancellationPolicyParams = {
+  type: "object", required: ["policyId"],
+  properties: { policyId: { type: "string", pattern: uuidPattern } },
+  additionalProperties: false,
+} as const;
+const bookingCancellationPolicyRevisionParams = {
+  type: "object", required: ["policyId", "revisionId"],
+  properties: {
+    policyId: { type: "string", pattern: uuidPattern },
+    revisionId: { type: "string", pattern: uuidPattern },
+  },
+  additionalProperties: false,
+} as const;
 const bookingPriceListParams = {
   type: "object", required: ["priceListId"],
   properties: { priceListId: { type: "string", pattern: uuidPattern } },
@@ -262,6 +275,26 @@ const bookingPriceListRevisionParams = {
   properties: {
     priceListId: { type: "string", pattern: uuidPattern },
     revisionId: { type: "string", pattern: uuidPattern },
+  },
+  additionalProperties: false,
+} as const;
+const bookingCancellationPolicyCreateBody = {
+  type: "object", required: ["code", "name"],
+  properties: {
+    code: { type: "string", minLength: 2, maxLength: 80, pattern: "^[A-Za-z0-9][A-Za-z0-9._-]*$" },
+    name: { type: "string", minLength: 1, maxLength: 250 },
+  },
+  additionalProperties: false,
+} as const;
+const bookingCancellationPolicyRevisionBody = {
+  type: "object",
+  required: ["customerMode", "publicTerms", "approvalRules", "commercialRules", "noticeRules"],
+  properties: {
+    customerMode: { type: "string", enum: ["request_only", "approval_required", "self_service"] },
+    publicTerms: { type: "string", minLength: 1, maxLength: 10000 },
+    approvalRules: { type: "object", maxProperties: 100, additionalProperties: true },
+    commercialRules: { type: "object", maxProperties: 100, additionalProperties: true },
+    noticeRules: { type: "object", maxProperties: 100, additionalProperties: true },
   },
   additionalProperties: false,
 } as const;
@@ -1877,6 +1910,103 @@ export function buildApi(dependencies: ApiDependencies): FastifyInstance {
           return result.rows[0]?.result as Record<string, unknown>;
         },
       );
+    },
+  );
+
+  server.get(
+    "/organization/booking-cancellation-policies",
+    async (request, reply) => {
+      const principal = request.staffPrincipal!;
+      const client = await dependencies.pool.connect();
+      try {
+        await client.query("BEGIN");
+        await client.query("SELECT set_config('app.organization_id',$1,true)", [principal.organizationId]);
+        const result = await client.query<ResultRow>(
+          "SELECT eogp.get_booking_cancellation_policies($1::uuid,$2::uuid) AS result",
+          [principal.organizationId, principal.membershipId],
+        );
+        await client.query("COMMIT");
+        return reply.code(200).send({ data: result.rows[0]?.result ?? [] });
+      } catch (error) {
+        try { await client.query("ROLLBACK"); } catch { /* preserve the read error */ }
+        throw databaseError(error);
+      } finally {
+        client.release();
+      }
+    },
+  );
+
+  server.post<{ Body: { code: string; name: string } }>(
+    "/organization/booking-cancellation-policies",
+    { schema: { headers: idempotencyHeaders, body: bookingCancellationPolicyCreateBody } },
+    async (request, reply) => {
+      const principal = request.staffPrincipal!;
+      return withCommand(request, reply, "createBookingCancellationPolicy", request.body, async (client) => {
+        const result = await client.query<ResultRow>(
+          "SELECT eogp.create_booking_cancellation_policy($1::uuid,$2::uuid,$3::text,$4::text) AS result",
+          [principal.organizationId,principal.membershipId,request.body.code,request.body.name],
+        );
+        return result.rows[0]?.result as Record<string,unknown>;
+      });
+    },
+  );
+
+  server.post<{
+    Params: { policyId: string };
+    Body: { customerMode: "request_only" | "approval_required" | "self_service"; publicTerms: string;
+      approvalRules: Record<string,unknown>; commercialRules: Record<string,unknown>; noticeRules: Record<string,unknown> };
+  }>(
+    "/booking-cancellation-policies/:policyId/revisions",
+    { schema: { params: bookingCancellationPolicyParams, headers: idempotencyHeaders, body: bookingCancellationPolicyRevisionBody } },
+    async (request, reply) => {
+      const principal = request.staffPrincipal!;
+      const body = request.body;
+      return withCommand(request,reply,"createBookingCancellationPolicyRevision",
+        {policyId:request.params.policyId,...body},async(client)=>{
+          const result=await client.query<ResultRow>(
+            "SELECT eogp.create_booking_cancellation_policy_revision($1::uuid,$2::uuid,$3::uuid,$4::text,$5::text,$6::jsonb,$7::jsonb,$8::jsonb) AS result",
+            [principal.organizationId,request.params.policyId,principal.membershipId,body.customerMode,body.publicTerms,
+             JSON.stringify(body.approvalRules),JSON.stringify(body.commercialRules),JSON.stringify(body.noticeRules)],
+          );
+          return result.rows[0]?.result as Record<string,unknown>;
+        });
+    },
+  );
+
+  server.put<{
+    Params: { policyId: string; revisionId: string };
+    Body: { customerMode: "request_only" | "approval_required" | "self_service"; publicTerms: string;
+      approvalRules: Record<string,unknown>; commercialRules: Record<string,unknown>; noticeRules: Record<string,unknown> };
+  }>(
+    "/booking-cancellation-policies/:policyId/revisions/:revisionId",
+    { schema: { params: bookingCancellationPolicyRevisionParams, headers: idempotencyHeaders, body: bookingCancellationPolicyRevisionBody } },
+    async (request, reply) => {
+      const principal=request.staffPrincipal!; const body=request.body;
+      return withCommand(request,reply,"updateBookingCancellationPolicyDraftRevision",
+        {policyId:request.params.policyId,revisionId:request.params.revisionId,...body},async(client)=>{
+          const result=await client.query<ResultRow>(
+            "SELECT eogp.update_booking_cancellation_policy_draft_revision($1::uuid,$2::uuid,$3::uuid,$4::uuid,$5::text,$6::text,$7::jsonb,$8::jsonb,$9::jsonb) AS result",
+            [principal.organizationId,request.params.policyId,request.params.revisionId,principal.membershipId,
+             body.customerMode,body.publicTerms,JSON.stringify(body.approvalRules),JSON.stringify(body.commercialRules),JSON.stringify(body.noticeRules)],
+          );
+          return result.rows[0]?.result as Record<string,unknown>;
+        });
+    },
+  );
+
+  server.post<{ Params: { policyId: string; revisionId: string } }>(
+    "/booking-cancellation-policies/:policyId/revisions/:revisionId/publish",
+    { schema: { params: bookingCancellationPolicyRevisionParams, headers: idempotencyHeaders } },
+    async (request,reply)=>{
+      const principal=request.staffPrincipal!;
+      return withCommand(request,reply,"publishBookingCancellationPolicyRevision",
+        {policyId:request.params.policyId,revisionId:request.params.revisionId},async(client)=>{
+          const result=await client.query<ResultRow>(
+            "SELECT eogp.publish_booking_cancellation_policy_revision($1::uuid,$2::uuid,$3::uuid,$4::uuid) AS result",
+            [principal.organizationId,request.params.policyId,request.params.revisionId,principal.membershipId],
+          );
+          return result.rows[0]?.result as Record<string,unknown>;
+        });
     },
   );
 
