@@ -1926,8 +1926,8 @@ onMounted(() => {
         <span class="brand-mark">E</span>
         <span>EVENTOR <small>{{ $t("app.staffWorkspace") }}</small></span>
       </a>
+      <label class="locale-picker">Language <select v-model="locale"><option v-for="option in localeOptions" :key="option.value" :value="option.value">{{ option.label }}</option></select></label>
       <div v-if="principal" class="account">
-        <label class="locale-picker">Language <select v-model="locale"><option v-for="option in localeOptions" :key="option.value" :value="option.value">{{ option.label }}</option></select></label>
         <div class="account-copy">
           <strong>{{ selectedOrganization }}</strong>
           <span>{{ $t("app.authenticatedSession") }}</span>
