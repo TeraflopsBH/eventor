@@ -15,6 +15,10 @@ type BookingInquiryWorkspace = ReturnType<typeof useBookingInquiries> & {
 const props = defineProps<{ workspace: BookingInquiryWorkspace }>();
 const { formatDate } = useInquiryPresentation();
 const { t } = useI18n();
+const inquiryStatusLabel = (status: string): string => {
+  const keys: Record<string, string> = { received: "received", under_review: "underReview", converted: "converted", declined: "declined", withdrawn: "withdrawn", spam: "spam" };
+  return keys[status] ? t(`bookingInquiry.${keys[status]}`) : status.replaceAll("_", " ");
+};
 const emit = defineEmits<{ (event: "open-booking-draft"): void }>();
 
 const {
@@ -84,7 +88,7 @@ const {
                   <span
                     class="pill"
                     :class="item.status === 'declined' || item.status === 'spam' ? 'pill-danger' : item.status === 'under_review' ? 'pill-warning' : 'pill-neutral'"
-                  >{{ t(`bookingInquiry.${({ received: "received", under_review: "underReview", converted: "converted", declined: "declined", withdrawn: "withdrawn", spam: "spam" } as Record<string, string>)[item.status] ?? item.status}`) }}</span>
+                  >{{ inquiryStatusLabel(item.status) }}</span>
                 </span>
                 <strong class="inquiry-requester">{{ item.requesterName }}</strong>
                 <span class="inquiry-list-meta">
@@ -122,7 +126,7 @@ const {
                 <span
                   class="pill"
                   :class="inquiryDetail.status === 'declined' || inquiryDetail.status === 'spam' ? 'pill-danger' : inquiryDetail.status === 'under_review' ? 'pill-warning' : 'pill-neutral'"
-                >{{ t(`bookingInquiry.${({ received: "received", under_review: "underReview", converted: "converted", declined: "declined", withdrawn: "withdrawn", spam: "spam" } as Record<string, string>)[inquiryDetail.status] ?? inquiryDetail.status}`) }}</span>
+                >{{ inquiryStatusLabel(inquiryDetail.status) }}</span>
                 <button class="button button-quiet" type="button" :disabled="busy" @click="refreshInquiryDetail">{{ t('bookingInquiry.refreshDetail') }}</button>
               </div>
             </div>
@@ -179,7 +183,7 @@ const {
                 <label>{{$t('bookingInquiry.newStatus')}}<select v-model="inquiryStatusChoice">
                     <option disabled value="">{{ t('bookingInquiry.chooseNextStatus') }}</option>
                     <option v-for="status in inquiryStatusTargets" :key="status" :value="status">
-                      {{ t(`bookingInquiry.${({ received: "received", under_review: "underReview", converted: "converted", declined: "declined", withdrawn: "withdrawn", spam: "spam" } as Record<string, string>)[status] ?? status}`) }}
+                      {{ inquiryStatusLabel(status) }}
                     </option>
                   </select>
                 </label>
@@ -254,7 +258,7 @@ const {
                 <h4>{{ t('bookingInquiry.statusHistory') }}</h4>
                 <ol v-if="inquiryDetail.statusHistory.length" class="history-list">
                   <li v-for="(history, index) in inquiryDetail.statusHistory" :key="`${history.occurredAt}-${index}`">
-                    <strong>{{ history.previousStatus ?? "Created" }} → {{ history.newStatus }}</strong>
+                    <strong>{{ history.previousStatus ? inquiryStatusLabel(history.previousStatus) : t("bookingInquiry.created") }} → {{ inquiryStatusLabel(history.newStatus) }}</strong>
                     <span>{{ history.reason ?? "No reason supplied" }}</span>
                     <small>{{ history.actorKind }} · {{ formatDate(history.occurredAt) }}</small>
                   </li>
