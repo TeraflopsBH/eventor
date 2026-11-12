@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 import type { Pool, PoolClient, QueryResultRow } from "pg";
-import { processPendingEmailDeliveries, processPendingEventChangeNotifications } from "../src/notification-worker.js";
+import { processExpiredBookingOffers, processPendingEmailDeliveries, processPendingEventChangeNotifications } from "../src/notification-worker.js";
 import { encryptContactValue } from "../src/contact-crypto.js";
 import { encryptDeliveryCredentials } from "../src/delivery-credentials-crypto.js";
 import type { SmtpTransportFactory } from "../src/smtp-transport.js";
@@ -25,6 +25,9 @@ function fakePool(tenants: string[]) {
           const normalized = sql.replace(/\s+/g, " ").trim();
           calls.push({ sql: normalized, values });
           transactions.push(normalized);
+          if (normalized.startsWith("SELECT eogp.expire_due_booking_offers")) {
+            return { rows: [{ expired_count: 3 }], rowCount: 1 };
+          }
           if (normalized.startsWith("SELECT eogp.process_event_notification_outbox")) {
             return {
               rows: [{
@@ -71,6 +74,7 @@ test("notification worker sets tenant context and commits one batch per tenant",
     emailFailed: 0,
     emailUncertain: 0,
     emailRetriesScheduled: 0,
+    bookingOffersExpired: 0,
   });
   assert.equal(mock.released.length, 2);
   assert.equal(
@@ -83,6 +87,33 @@ test("notification worker sets tenant context and commits one batch per tenant",
   );
   assert.equal(mock.transactions.filter((sql) => sql === "BEGIN").length, 2);
   assert.equal(mock.transactions.filter((sql) => sql === "COMMIT").length, 2);
+});
+
+test("booking offer expiry worker discovers due tenants and expires within tenant context", async () => {
+  const tenantA = "11111111-1111-4111-8111-111111111111";
+  const tenantB = "22222222-2222-4222-8222-222222222222";
+  const mock = fakePool([tenantA, tenantB]);
+
+  const result = await processExpiredBookingOffers(mock.pool, 25, 50);
+
+  assert.deepEqual(result, { tenantsVisited: 2, expired: 6 });
+  assert.equal(
+    mock.calls.filter((call) => call.sql.includes("discover_due_booking_offer_expiry_tenants")).length,
+    1,
+  );
+  const expiryCalls = mock.calls.filter((call) => call.sql.includes("expire_due_booking_offers"));
+  assert.equal(expiryCalls.length, 2);
+  assert.deepEqual(expiryCalls[0]?.values, [tenantA, 25]);
+  assert.deepEqual(expiryCalls[1]?.values, [tenantB, 25]);
+  assert.equal(mock.released.length, 2);
+  assert.equal(mock.transactions.filter((sql) => sql === "BEGIN").length, 2);
+  assert.equal(mock.transactions.filter((sql) => sql === "COMMIT").length, 2);
+});
+
+test("booking offer expiry worker rejects unsafe limits before discovery", async () => {
+  const mock = fakePool([]);
+  await assert.rejects(processExpiredBookingOffers(mock.pool, 501, 10), RangeError);
+  assert.equal(mock.calls.length, 0);
 });
 
 test("notification worker rejects unsafe batch sizes before querying", async () => {
