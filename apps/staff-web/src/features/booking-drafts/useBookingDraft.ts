@@ -1,6 +1,6 @@
 import { computed, ref, type ComputedRef, type Ref } from "vue";
 import { ApiError, api, type BookingDraftDetail, type PublicBookingFormField } from "../../api";
-import { initializePublicBookingAnswers, normalizePublicBookingAnswers, validatePublicBookingAnswers } from "../public-booking-forms/publicBookingForm";
+import { initializePublicBookingAnswers, mergePublicBookingAnswers, validatePublicBookingAnswers } from "../public-booking-forms/publicBookingForm";
 import { formatBookingAnswerItems } from "../booking-inquiries/presentation";
 
 type BookingDraftApi = typeof api;
@@ -151,10 +151,7 @@ export function useBookingDraft(dependencies: BookingDraftDependencies) {
         }
         values = {
           ...revision.values,
-          answers: {
-            ...draftAnswers.value,
-            ...normalizePublicBookingAnswers(sourceFormFields.value, draftAnswers.value),
-          },
+          answers: mergePublicBookingAnswers(sourceFormFields.value, draftAnswers.value),
         };
       } else {
         const parsedValues: unknown = JSON.parse(valuesJson.value);
