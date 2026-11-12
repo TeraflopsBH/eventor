@@ -133,6 +133,16 @@ BEGIN
     RAISE EXCEPTION 'published approval policy revision immutability trigger is missing';
   END IF;
 
+  IF NOT EXISTS (
+    SELECT 1 FROM pg_catalog.pg_trigger t
+    JOIN pg_catalog.pg_class r ON r.oid=t.tgrelid
+    JOIN pg_catalog.pg_namespace n ON n.oid=r.relnamespace
+    WHERE n.nspname='eogp' AND r.relname='cancellation_policy_revisions'
+      AND t.tgname='cancellation_policy_revisions_published_immutable_guard' AND NOT t.tgisinternal
+  ) THEN
+    RAISE EXCEPTION 'published cancellation policy revision immutability trigger is missing';
+  END IF;
+
   IF NOT has_table_privilege('eventor_worker','eogp.booking_offer_expiry_tenant_queue','SELECT')
      OR NOT has_function_privilege('eventor_worker','eogp.discover_due_booking_offer_expiry_tenants()','EXECUTE')
      OR NOT has_function_privilege('eventor_worker','eogp.expire_due_booking_offers(uuid,integer)','EXECUTE') THEN
