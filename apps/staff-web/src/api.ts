@@ -761,7 +761,7 @@ export const api = {
   login: (body: { email: string; password: string; organizationSlug: string }) =>
     request<Envelope<{ csrfToken: string; expiresAt: string }>>("/auth/session", { method: "POST", body }),
   me: () => request<Envelope<Principal>>("/me"),
-  updateUserLocale: (locale: "bs-BA" | "en") => request<Envelope<{ userLocale: "bs-BA" | "en" }>>("/me/preferences", { method: "PATCH", body: { locale } }),
+  updateUserLocale: (locale: "bs-BA" | "en" | null) => request<Envelope<{ userLocale: "bs-BA" | "en" | null }>>("/me/preferences", { method: "PATCH", body: { locale } }),
   getOrganizationLocale: () => request<Envelope<{ defaultLocale: "bs-BA" | "en"; canManage: boolean }>>("/organization/locale"),
   setOrganizationLocale: (defaultLocale: "bs-BA" | "en") => request<Envelope<{ defaultLocale: "bs-BA" | "en" }>>("/organization/locale", { method: "PATCH", body: { defaultLocale } }),
   logout: () => request<void>("/auth/session", { method: "DELETE" }),
