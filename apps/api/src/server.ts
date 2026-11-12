@@ -1695,6 +1695,30 @@ export function buildApi(dependencies: ApiDependencies): FastifyInstance {
     },
   );
 
+  server.get<{ Params: { draftId: string } }>(
+    "/booking-drafts/:draftId/allocation-options",
+    { schema: { params: bookingDraftParams } },
+    async (request, reply) => {
+      const principal = request.staffPrincipal!;
+      const client = await dependencies.pool.connect();
+      try {
+        await client.query("BEGIN");
+        await client.query("SELECT set_config('app.organization_id',$1,true)", [principal.organizationId]);
+        const result = await client.query<ResultRow>(
+          "SELECT eogp.get_booking_draft_allocation_options($1::uuid,$2::uuid,$3::uuid) AS result",
+          [principal.organizationId, request.params.draftId, principal.membershipId],
+        );
+        await client.query("COMMIT");
+        return reply.code(200).send({ data: result.rows[0]?.result ?? { spaces: [], resources: [] } });
+      } catch (error) {
+        try { await client.query("ROLLBACK"); } catch { /* preserve the original read error */ }
+        throw databaseError(error);
+      } finally {
+        client.release();
+      }
+    },
+  );
+
   server.post<{
     Params: { draftId: string };
     Body: {
