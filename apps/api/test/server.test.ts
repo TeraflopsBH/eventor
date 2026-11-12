@@ -1264,6 +1264,64 @@ test("staff inquiry inbox decrypts authorized projections and routes assignment,
 
 
 
+
+test("explicit booking confirmation requires the exact draft revision and replays idempotently", async (t) => {
+  const mock = makePool();
+  const app = makeApi(mock.pool);
+  t.after(async () => app.close());
+  const revisionId = "16161616-1616-4161-8161-161616161616";
+  const payload = {
+    expectedDraftRevisionId: revisionId,
+    confirmationReason: "Customer accepted and all required approvals are complete.",
+  };
+  const headers = { "idempotency-key": "confirm-booking-0001" };
+
+  const mismatch = await app.inject({
+    method: "POST",
+    url: "/booking-draft-revisions/17171717-1717-4171-8171-171717171717/confirm",
+    headers,
+    payload,
+  });
+  assert.equal(mismatch.statusCode, 409);
+  assert.equal(mock.bookingConfirmationCalls, 0);
+
+  const confirmed = await app.inject({
+    method: "POST",
+    url: `/booking-draft-revisions/${revisionId}/confirm`,
+    headers,
+    payload,
+  });
+  assert.equal(confirmed.statusCode, 201);
+  const data = confirmed.json<{
+    data: { bookingId: string; bookingCode: string; status: string; spaceReservationsConfirmed: number; resourceReservationsConfirmed: number; replayed: boolean };
+  }>().data;
+  assert.equal(data.bookingId, "24242424-2424-4242-8242-242424242424");
+  assert.equal(data.bookingCode, "BKG-ABCDEF123456");
+  assert.equal(data.status, "confirmed");
+  assert.equal(data.spaceReservationsConfirmed, 1);
+  assert.equal(data.resourceReservationsConfirmed, 2);
+  assert.equal(data.replayed, false);
+
+  const call = mock.commandCalls.find((item) => item.sql.includes("eogp.confirm_booking_from_offer("));
+  assert.ok(call);
+  assert.deepEqual(call.values, [
+    principal.organizationId,
+    revisionId,
+    principal.membershipId,
+    payload.confirmationReason,
+  ]);
+
+  const replay = await app.inject({
+    method: "POST",
+    url: `/booking-draft-revisions/${revisionId}/confirm`,
+    headers,
+    payload,
+  });
+  assert.equal(replay.statusCode, 201);
+  assert.deepEqual(replay.json(), confirmed.json());
+  assert.equal(mock.bookingConfirmationCalls, 1);
+});
+
 test("offer approvals are permission-gated, reasoned and scoped to an exact offer revision", async (t) => {
   const mock = makePool();
   const app = makeApi(mock.pool);
