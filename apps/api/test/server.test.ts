@@ -2679,8 +2679,12 @@ test("SMTP test sends only to the requested address and idempotent replay does n
     payload: { recipient: "operator@example.test" },
   });
   assert.equal(first.statusCode, 200);
-  assert.equal(first.json<{ data: { status: string; deliveryEnabled: boolean } }>().data.status, "succeeded");
-  assert.equal(first.json<{ data: { deliveryEnabled: boolean } }>().data.deliveryEnabled, true);
+  const firstBody = first.json<{ data: Record<string, unknown> }>();
+  assert.equal(firstBody.data.status, "succeeded");
+  assert.equal(firstBody.data.deliveryEnabled, true);
+  assert.equal("credentialsCiphertextBase64" in firstBody.data, false);
+  assert.equal("credentials" in firstBody.data, false);
+  assert.equal("password" in firstBody.data, false);
   assert.equal(verifyCalls, 1);
   assert.equal(sendCalls, 1);
   assert.equal(closeCalls, 1);
