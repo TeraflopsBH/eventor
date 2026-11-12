@@ -55,7 +55,7 @@ The inbox, detail, assignment, status and annotation routes require an authentic
 
 The inquiry capability projection requires `booking.inquiry.read` and reports separate `canAssign`, `canManage`, `canAnnotate`, `canConvert`, `canReadDraft` and `canManageDraft` flags. The conversion flag reflects `booking.inquiry.convert`. Draft reads require `booking.draft.read` or `booking.draft.manage`; successor revisions require `booking.draft.manage`. Because a draft has no confirmed `booking_records` row, draft permissions are currently accepted from active organization-scope grants; booking-scoped grants cannot target a draft UUID. The roster endpoint additionally requires `booking.inquiry.assign`, and returns only active same-organization membership IDs and display names. The UI hides unavailable controls, but every write continues to re-check authorization inside the database SECURITY DEFINER command.
 
-The Vue staff workspace now provides a permission-aware inquiry inbox/detail, active-member assignment, review-status transitions, internal-note creation, status/assignment history, authorized inquiry conversion and a draft editor. The draft projection decrypts values only after its database permission check; revision writes validate against the pinned source-form schema, re-encrypt values with ECP1 and create immutable successor revisions. The database rejects stale revisions and refuses edits while the previous revision has active space/resource holds. Earlier revisions remain unchanged. Offer creation/revisions, customer acceptance/rejection, approval and booking confirmation remain outstanding.
+The Vue staff workspace now provides a permission-aware inquiry inbox/detail, active-member assignment, review-status transitions, internal-note creation, status/assignment history, authorized inquiry conversion and a draft editor. The draft projection decrypts values only after its database permission check; revision writes validate against the pinned source-form schema, re-encrypt values with ECP1 and create immutable successor revisions. The database rejects stale revisions and refuses edits while the previous revision has active space/resource holds. Earlier revisions remain unchanged. Offer creation/revisions and issuance, capability-protected customer acceptance/rejection, pinned approval requirements and approval decisions are implemented. Atomic booking confirmation with final reservation conversion is implemented at the database command boundary; API and end-to-end coverage remain to be completed.
 
 ## Organization-owned SMTP
 
@@ -131,8 +131,9 @@ Configure separate, cryptographically random 32-byte keys, base64-encoded in dep
 - `EVENTOR_DELIVERY_CREDENTIALS_KEY`
 - `EVENTOR_AUTH_FINGERPRINT_KEY`
 - `EVENTOR_PUBLIC_INQUIRY_FINGERPRINT_KEY`
+- `EVENTOR_BOOKING_CAPABILITY_KEY`
 
-Never reuse one key for another purpose. The API requires all five keys; the notification worker requires the contact-encryption and delivery-credential keys. The public inquiry API uses the contact key for tenant-bound ECP1 encryption and its dedicated public-inquiry fingerprint key for source/idempotency fingerprints. Key rotation requires an explicit re-encryption procedure. Replacing a key alone makes existing ciphertext unreadable.
+Never reuse one key for another purpose. The API requires all six keys; the notification worker requires the contact-encryption and delivery-credential keys. The public inquiry API uses the contact key for tenant-bound ECP1 encryption and its dedicated public-inquiry fingerprint key for source/idempotency fingerprints. Key rotation requires an explicit re-encryption procedure. Replacing a key alone makes existing ciphertext unreadable.
 
 Both database connection URLs should use TLS with certificate and hostname verification in production (for example, PostgreSQL `sslmode=verify-full` with a trusted CA). Configure database passwords outside this repository.
 
@@ -175,7 +176,7 @@ npm run build
 npm run start:worker
 ```
 
-The API requires `EVENTOR_RUNTIME_DATABASE_URL`, `EVENTOR_AUTH_DATABASE_URL`, `EVENTOR_ALLOWED_ORIGINS`, `EVENTOR_AUTH_FINGERPRINT_KEY`, `EVENTOR_FIELD_ENCRYPTION_KEY`, `EVENTOR_CONTACT_ENCRYPTION_KEY` and `EVENTOR_DELIVERY_CREDENTIALS_KEY`. The worker requires `EVENTOR_WORKER_DATABASE_URL`, `EVENTOR_CONTACT_ENCRYPTION_KEY` and `EVENTOR_DELIVERY_CREDENTIALS_KEY`.
+The API requires `EVENTOR_RUNTIME_DATABASE_URL`, `EVENTOR_AUTH_DATABASE_URL`, `EVENTOR_ALLOWED_ORIGINS`, `EVENTOR_AUTH_FINGERPRINT_KEY`, `EVENTOR_FIELD_ENCRYPTION_KEY`, `EVENTOR_CONTACT_ENCRYPTION_KEY`, `EVENTOR_DELIVERY_CREDENTIALS_KEY`, `EVENTOR_PUBLIC_INQUIRY_FINGERPRINT_KEY` and `EVENTOR_BOOKING_CAPABILITY_KEY`. The worker requires `EVENTOR_WORKER_DATABASE_URL`, `EVENTOR_CONTACT_ENCRYPTION_KEY` and `EVENTOR_DELIVERY_CREDENTIALS_KEY`.
 
 ## Tests
 
