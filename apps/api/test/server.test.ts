@@ -759,6 +759,14 @@ function makePool() {
           publishedAt: "2026-11-12T12:00:00.000Z",
         } }], rowCount: 1 };
       }
+      if (normalized.includes("eogp.get_organization_locale_settings(")) {
+        commandCalls.push({ sql: normalized, values });
+        return { rows: [{ result: { defaultLocale: "bs-BA", canManage: true } }], rowCount: 1 };
+      }
+      if (normalized.includes("eogp.set_organization_default_locale(")) {
+        commandCalls.push({ sql: normalized, values });
+        return { rows: [{ result: { defaultLocale: values[2] } }], rowCount: 1 };
+      }
       if (normalized.includes("eogp.get_organization_email_delivery_config(")) {
         return { rows: [{ result: {
           channel: "email", provider: "smtp", revision: 2,
@@ -897,7 +905,8 @@ function makeApi(
         expiresAt: new Date(Date.now() + 60 * 60 * 1000),
       }),
       revokeStaffSession: async () => undefined,
-      getCurrentPrincipal: async () => ({ ...principal, memberships: [] }),
+      getCurrentPrincipal: async () => ({ ...principal, userLocale: null, organizationDefaultLocale: "bs-BA", memberships: [] }),
+      updateUserLocale: async () => undefined,
     } : {}),
     privateFieldEncryptionKey: options.encryptionKey ?? Buffer.alloc(32, 7),
     contactEncryptionKey: options.contactEncryptionKey ?? Buffer.alloc(32, 10),
@@ -908,6 +917,46 @@ function makeApi(
     ...(options.smtpTransportFactory ? { smtpTransportFactory: options.smtpTransportFactory } : {}),
   });
 }
+
+
+test("staff and organization locale preferences are validated and organization writes are tenant-scoped", async (t) => {
+  const mock = makePool();
+  const app = makeApi(mock.pool, { withSessionCallbacks: true });
+  t.after(async () => app.close());
+
+  const current = await app.inject({ method: "GET", url: "/me" });
+  assert.equal(current.statusCode, 200);
+  assert.equal(current.json().data.organizationDefaultLocale, "bs-BA");
+
+  const userPreference = await app.inject({
+    method: "PATCH", url: "/me/preferences", payload: { locale: "en" },
+  });
+  assert.equal(userPreference.statusCode, 200);
+  assert.deepEqual(userPreference.json().data, { userLocale: "en" });
+
+  const unsupportedUserLocale = await app.inject({
+    method: "PATCH", url: "/me/preferences", payload: { locale: "fr" },
+  });
+  assert.equal(unsupportedUserLocale.statusCode, 400);
+
+  const organization = await app.inject({ method: "GET", url: "/organization/locale" });
+  assert.equal(organization.statusCode, 200);
+  assert.deepEqual(organization.json().data, { defaultLocale: "bs-BA", canManage: true });
+
+  const update = await app.inject({
+    method: "PATCH", url: "/organization/locale", payload: { defaultLocale: "en" },
+  });
+  assert.equal(update.statusCode, 200);
+  assert.deepEqual(update.json().data, { defaultLocale: "en" });
+  const command = mock.commandCalls.find((call) => call.sql.includes("eogp.set_organization_default_locale("));
+  assert.deepEqual(command?.values, [principal.organizationId, principal.membershipId, "en"]);
+
+  const unsupportedOrganizationLocale = await app.inject({
+    method: "PATCH", url: "/organization/locale", payload: { defaultLocale: "fr" },
+  });
+  assert.equal(unsupportedOrganizationLocale.statusCode, 400);
+  assert.equal(mock.commandCalls.filter((call) => call.sql.includes("eogp.set_organization_default_locale(")).length, 1);
+});
 
 test("public booking intake exposes only published forms and stores anonymous inquiries encrypted and idempotently", async (t) => {
   const mock = makePool();
