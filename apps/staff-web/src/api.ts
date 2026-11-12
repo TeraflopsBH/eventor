@@ -99,7 +99,6 @@ export interface Principal {
     organizationId: string;
     organizationSlug: string;
     organizationName: string;
-    defaultLocale: "bs-BA" | "en";
     selected: boolean;
   }>;
 }
