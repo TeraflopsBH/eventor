@@ -1,8 +1,8 @@
 # Project state
 
-**Status:** accepted product/domain design baseline; 46-migration PostgreSQL 18 implementation, canonical OpenAPI v0.3, Fastify staff API/workers and initial Vue 3 staff web on draft PR #27; PostgreSQL 18.6, OpenAPI, API and staff-web CI validation configured; SMTP delivery worker and explicit campaign queue/cancel lifecycle implemented; production-readiness review remains open  
+**Status:** accepted product/domain design baseline; 60-migration PostgreSQL 18 implementation, canonical OpenAPI v0.3, Fastify staff API/workers and Vue 3 staff web across stacked draft PRs #26–#29; PostgreSQL 18.6, OpenAPI, API and staff-web CI validation configured; SMTP delivery worker and explicit campaign queue/cancel lifecycle implemented; production-readiness review remains open  
 **Last updated:** 2026-11-12  
-**Implementation status:** database migrations and API contract exist in draft PR #26; PR #27 contains a tested Fastify command API, database-backed staff sessions and campaign review/confirmation, plus a separate preparation worker. No production database deployment has been established.
+**Implementation status:** PR #28 adds the commercial offer lifecycle and PR #29 adds organization price-list management on top of it. CI is intentionally deferred while the monthly GitHub Actions allowance is exhausted; no current-head CI pass or production database deployment is claimed.
 
 ## Product
 
@@ -51,6 +51,8 @@ Eventor is a reusable, self-hosted platform that can operate as a venue booking/
 - Preserve original requested values, offered/approved values and delivered/actual values separately.
 - Rehearsals are separately schedulable reservations with their own date, time and duration.
 - Historical records pin the form and catalogue revisions and retain the labels/answers shown at the time.
+- Organization price lists reuse the existing versioned price-list schema. Staff can create lists, author draft revisions and line items, and explicitly publish immutable revisions through permission-checked database commands. Offers pin exact published revision IDs. See [Price-list Management Design v0.3](implementation-design/v0.3/PRICE_LIST_MANAGEMENT_DESIGN_v0.3.md).
+
 
 ### Invitations, RSVP and attendance
 
@@ -166,12 +168,12 @@ The separate v0.2 booking SQL addendum duplicates all 22 booking/configuration t
 
 ## Immediate next steps
 
-1. Obtain a successful three-job CI run on the current PR #27 head. The last green run predates migrations 000039–000046; the latest PR run failed before runner assignment (`runner_id: 0`, empty steps/logs) and produced no code-validation result.
-2. Complete focused review of migrations 000022–000046, RLS and command boundaries, actor attribution, organization-scope inquiry permissions, cross-organization assignment isolation, public form/submission projections, inquiry history and append-only notes, rate-limit/idempotency controls, SMTP credential handling, worker claim/lease behavior and signed callback correlation. Retain generic organization-configured SMTP as the default; Resend remains an optional adapter.
-3. Add migration-upgrade and backup/restore validation. Current PostgreSQL CI proves fresh-database installation on the earlier green head, not forward upgrade, restore or disaster recovery.
-4. Continue the venue-booking slice from the implemented inquiry conversion and draft revision workflow: add offer revisions, customer acceptance/rejection, approval policy and explicit booking confirmation with final resource rechecks. Keep booking-only workflows independent of operational events, guest records and RSVP.
-5. Add health/readiness and operational endpoints, then expand staff web workflows for venue and booking operations as the corresponding API routes become available.
-6. Confirm GHB-specific inventory, capacities, pricing, cancellation terms, approval thresholds and operating policies before production configuration or seed data.
+1. Continue organization commercial configuration with cancellation-policy management, reusing the existing versioned cancellation-policy schema and ensuring terms remain pinned to issued offers and confirmed bookings.
+2. Add organization tax configuration only after defining the jurisdiction-neutral tax model; do not hardcode Bosnia and Herzegovina or GHB rates.
+3. Add PostgreSQL functional/concurrency coverage for migrations 000058–000060 and the complete offer/approval/confirmation workflow. CI remains intentionally deferred while the monthly GitHub Actions allowance is exhausted; do not spend further runs until the allowance resets.
+4. Review offer preparation's effective-period checks against the new price-list revision model, and ensure the staff UI can explicitly select the exact published revision.
+5. Expand venue, building, space and resource administration workspaces after the commercial configuration layer is complete.
+6. Keep production deployment blocked until GHB validates inventory, capacities, prices, tax treatment, cancellation terms and approval authority.
 
 ## Open questions / validation gates
 
