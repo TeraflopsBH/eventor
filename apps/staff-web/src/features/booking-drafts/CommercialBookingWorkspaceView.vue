@@ -24,7 +24,7 @@ const {
   resourceLinesJson: bookingDraftResourceLinesJson,
   requestedStart: bookingDraftRequestedStart,
   requestedEnd: bookingDraftRequestedEnd,
-  timezone: bookingDraft{{ t('bookingInquiry.timezone') }},
+  timezone: bookingDraftTimezone,
   changeReason: bookingDraftChangeReason,
   canManage: canManageBookingDraft,
   saveRevision: saveBookingDraftRevision,
@@ -37,7 +37,7 @@ const {
   bookingOfferEmailReason, bookingOfferEmailReference, bookingOfferEmailRetryReason,
   bookingOfferSupersedeCurrent, bookingOfferValidUntil, bookingOfferTaxAmount,
   bookingOfferInternalReason, bookingOfferCreateForm, bookingOfferLineItemsJson,
-  bookingOfferAdjustmentsJson, bookingOfferApproval{{ t('commercialBooking.decision') }}s, bookingOfferApprovalReasons,
+  bookingOfferAdjustmentsJson, bookingOfferApprovalDecisions, bookingOfferApprovalReasons,
   canManageBookingOffer, canConfirmBookingOffer, refreshBookingOfferEmailData,
   loadBookingOffer, saveBookingOfferRevision, issueBookingOffer, emailBookingOffer,
   reconcileBookingOfferEmail, retryBookingOfferEmail, copyBookingOfferCapability,
@@ -60,11 +60,11 @@ const { busy } = props.workspace;
               </div>
 
               <div v-if="bookingDraftDetail.revisionHistory.length" class="draft-revision-history">
-                <h5>{{ t('commercialBooking.draftRevisionHistory') }}</h5>
+                <h5>{{ t('commercialBooking.revisionHistory') }}</h5>
                 <ol class="history-list">
                   <li v-for="history in bookingDraftDetail.revisionHistory" :key="history.revisionId">
                     <strong>Revision {{ history.revisionNumber }}</strong>
-                    <span>{{ history.changeReason ?? "{{ t('commercialBooking.noChangeReason') }}" }}</span>
+                    <span>{{ history.changeReason ?? "No change reason recorded" }}</span>
                     <small>{{ history.createdByDisplayName }} · {{ formatDate(history.createdAt) }}</small>
                   </li>
                 </ol>
@@ -72,41 +72,42 @@ const { busy } = props.workspace;
 
               <template v-if="canManageBookingDraft">
                 <p class="fine-print">
-                  {{ t('commercialBooking.immutableRevisionInfo') }}
+                  Saving creates a new immutable revision. The previous revision is retained. If resource or space holds exist
+                  against the current revision, they must expire or be released before it can be revised.
                 </p>
                 <form class="draft-revision-form" @submit.prevent="saveBookingDraftRevision">
-                  <label>{{ t('commercialBooking.valuesSnapshot') }}
+                  <label>Values snapshot (JSON)
                     <textarea v-model="bookingDraftValuesJson" rows="8" spellcheck="false"></textarea>
                   </label>
                   <div class="field-grid">
-                    <label>{{ t('commercialBooking.requestedStart') }}
+                    <label>Requested start (ISO 8601)
                       <input v-model="bookingDraftRequestedStart" type="text" maxlength="80" placeholder="2027-01-18T09:00:00+01:00" />
                     </label>
-                    <label>{{ t('commercialBooking.requestedEnd') }}
+                    <label>Requested end (ISO 8601)
                       <input v-model="bookingDraftRequestedEnd" type="text" maxlength="80" placeholder="2027-01-18T13:00:00+01:00" />
                     </label>
-                    <label>{{ t('bookingInquiry.timezone') }}
-                      <input v-model="bookingDraft{{ t('bookingInquiry.timezone') }}" type="text" maxlength="80" required />
+                    <label>Timezone
+                      <input v-model="bookingDraftTimezone" type="text" maxlength="80" required />
                     </label>
                   </div>
-                  <label>{{ t('commercialBooking.spaceLines') }}
+                  <label>Space lines (JSON array)
                     <textarea v-model="bookingDraftSpaceLinesJson" rows="5" spellcheck="false"></textarea>
                   </label>
-                  <label>{{ t('commercialBooking.resourceLines') }}
+                  <label>Resource lines (JSON array)
                     <textarea v-model="bookingDraftResourceLinesJson" rows="5" spellcheck="false"></textarea>
                   </label>
-                  <label>{{ t('commercialBooking.changeReason') }}
-                    <textarea v-model="bookingDraftChangeReason" rows="2" maxlength="2000" required placeholder="{{ t('commercialBooking.changeReasonPlaceholder') }}"></textarea>
+                  <label>Change reason
+                    <textarea v-model="bookingDraftChangeReason" rows="2" maxlength="2000" required placeholder="Explain why this revision is being created…"></textarea>
                   </label>
                   <div class="form-actions">
                     <button class="button button-primary" type="submit" :disabled="busy || bookingDraftChangeReason.trim().length < 3">
-                      {{ t('commercialBooking.saveRevision') }} {{ bookingDraftDetail.currentRevisionNumber + 1 }}
+                      Save as revision {{ bookingDraftDetail.currentRevisionNumber + 1 }}
                     </button>
-                    <span class="fine-print">Revision {{ bookingDraftDetail.currentRevisionNumber }} {{ t('commercialBooking.revisionUnchanged') }}</span>
+                    <span class="fine-print">Revision {{ bookingDraftDetail.currentRevisionNumber }} stays unchanged.</span>
                   </div>
                 </form>
               </template>
-              <p v-else class="fine-print">{{ t('commercialBooking.draftReadOnly') }}</p>
+              <p v-else class="fine-print">{{ t('commercialBooking.readOnly') }}</p>
             </section>
   </template>
   <template v-else>
@@ -114,37 +115,37 @@ const { busy } = props.workspace;
             <section v-if="bookingDraftDetail" class="inquiry-card booking-offer-workspace">
               <div class="inquiry-card-heading">
                 <div>
-                  <h4>{{ t('commercialBooking.commercialOffer') }}</h4>
-                  <p class="fine-print">{{ t('commercialBooking.commercialOfferInfo') }}</p>
+                  <h4>{{ t('commercialBooking.offerWorkspace') }}</h4>
+                  <p class="fine-print">{{ t('commercialBooking.offerWorkspaceInfo') }}</p>
                 </div>
                 <span class="pill pill-neutral">{{ t('commercialBooking.explicitActions') }}</span>
               </div>
 
               <div class="offer-load-row">
-                <label>{{ t('commercialBooking.offerUuid') }}
-                  <input v-model="bookingOfferIdInput" type="text" maxlength="36" placeholder="{{ t('commercialBooking.loadOfferPlaceholder') }}" />
+                <label>Offer UUID
+                  <input v-model="bookingOfferIdInput" type="text" maxlength="36" placeholder="Load an existing offer for this draft" />
                 </label>
                 <button class="button button-secondary" type="button" :disabled="busy || !bookingOfferIdInput.trim()" @click="loadBookingOffer">{{ t('commercialBooking.loadOffer') }}</button>
               </div>
 
               <div v-if="canManageBookingOffer" class="offer-preparation">
-                <h5>{{ bookingOffer ? "{{ t('commercialBooking.prepareSuccessor') }}" : "{{ t('commercialBooking.prepareFirst') }}" }}</h5>
+                <h5>{{ bookingOffer ? "Prepare successor offer revision" : "Prepare first offer revision" }}</h5>
                 <p class="fine-print">Use IDs of already published and effective organization configuration. Prices are calculated from the selected price-list revision and item codes by the server. Eventor does not supply default prices, cancellation terms, approval thresholds or tax rates.</p>
                 <form class="draft-revision-form" @submit.prevent="saveBookingOfferRevision">
                   <div class="field-grid">
-                    <label>{{ t('commercialBooking.priceListRevision') }}
+                    <label>Price-list revision UUID
                       <input v-model="bookingOfferCreateForm.priceListRevisionId" type="text" required maxlength="36" />
                     </label>
-                    <label>{{ t('commercialBooking.cancellationPolicyRevision') }}
+                    <label>Cancellation-policy revision UUID
                       <input v-model="bookingOfferCreateForm.cancellationPolicyRevisionId" type="text" required maxlength="36" />
                     </label>
-                    <label>{{ t('commercialBooking.approvalPolicyRevision') }}
+                    <label>Approval-policy revision UUID
                       <input v-model="bookingOfferCreateForm.approvalPolicyRevisionId" type="text" required maxlength="36" />
                     </label>
-                    <label>{{ t('commercialBooking.currency') }}
+                    <label>Currency (ISO 4217)
                       <input v-model="bookingOfferCreateForm.currency" type="text" required maxlength="3" placeholder="e.g. BAM" />
                     </label>
-                    <label>{{ t('commercialBooking.taxTreatment') }}
+                    <label>Tax treatment
                       <select v-model="bookingOfferCreateForm.taxBasis" required>
                         <option value="">{{ t('commercialBooking.chooseTax') }}</option>
                         <option value="inclusive">{{ t('commercialBooking.taxInclusive') }}</option>
@@ -153,30 +154,30 @@ const { busy } = props.workspace;
                         <option value="to_be_confirmed">{{ t('commercialBooking.toBeConfirmed') }}</option>
                       </select>
                     </label>
-                    <label>{{ t('commercialBooking.validUntil') }}
+                    <label>Offer valid until (your local time)
                       <input v-model="bookingOfferValidUntil" type="datetime-local" required />
                     </label>
-                    <label>{{ t('commercialBooking.tax') }} amount (zero = calculate from selected tax profile; positive = manual override)
+                    <label>Tax amount (zero = calculate from selected tax profile; positive = manual override)
                       <input v-model="bookingOfferTaxAmount" type="number" min="0" step="0.0001" required />
                     </label>
                   </div>
-                  <label>{{ t('commercialBooking.priceLineItems') }}
+                  <label>Price-list line items (JSON array)
                     <textarea v-model="bookingOfferLineItemsJson" rows="5" spellcheck="false" placeholder='[{"itemCode":"published-item-code","quantity":1}]'></textarea>
                   </label>
-                  <label>{{ t('commercialBooking.manualAdjustments') }}
+                  <label>Manual adjustments (JSON array)
                     <textarea v-model="bookingOfferAdjustmentsJson" rows="5" spellcheck="false" placeholder='[{"code":"adjustment-code","label":"Reasoned adjustment","kind":"discount","amount":0.01,"allocationMethod":"proportional_to_lines"}]'></textarea>
                     <small>When the selected price list has a tax profile, every adjustment must explicitly use allocationMethod "tax_code" with a taxCode, "proportional_to_lines" (allocated by the priced lines' tax-code mix), or "not_applicable" for a not-applicable profile. Eventor never guesses tax treatment. Without a selected profile, the legacy manual tax workflow remains available.</small>
                   </label>
-                  <label>{{ t('commercialBooking.internalTaxReason') }}
-                    <textarea v-model="bookingOfferInternalReason" rows="2" maxlength="2000" required placeholder="{{ t('commercialBooking.manualTermsPlaceholder') }}"></textarea>
+                  <label>Internal reason / tax audit reason
+                    <textarea v-model="bookingOfferInternalReason" rows="2" maxlength="2000" required placeholder="Explain manual terms, especially any tax amount or adjustment…"></textarea>
                   </label>
                   <label v-if="bookingOffer" class="check-row">
                     <input v-model="bookingOfferSupersedeCurrent" type="checkbox" />
-                    {{ t('commercialBooking.supersedeCurrent') }}
+                    Request superseding the current offer (server validates eligibility)
                   </label>
                   <div class="form-actions">
                     <button class="button button-primary" type="submit" :disabled="busy || !bookingOfferValidUntil || !bookingOfferTaxAmount.trim()">
-                      {{ bookingOffer ? "{{ t('commercialBooking.createSuccessor') }}" : "{{ t('commercialBooking.prepareOffer') }}" }}
+                      {{ bookingOffer ? "Create successor revision" : "Prepare offer" }}
                     </button>
                   </div>
                 </form>
@@ -188,14 +189,14 @@ const { busy } = props.workspace;
                   <div class="metric"><span>{{ t('commercialBooking.offerStatus') }}</span><strong>{{ bookingOffer.status }}</strong><small>Offer {{ bookingOffer.offerId }}</small></div>
                   <div class="metric"><span>{{ t('commercialBooking.offerRevision') }}</span><strong>{{ bookingOffer.currentRevision.revisionNumber }}</strong><small>{{ bookingOffer.currentRevision.state }}</small></div>
                   <div class="metric"><span>{{ t('commercialBooking.subtotal') }}</span><strong>{{ formatMoney(bookingOffer.currentRevision.subtotal, bookingOffer.currentRevision.currency) }}</strong></div>
-                  <div class="metric"><span>{{ t('commercialBooking.total') }}</span><strong>{{ formatMoney(bookingOffer.currentRevision.totalAmount, bookingOffer.currentRevision.currency) }}</strong><small>{{ t('commercialBooking.tax') }} {{ formatMoney(bookingOffer.currentRevision.taxAmount, bookingOffer.currentRevision.currency) }}</small></div>
+                  <div class="metric"><span>{{ t('commercialBooking.total') }}</span><strong>{{ formatMoney(bookingOffer.currentRevision.totalAmount, bookingOffer.currentRevision.currency) }}</strong><small>Tax {{ formatMoney(bookingOffer.currentRevision.taxAmount, bookingOffer.currentRevision.currency) }}</small></div>
                 </div>
                 <dl class="offer-reference-list">
                   <dt>{{ t('commercialBooking.draftRevision') }}</dt><dd class="mono">{{ bookingOffer.currentRevision.draftRevisionId }}</dd>
                   <dt>Price-list revision</dt><dd class="mono">{{ bookingOffer.currentRevision.priceListRevisionId }}</dd>
                   <dt>{{ t('commercialBooking.cancellationPolicy') }}</dt><dd class="mono">{{ bookingOffer.currentRevision.cancellationPolicyRevisionId }}</dd>
                   <dt>{{ t('commercialBooking.approvalPolicy') }}</dt><dd class="mono">{{ bookingOffer.currentRevision.approvalPolicyRevisionId }}</dd>
-                  <dt>{{ t('commercialBooking.validUntil') }}</dt><dd>{{ formatDate(bookingOffer.currentRevision.validUntil) }}</dd>
+                  <dt>Valid until</dt><dd>{{ formatDate(bookingOffer.currentRevision.validUntil) }}</dd>
                   <dt>{{ t('commercialBooking.issued') }}</dt><dd>{{ formatDate(bookingOffer.currentRevision.issuedAt) }}</dd>
                   <dt>{{ t('commercialBooking.customerAccepted') }}</dt><dd>{{ formatDate(bookingOffer.currentRevision.acceptedAt) }}</dd>
                 </dl>
@@ -233,7 +234,7 @@ const { busy } = props.workspace;
                     <div class="metric"><span>Failed</span><strong>{{ bookingOfferEmailMeta?.counts.failed ?? 0 }}</strong></div>
                   </div>
                   <div class="delivery-toolbar">
-                    <label>{{ t('commercialBooking.filterEmail') }}
+                    <label>Filter email status
                       <select v-model="bookingOfferEmailStatusFilter" @change="bookingOfferEmailOffset = 0; refreshBookingOfferEmailData()">
                         <option value="">All statuses</option>
                         <option v-for="status in ['queued','sending','sent','failed','uncertain']" :key="status" :value="status">{{ status }}</option>
@@ -244,7 +245,7 @@ const { busy } = props.workspace;
                     <article v-for="delivery in bookingOfferEmailDeliveries" :key="delivery.deliveryId" class="delivery-attempt">
                       <div class="delivery-attempt-heading">
                         <div>
-                          <strong>{{ t('commercialBooking.offerRevision') }} · {{ delivery.offerRevisionId }}</strong>
+                          <strong>Offer revision · {{ delivery.offerRevisionId }}</strong>
                           <span class="mono">Delivery {{ delivery.deliveryId }}</span>
                         </div>
                         <span class="pill" :class="delivery.status === 'sent' ? 'pill-success' : delivery.status === 'failed' ? 'pill-danger' : delivery.status === 'uncertain' ? 'pill-warning' : 'pill-neutral'">{{ delivery.status }}</span>
@@ -305,7 +306,7 @@ const { busy } = props.workspace;
                         <p class="fine-print">{{ requirement.approvedCount }} / {{ requirement.requiredApprovals }} approvals · separation of duties {{ requirement.separationOfDuties ? "required" : "not required" }}</p>
                       </div>
                       <span class="pill" :class="requirement.blocked ? 'pill-danger' : requirement.approvedCount >= requirement.requiredApprovals ? 'pill-success' : 'pill-warning'">
-                        {{ requirement.blocked ? "{{ t('commercialBooking.blocked') }}" : requirement.approvedCount >= requirement.requiredApprovals ? "{{ t('commercialBooking.satisfied') }}" : "{{ t('commercialBooking.pending') }}" }}
+                        {{ requirement.blocked ? "Blocked" : requirement.approvedCount >= requirement.requiredApprovals ? "Satisfied" : "Pending" }}
                       </span>
                     </div>
                     <ol v-if="requirement.decisions.length" class="history-list">
@@ -316,15 +317,15 @@ const { busy } = props.workspace;
                       </li>
                     </ol>
                     <div v-if="canDecideBookingOfferRequirement(requirement)" class="operator-controls offer-approval-controls">
-                      <label>{{ t('commercialBooking.decision') }}
-                        <select v-model="bookingOfferApproval{{ t('commercialBooking.decision') }}s[requirement.ruleCode]">
+                      <label>Decision
+                        <select v-model="bookingOfferApprovalDecisions[requirement.ruleCode]">
                           <option value="approved">{{ t('commercialBooking.approve') }}</option>
                           <option value="rejected">{{ t('commercialBooking.reject') }}</option>
                           <option value="returned_for_changes">{{ t('commercialBooking.returnChanges') }}</option>
                         </select>
                       </label>
                       <label>Reason
-                        <textarea v-model="bookingOfferApprovalReasons[requirement.ruleCode]" rows="2" maxlength="2000" placeholder="{{ t('commercialBooking.decisionReason') }}"></textarea>
+                        <textarea v-model="bookingOfferApprovalReasons[requirement.ruleCode]" rows="2" maxlength="2000" placeholder="Record the decision rationale…"></textarea>
                       </label>
                       <button class="button button-secondary" type="button" :disabled="busy || (bookingOfferApprovalReasons[requirement.ruleCode] ?? '').trim().length < 3" @click="decideBookingOfferApproval(requirement)">{{ t('commercialBooking.recordDecision') }}</button>
                     </div>
@@ -334,19 +335,19 @@ const { busy } = props.workspace;
                 <div v-if="canConfirmBookingOffer" class="offer-confirm-box">
                   <h5>{{ t('commercialBooking.confirmAccepted') }}</h5>
                   <p class="fine-print">The exact draft revision has an accepted customer offer and all pinned approvals are satisfied. Final space and resource availability is rechecked transactionally on confirmation.</p>
-                  <label>{{ t('commercialBooking.confirmationReason') }}
-                    <textarea v-model="bookingOfferConfirmationReason" rows="2" maxlength="2000" placeholder="{{ t('commercialBooking.confirmReasonPlaceholder') }}"></textarea>
+                  <label>Booking confirmation reason
+                    <textarea v-model="bookingOfferConfirmationReason" rows="2" maxlength="2000" placeholder="Record why this booking is being confirmed…"></textarea>
                   </label>
                   <button class="button button-primary" type="button" :disabled="busy || bookingOfferConfirmationReason.trim().length < 3" @click="confirmBookingFromAcceptedOffer">{{ t('commercialBooking.confirmBooking') }}</button>
                 </div>
                 <p v-else-if="bookingOffer.currentRevision.state === 'accepted'" class="fine-print text-warning">{{ t('commercialBooking.confirmationUnavailable') }}</p>
 
                 <div v-if="bookingOffer.revisionHistory.length" class="draft-revision-history">
-                  <h5>{{ t('commercialBooking.offerRevision') }} history</h5>
+                  <h5>Offer revision history</h5>
                   <ol class="history-list">
                     <li v-for="history in bookingOffer.revisionHistory" :key="history.offerRevisionId">
-                      <strong>{{ t('commercialBooking.offerRevision') }} {{ history.revisionNumber }} · {{ history.state }}</strong>
-                      <span>{{ t('commercialBooking.draftRevision') }} {{ history.draftRevisionId }}</span>
+                      <strong>Offer revision {{ history.revisionNumber }} · {{ history.state }}</strong>
+                      <span>Draft revision {{ history.draftRevisionId }}</span>
                       <small>{{ formatDate(history.createdAt) }} · issued {{ formatDate(history.issuedAt) }}</small>
                     </li>
                   </ol>
