@@ -490,6 +490,8 @@ export default {
       "active_hold": "Active temporary hold"
     },
     "availabilityReason": {
+      "resource_interval_missing": "Set both booking start and end dates to check resource capacity.",
+      "resource_interval_invalid": "The booking end date must be later than the start date.",
       "resource_unavailable": "This resource type is no longer reservable.",
       "no_active_resource_pools": "No active resource pools are available.",
       "resource_capacity_conflict": "Requested quantity exceeds the available capacity for this interval."
