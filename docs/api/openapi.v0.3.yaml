@@ -838,7 +838,7 @@ paths:
       tags: ["Booking Administration"]
       operationId: queueBookingOfferEmailDelivery
       summary: "Queue an issued booking offer for email delivery"
-      description: "Requires booking.manage and an active capability returned by issueBookingOffer. The recipient is the encrypted email address on the source public inquiry. The capability is encrypted before being placed in the tenant-scoped SMTP queue; delivery uses the organisation's current tested SMTP configuration. SMTP acceptance is not proof of inbox delivery."
+      description: "Requires booking.manage and the active customer capability returned by issueBookingOffer. The recipient is the encrypted email address on the source inquiry. The capability is encrypted in the tenant-scoped queue and decrypted only by the worker. SMTP acceptance is not proof of inbox delivery."
       security: [{ StaffSession: [], StaffCsrf: [] }]
       parameters:
         - $ref: '#/components/parameters/POfferId'
@@ -851,7 +851,125 @@ paths:
               type: object
               required: [acceptanceToken]
               properties:
-                acceptanceToken: { type: string, pattern: '^[A-Za-z0-9_-]{43}    post:
+                acceptanceToken: { type: string, pattern: '^[A-Za-z0-9_-]{43}$' }
+              additionalProperties: false
+      responses:
+        '201':
+          description: "Offer email accepted into the background delivery queue."
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/DataEnvelope' }
+        '400': { $ref: '#/components/responses/BadRequest' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '404': { $ref: '#/components/responses/NotFound' }
+        '409': { $ref: '#/components/responses/Conflict' }
+        '422': { $ref: '#/components/responses/UnprocessableEntity' }
+        '500': { $ref: '#/components/responses/InternalServerError' }
+  "/booking-offers/{offerId}/email-deliveries":
+    get:
+      tags: ["Booking Administration"]
+      operationId: listBookingOfferEmailDeliveries
+      summary: "List delivery status and history for an offer"
+      description: "Requires booking.manage. Returns status, timestamps, bounded retry counts and safe failure codes only; recipient addresses, SMTP credentials and encrypted payloads are never exposed."
+      security: [{ StaffSession: [] }]
+      parameters:
+        - $ref: '#/components/parameters/POfferId'
+        - name: status
+          in: query
+          schema: { type: string, enum: [queued, sending, sent, failed, uncertain] }
+        - name: limit
+          in: query
+          schema: { type: integer, minimum: 1, maximum: 100, default: 25 }
+        - name: offset
+          in: query
+          schema: { type: integer, minimum: 0, maximum: 10000, default: 0 }
+      responses:
+        '200':
+          description: "Offer email delivery page and status counts."
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/PaginatedDataEnvelope' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '404': { $ref: '#/components/responses/NotFound' }
+        '500': { $ref: '#/components/responses/InternalServerError' }
+  "/booking-offer-email-deliveries/{deliveryId}/reconcile":
+    post:
+      tags: ["Booking Administration"]
+      operationId: reconcileBookingOfferEmailDelivery
+      summary: "Record a verified outcome for an uncertain offer email"
+      description: "Requires booking.manage. This action never sends an email. Only confirmed_sent or confirmed_not_sent are accepted; a separate one-time retry may be authorised only after confirmed non-acceptance and while the exact offer revision remains current and unexpired."
+      security: [{ StaffSession: [], StaffCsrf: [] }]
+      parameters:
+        - name: deliveryId
+          in: path
+          required: true
+          schema: { type: string, format: uuid }
+        - $ref: '#/components/parameters/IdempotencyKey'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [resolution, reason]
+              properties:
+                resolution: { type: string, enum: [confirmed_sent, confirmed_not_sent] }
+                reason: { type: string, minLength: 3, maxLength: 1000 }
+                providerMessageReference: { type: string, maxLength: 998 }
+              additionalProperties: false
+      responses:
+        '200':
+          description: "Delivery outcome reconciled and audited."
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/DataEnvelope' }
+        '400': { $ref: '#/components/responses/BadRequest' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '404': { $ref: '#/components/responses/NotFound' }
+        '409': { $ref: '#/components/responses/Conflict' }
+        '422': { $ref: '#/components/responses/UnprocessableEntity' }
+        '500': { $ref: '#/components/responses/InternalServerError' }
+  "/booking-offer-email-deliveries/{deliveryId}/retry":
+    post:
+      tags: ["Booking Administration"]
+      operationId: retryBookingOfferEmailDelivery
+      summary: "Authorise the single manual retry of an offer email"
+      description: "Requires booking.manage. The delivery must have been explicitly reconciled as confirmed_not_sent; the exact offer revision must remain current and unexpired. Only one manual retry is allowed, and normal transient SMTP retries remain bounded."
+      security: [{ StaffSession: [], StaffCsrf: [] }]
+      parameters:
+        - name: deliveryId
+          in: path
+          required: true
+          schema: { type: string, format: uuid }
+        - $ref: '#/components/parameters/IdempotencyKey'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [reason]
+              properties:
+                reason: { type: string, minLength: 3, maxLength: 1000 }
+              additionalProperties: false
+      responses:
+        '200':
+          description: "One-time retry queued."
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/DataEnvelope' }
+        '400': { $ref: '#/components/responses/BadRequest' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '404': { $ref: '#/components/responses/NotFound' }
+        '409': { $ref: '#/components/responses/Conflict' }
+        '422': { $ref: '#/components/responses/UnprocessableEntity' }
+        '500': { $ref: '#/components/responses/InternalServerError' }
+  "/booking-offers/{offerId}/revisions":
+    post:
       tags: ["Booking Administration"]
       operationId: createBookingOfferSuccessorRevision
       summary: "Create a successor offer revision"
