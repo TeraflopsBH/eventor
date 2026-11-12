@@ -27,6 +27,19 @@ type EventChangeDecisionBody = JsonRequestBody<"/event-change-requests/{requestI
 type EventChangeExecutionBody = JsonRequestBody<"/event-change-requests/{requestId}/execute", "post">;
 type EmailDeliveryConfigBody = JsonRequestBody<"/organization/delivery/email/configuration", "post">;
 type EmailDeliveryTestBody = JsonRequestBody<"/organization/delivery/email/test", "post">;
+type BookingOfferCreateBody = {
+  priceListRevisionId: string;
+  cancellationPolicyRevisionId: string;
+  approvalPolicyRevisionId: string;
+  currency: string;
+  taxBasis: "inclusive" | "exclusive" | "not_applicable" | "to_be_confirmed";
+  validUntil: string;
+  lineItems: Array<{ itemCode: string; quantity: number }>;
+  adjustments?: Array<{ code: string; label: string; kind: "fee" | "discount" | "credit"; amount: number }>;
+  taxAmount: number;
+  internalReason?: string;
+};
+type BookingOfferSuccessorBody = BookingOfferCreateBody & { draftRevisionId: string; supersedeCurrentOffer?: boolean };
 
 export type StaffAuthenticator = (request: FastifyRequest) => Promise<StaffPrincipal | null>;
 export type MutationOriginVerifier = (request: FastifyRequest, principal: StaffPrincipal) => Promise<boolean>;
@@ -201,6 +214,74 @@ const inquiryParams = {
   properties: { inquiryId: { type: "string", pattern: uuidPattern } },
   additionalProperties: false,
 } as const;
+const bookingOfferParams = {
+  type: "object", required: ["offerId"],
+  properties: { offerId: { type: "string", pattern: uuidPattern } },
+  additionalProperties: false,
+} as const;
+const bookingOfferRevisionParams = {
+  type: "object", required: ["revisionId"],
+  properties: { revisionId: { type: "string", pattern: uuidPattern } },
+  additionalProperties: false,
+} as const;
+const bookingOfferCreateBody = {
+  type: "object",
+  required: ["priceListRevisionId", "cancellationPolicyRevisionId", "approvalPolicyRevisionId", "currency", "taxBasis", "validUntil", "lineItems", "taxAmount"],
+  properties: {
+    priceListRevisionId: { type: "string", pattern: uuidPattern },
+    cancellationPolicyRevisionId: { type: "string", pattern: uuidPattern },
+    approvalPolicyRevisionId: { type: "string", pattern: uuidPattern },
+    currency: { type: "string", pattern: "^[A-Z]{3}$" },
+    taxBasis: { type: "string", enum: ["inclusive", "exclusive", "not_applicable", "to_be_confirmed"] },
+    validUntil: { type: "string", format: "date-time" },
+    lineItems: { type: "array", maxItems: 100, items: {
+      type: "object", required: ["itemCode", "quantity"],
+      properties: { itemCode: { type: "string", minLength: 1, maxLength: 100 }, quantity: { type: "number", exclusiveMinimum: 0, maximum: 999999999.999 } },
+      additionalProperties: false,
+    } },
+    adjustments: { type: "array", maxItems: 50, items: {
+      type: "object", required: ["code", "label", "kind", "amount"],
+      properties: {
+        code: { type: "string", minLength: 1, maxLength: 80 },
+        label: { type: "string", minLength: 1, maxLength: 250 },
+        kind: { type: "string", enum: ["fee", "discount", "credit"] },
+        amount: { type: "number", exclusiveMinimum: 0, maximum: 99999999999999.99 },
+      },
+      additionalProperties: false,
+    } },
+    taxAmount: { type: "number", minimum: 0, maximum: 99999999999999.99 },
+    internalReason: { type: "string", minLength: 3, maxLength: 2000 },
+  },
+  additionalProperties: false,
+} as const;
+const bookingOfferSuccessorBody = {
+  type: "object",
+  required: ["draftRevisionId", "priceListRevisionId", "cancellationPolicyRevisionId", "approvalPolicyRevisionId", "currency", "taxBasis", "validUntil", "lineItems", "taxAmount"],
+  properties: {
+    draftRevisionId: { type: "string", pattern: uuidPattern },
+    priceListRevisionId: { type: "string", pattern: uuidPattern },
+    cancellationPolicyRevisionId: { type: "string", pattern: uuidPattern },
+    approvalPolicyRevisionId: { type: "string", pattern: uuidPattern },
+    currency: { type: "string", pattern: "^[A-Z]{3}$" },
+    taxBasis: { type: "string", enum: ["inclusive", "exclusive", "not_applicable", "to_be_confirmed"] },
+    validUntil: { type: "string", format: "date-time" },
+    lineItems: { type: "array", maxItems: 100, items: {
+      type: "object", required: ["itemCode", "quantity"],
+      properties: { itemCode: { type: "string", minLength: 1, maxLength: 100 }, quantity: { type: "number", exclusiveMinimum: 0, maximum: 999999999.999 } },
+      additionalProperties: false,
+    } },
+    adjustments: { type: "array", maxItems: 50, items: {
+      type: "object", required: ["code", "label", "kind", "amount"],
+      properties: { code: { type: "string", minLength: 1, maxLength: 80 }, label: { type: "string", minLength: 1, maxLength: 250 }, kind: { type: "string", enum: ["fee", "discount", "credit"] }, amount: { type: "number", exclusiveMinimum: 0, maximum: 99999999999999.99 } },
+      additionalProperties: false,
+    } },
+    taxAmount: { type: "number", minimum: 0, maximum: 99999999999999.99 },
+    internalReason: { type: "string", minLength: 3, maxLength: 2000 },
+    supersedeCurrentOffer: { type: "boolean", default: false },
+  },
+  additionalProperties: false,
+} as const;
+const bookingOfferIssueBody = { type: "object", properties: {}, additionalProperties: false } as const;
 const bookingDraftParams = {
   type: "object",
   required: ["draftId"],
