@@ -101,8 +101,8 @@ DECLARE
   v_line_total numeric;
   v_line_count integer := 0;
   v_adjustment_count integer := 0;
-  v_subtotal numeric(14,2) := 0;
-  v_total numeric(14,2) := 0;
+  v_subtotal numeric := 0;
+  v_total numeric := 0;
   v_tax numeric;
   v_lines jsonb := '[]'::jsonb;
   v_adjustments jsonb := '[]'::jsonb;
@@ -291,6 +291,11 @@ BEGIN
     v_adjustment_code := v_price_item.unit;
 
     v_line_total := round(v_quantity * v_unit_amount, 2);
+    IF v_line_total > 999999999999.99
+       OR v_subtotal + v_line_total > 999999999999.99 THEN
+      RAISE EXCEPTION 'offer line total or subtotal exceeds the supported amount range'
+        USING ERRCODE = '22023';
+    END IF;
     v_subtotal := v_subtotal + v_line_total;
     v_lines := v_lines || jsonb_build_array(jsonb_build_object(
       'itemCode', v_item_code,
@@ -324,7 +329,8 @@ BEGIN
     IF length(v_adjustment_code) NOT BETWEEN 1 AND 80
        OR length(v_adjustment_label) NOT BETWEEN 1 AND 250
        OR v_adjustment_kind NOT IN ('fee','discount','credit')
-       OR v_adjustment_amount <= 0 OR v_adjustment_amount::text IN ('NaN','Infinity','-Infinity')
+       OR v_adjustment_amount <= 0 OR v_adjustment_amount > 999999999999.99
+       OR v_adjustment_amount::text IN ('NaN','Infinity','-Infinity')
        OR scale(trim_scale(v_adjustment_amount)) > 2 THEN
       RAISE EXCEPTION 'offer adjustment % has invalid values', v_adjustment_count USING ERRCODE = '22023';
     END IF;
@@ -332,6 +338,10 @@ BEGIN
       v_subtotal := v_subtotal + v_adjustment_amount;
     ELSE
       v_subtotal := v_subtotal - v_adjustment_amount;
+    END IF;
+    IF v_subtotal < 0 OR v_subtotal > 999999999999.99 THEN
+      RAISE EXCEPTION 'offer adjustments produce a subtotal outside the supported amount range'
+        USING ERRCODE = '22023';
     END IF;
     v_adjustments := v_adjustments || jsonb_build_array(jsonb_build_object(
       'code',v_adjustment_code,'label',v_adjustment_label,
@@ -347,6 +357,15 @@ BEGIN
   END IF;
   IF p_tax_basis = 'to_be_confirmed' AND v_tax <> 0 THEN
     RAISE EXCEPTION 'tax amount must remain zero until the tax basis is confirmed' USING ERRCODE = '22023';
+  END IF;
+  IF v_tax > 0 THEN
+    IF p_internal_reason IS NULL OR length(btrim(p_internal_reason)) < 3 THEN
+      RAISE EXCEPTION 'a reason is required for a manually supplied tax amount'
+        USING ERRCODE = '22023';
+    END IF;
+    PERFORM eogp.assert_booking_commercial_permission(
+      p_organization_id,p_actor_membership_id,ARRAY['booking.approve']::text[]
+    );
   END IF;
   IF p_tax_basis = 'inclusive' AND v_tax > v_subtotal THEN
     RAISE EXCEPTION 'included tax cannot exceed the offer subtotal' USING ERRCODE = '22023';
@@ -492,6 +511,7 @@ DECLARE
   v_revision eogp.booking_offer_revisions%ROWTYPE;
   v_draft_status text;
   v_current_draft_revision_number integer;
+  v_offer_draft_id uuid;
   v_price_state text;
   v_price_effective_from timestamptz;
   v_price_effective_until timestamptz;
@@ -504,6 +524,18 @@ BEGIN
   );
   IF p_capability_token_sha256 IS NULL OR p_capability_token_sha256 !~ '^[0-9a-f]{64}$' THEN
     RAISE EXCEPTION 'offer capability token fingerprint is invalid' USING ERRCODE = '22023';
+  END IF;
+
+  SELECT offer.draft_id,draft.status,draft.current_revision_number
+    INTO v_offer_draft_id,v_draft_status,v_current_draft_revision_number
+    FROM eogp.booking_offers offer
+    JOIN eogp.booking_drafts draft
+      ON draft.organization_id=offer.organization_id
+     AND draft.id=offer.draft_id
+   WHERE offer.organization_id=p_organization_id AND offer.id=p_offer_id
+   FOR UPDATE OF draft;
+  IF NOT FOUND OR v_draft_status <> 'draft' THEN
+    RAISE EXCEPTION 'offer draft is no longer editable' USING ERRCODE = '55000';
   END IF;
 
   SELECT * INTO v_offer
@@ -534,15 +566,6 @@ BEGIN
   IF v_revision.approval_policy_revision_id IS NULL THEN
     RAISE EXCEPTION 'a published approval policy revision must be selected before issuing an offer'
       USING ERRCODE = '55000';
-  END IF;
-
-  SELECT draft.status,draft.current_revision_number
-    INTO v_draft_status,v_current_draft_revision_number
-    FROM eogp.booking_drafts draft
-   WHERE draft.organization_id=p_organization_id AND draft.id=v_offer.draft_id
-   FOR UPDATE;
-  IF NOT FOUND OR v_draft_status <> 'draft' THEN
-    RAISE EXCEPTION 'offer draft is no longer editable' USING ERRCODE = '55000';
   END IF;
   IF NOT EXISTS (
     SELECT 1 FROM eogp.booking_draft_revisions dr
