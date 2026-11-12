@@ -96,6 +96,7 @@ DECLARE
   v_item_code text;
   v_quantity numeric;
   v_unit_amount numeric;
+  v_price_item eogp.booking_price_items%ROWTYPE;
   v_line_total numeric;
   v_line_count integer := 0;
   v_adjustment_count integer := 0;
@@ -119,7 +120,16 @@ BEGIN
     p_organization_id, p_actor_membership_id, ARRAY['booking.manage']::text[]
   );
 
-  IF p_currency IS NULL OR p_currency !~ '^[A-Z]{3} ('inclusive','exclusive','not_applicable','to_be_confirmed')
+  IF p_currency IS NULL OR p_currency !~ '^[A-Z]{3}$'
+     OR p_tax_basis IS NULL OR p_tax_basis NOT IN ('inclusive','exclusive','not_applicable','to_be_confirmed')
+     OR p_valid_until IS NULL OR p_valid_until <= clock_timestamp()
+     OR p_tax_amount IS NULL OR p_tax_amount < 0
+     OR p_tax_amount > 999999999999.99
+     OR p_tax_amount::text IN ('NaN','Infinity','-Infinity')
+     OR scale(trim_scale(p_tax_amount)) > 2 THEN
+    RAISE EXCEPTION 'offer currency, tax basis, validity or tax amount is invalid'
+      USING ERRCODE = '22023';
+  END IF;
      OR p_valid_until IS NULL OR p_valid_until <= clock_timestamp()
      OR p_tax_amount IS NULL OR p_tax_amount < 0
      OR p_tax_amount::text IN ('NaN','Infinity','-Infinity')
@@ -127,7 +137,18 @@ BEGIN
     RAISE EXCEPTION 'offer currency, tax basis, validity or tax amount is invalid'
       USING ERRCODE = '22023';
   END IF;
-  IF p_line_items IS NULL OR jsonb_typeof(p_line_items) <> 'array'
+  IF p_line_items IS NULL OR jsonb_typeof(p_line_items) <> 'array' THEN
+    RAISE EXCEPTION 'offer line items must be a JSON array' USING ERRCODE = '22023';
+  END IF;
+  IF jsonb_array_length(p_line_items) > 100 THEN
+    RAISE EXCEPTION 'offer line items cannot contain more than 100 entries' USING ERRCODE = '22023';
+  END IF;
+  IF p_adjustments IS NULL OR jsonb_typeof(p_adjustments) <> 'array' THEN
+    RAISE EXCEPTION 'offer adjustments must be a JSON array' USING ERRCODE = '22023';
+  END IF;
+  IF jsonb_array_length(p_adjustments) > 50 THEN
+    RAISE EXCEPTION 'offer adjustments cannot contain more than 50 entries' USING ERRCODE = '22023';
+  END IF;
      OR jsonb_array_length(p_line_items) > 100
      OR p_adjustments IS NULL OR jsonb_typeof(p_adjustments) <> 'array'
      OR jsonb_array_length(p_adjustments) > 50 THEN
@@ -236,8 +257,7 @@ BEGIN
       RAISE EXCEPTION 'offer line % item code or quantity is invalid', v_line_count USING ERRCODE = '22023';
     END IF;
 
-    SELECT item.unit_amount, item.quantity_min, item.quantity_max, item.label, item.unit
-      INTO v_unit_amount, v_line_total, v_adjustment_amount, v_adjustment_label, v_adjustment_code
+    SELECT * INTO v_price_item
       FROM eogp.booking_price_items item
      WHERE item.organization_id = p_organization_id
        AND item.price_list_revision_id = p_price_list_revision_id
@@ -247,10 +267,14 @@ BEGIN
       RAISE EXCEPTION 'offer line % refers to an item outside the selected published price list', v_line_count
         USING ERRCODE = '23503';
     END IF;
-    IF v_quantity < v_line_total OR (v_adjustment_amount IS NOT NULL AND v_quantity > v_adjustment_amount) THEN
+    IF v_quantity IS NULL OR v_quantity < v_price_item.quantity_min
+       OR (v_price_item.quantity_max IS NOT NULL AND v_quantity > v_price_item.quantity_max) THEN
       RAISE EXCEPTION 'offer line % quantity is outside the configured price-list bounds', v_line_count
         USING ERRCODE = '22023';
     END IF;
+    v_unit_amount := v_price_item.unit_amount;
+    v_adjustment_label := v_price_item.label;
+    v_adjustment_code := v_price_item.unit;
 
     v_line_total := round(v_quantity * v_unit_amount, 2);
     v_subtotal := v_subtotal + v_line_total;
@@ -261,10 +285,7 @@ BEGIN
       'quantity', v_quantity,
       'unitAmount', v_unit_amount,
       'lineTotal', v_line_total,
-      'taxCode', (SELECT item.tax_code FROM eogp.booking_price_items item
-                   WHERE item.organization_id = p_organization_id
-                     AND item.price_list_revision_id = p_price_list_revision_id
-                     AND item.item_code = v_item_code)
+      'taxCode', v_price_item.tax_code
     ));
   END LOOP;
 
@@ -304,7 +325,7 @@ BEGIN
     ));
   END LOOP;
 
-  IF v_subtotal < 0 OR v_subtotal > 99999999999999.99 THEN
+  IF v_subtotal < 0 OR v_subtotal > 999999999999.99 THEN
     RAISE EXCEPTION 'offer subtotal is outside the supported range' USING ERRCODE = '22023';
   END IF;
   IF p_tax_basis = 'not_applicable' AND v_tax <> 0 THEN
@@ -313,12 +334,18 @@ BEGIN
   IF p_tax_basis = 'to_be_confirmed' AND v_tax <> 0 THEN
     RAISE EXCEPTION 'tax amount must remain zero until the tax basis is confirmed' USING ERRCODE = '22023';
   END IF;
+  IF p_tax_basis = 'inclusive' AND v_tax > v_subtotal THEN
+    RAISE EXCEPTION 'included tax cannot exceed the offer subtotal' USING ERRCODE = '22023';
+  END IF;
   IF p_tax_basis = 'exclusive' THEN
     v_total := v_subtotal + v_tax;
   ELSE
     -- For inclusive prices taxAmount is an informational component already
     -- included in the line prices and is not added to the payable total.
     v_total := v_subtotal;
+  END IF;
+  IF v_total > 999999999999.99 THEN
+    RAISE EXCEPTION 'offer total is outside the supported range' USING ERRCODE = '22023';
   END IF;
 
   IF v_offer_id IS NULL THEN
@@ -347,16 +374,13 @@ BEGIN
    FOR UPDATE;
 
   IF FOUND THEN
-    IF v_previous_state = 'draft' THEN
-      RAISE EXCEPTION 'the prepared offer revision must be issued or explicitly withdrawn before creating a successor'
-        USING ERRCODE = '55000';
-    ELSIF v_previous_state = 'issued' THEN
+    IF v_previous_state IN ('draft','issued') THEN
       IF NOT p_supersede_current THEN
-        RAISE EXCEPTION 'an issued offer must be explicitly superseded before creating a successor'
+        RAISE EXCEPTION 'the current prepared or issued offer must be explicitly superseded before creating a successor'
           USING ERRCODE = '55000';
       END IF;
       IF p_internal_reason IS NULL OR length(btrim(p_internal_reason)) < 3 THEN
-        RAISE EXCEPTION 'a reason is required to supersede an issued offer'
+        RAISE EXCEPTION 'a reason is required to supersede the current offer'
           USING ERRCODE = '22023';
       END IF;
       UPDATE eogp.booking_offer_revisions
