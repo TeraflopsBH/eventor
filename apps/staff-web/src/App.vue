@@ -3,8 +3,8 @@ import { computed, onMounted, reactive, ref, watch } from "vue";
 import { useI18n } from "vue-i18n";
 import type { SupportedLocale } from "./i18n";
 import { useBookingInquiries } from "./features/booking-inquiries/useBookingInquiries";
-import { formatBookingMoney, formatInquiryAnswer, formatInquiryDate, resolveInquiryAssigneeName } from "./features/booking-inquiries/presentation";
-import { api, ApiError, type CampaignReview, type CampaignProgress, type CampaignListItem, type DeliveryAttempt, type PageMeta, type EmailConfiguration, type ResendWebhookConfiguration, type Principal, type BookingInquiryListItem, type BookingInquiryDetail, type BookingInquiryAssignee, type BookingInquiryCapabilities, type BookingOfferRecord, type BookingOfferEmailDelivery, type BookingOfferApprovalStatus, type BookingOfferApprovalRequirement, type BookingOfferWriteRequest, type BookingApprovalPolicy, type BookingApprovalRule, type BookingPriceList, type BookingPriceListItem, type BookingTaxProfile, type BookingTaxProfileRevisionInput, type BookingTaxCode, type BookingCancellationPolicy, type BookingCancellationPolicyRevisionInput, type PublicBookingOffer } from "./api";
+import { formatBookingMoney, formatInquiryDate, resolveInquiryAssigneeName } from "./features/booking-inquiries/presentation";
+import { api, ApiError, type CampaignReview, type CampaignProgress, type CampaignListItem, type DeliveryAttempt, type PageMeta, type EmailConfiguration, type ResendWebhookConfiguration, type Principal, type BookingOfferRecord, type BookingOfferEmailDelivery, type BookingOfferApprovalStatus, type BookingOfferApprovalRequirement, type BookingOfferWriteRequest, type BookingApprovalPolicy, type BookingApprovalRule, type BookingPriceList, type BookingPriceListItem, type BookingTaxProfile, type BookingTaxProfileRevisionInput, type BookingTaxCode, type BookingCancellationPolicy, type BookingCancellationPolicyRevisionInput, type PublicBookingOffer } from "./api";
 
 const { locale } = useI18n();
 watch(locale, (value) => { document.documentElement.lang = value; }, { immediate: true });
@@ -259,7 +259,7 @@ const {
   inquiryRows, inquiryMeta, inquiryOffset, inquiryFilters, inquiryDetail, inquiryAssignees,
   inquiryCapabilities, selectedInquiryId, inquiryAssignmentChoice, inquiryStatusChoice,
   inquiryStatusReason, inquiryAnnotationText, inquiryStatusTargets, inquiryAnswerItems,
-  canEditInquiryAssignment, canConvertInquiry, refreshInquiryListData, refreshInquiryDetailData,
+  canEditInquiryAssignment, canConvertInquiry, refreshInquiryDetailData,
   loadInquiryList, openInquiryWorkspace, openInquiry, refreshInquiryDetail,
   saveInquiryAssignment, saveInquiryStatus, saveInquiryConversion, saveInquiryAnnotation,
   reset: resetBookingInquiries,
