@@ -29,11 +29,11 @@ const {
 <template>
 <main class="app-shell">
     <header class="topbar">
-      <a class="brand" href="/" aria-label="Eventor staff home">
+      <a class="brand" href="/"  :aria-label="$t('app.staffHome')">
         <span class="brand-mark">E</span>
         <span>EVENTOR <small>{{ $t("app.staffWorkspace") }}</small></span>
       </a>
-      <label class="locale-picker">Language <select v-model="locale"><option v-for="option in localeOptions" :key="option.value" :value="option.value">{{ option.label }}</option></select></label>
+      <label class="locale-picker">{{ $t("app.language") }} <select v-model="locale"><option v-for="option in localeOptions" :key="option.value" :value="option.value">{{ option.label }}</option></select></label>
       <div v-if="principal" class="account">
         <div class="account-copy">
           <strong>{{ selectedOrganization }}</strong>
@@ -77,7 +77,7 @@ const {
         <div class="session-chip"><span class="status-dot"></span> {{ $t("workspace.active") }}</div>
       </section>
 
-      <nav class="tabs" aria-label="Staff workspace sections">
+      <nav class="tabs" :aria-label="$t('app.workspaceSections')">
         <button :class="{ active: activeTab === 'delivery' }" @click="activeTab = 'delivery'">{{ $t("navigation.delivery") }}</button>
         <button :class="{ active: activeTab === 'campaign' }" @click="activeTab = 'campaign'">{{ $t("navigation.campaigns") }}</button>
         <button :class="{ active: activeTab === 'inquiries' }" @click="openInquiryWorkspace">{{ $t("navigation.inquiries") }}</button>
@@ -94,6 +94,6 @@ const {
     <div v-if="pageError" class="message message-error" role="alert">{{ pageError }}</div>
     <div v-if="pageNotice" class="message message-success" role="status">{{ pageNotice }}</div>
 
-    <footer class="footer"><span>EVENTOR · STAFF WORKSPACE</span><span>Self-hosted · Organization-scoped · API-authoritative</span></footer>
+    <footer class="footer"><span>{{ $t("app.footerBrand") }}</span><span>{{ $t("app.footerDescription") }}</span></footer>
   </main>
 </template>
