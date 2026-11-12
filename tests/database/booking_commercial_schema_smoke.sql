@@ -316,5 +316,42 @@ BEGIN
     RAISE EXCEPTION 'price-list revision and item immutability guards are missing';
   END IF;
 
+  -- Migration 000072 must keep bearer capability records opaque to both
+  -- application roles, and keep its trigger helper outside every app role.
+  IF EXISTS (
+    SELECT 1
+      FROM (VALUES ('eventor_runtime'), ('eventor_worker')) AS roles(role_name)
+      CROSS JOIN (VALUES
+        ('SELECT'), ('INSERT'), ('UPDATE'), ('DELETE'),
+        ('TRUNCATE'), ('REFERENCES'), ('TRIGGER')
+      ) AS privileges(privilege_name)
+     WHERE has_table_privilege(
+       role_name, 'eogp.external_action_capabilities', privilege_name
+     )
+  ) THEN
+    RAISE EXCEPTION 'runtime or worker role has direct privileges on bearer capability records';
+  END IF;
+
+  IF to_regprocedure('eogp.assert_revision_parent_mutable(text,jsonb)') IS NULL
+     OR has_function_privilege('eventor_runtime',
+       'eogp.assert_revision_parent_mutable(text,jsonb)', 'EXECUTE')
+     OR has_function_privilege('eventor_worker',
+       'eogp.assert_revision_parent_mutable(text,jsonb)', 'EXECUTE')
+     OR has_function_privilege('eventor_auth',
+       'eogp.assert_revision_parent_mutable(text,jsonb)', 'EXECUTE')
+     OR EXISTS (
+       SELECT 1
+         FROM pg_catalog.pg_proc function
+         CROSS JOIN LATERAL aclexplode(coalesce(
+           function.proacl,
+           acldefault('f', function.proowner)
+         )) privilege
+        WHERE function.oid = to_regprocedure('eogp.assert_revision_parent_mutable(text,jsonb)')
+          AND privilege.grantee = 0
+          AND privilege.privilege_type = 'EXECUTE'
+     ) THEN
+    RAISE EXCEPTION 'internal revision-parent trigger helper is missing or executable by an application role/PUBLIC';
+  END IF;
+
 END;
 $test$;
