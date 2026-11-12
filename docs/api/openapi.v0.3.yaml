@@ -836,6 +836,26 @@ paths:
         '422': { $ref: '#/components/responses/UnprocessableEntity' }
         '429': { $ref: '#/components/responses/TooManyRequests' }
         '500': { $ref: '#/components/responses/InternalServerError' }
+  "/public/booking-offers/{offerId}":
+    get:
+      tags: ["Booking Administration"]
+      operationId: getPublicBookingOffer
+      summary: "Read the customer-safe terms of the exact issued offer"
+      description: "Anonymous access requires X-External-Booking-Token. The capability is purpose-bound to the offer revision, does not consume its use, and returns only customer-visible commercial terms. Internal approval rules, staff identities, internal reasons and contact values are excluded."
+      security: [{ BookingActionCapability: [] }]
+      parameters:
+        - $ref: '#/components/parameters/POfferId'
+      responses:
+        '200':
+          description: "Customer-visible offer terms."
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/DataEnvelope' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '404': { $ref: '#/components/responses/NotFound' }
+        '409': { $ref: '#/components/responses/Conflict' }
+        '410': { $ref: '#/components/responses/Gone' }
+        '500': { $ref: '#/components/responses/InternalServerError' }
   "/booking-offers/{offerId}/accept":
     post:
       tags: ["Booking Administration"]
