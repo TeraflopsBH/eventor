@@ -262,6 +262,7 @@ export default {
     "stateReturnedForChanges": "Vraćeno na izmjene",
     "stateConfirmedSent": "Potvrđeno kao poslano",
     "stateConfirmedNotSent": "Potvrđeno kao neposlano",
+    "timezone": "Vremenska zona",
   },
   publicOffer: {
     "language": "Jezik",
@@ -310,5 +311,6 @@ export default {
     "thanksAcceptance": "Hvala vam. Vaše prihvatanje je sigurno evidentirano. Organizacija će zasebno završiti interna odobrenja i potvrdu rezervacije.",
     "thanksRejection": "Vaša odluka da odbijete ponudu je sigurno evidentirana.",
     "privateLinkFooter": "Ovaj link za klijenta je privatan. Svako ko ga posjeduje može imati mogućnost postupanja po ponudi. Nemojte ga prosljeđivati.",
+    "revision": "VERZIJA",
   },
 } as const;
