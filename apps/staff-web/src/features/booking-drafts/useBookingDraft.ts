@@ -147,7 +147,12 @@ export function useBookingDraft(dependencies: BookingDraftDependencies) {
         });
         return;
       }
-      normalizedSpaceLines = spaceLines.value.map((line) => ({ ...line }));
+      normalizedSpaceLines = spaceLines.value.map(({ requestedCapacity, ...line }) => ({
+        ...line,
+        ...(requestedCapacity === "" || requestedCapacity === 0 || requestedCapacity === null || requestedCapacity === undefined
+          ? {}
+          : { requestedCapacity }),
+      }));
       normalizedResourceLines = resourceLines.value.map((line) => ({ ...line, values: { ...(line.values ?? {}) } }));
       if (sourceFormFields.value.length) {
         const issue = validatePublicBookingAnswers(sourceFormFields.value, draftAnswers.value);
