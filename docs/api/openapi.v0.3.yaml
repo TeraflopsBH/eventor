@@ -5817,7 +5817,34 @@ components:
         priceListRevisionId: { type: string, format: uuid }
         cancellationPolicyRevisionId: { type: string, format: uuid }
         approvalPolicyRevisionId: { type: string, format: uuid }
-         currency: { type: string, pattern: '^[A-Z]{3}$' }
+        currency: { type: string, pattern: '^[A-Z]{3}$' }
+        taxBasis: { type: string, enum: [inclusive, exclusive, not_applicable, to_be_confirmed] }
+        validUntil: { type: string, format: date-time }
+        lineItems:
+          type: array
+          maxItems: 100
+          items:
+            type: object
+            required: [itemCode, quantity]
+            properties:
+              itemCode: { type: string, minLength: 1, maxLength: 100 }
+              quantity: { type: number, exclusiveMinimum: 0, maximum: 999999999.999 }
+            additionalProperties: false
+        adjustments:
+          type: array
+          maxItems: 50
+          items:
+            type: object
+            required: [code, label, kind, amount]
+            properties:
+              code: { type: string, minLength: 1, maxLength: 80 }
+              label: { type: string, minLength: 1, maxLength: 250 }
+              kind: { type: string, enum: [fee, discount, credit] }
+              amount: { type: number, exclusiveMinimum: 0, maximum: 999999999999.99 }
+            additionalProperties: false
+        taxAmount: { type: number, minimum: 0, maximum: 999999999999.99 }
+        internalReason: { type: string, minLength: 3, maxLength: 2000 }
+      additionalProperties: false
     OfferAcceptanceRequest:
       type: object
       properties:
@@ -6596,16 +6623,27 @@ components:
         values: { type: object, additionalProperties: true }
     BookingOfferCreateRequest:
       type: object
-      required: [currency, taxBasis, validUntil]
+      required: [priceListRevisionId, cancellationPolicyRevisionId, approvalPolicyRevisionId, currency, taxBasis, validUntil, lineItems, taxAmount]
       properties:
         priceListRevisionId: { type: string, format: uuid }
         cancellationPolicyRevisionId: { type: string, format: uuid }
+        approvalPolicyRevisionId: { type: string, format: uuid }
         currency: { type: string, pattern: '^[A-Z]{3}$' }
         taxBasis: { type: string, enum: [inclusive, exclusive, not_applicable, to_be_confirmed] }
         validUntil: { type: string, format: date-time }
+        lineItems:
+          type: array
+          maxItems: 100
+          items:
+            type: object
+            required: [itemCode, quantity]
+            properties:
+              itemCode: { type: string, minLength: 1, maxLength: 100 }
+              quantity: { type: number, exclusiveMinimum: 0, maximum: 999999999.999 }
+            additionalProperties: false
         adjustments:
           type: array
-          description: "When a published tax profile is selected, each adjustment must explicitly declare allocationMethod. tax_code requires taxCode; proportional_to_lines omits taxCode and allocates across priced-line tax codes; not_applicable is required for a not_applicable profile. Without a selected profile, legacy adjustment payloads remain accepted."
+          maxItems: 50
           items:
             type: object
             required: [code, label, kind, amount]
@@ -6614,10 +6652,10 @@ components:
               label: { type: string, minLength: 1, maxLength: 250 }
               kind: { type: string, enum: [fee, discount, credit] }
               amount: { type: number, exclusiveMinimum: 0, maximum: 999999999999.99 }
-              allocationMethod: { type: string, enum: [tax_code, proportional_to_lines, not_applicable] }
-              taxCode: { type: string, minLength: 1, maxLength: 80 }
             additionalProperties: false
-        internalReason: { type: string, maxLength: 2000 }
+        taxAmount: { type: number, minimum: 0, maximum: 999999999999.99 }
+        internalReason: { type: string, minLength: 3, maxLength: 2000 }
+      additionalProperties: false
     OfferAcceptanceRequest:
       type: object
       properties:
@@ -7778,15 +7816,39 @@ components:
         values: { type: object, additionalProperties: true }
     BookingOfferCreateRequest:
       type: object
-      required: [currency, taxBasis, validUntil]
+      required: [priceListRevisionId, cancellationPolicyRevisionId, approvalPolicyRevisionId, currency, taxBasis, validUntil, lineItems, taxAmount]
       properties:
         priceListRevisionId: { type: string, format: uuid }
         cancellationPolicyRevisionId: { type: string, format: uuid }
+        approvalPolicyRevisionId: { type: string, format: uuid }
         currency: { type: string, pattern: '^[A-Z]{3}$' }
         taxBasis: { type: string, enum: [inclusive, exclusive, not_applicable, to_be_confirmed] }
         validUntil: { type: string, format: date-time }
-        adjustments: { type: array, items: { type: object, additionalProperties: true } }
-        internalReason: { type: string, maxLength: 2000 }
+        lineItems:
+          type: array
+          maxItems: 100
+          items:
+            type: object
+            required: [itemCode, quantity]
+            properties:
+              itemCode: { type: string, minLength: 1, maxLength: 100 }
+              quantity: { type: number, exclusiveMinimum: 0, maximum: 999999999.999 }
+            additionalProperties: false
+        adjustments:
+          type: array
+          maxItems: 50
+          items:
+            type: object
+            required: [code, label, kind, amount]
+            properties:
+              code: { type: string, minLength: 1, maxLength: 80 }
+              label: { type: string, minLength: 1, maxLength: 250 }
+              kind: { type: string, enum: [fee, discount, credit] }
+              amount: { type: number, exclusiveMinimum: 0, maximum: 999999999999.99 }
+            additionalProperties: false
+        taxAmount: { type: number, minimum: 0, maximum: 999999999999.99 }
+        internalReason: { type: string, minLength: 3, maxLength: 2000 }
+      additionalProperties: false
     OfferAcceptanceRequest:
       type: object
       properties:
@@ -8919,15 +8981,39 @@ components:
         values: { type: object, additionalProperties: true }
     BookingOfferCreateRequest:
       type: object
-      required: [currency, taxBasis, validUntil]
+      required: [priceListRevisionId, cancellationPolicyRevisionId, approvalPolicyRevisionId, currency, taxBasis, validUntil, lineItems, taxAmount]
       properties:
         priceListRevisionId: { type: string, format: uuid }
         cancellationPolicyRevisionId: { type: string, format: uuid }
+        approvalPolicyRevisionId: { type: string, format: uuid }
         currency: { type: string, pattern: '^[A-Z]{3}$' }
         taxBasis: { type: string, enum: [inclusive, exclusive, not_applicable, to_be_confirmed] }
         validUntil: { type: string, format: date-time }
-        adjustments: { type: array, items: { type: object, additionalProperties: true } }
-        internalReason: { type: string, maxLength: 2000 }
+        lineItems:
+          type: array
+          maxItems: 100
+          items:
+            type: object
+            required: [itemCode, quantity]
+            properties:
+              itemCode: { type: string, minLength: 1, maxLength: 100 }
+              quantity: { type: number, exclusiveMinimum: 0, maximum: 999999999.999 }
+            additionalProperties: false
+        adjustments:
+          type: array
+          maxItems: 50
+          items:
+            type: object
+            required: [code, label, kind, amount]
+            properties:
+              code: { type: string, minLength: 1, maxLength: 80 }
+              label: { type: string, minLength: 1, maxLength: 250 }
+              kind: { type: string, enum: [fee, discount, credit] }
+              amount: { type: number, exclusiveMinimum: 0, maximum: 999999999999.99 }
+            additionalProperties: false
+        taxAmount: { type: number, minimum: 0, maximum: 999999999999.99 }
+        internalReason: { type: string, minLength: 3, maxLength: 2000 }
+      additionalProperties: false
     OfferAcceptanceRequest:
       type: object
       properties:
@@ -10088,15 +10174,39 @@ components:
         values: { type: object, additionalProperties: true }
     BookingOfferCreateRequest:
       type: object
-      required: [currency, taxBasis, validUntil]
+      required: [priceListRevisionId, cancellationPolicyRevisionId, approvalPolicyRevisionId, currency, taxBasis, validUntil, lineItems, taxAmount]
       properties:
         priceListRevisionId: { type: string, format: uuid }
         cancellationPolicyRevisionId: { type: string, format: uuid }
+        approvalPolicyRevisionId: { type: string, format: uuid }
         currency: { type: string, pattern: '^[A-Z]{3}$' }
         taxBasis: { type: string, enum: [inclusive, exclusive, not_applicable, to_be_confirmed] }
         validUntil: { type: string, format: date-time }
-        adjustments: { type: array, items: { type: object, additionalProperties: true } }
-        internalReason: { type: string, maxLength: 2000 }
+        lineItems:
+          type: array
+          maxItems: 100
+          items:
+            type: object
+            required: [itemCode, quantity]
+            properties:
+              itemCode: { type: string, minLength: 1, maxLength: 100 }
+              quantity: { type: number, exclusiveMinimum: 0, maximum: 999999999.999 }
+            additionalProperties: false
+        adjustments:
+          type: array
+          maxItems: 50
+          items:
+            type: object
+            required: [code, label, kind, amount]
+            properties:
+              code: { type: string, minLength: 1, maxLength: 80 }
+              label: { type: string, minLength: 1, maxLength: 250 }
+              kind: { type: string, enum: [fee, discount, credit] }
+              amount: { type: number, exclusiveMinimum: 0, maximum: 999999999999.99 }
+            additionalProperties: false
+        taxAmount: { type: number, minimum: 0, maximum: 999999999999.99 }
+        internalReason: { type: string, minLength: 3, maxLength: 2000 }
+      additionalProperties: false
     OfferAcceptanceRequest:
       type: object
       properties:
@@ -14689,7 +14799,34 @@ components:
         priceListRevisionId: { type: string, format: uuid }
         cancellationPolicyRevisionId: { type: string, format: uuid }
         approvalPolicyRevisionId: { type: string, format: uuid }
-         currency: { type: string, pattern: '^[A-Z]{3}$' }
+        currency: { type: string, pattern: '^[A-Z]{3}$' }
+        taxBasis: { type: string, enum: [inclusive, exclusive, not_applicable, to_be_confirmed] }
+        validUntil: { type: string, format: date-time }
+        lineItems:
+          type: array
+          maxItems: 100
+          items:
+            type: object
+            required: [itemCode, quantity]
+            properties:
+              itemCode: { type: string, minLength: 1, maxLength: 100 }
+              quantity: { type: number, exclusiveMinimum: 0, maximum: 999999999.999 }
+            additionalProperties: false
+        adjustments:
+          type: array
+          maxItems: 50
+          items:
+            type: object
+            required: [code, label, kind, amount]
+            properties:
+              code: { type: string, minLength: 1, maxLength: 80 }
+              label: { type: string, minLength: 1, maxLength: 250 }
+              kind: { type: string, enum: [fee, discount, credit] }
+              amount: { type: number, exclusiveMinimum: 0, maximum: 999999999999.99 }
+            additionalProperties: false
+        taxAmount: { type: number, minimum: 0, maximum: 999999999999.99 }
+        internalReason: { type: string, minLength: 3, maxLength: 2000 }
+      additionalProperties: false
     OfferAcceptanceRequest:
       type: object
       properties:
@@ -15396,15 +15533,39 @@ components:
         values: { type: object, additionalProperties: true }
     BookingOfferCreateRequest:
       type: object
-      required: [currency, taxBasis, validUntil]
+      required: [priceListRevisionId, cancellationPolicyRevisionId, approvalPolicyRevisionId, currency, taxBasis, validUntil, lineItems, taxAmount]
       properties:
         priceListRevisionId: { type: string, format: uuid }
         cancellationPolicyRevisionId: { type: string, format: uuid }
+        approvalPolicyRevisionId: { type: string, format: uuid }
         currency: { type: string, pattern: '^[A-Z]{3}$' }
         taxBasis: { type: string, enum: [inclusive, exclusive, not_applicable, to_be_confirmed] }
         validUntil: { type: string, format: date-time }
-        adjustments: { type: array, items: { type: object, additionalProperties: true } }
-        internalReason: { type: string, maxLength: 2000 }
+        lineItems:
+          type: array
+          maxItems: 100
+          items:
+            type: object
+            required: [itemCode, quantity]
+            properties:
+              itemCode: { type: string, minLength: 1, maxLength: 100 }
+              quantity: { type: number, exclusiveMinimum: 0, maximum: 999999999.999 }
+            additionalProperties: false
+        adjustments:
+          type: array
+          maxItems: 50
+          items:
+            type: object
+            required: [code, label, kind, amount]
+            properties:
+              code: { type: string, minLength: 1, maxLength: 80 }
+              label: { type: string, minLength: 1, maxLength: 250 }
+              kind: { type: string, enum: [fee, discount, credit] }
+              amount: { type: number, exclusiveMinimum: 0, maximum: 999999999999.99 }
+            additionalProperties: false
+        taxAmount: { type: number, minimum: 0, maximum: 999999999999.99 }
+        internalReason: { type: string, minLength: 3, maxLength: 2000 }
+      additionalProperties: false
     OfferAcceptanceRequest:
       type: object
       properties:
@@ -16565,15 +16726,39 @@ components:
         values: { type: object, additionalProperties: true }
     BookingOfferCreateRequest:
       type: object
-      required: [currency, taxBasis, validUntil]
+      required: [priceListRevisionId, cancellationPolicyRevisionId, approvalPolicyRevisionId, currency, taxBasis, validUntil, lineItems, taxAmount]
       properties:
         priceListRevisionId: { type: string, format: uuid }
         cancellationPolicyRevisionId: { type: string, format: uuid }
+        approvalPolicyRevisionId: { type: string, format: uuid }
         currency: { type: string, pattern: '^[A-Z]{3}$' }
         taxBasis: { type: string, enum: [inclusive, exclusive, not_applicable, to_be_confirmed] }
         validUntil: { type: string, format: date-time }
-        adjustments: { type: array, items: { type: object, additionalProperties: true } }
-        internalReason: { type: string, maxLength: 2000 }
+        lineItems:
+          type: array
+          maxItems: 100
+          items:
+            type: object
+            required: [itemCode, quantity]
+            properties:
+              itemCode: { type: string, minLength: 1, maxLength: 100 }
+              quantity: { type: number, exclusiveMinimum: 0, maximum: 999999999.999 }
+            additionalProperties: false
+        adjustments:
+          type: array
+          maxItems: 50
+          items:
+            type: object
+            required: [code, label, kind, amount]
+            properties:
+              code: { type: string, minLength: 1, maxLength: 80 }
+              label: { type: string, minLength: 1, maxLength: 250 }
+              kind: { type: string, enum: [fee, discount, credit] }
+              amount: { type: number, exclusiveMinimum: 0, maximum: 999999999999.99 }
+            additionalProperties: false
+        taxAmount: { type: number, minimum: 0, maximum: 999999999999.99 }
+        internalReason: { type: string, minLength: 3, maxLength: 2000 }
+      additionalProperties: false
     OfferAcceptanceRequest:
       type: object
       properties:
@@ -17706,15 +17891,39 @@ components:
         values: { type: object, additionalProperties: true }
     BookingOfferCreateRequest:
       type: object
-      required: [currency, taxBasis, validUntil]
+      required: [priceListRevisionId, cancellationPolicyRevisionId, approvalPolicyRevisionId, currency, taxBasis, validUntil, lineItems, taxAmount]
       properties:
         priceListRevisionId: { type: string, format: uuid }
         cancellationPolicyRevisionId: { type: string, format: uuid }
+        approvalPolicyRevisionId: { type: string, format: uuid }
         currency: { type: string, pattern: '^[A-Z]{3}$' }
         taxBasis: { type: string, enum: [inclusive, exclusive, not_applicable, to_be_confirmed] }
         validUntil: { type: string, format: date-time }
-        adjustments: { type: array, items: { type: object, additionalProperties: true } }
-        internalReason: { type: string, maxLength: 2000 }
+        lineItems:
+          type: array
+          maxItems: 100
+          items:
+            type: object
+            required: [itemCode, quantity]
+            properties:
+              itemCode: { type: string, minLength: 1, maxLength: 100 }
+              quantity: { type: number, exclusiveMinimum: 0, maximum: 999999999.999 }
+            additionalProperties: false
+        adjustments:
+          type: array
+          maxItems: 50
+          items:
+            type: object
+            required: [code, label, kind, amount]
+            properties:
+              code: { type: string, minLength: 1, maxLength: 80 }
+              label: { type: string, minLength: 1, maxLength: 250 }
+              kind: { type: string, enum: [fee, discount, credit] }
+              amount: { type: number, exclusiveMinimum: 0, maximum: 999999999999.99 }
+            additionalProperties: false
+        taxAmount: { type: number, minimum: 0, maximum: 999999999999.99 }
+        internalReason: { type: string, minLength: 3, maxLength: 2000 }
+      additionalProperties: false
     OfferAcceptanceRequest:
       type: object
       properties:
@@ -18875,15 +19084,39 @@ components:
         values: { type: object, additionalProperties: true }
     BookingOfferCreateRequest:
       type: object
-      required: [currency, taxBasis, validUntil]
+      required: [priceListRevisionId, cancellationPolicyRevisionId, approvalPolicyRevisionId, currency, taxBasis, validUntil, lineItems, taxAmount]
       properties:
         priceListRevisionId: { type: string, format: uuid }
         cancellationPolicyRevisionId: { type: string, format: uuid }
+        approvalPolicyRevisionId: { type: string, format: uuid }
         currency: { type: string, pattern: '^[A-Z]{3}$' }
         taxBasis: { type: string, enum: [inclusive, exclusive, not_applicable, to_be_confirmed] }
         validUntil: { type: string, format: date-time }
-        adjustments: { type: array, items: { type: object, additionalProperties: true } }
-        internalReason: { type: string, maxLength: 2000 }
+        lineItems:
+          type: array
+          maxItems: 100
+          items:
+            type: object
+            required: [itemCode, quantity]
+            properties:
+              itemCode: { type: string, minLength: 1, maxLength: 100 }
+              quantity: { type: number, exclusiveMinimum: 0, maximum: 999999999.999 }
+            additionalProperties: false
+        adjustments:
+          type: array
+          maxItems: 50
+          items:
+            type: object
+            required: [code, label, kind, amount]
+            properties:
+              code: { type: string, minLength: 1, maxLength: 80 }
+              label: { type: string, minLength: 1, maxLength: 250 }
+              kind: { type: string, enum: [fee, discount, credit] }
+              amount: { type: number, exclusiveMinimum: 0, maximum: 999999999999.99 }
+            additionalProperties: false
+        taxAmount: { type: number, minimum: 0, maximum: 999999999999.99 }
+        internalReason: { type: string, minLength: 3, maxLength: 2000 }
+      additionalProperties: false
     OfferAcceptanceRequest:
       type: object
       properties:
