@@ -161,6 +161,8 @@ test("staff login stores only hashed opaque session/CSRF tokens and authenticate
 
   await auth.updateUserLocale(created.principal, "en");
   assert.ok(mock.calls.some((call) => call.sql.startsWith("UPDATE eogp.users") && call.values[1] === "en"));
+  await auth.updateUserLocale(created.principal, null);
+  assert.ok(mock.calls.some((call) => call.sql.startsWith("UPDATE eogp.users") && call.values[1] === null));
 
   await auth.revokeStaffSession(created.principal);
   assert.ok(mock.calls.some((call) => call.sql.startsWith("UPDATE eogp.user_sessions")));
