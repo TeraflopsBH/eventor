@@ -490,6 +490,46 @@ export interface BookingConfirmationResult {
   replayed: boolean;
 }
 
+export interface BookingApprovalRule {
+  code: string;
+  condition:
+    | { kind: "always" }
+    | { kind: "total_at_least"; amount: number; currency: string }
+    | { kind: "discount_at_least"; amount: number }
+    | { kind: "adjustment_present"; adjustmentKind?: "fee" | "discount" | "credit" };
+  requiredApprovals: number;
+  permission: "booking.approve";
+  separationOfDuties: boolean;
+}
+
+export interface BookingApprovalPolicyRevision {
+  revisionId: string;
+  revisionNumber: number;
+  state: "draft" | "published" | "retired";
+  rules: BookingApprovalRule[];
+  publishedAt: string | null;
+  createdAt: string;
+}
+
+export interface BookingApprovalPolicy {
+  policyId: string;
+  code: string;
+  name: string;
+  status: "active" | "retired";
+  createdAt: string;
+  latestRevisionId: string | null;
+  revisions: BookingApprovalPolicyRevision[];
+}
+
+export interface BookingApprovalPolicyMutationResult {
+  policyId: string;
+  revisionId: string;
+  revisionNumber: number;
+  state: "draft" | "published";
+  publishedAt?: string;
+}
+
+
 export interface PageMeta {
   limit: number;
   offset: number;
@@ -546,6 +586,23 @@ export const api = {
     request<Envelope<BookingOfferIssueResult>>(
       `/booking-offers/${encodeURIComponent(offerId)}/issue`,
       { method: "POST", body: {}, idempotent: true, idempotencyKey: requestKey },
+    ),
+  getBookingApprovalPolicies: () =>
+    request<Envelope<BookingApprovalPolicy[]>>("/organization/booking-approval-policies"),
+  createBookingApprovalPolicy: (body: { code: string; name: string }) =>
+    request<Envelope<BookingApprovalPolicyMutationResult>>(
+      "/organization/booking-approval-policies",
+      { method: "POST", body, idempotent: true },
+    ),
+  createBookingApprovalPolicyRevision: (policyId: string, rules: BookingApprovalRule[]) =>
+    request<Envelope<BookingApprovalPolicyMutationResult>>(
+      `/booking-approval-policies/${encodeURIComponent(policyId)}/revisions`,
+      { method: "POST", body: { rules }, idempotent: true },
+    ),
+  publishBookingApprovalPolicyRevision: (policyId: string, revisionId: string) =>
+    request<Envelope<BookingApprovalPolicyMutationResult>>(
+      `/booking-approval-policies/${encodeURIComponent(policyId)}/revisions/${encodeURIComponent(revisionId)}/publish`,
+      { method: "POST", body: {}, idempotent: true },
     ),
   getBookingOfferApprovals: (offerId: string) =>
     request<Envelope<BookingOfferApprovalStatus>>(
