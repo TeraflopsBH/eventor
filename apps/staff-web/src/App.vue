@@ -1,6 +1,15 @@
 <script setup lang="ts">
-import { computed, onMounted, reactive, ref } from "vue";
+import { computed, onMounted, reactive, ref, watch } from "vue";
+import { useI18n } from "vue-i18n";
+import type { SupportedLocale } from "./i18n";
 import { api, ApiError, type CampaignReview, type CampaignProgress, type CampaignListItem, type DeliveryAttempt, type PageMeta, type EmailConfiguration, type ResendWebhookConfiguration, type Principal, type BookingInquiryListItem, type BookingInquiryDetail, type BookingInquiryAssignee, type BookingInquiryCapabilities, type BookingOfferRecord, type BookingOfferEmailDelivery, type BookingOfferApprovalStatus, type BookingOfferApprovalRequirement, type BookingOfferWriteRequest, type BookingApprovalPolicy, type BookingApprovalRule, type BookingPriceList, type BookingPriceListItem, type BookingTaxProfile, type BookingTaxProfileRevisionInput, type BookingTaxCode, type BookingCancellationPolicy, type BookingCancellationPolicyRevisionInput, type PublicBookingOffer } from "./api";
+
+const { locale } = useI18n();
+watch(locale, (value) => { document.documentElement.lang = value; }, { immediate: true });
+const localeOptions: Array<{ value: SupportedLocale; label: string }> = [
+  { value: "bs-BA", label: "Bosanski" },
+  { value: "en", label: "English" },
+];
 
 const publicOfferMatch = window.location.pathname.match(/^\/offers\/([0-9a-fA-F-]{36})\/?$/);
 const isPublicOfferPage = Boolean(publicOfferMatch);
@@ -1915,59 +1924,60 @@ onMounted(() => {
     <header class="topbar">
       <a class="brand" href="/" aria-label="Eventor staff home">
         <span class="brand-mark">E</span>
-        <span>EVENTOR <small>STAFF WORKSPACE</small></span>
+        <span>EVENTOR <small>{{ $t("app.staffWorkspace") }}</small></span>
       </a>
       <div v-if="principal" class="account">
+        <label class="locale-picker">Language <select v-model="locale"><option v-for="option in localeOptions" :key="option.value" :value="option.value">{{ option.label }}</option></select></label>
         <div class="account-copy">
           <strong>{{ selectedOrganization }}</strong>
-          <span>Authenticated staff session</span>
+          <span>{{ $t("app.authenticatedSession") }}</span>
         </div>
-        <button class="button button-quiet" :disabled="busy" @click="signOut">Sign out</button>
+        <button class="button button-quiet" :disabled="busy" @click="signOut">{{ $t("app.signOut") }}</button>
       </div>
     </header>
 
     <section v-if="loadingSession" class="loading-panel" aria-live="polite">
-      <span class="spinner"></span> Checking staff session…
+      <span class="spinner"></span> {{ $t("app.checkingSession") }}
     </section>
 
     <section v-else-if="!principal" class="login-layout">
       <div class="intro-panel">
-        <p class="eyebrow">EVENT OPERATIONS PLATFORM</p>
-        <h1>One workspace for the work behind every event.</h1>
-        <p class="muted">Sign in to manage organization delivery settings and authorized event notification workflows.</p>
-        <div class="security-note"><span class="status-dot"></span> Protected staff access · Secure session · CSRF validation</div>
+        <p class="eyebrow">{{ $t("auth.platformEyebrow") }}</p>
+        <h1>{{ $t("auth.headline") }}</h1>
+        <p class="muted">{{ $t("auth.description") }}</p>
+        <div class="security-note"><span class="status-dot"></span> {{ $t("auth.security") }}</div>
       </div>
       <form class="panel login-panel" @submit.prevent="signIn">
-        <p class="eyebrow">STAFF ACCESS</p>
-        <h2>Sign in</h2>
-        <label>Email address<input v-model="loginForm.email" type="email" autocomplete="username" required maxlength="320" /></label>
-        <label>Organization slug<input v-model="loginForm.organizationSlug" autocomplete="organization" required minlength="2" maxlength="80" /></label>
-        <label>Password<input v-model="loginForm.password" type="password" autocomplete="current-password" required minlength="12" maxlength="1024" /></label>
+        <p class="eyebrow">{{ $t("auth.staffAccess") }}</p>
+        <h2>{{ $t("auth.signIn") }}</h2>
+        <label>{{ $t("auth.email") }}<input v-model="loginForm.email" type="email" autocomplete="username" required maxlength="320" /></label>
+        <label>{{ $t("auth.organization") }}<input v-model="loginForm.organizationSlug" autocomplete="organization" required minlength="2" maxlength="80" /></label>
+        <label>{{ $t("auth.password") }}<input v-model="loginForm.password" type="password" autocomplete="current-password" required minlength="12" maxlength="1024" /></label>
         <button class="button button-primary full-width" type="submit" :disabled="busy">
-          {{ busy ? "Signing in…" : "Sign in securely" }}
+          {{ busy ? $t("auth.signingIn") : $t("auth.signInSecurely") }}
         </button>
-        <p class="fine-print">Your password is sent only to the configured Eventor API over HTTPS. Session cookies are HttpOnly and Secure.</p>
+        <p class="fine-print">{{ $t("auth.passwordNote") }}</p>
       </form>
     </section>
 
     <template v-else>
       <section class="welcome-row">
         <div>
-          <p class="eyebrow">ORGANIZATION WORKSPACE</p>
-          <h1>Operations overview</h1>
-          <p class="muted">Manage delivery readiness and review notification campaigns before authorizing sends.</p>
+          <p class="eyebrow">{{ $t("workspace.organization") }}</p>
+          <h1>{{ $t("workspace.overview") }}</h1>
+          <p class="muted">{{ $t("workspace.description") }}</p>
         </div>
-        <div class="session-chip"><span class="status-dot"></span> Session active</div>
+        <div class="session-chip"><span class="status-dot"></span> {{ $t("workspace.active") }}</div>
       </section>
 
       <nav class="tabs" aria-label="Staff workspace sections">
-        <button :class="{ active: activeTab === 'delivery' }" @click="activeTab = 'delivery'">Email delivery</button>
-        <button :class="{ active: activeTab === 'campaign' }" @click="activeTab = 'campaign'">Campaign review</button>
-        <button :class="{ active: activeTab === 'inquiries' }" @click="openInquiryWorkspace">Booking inquiries</button>
-        <button :class="{ active: activeTab === 'approvals' }" @click="openBookingApprovalPolicies">Approval policies</button>
-        <button :class="{ active: activeTab === 'prices' }" @click="openBookingPriceLists">Price lists</button>
-        <button :class="{ active: activeTab === 'cancellations' }" @click="openBookingCancellationPolicies">Cancellation policies</button>
-        <button :class="{ active: activeTab === 'taxes' }" @click="openBookingTaxProfiles">Tax configuration</button>
+        <button :class="{ active: activeTab === 'delivery' }" @click="activeTab = 'delivery'">{{ $t("navigation.delivery") }}</button>
+        <button :class="{ active: activeTab === 'campaign' }" @click="activeTab = 'campaign'">{{ $t("navigation.campaigns") }}</button>
+        <button :class="{ active: activeTab === 'inquiries' }" @click="openInquiryWorkspace">{{ $t("navigation.inquiries") }}</button>
+        <button :class="{ active: activeTab === 'approvals' }" @click="openBookingApprovalPolicies">{{ $t("navigation.approvals") }}</button>
+        <button :class="{ active: activeTab === 'prices' }" @click="openBookingPriceLists">{{ $t("navigation.prices") }}</button>
+        <button :class="{ active: activeTab === 'cancellations' }" @click="openBookingCancellationPolicies">{{ $t("navigation.cancellations") }}</button>
+        <button :class="{ active: activeTab === 'taxes' }" @click="openBookingTaxProfiles">{{ $t("navigation.taxes") }}</button>
       </nav>
 
       <section v-if="activeTab === 'delivery'" class="content-grid">
