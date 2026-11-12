@@ -288,3 +288,23 @@ test("merges normalized schema answers without discarding unknown legacy keys", 
     legacy_field: { retained: true },
   });
 });
+
+
+test("rejects fractional and non-finite numeric answers and invalid single-select values", () => {
+  const fields = [
+    { code: "guest_count", type: "number", integer: true, min: 1 },
+    { code: "room", type: "select", options: [{ value: "main", label: "Main room" }] },
+  ];
+  assert.deepEqual(validatePublicBookingAnswers(fields, {
+    guest_count: 2.5,
+    room: "main",
+  }), { code: "guest_count", kind: "integer" });
+  assert.deepEqual(validatePublicBookingAnswers(fields, {
+    guest_count: "not-a-number",
+    room: "main",
+  }), { code: "guest_count", kind: "invalidNumber" });
+  assert.deepEqual(validatePublicBookingAnswers(fields, {
+    guest_count: 2,
+    room: "retired-room",
+  }), { code: "room", kind: "invalidOption" });
+});
