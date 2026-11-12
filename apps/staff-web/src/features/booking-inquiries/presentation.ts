@@ -57,3 +57,43 @@ export function formatBookingMoney(
     return amount.toFixed(2) + " " + currency;
   }
 }
+
+export interface BookingAnswerFieldSchema {
+  fields: readonly {
+    code: string;
+    type: string;
+    label?: string;
+    options?: readonly { value: string; label: string }[];
+  }[];
+}
+
+export interface BookingAnswerItem {
+  code: string;
+  label: string;
+  type: string;
+  value: string;
+}
+
+/**
+ * Interpret stored answer values only with the schema pinned to their source
+ * form revision. This is used for both inquiry review and converted drafts.
+ */
+export function formatBookingAnswerItems(
+  fieldSchema: BookingAnswerFieldSchema | null | undefined,
+  answers: Readonly<Record<string, unknown>> | null | undefined,
+): BookingAnswerItem[] {
+  if (!answers) return [];
+  const fields = new Map((fieldSchema?.fields ?? []).map((field) => [field.code, field]));
+  return Object.entries(answers).map(([code, value]) => {
+    const field = fields.get(code);
+    const displayValue = Array.isArray(value)
+      ? value.map((item) => formatInquiryAnswer(field, item)).join(", ")
+      : formatInquiryAnswer(field, value);
+    return {
+      code,
+      label: field?.label?.trim() || code.replaceAll("_", " "),
+      type: field?.type ?? "unknown",
+      value: displayValue,
+    };
+  });
+}
