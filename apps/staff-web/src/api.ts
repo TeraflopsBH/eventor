@@ -44,6 +44,7 @@ async function request<T>(
     method?: "GET" | "POST" | "DELETE";
     body?: unknown;
     idempotent?: boolean;
+    idempotencyKey?: string;
   } = {},
 ): Promise<T> {
   const method = options.method ?? "GET";
@@ -56,7 +57,7 @@ async function request<T>(
       throw new Error("The CSRF cookie is missing. Sign in again before continuing.");
     }
     if (csrf) headers.set("X-CSRF-Token", csrf);
-    if (options.idempotent) headers.set("Idempotency-Key", idempotencyKey());
+    if (options.idempotent) headers.set("Idempotency-Key", options.idempotencyKey ?? idempotencyKey());
   }
 
   const response = await fetch(`${apiBase}${path}`, {
@@ -541,10 +542,10 @@ export const api = {
     ),
   getBookingOffer: (offerId: string) =>
     request<Envelope<BookingOfferRecord>>(`/booking-offers/${encodeURIComponent(offerId)}`),
-  issueBookingOffer: (offerId: string) =>
+  issueBookingOffer: (offerId: string, requestKey?: string) =>
     request<Envelope<BookingOfferIssueResult>>(
       `/booking-offers/${encodeURIComponent(offerId)}/issue`,
-      { method: "POST", body: {}, idempotent: true },
+      { method: "POST", body: {}, idempotent: true, idempotencyKey: requestKey },
     ),
   getBookingOfferApprovals: (offerId: string) =>
     request<Envelope<BookingOfferApprovalStatus>>(
