@@ -1893,7 +1893,7 @@ onMounted(() => { void refreshSession(); });
           <section class="inquiry-card">
             <h4>Existing policies</h4>
             <label>Select policy
-              <select :value="selectedApprovalPolicyId" @change="selectBookingApprovalPolicy(($event.target as HTMLSelectElement).value)">
+              <select v-model="selectedApprovalPolicyId" @change="selectBookingApprovalPolicy(selectedApprovalPolicyId)">
                 <option value="">Choose a policy…</option>
                 <option v-for="policy in approvalPolicies" :key="policy.policyId" :value="policy.policyId">
                   {{ policy.code }} · {{ policy.name }} ({{ policy.status }})
