@@ -153,6 +153,41 @@ BEGIN
       USING ERRCODE='55000';
   END IF;
 
+  -- One delivery request per immutable offer revision. The offer/revision
+  -- row lock above serializes concurrent staff requests so a new idempotency
+  -- key cannot accidentally send the same offer a second time.
+  SELECT * INTO v_existing
+    FROM eogp.booking_offer_email_deliveries
+   WHERE organization_id=p_organization_id
+     AND idempotency_key_sha256=p_idempotency_key_sha256
+   FOR UPDATE;
+  IF FOUND THEN
+    IF v_existing.offer_id IS DISTINCT FROM p_offer_id
+       OR v_existing.offer_revision_id IS DISTINCT FROM v_revision.id
+       OR v_existing.capability_token_sha256 IS DISTINCT FROM p_capability_token_sha256 THEN
+      RAISE EXCEPTION 'idempotency key already used for a different offer email' USING ERRCODE='23505';
+    END IF;
+    RETURN jsonb_build_object(
+      'deliveryId',v_existing.id,'offerId',p_offer_id,
+      'offerRevisionId',v_revision.id,'status',v_existing.status,'created',false
+    );
+  END IF;
+
+  SELECT * INTO v_existing
+    FROM eogp.booking_offer_email_deliveries
+   WHERE organization_id=p_organization_id AND offer_revision_id=v_revision.id
+   FOR UPDATE;
+  IF FOUND THEN
+    IF v_existing.capability_token_sha256 IS DISTINCT FROM p_capability_token_sha256 THEN
+      RAISE EXCEPTION 'this offer revision already has an email delivery using a different customer capability'
+        USING ERRCODE='23505';
+    END IF;
+    RETURN jsonb_build_object(
+      'deliveryId',v_existing.id,'offerId',p_offer_id,
+      'offerRevisionId',v_revision.id,'status',v_existing.status,'created',false
+    );
+  END IF;
+
   INSERT INTO eogp.booking_offer_email_deliveries(
     organization_id,offer_id,offer_revision_id,idempotency_key_sha256,
     capability_token_sha256,capability_ciphertext,recipient_ciphertext,
