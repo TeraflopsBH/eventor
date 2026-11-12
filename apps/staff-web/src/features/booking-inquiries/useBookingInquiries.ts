@@ -1,7 +1,7 @@
 import { computed, reactive, ref, type Ref } from "vue";
 import type { BookingInquiryAssignee, BookingInquiryCapabilities, BookingInquiryDetail, BookingInquiryListItem, PageMeta, Principal } from "../../api";
 import { api as defaultApi } from "../../api";
-import { formatInquiryAnswer, resolveInquiryAssigneeName } from "./presentation";
+import { formatBookingAnswerItems, resolveInquiryAssigneeName } from "./presentation";
 
 type InquiryStatusCommand = "received" | "under_review" | "declined" | "spam";
 type ApiClient = typeof defaultApi;
@@ -42,15 +42,9 @@ export function useBookingInquiries(options: BookingInquiriesOptions) {
   });
   const inquiryAnswerItems = computed(() => {
     const detail = inquiryDetail.value;
-    if (!detail) return [];
-    const fields = new Map(detail.fieldSchema.fields.map((field) => [field.code, field]));
-    return Object.entries(detail.submittedValues?.answers ?? {}).map(([code, value]) => {
-      const field = fields.get(code);
-      const displayValue = Array.isArray(value)
-        ? value.map((item) => formatInquiryAnswer(field, item)).join(", ")
-        : formatInquiryAnswer(field, value);
-      return { code, label: field?.label?.trim() || code.replaceAll("_", " "), type: field?.type ?? "unknown", value: displayValue };
-    });
+    return detail
+      ? formatBookingAnswerItems(detail.fieldSchema, detail.submittedValues?.answers)
+      : [];
   });
 
   async function refreshInquiryListData(offset = inquiryOffset.value): Promise<void> {
