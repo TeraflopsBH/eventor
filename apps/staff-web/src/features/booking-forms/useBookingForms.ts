@@ -39,7 +39,8 @@ export function useBookingForms({ api, busy, pageError, pageNotice, clearMessage
   }
   function updateFieldCode(field: BookingFormField, nextCode: string): void {
     const previous = field.code;
-    if (previous === nextCode) return;
+    if (previous === nextCode || !/^[a-z][a-z0-9_]{0,79}$/.test(nextCode) ||
+        schema.value.fields.some(item => item !== field && item.code === nextCode)) return;
     field.code = nextCode;
     if (selectedFieldCode.value === previous) selectedFieldCode.value = nextCode;
     for (const locale of ["bs-BA", "en"] as Locale[]) {
@@ -52,7 +53,8 @@ export function useBookingForms({ api, busy, pageError, pageNotice, clearMessage
     markDirty();
   }
   function updateOptionValue(field: BookingFormField, previous: string, next: string): void {
-    if (!field.options || field.options.some(option => option.value === next && option.value !== previous)) return;
+    if (!field.options || !next.trim() || next.length > 200 ||
+        field.options.some(option => option.value === next && option.value !== previous)) return;
     const option = field.options.find(item => item.value === previous);
     if (!option) return;
     option.value = next;
