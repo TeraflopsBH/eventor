@@ -585,6 +585,9 @@ export default {
       "requires_organization_level_booking_manage_permission": "Requires organization-level booking.manage permission.",
     },
     "viewValues": {
+      "organization": "Organization",
+      "venue": "Venue",
+      "space": "Space",
       "noRevision": "No revision",
       "active": "Active",
       "inactive": "Inactive",
