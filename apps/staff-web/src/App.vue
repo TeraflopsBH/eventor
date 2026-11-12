@@ -1955,7 +1955,7 @@ onMounted(() => { void refreshSession(); });
           </div>
           <div class="form-actions">
             <button class="button button-secondary" type="button" :disabled="busy || selectedApprovalPolicy.status !== 'active'" @click="createBookingApprovalPolicyRevision">
-              Create new draft revision
+              {{ selectedApprovalPolicyLatestRevision?.state === "draft" ? "Save draft revision" : selectedApprovalPolicy.revisions.length ? "Create successor draft revision" : "Create first draft revision" }}
             </button>
             <button
               v-if="selectedApprovalPolicyLatestRevision?.state === 'draft'"
