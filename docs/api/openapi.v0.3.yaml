@@ -431,7 +431,8 @@ paths:
     post:
       tags: ["Booking Administration"]
       operationId: confirmBooking
-      summary: "Approve and confirm a booking with atomic resource reservation"
+      summary: "Explicitly confirm an accepted and approved booking with final reservation conversion"
+      description: "Requires booking.confirm. The exact current draft revision must have an accepted offer and all pinned approval requirements satisfied. The command creates the booking and immutable commercial snapshots, then converts every required live space/resource hold in the same transaction. Missing/expired holds or final capacity conflicts abort the transaction."
       security: [{ StaffSession: [], StaffCsrf: [] }]
       parameters:
         - $ref: '#/components/parameters/PRevisionId'
@@ -4774,11 +4775,11 @@ components:
       additionalProperties: false
     BookingConfirmationRequest:
       type: object
-      required: [expectedDraftRevisionId]
+      required: [expectedDraftRevisionId, confirmationReason]
       properties:
         expectedDraftRevisionId: { type: string, format: uuid }
-        approvalIds: { type: array, items: { type: string, format: uuid } }
-        idempotencyReference: { type: string, maxLength: 200 }
+        confirmationReason: { type: string, minLength: 3, maxLength: 2000 }
+      additionalProperties: false
     BookingAmendmentRequest:
       type: object
       required: [reason, replacement]
