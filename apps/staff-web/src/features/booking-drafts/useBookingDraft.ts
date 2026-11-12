@@ -1,14 +1,14 @@
 import { computed, ref, watch, type ComputedRef, type Ref } from "vue";
-import { ApiError, api, type BookingDraftAllocationAvailabilityPreview, type BookingDraftAllocationOptions, type BookingDraftDetail, type BookingDraftSpaceLine, type PublicBookingFormField } from "../../api";
-import { initializePublicBookingAnswers, mergePublicBookingAnswers, validatePublicBookingAnswers } from "../public-booking-forms/publicBookingForm";
-import { formatBookingAnswerItems } from "../booking-inquiries/presentation";
+import { ApiError, api, type BookingDraftAllocationAvailabilityPreview, type BookingDraftAllocationOptions, type BookingDraftDetail, type BookingDraftSpaceLine, type PublicBookingFormField } from "../../api.ts";
+import { initializePublicBookingAnswers, mergePublicBookingAnswers, validatePublicBookingAnswers } from "../public-booking-forms/publicBookingForm.ts";
+import { formatBookingAnswerItems } from "../booking-inquiries/presentation.ts";
 import {
   formatBookingDraftResourceLines,
   formatBookingDraftSpaceLines,
   validateBookingDraftAllocations,
   type BookingDraftResourceAllocationInput,
   type BookingDraftSpaceAllocationInput,
-} from "./bookingDraftAllocations";
+} from "./bookingDraftAllocations.ts";
 
 type BookingDraftApi = typeof api;
 
