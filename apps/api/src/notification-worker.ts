@@ -460,7 +460,7 @@ export async function processPendingBookingOfferEmailDeliveries(
         outcome = classification.outcome;
         failureCode = classification.code;
       } finally {
-        transport?.close();
+        try { transport?.close(); } catch { /* preserve the SMTP submission outcome */ }
       }
 
       const completed = await inTenantTransaction(pool, tenant.organization_id, async (client) => {
