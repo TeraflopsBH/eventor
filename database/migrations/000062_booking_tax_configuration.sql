@@ -340,6 +340,14 @@ BEGIN
     IF NOT FOUND OR v_tax.currency<>v_price.currency OR v_tax.tax_basis<>v_price.tax_basis THEN
       RAISE EXCEPTION 'published tax profile revision must match price-list currency and tax basis' USING ERRCODE='22023';
     END IF;
+    IF EXISTS (
+      SELECT 1 FROM eogp.booking_price_items i
+       WHERE i.organization_id=p_organization_id AND i.price_list_revision_id=p_revision_id
+         AND i.tax_code IS NOT NULL
+         AND NOT EXISTS (SELECT 1 FROM jsonb_array_elements(v_tax.tax_codes) t WHERE t->>'taxCode'=i.tax_code)
+    ) THEN
+      RAISE EXCEPTION 'existing price item taxCode is not present in the selected tax profile revision' USING ERRCODE='22023';
+    END IF;
   END IF;
   UPDATE eogp.booking_price_list_revisions SET tax_profile_revision_id=p_tax_profile_revision_id
    WHERE organization_id=p_organization_id AND id=p_revision_id;
@@ -362,7 +370,10 @@ BEGIN
       JOIN eogp.booking_tax_profiles p ON p.organization_id=r.organization_id AND p.id=r.tax_profile_id
      WHERE r.organization_id=NEW.organization_id AND r.id=NEW.tax_profile_revision_id;
     IF NOT FOUND OR v_tax.state<>'published' OR v_profile_status<>'active'
-       OR v_tax.currency<>NEW.currency OR v_tax.tax_basis<>NEW.tax_basis THEN
+       OR v_tax.currency<>NEW.currency OR v_tax.tax_basis<>NEW.tax_basis
+       OR (NEW.effective_from IS NOT NULL AND v_tax.effective_from IS NOT NULL AND v_tax.effective_from>NEW.effective_from)
+       OR (NEW.effective_until IS NOT NULL AND v_tax.effective_until IS NOT NULL AND v_tax.effective_until<NEW.effective_until)
+       OR (NEW.effective_until IS NULL AND v_tax.effective_until IS NOT NULL) THEN
       RAISE EXCEPTION 'selected published tax profile revision must match the price-list revision' USING ERRCODE='23514';
     END IF;
     IF EXISTS (
