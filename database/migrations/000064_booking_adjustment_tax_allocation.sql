@@ -197,8 +197,9 @@ BEGIN
   END IF;
   v_definition:=replace(v_definition,v_old,v_new);
 
-  v_old:='  IF v_subtotal < 0 OR v_subtotal > 999999999999.99 THEN';
-  v_new:='  v_adjustment_tax:=eogp.allocate_booking_offer_adjustment_tax('
+  v_old:='  END LOOP;'||E'\\n'||E'\\n'||'  IF v_subtotal < 0 OR v_subtotal > 999999999999.99 THEN';
+  v_new:='  END LOOP;'||E'\\n'||E'\\n'
+    ||'  v_adjustment_tax:=eogp.allocate_booking_offer_adjustment_tax('
     ||'p_organization_id,p_price_list_revision_id,v_lines,p_adjustments,p_tax_basis);'||E'\n'
     ||'  v_tax_lines:=v_lines;'||E'\n'
     ||'  IF v_adjustment_tax IS NOT NULL THEN'||E'\n'
