@@ -508,6 +508,7 @@ export default {
       "requires_organization_level_booking_manage_permission": "Zahtijeva dozvolu booking.manage na nivou organizacije.",
     },
     "approvalView": {
+    "and_separation_of_duties": "i",
       "organization_commercial_controls": "ORGANIZACIJSKE KOMERCIJALNE KONTROLE",
       "booking_approval_policies": "Pravila odobravanja rezervacija",
       "create_versioned_rules_that_determine_which_offers_requ": "Kreirajte verzionirana pravila koja određuju koje ponude zahtijevaju interno odobrenje. Objavljene verzije su nepromjenjive i utiču samo na ponude kreirane prema toj verziji.",
