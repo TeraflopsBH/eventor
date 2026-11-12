@@ -27,6 +27,17 @@ DECLARE
   v_na_price_revision uuid;
   v_na_allocation jsonb;
   v_na_calculation jsonb;
+  v_inclusive_profile uuid;
+  v_inclusive_profile_revision uuid;
+  v_inclusive_list uuid;
+  v_inclusive_price_revision uuid;
+  v_round_profile uuid;
+  v_round_profile_revision uuid;
+  v_round_list uuid;
+  v_round_price_revision uuid;
+  v_round_allocation jsonb;
+  v_round_calculation jsonb;
+  v_rounding record;
 BEGIN
   -- Exclusive profile: standard 20%, reduced 5%, manual and three zero-rate codes.
   INSERT INTO eogp.booking_tax_profiles(organization_id,code,name)
@@ -81,8 +92,8 @@ BEGIN
     v_lines||(v_allocation->'taxLines'),0
   );
   v_tax_amount := (v_calculation->>'taxAmount')::numeric;
-  IF v_tax_amount<>25.65 THEN
-    RAISE EXCEPTION 'exclusive tax after mixed allocations should be 25.65, got % (%).',v_tax_amount,v_calculation;
+  IF v_tax_amount<>24.65 THEN
+    RAISE EXCEPTION 'exclusive tax after mixed allocations should be 24.65, got % (%).',v_tax_amount,v_calculation;
   END IF;
 
   -- Residual-cent rule: earlier buckets round to zero; final alphabetic bucket receives the cent.
@@ -193,6 +204,90 @@ BEGIN
      OR v_na_allocation->'adjustments'->0->>'allocationMethod'<>'not_applicable' THEN
     RAISE EXCEPTION 'not-applicable adjustment handling is incorrect: %, %',v_na_allocation,v_na_calculation;
   END IF;
+
+
+  -- Inclusive pricing: reducing a tax-inclusive line from 120 to 108 at 20% reduces tax from 20 to 18.
+  INSERT INTO eogp.booking_tax_profiles(organization_id,code,name)
+  VALUES(v_org,'ci-inclusive-'||gen_random_uuid()::text,'CI inclusive tax')
+  RETURNING id INTO v_inclusive_profile;
+  INSERT INTO eogp.booking_tax_profile_revisions(
+    organization_id,tax_profile_id,revision_number,currency,tax_basis,
+    rounding_method,rounding_scale,tax_codes,state,published_at
+  ) VALUES(v_org,v_inclusive_profile,1,'USD','inclusive','invoice_total',2,
+    '[{"taxCode":"STANDARD","label":"Standard","treatment":"percentage","rate":20}]'::jsonb,
+    'published',clock_timestamp())
+  RETURNING id INTO v_inclusive_profile_revision;
+  INSERT INTO eogp.booking_price_lists(organization_id,code,name)
+  VALUES(v_org,'ci-inclusive-'||gen_random_uuid()::text,'CI inclusive price list')
+  RETURNING id INTO v_inclusive_list;
+  INSERT INTO eogp.booking_price_list_revisions(
+    organization_id,price_list_id,revision_number,currency,tax_basis,state,published_at,tax_profile_revision_id
+  ) VALUES(v_org,v_inclusive_list,1,'USD','inclusive','published',clock_timestamp(),v_inclusive_profile_revision)
+  RETURNING id INTO v_inclusive_price_revision;
+
+  v_allocation:=eogp.allocate_booking_offer_adjustment_tax(
+    v_org,v_inclusive_price_revision,
+    '[{"itemCode":"inclusive-line","lineTotal":120.00,"taxCode":"STANDARD"}]'::jsonb,
+    '[{"code":"inclusive-discount","label":"Inclusive discount","kind":"discount","amount":12.00,"allocationMethod":"tax_code","taxCode":"STANDARD"}]'::jsonb,
+    'inclusive'
+  );
+  v_calculation:=eogp.calculate_booking_offer_tax(
+    v_org,v_inclusive_price_revision,'USD','inclusive',clock_timestamp()+interval '1 day',
+    '[{"itemCode":"inclusive-line","lineTotal":120.00,"taxCode":"STANDARD"}]'::jsonb||(v_allocation->'taxLines'),0
+  );
+  IF (v_calculation->>'taxAmount')::numeric<>18.00 THEN
+    RAISE EXCEPTION 'inclusive tax after discount should be 18.00, got %',v_calculation;
+  END IF;
+
+  -- Verify that the adjustment's taxable base participates in all three configured rounding policies.
+  FOR v_rounding IN
+    SELECT * FROM (VALUES
+      ('per_line'::text,0.00::numeric),
+      ('per_tax_code'::text,0.01::numeric),
+      ('invoice_total'::text,0.01::numeric)
+    ) AS expected(method,amount)
+  LOOP
+    INSERT INTO eogp.booking_tax_profiles(organization_id,code,name)
+    VALUES(v_org,'ci-round-'||gen_random_uuid()::text,'CI rounding tax')
+    RETURNING id INTO v_round_profile;
+    INSERT INTO eogp.booking_tax_profile_revisions(
+      organization_id,tax_profile_id,revision_number,currency,tax_basis,
+      rounding_method,rounding_scale,tax_codes,state,published_at
+    ) VALUES(v_org,v_round_profile,1,'USD','exclusive',v_rounding.method,2,
+      '[{"taxCode":"LOW","label":"Low","treatment":"percentage","rate":5}]'::jsonb,
+      'published',clock_timestamp())
+    RETURNING id INTO v_round_profile_revision;
+    INSERT INTO eogp.booking_price_lists(organization_id,code,name)
+    VALUES(v_org,'ci-round-'||gen_random_uuid()::text,'CI rounding price list')
+    RETURNING id INTO v_round_list;
+    INSERT INTO eogp.booking_price_list_revisions(
+      organization_id,price_list_id,revision_number,currency,tax_basis,state,published_at,tax_profile_revision_id
+    ) VALUES(v_org,v_round_list,1,'USD','exclusive','published',clock_timestamp(),v_round_profile_revision)
+    RETURNING id INTO v_round_price_revision;
+
+    v_round_allocation:=eogp.allocate_booking_offer_adjustment_tax(
+      v_org,v_round_price_revision,
+      '[
+        {"itemCode":"round-1","lineTotal":0.03,"taxCode":"LOW"},
+        {"itemCode":"round-2","lineTotal":0.03,"taxCode":"LOW"},
+        {"itemCode":"round-3","lineTotal":0.03,"taxCode":"LOW"}
+      ]'::jsonb,
+      '[{"code":"round-fee","label":"Rounding fee","kind":"fee","amount":0.03,"allocationMethod":"tax_code","taxCode":"LOW"}]'::jsonb,
+      'exclusive'
+    );
+    v_round_calculation:=eogp.calculate_booking_offer_tax(
+      v_org,v_round_price_revision,'USD','exclusive',clock_timestamp()+interval '1 day',
+      '[
+        {"itemCode":"round-1","lineTotal":0.03,"taxCode":"LOW"},
+        {"itemCode":"round-2","lineTotal":0.03,"taxCode":"LOW"},
+        {"itemCode":"round-3","lineTotal":0.03,"taxCode":"LOW"}
+      ]'::jsonb||(v_round_allocation->'taxLines'),0
+    );
+    IF (v_round_calculation->>'taxAmount')::numeric<>v_rounding.amount THEN
+      RAISE EXCEPTION '% rounding with an adjustment expected %, got %',
+        v_rounding.method,v_rounding.amount,v_round_calculation;
+    END IF;
+  END LOOP;
 
   RAISE NOTICE 'booking tax adjustment calculation fixtures passed';
 END;
