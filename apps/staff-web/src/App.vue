@@ -1420,8 +1420,8 @@ function syncTaxProfileEditor(): void {
   taxProfileRevisionForm.taxBasis = revision?.taxBasis ?? "exclusive";
   taxProfileRevisionForm.roundingMethod = revision?.roundingMethod ?? "invoice_total";
   taxProfileRevisionForm.roundingScale = revision?.roundingScale ?? 2;
-  taxProfileRevisionForm.effectiveFrom = revision?.state === "draft" && revision.effectiveFrom ? revision.effectiveFrom.slice(0,16) : "";
-  taxProfileRevisionForm.effectiveUntil = revision?.state === "draft" && revision.effectiveUntil ? revision.effectiveUntil.slice(0,16) : "";
+  taxProfileRevisionForm.effectiveFrom = revision?.effectiveFrom ? revision.effectiveFrom.slice(0,16) : "";
+  taxProfileRevisionForm.effectiveUntil = revision?.effectiveUntil ? revision.effectiveUntil.slice(0,16) : "";
   taxCodesJson.value = JSON.stringify(revision?.taxCodes ?? [], null, 2);
 }
 async function loadBookingTaxProfiles(): Promise<void> {
