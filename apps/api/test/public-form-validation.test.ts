@@ -144,3 +144,64 @@ test("public form schema validation fails closed on unsupported or ambiguous def
     assert.throws(() => validatePublicFormAnswers(schema, {}), PublicFormSchemaError);
   }
 });
+
+
+test("public form v1 accepts localized content snapshots without changing answer validation", () => {
+  const translatedSchema = {
+    ...fieldSchema,
+    contentTranslations: {
+      "bs-BA": {
+        formName: "Upit za iznajmljivanje prostora",
+        fields: {
+          event_date: { label: "Datum događaja" },
+          room_layout: {
+            label: "Raspored prostorije",
+            options: { theatre: "Pozorišni", banquet: "Banket" },
+          },
+        },
+      },
+      en: {
+        formName: "Venue rental inquiry",
+        fields: {
+          event_date: { label: "Event date" },
+          room_layout: {
+            label: "Room layout",
+            options: { theatre: "Theatre", banquet: "Banquet" },
+          },
+        },
+      },
+    },
+  };
+  assert.doesNotThrow(() => validatePublicFormAnswers(translatedSchema, {
+    event_date: "2027-01-18",
+    event_name: "Annual meeting",
+    estimated_guests: 120,
+    room_layout: "theatre",
+    accept_terms: true,
+  }));
+});
+
+test("public form localized content rejects unsupported locales, unknown fields/options and unsafe shapes", () => {
+  const base = {
+    schemaVersion: 1,
+    fields: [{
+      code: "layout",
+      type: "select",
+      options: [{ value: "theatre", label: "Theatre" }],
+    }],
+  };
+  const invalidTranslations = [
+    { "fr": { formName: "Formulaire", fields: {} } },
+    { en: { formName: "", fields: {} } },
+    { en: { formName: "Form", fields: { unknown_field: { label: "Unknown" } } } },
+    { en: { formName: "Form", fields: { layout: { options: { unknown: "Unknown" } } } } },
+    { en: { formName: "Form", fields: { layout: { label: " ".repeat(1) } } },
+    { en: { formName: "Form", fields: { layout: { unexpected: "value" } } } },
+  ];
+  for (const contentTranslations of invalidTranslations) {
+    assert.throws(
+      () => validatePublicFormAnswers({ ...base, contentTranslations }, {}),
+      PublicFormSchemaError,
+    );
+  }
+});
