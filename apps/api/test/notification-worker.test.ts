@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 import type { Pool, PoolClient, QueryResultRow } from "pg";
-import { processExpiredBookingOffers, processPendingEmailDeliveries, processPendingEventChangeNotifications } from "../src/notification-worker.js";
+import { processExpiredBookingOffers, processPendingBookingOfferEmailDeliveries, processPendingEmailDeliveries, processPendingEventChangeNotifications } from "../src/notification-worker.js";
 import { encryptContactValue } from "../src/contact-crypto.js";
 import { encryptDeliveryCredentials } from "../src/delivery-credentials-crypto.js";
 import type { SmtpTransportFactory } from "../src/smtp-transport.js";
@@ -75,6 +75,11 @@ test("notification worker sets tenant context and commits one batch per tenant",
     emailUncertain: 0,
     emailRetriesScheduled: 0,
     bookingOffersExpired: 0,
+    bookingOfferEmailAttempts: 0,
+    bookingOfferEmailSent: 0,
+    bookingOfferEmailFailed: 0,
+    bookingOfferEmailUncertain: 0,
+    bookingOfferEmailRetriesScheduled: 0,
   });
   assert.equal(mock.released.length, 2);
   assert.equal(
@@ -113,6 +118,17 @@ test("booking offer expiry worker discovers due tenants and expires within tenan
 test("booking offer expiry worker rejects unsafe limits before discovery", async () => {
   const mock = fakePool([]);
   await assert.rejects(processExpiredBookingOffers(mock.pool, 501, 10), RangeError);
+  assert.equal(mock.calls.length, 0);
+});
+
+test("booking offer email worker rejects a non-HTTPS public application URL before discovery", async () => {
+  const mock = fakePool([]);
+  await assert.rejects(
+    processPendingBookingOfferEmailDeliveries(
+      mock.pool, Buffer.alloc(32), Buffer.alloc(32), "http://eventor.example.test",
+    ),
+    /must be HTTPS/,
+  );
   assert.equal(mock.calls.length, 0);
 });
 
