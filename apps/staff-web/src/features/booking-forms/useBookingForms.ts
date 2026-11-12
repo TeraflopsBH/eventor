@@ -31,6 +31,11 @@ export function useBookingForms({ api, busy, pageError, pageNotice, clearMessage
   const selectedField = computed(() => schema.value.fields.find(field => field.code === selectedFieldCode.value) ?? null);
   const translation = (locale: Locale): BookingFormTranslation =>
     schema.value.contentTranslations?.[locale] ?? { formName: "", fields: {} };
+  function ensureTranslation(locale: Locale): BookingFormTranslation {
+    schema.value.contentTranslations ??= {};
+    schema.value.contentTranslations[locale] ??= { formName: "", fields: {} };
+    return schema.value.contentTranslations[locale]!;
+  }
   function setFormTranslationName(locale: Locale, value: string): void {
     schema.value.contentTranslations ??= {};
     schema.value.contentTranslations[locale] ??= { formName: "", fields: {} };
@@ -146,7 +151,7 @@ export function useBookingForms({ api, busy, pageError, pageNotice, clearMessage
       markDirty();
       return;
     }
-    const content = translation(locale);
+    const content = ensureTranslation(locale);
     content.fields[field.code] ??= {};
     content.fields[field.code]![key] = value;
     markDirty();
@@ -161,7 +166,7 @@ export function useBookingForms({ api, busy, pageError, pageNotice, clearMessage
       markDirty();
       return;
     }
-    const content = translation(locale);
+    const content = ensureTranslation(locale);
     content.fields[field.code] ??= {};
     content.fields[field.code]!.options ??= {};
     content.fields[field.code]!.options![value] = label; markDirty();
