@@ -148,6 +148,7 @@ const staffShellWorkspace = {
   openBookingPriceLists: bookingPriceListState.openBookingPriceLists,
   openBookingCancellationPolicies: bookingCancellationPolicyState.openBookingCancellationPolicies,
   openBookingTaxProfiles: bookingTaxProfileState.openBookingTaxProfiles,
+  openBookingForms: async () => { activeTab.value = "forms"; await bookingFormState.open(); },
 };
 const campaignWorkspace = { ...campaignState, busy, configuration };
 const emailDeliveryWorkspace = { ...emailDeliveryState, busy };
