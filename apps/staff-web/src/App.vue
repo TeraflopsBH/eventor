@@ -3,6 +3,7 @@ import { computed, onMounted, reactive, ref, watch } from "vue";
 import { useI18n } from "vue-i18n";
 import type { SupportedLocale } from "./i18n";
 import { useBookingInquiries } from "./features/booking-inquiries/useBookingInquiries";
+import { useBookingDraft } from "./features/booking-drafts/useBookingDraft";
 import BookingInquiryView from "./features/booking-inquiries/BookingInquiryView.vue";
 import { formatBookingMoney, formatInquiryDate } from "./features/booking-inquiries/presentation";
 import { api, ApiError, type CampaignReview, type CampaignProgress, type CampaignListItem, type DeliveryAttempt, type PageMeta, type EmailConfiguration, type ResendWebhookConfiguration, type Principal, type BookingOfferRecord, type BookingOfferEmailDelivery, type BookingOfferApprovalStatus, type BookingOfferApprovalRequirement, type BookingOfferWriteRequest, type BookingApprovalPolicy, type BookingApprovalRule, type BookingPriceList, type BookingPriceListItem, type BookingTaxProfile, type BookingTaxProfileRevisionInput, type BookingTaxCode, type BookingCancellationPolicy, type BookingCancellationPolicyRevisionInput, type PublicBookingOffer } from "./api";
@@ -70,15 +71,6 @@ const campaignListOffset = ref(0);
 const operatorResolution = reactive<Record<string, string>>({});
 const operatorReason = reactive<Record<string, string>>({});
 
-const bookingDraftDetail = ref<import("./api").BookingDraftDetail | null>(null);
-const bookingDraftEditorOpen = ref(false);
-const bookingDraftValuesJson = ref("{}");
-const bookingDraftSpaceLinesJson = ref("[]");
-const bookingDraftResourceLinesJson = ref("[]");
-const bookingDraftRequestedStart = ref("");
-const bookingDraftRequestedEnd = ref("");
-const bookingDraftTimezone = ref("Europe/Sarajevo");
-const bookingDraftChangeReason = ref("");
 const bookingOffer = ref<BookingOfferRecord | null>(null);
 const bookingOfferApprovalStatus = ref<BookingOfferApprovalStatus | null>(null);
 const bookingOfferIdInput = ref("");
@@ -195,11 +187,7 @@ const canCancel = computed(() => campaign.value?.status === "queued");
 const canReadBookingDraft = computed(() =>
   inquiryCapabilities.value.canReadDraft && Boolean(inquiryDetail.value?.bookingDraft),
 );
-const canManageBookingDraft = computed(() =>
-  inquiryCapabilities.value.canManageDraft &&
-  bookingDraftDetail.value?.status === "draft" &&
-  Boolean(bookingDraftDetail.value.currentRevision),
-);
+
 const canManageBookingOffer = computed(() =>
   (bookingDraftDetail.value?.status === "draft" || bookingDraftDetail.value?.status === "offered") &&
   Boolean(bookingDraftDetail.value.currentRevision),
@@ -225,16 +213,10 @@ function clearMessages(): void {
   pageNotice.value = "";
 }
 
+let resetBookingDraftState = (): void => {};
+
 function clearBookingDraftState(): void {
-  bookingDraftDetail.value = null;
-  bookingDraftEditorOpen.value = false;
-  bookingDraftValuesJson.value = "{}";
-  bookingDraftSpaceLinesJson.value = "[]";
-  bookingDraftResourceLinesJson.value = "[]";
-  bookingDraftRequestedStart.value = "";
-  bookingDraftRequestedEnd.value = "";
-  bookingDraftTimezone.value = "Europe/Sarajevo";
-  bookingDraftChangeReason.value = "";
+  resetBookingDraftState();
   bookingOffer.value = null;
   bookingOfferApprovalStatus.value = null;
   bookingOfferIdInput.value = "";
@@ -264,6 +246,32 @@ const {
   inquiryDetail, inquiryCapabilities, refreshInquiryDetailData, openInquiryWorkspace,
   reset: resetBookingInquiries,
 } = bookingInquiryState;
+
+const bookingDraftState = useBookingDraft({
+  api,
+  busy,
+  pageError,
+  pageNotice,
+  canManageDraftPermission: computed(() => inquiryCapabilities.value.canManageDraft),
+  clearMessages,
+  showError,
+  refreshInquiryDetail: refreshInquiryDetailData,
+});
+resetBookingDraftState = bookingDraftState.reset;
+const {
+  detail: bookingDraftDetail,
+  editorOpen: bookingDraftEditorOpen,
+  valuesJson: bookingDraftValuesJson,
+  spaceLinesJson: bookingDraftSpaceLinesJson,
+  resourceLinesJson: bookingDraftResourceLinesJson,
+  requestedStart: bookingDraftRequestedStart,
+  requestedEnd: bookingDraftRequestedEnd,
+  timezone: bookingDraftTimezone,
+  changeReason: bookingDraftChangeReason,
+  canManage: canManageBookingDraft,
+  refresh: refreshBookingDraft,
+  saveRevision: saveBookingDraftRevision,
+} = bookingDraftState;
 
 function showError(error: unknown): void {
   if (error instanceof ApiError) {
@@ -617,129 +625,11 @@ async function runCampaignAction(action: "confirm" | "queue" | "cancel"): Promis
   }
 }
 
-function populateBookingDraftEditor(draft: import("./api").BookingDraftDetail): void {
-  const revision = draft.currentRevision;
-  bookingDraftValuesJson.value = JSON.stringify(revision?.values ?? {}, null, 2);
-  bookingDraftSpaceLinesJson.value = JSON.stringify(
-    (revision?.spaceLines ?? []).map((line) => ({
-      venueSpaceId: line.venueSpaceId,
-      startsAt: line.startsAt,
-      endsAt: line.endsAt,
-      blockKind: line.blockKind,
-      ...(line.requestedCapacity === null ? {} : { requestedCapacity: line.requestedCapacity }),
-    })),
-    null,
-    2,
-  );
-  bookingDraftResourceLinesJson.value = JSON.stringify(
-    (revision?.resourceLines ?? []).map((line) => ({
-      resourceTypeId: line.resourceTypeId,
-      requestedQuantity: line.requestedQuantity,
-      values: line.values,
-    })),
-    null,
-    2,
-  );
-  bookingDraftRequestedStart.value = revision?.requestedStart ?? "";
-  bookingDraftRequestedEnd.value = revision?.requestedEnd ?? "";
-  bookingDraftTimezone.value = revision?.timezone ?? "Europe/Sarajevo";
-  bookingDraftChangeReason.value = "";
-}
-
 async function openBookingDraft(): Promise<void> {
   const draftReference = inquiryDetail.value?.bookingDraft;
-  if (!draftReference || !inquiryCapabilities.value.canReadDraft) return;
-  clearMessages();
-  busy.value = true;
-  try {
-    const result = await api.getBookingDraft(draftReference.draftId);
-    bookingDraftDetail.value = result.data;
-    populateBookingDraftEditor(result.data);
-    bookingDraftEditorOpen.value = true;
-  } catch (error) {
-    showError(error);
-  } finally {
-    busy.value = false;
-  }
+  await bookingDraftState.open(draftReference?.draftId, inquiryCapabilities.value.canReadDraft);
 }
 
-async function refreshBookingDraft(): Promise<void> {
-  const draftId = bookingDraftDetail.value?.draftId;
-  if (!draftId) return;
-  const result = await api.getBookingDraft(draftId);
-  bookingDraftDetail.value = result.data;
-  populateBookingDraftEditor(result.data);
-}
-
-async function saveBookingDraftRevision(): Promise<void> {
-  const draft = bookingDraftDetail.value;
-  const revision = draft?.currentRevision;
-  if (!draft || !revision || !canManageBookingDraft.value) return;
-
-  let values: Record<string, unknown>;
-  let spaceLines: Array<Record<string, unknown>>;
-  let resourceLines: Array<Record<string, unknown>>;
-  try {
-    const parsedValues: unknown = JSON.parse(bookingDraftValuesJson.value);
-    const parsedSpaces: unknown = JSON.parse(bookingDraftSpaceLinesJson.value);
-    const parsedResources: unknown = JSON.parse(bookingDraftResourceLinesJson.value);
-    if (!parsedValues || typeof parsedValues !== "object" || Array.isArray(parsedValues)) {
-      throw new Error("Values must be a JSON object.");
-    }
-    if (!Array.isArray(parsedSpaces) || !Array.isArray(parsedResources)) {
-      throw new Error("Space lines and resource lines must each be JSON arrays.");
-    }
-    values = parsedValues as Record<string, unknown>;
-    spaceLines = parsedSpaces as Array<Record<string, unknown>>;
-    resourceLines = parsedResources as Array<Record<string, unknown>>;
-  } catch (error) {
-    pageError.value = error instanceof Error ? error.message : "The draft JSON is invalid.";
-    return;
-  }
-  const reason = bookingDraftChangeReason.value.trim();
-  if (reason.length < 3) {
-    pageError.value = "Enter a change reason of at least 3 characters.";
-    return;
-  }
-  const nextRevision = draft.currentRevisionNumber + 1;
-  if (!window.confirm(
-    `Save these changes as immutable draft revision ${nextRevision}? Revision ${draft.currentRevisionNumber} will remain unchanged.`,
-  )) return;
-
-  clearMessages();
-  busy.value = true;
-  try {
-    const result = await api.createBookingDraftRevision(draft.draftId, {
-      expectedRevisionNumber: draft.currentRevisionNumber,
-      values,
-      requestedStart: bookingDraftRequestedStart.value.trim() || null,
-      requestedEnd: bookingDraftRequestedEnd.value.trim() || null,
-      timezone: bookingDraftTimezone.value.trim(),
-      spaceLines: spaceLines as Array<{
-        venueSpaceId: string;
-        startsAt: string;
-        endsAt: string;
-        blockKind: "setup" | "rehearsal" | "event_use" | "teardown" | "buffer";
-        requestedCapacity?: number;
-      }>,
-      resourceLines: resourceLines as Array<{
-        resourceTypeId: string;
-        requestedQuantity: number;
-        values?: Record<string, unknown>;
-      }>,
-      changeReason: reason,
-    });
-    await Promise.all([refreshBookingDraft(), refreshInquiryDetailData()]);
-    pageNotice.value = `Booking draft revision ${result.data.revisionNumber} created. Earlier revisions remain immutable.`;
-  } catch (error) {
-    showError(error);
-    if (error instanceof ApiError && error.status === 412) {
-      try { await refreshBookingDraft(); } catch { /* retain the original stale-revision message */ }
-    }
-  } finally {
-    busy.value = false;
-  }
-}
 
 function parseOfferJsonArray<T>(value: string, label: string): T[] {
   const parsed: unknown = JSON.parse(value);
