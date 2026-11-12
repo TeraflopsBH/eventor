@@ -128,7 +128,7 @@ export default {
     "revisionLabel": "revision",
     "openDraftButton": "Open booking draft",
   },
-  commercialBooking: {
+    commercialBooking: {
     "close": "Close",
     "revisionHistory": "Revision history",
     "noChangeReason": "No change reason recorded",
@@ -289,10 +289,10 @@ export default {
     "auditReasonValue": "Audit reason: {value}",
     "reconciledDate": "Reconciled: {date}",
     "previousPage": "Previous",
-    "deliveryCount": "deliveries",
     "nextPage": "Next",
     "bookingConfirmationReason": "Booking confirmation reason",
     "issuedDate": "issued {date}",
+    "recordReconciliation": "Record reconciliation",
   },
   publicOffer: {
     "language": "Language",
