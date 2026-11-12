@@ -1036,7 +1036,7 @@ async function issueBookingOffer(): Promise<void> {
     const result = await api.issueBookingOffer(offer.offerId, bookingOfferIssueRequestKey.value);
     bookingOfferAcceptanceToken.value = result.data.acceptanceToken;
     await refreshBookingOfferData();
-    pageNotice.value = "Offer issued. Copy the capability now and deliver it to the customer through an approved channel. Automatic offer email and the customer-facing browser page are not part of this UI slice.";
+    pageNotice.value = "Offer issued. Copy the secure customer link and deliver it through an approved channel. Email delivery is not yet automated.";
   } catch (error) {
     showError(error);
   } finally {
@@ -1055,7 +1055,7 @@ async function copyBookingOfferCapability(): Promise<void> {
     pageNotice.value = "Customer offer link copied. It contains a private bearer capability; send it only to the intended customer over an approved channel.";
     pageError.value = "";
   } catch {
-    pageError.value = "Clipboard access was denied. Select and copy the capability manually.";
+    pageError.value = "Clipboard access was denied. Copy the customer link manually.";
   }
 }
 
@@ -1947,10 +1947,10 @@ onMounted(() => {
                 </div>
 
                 <div v-if="bookingOfferAcceptanceToken" class="offer-capability-box">
-                  <strong>Customer capability — copy now</strong>
+                  <strong>Customer link — copy now</strong>
                   <p class="fine-print">This is a bearer secret. It is shown only in this session, is not stored in the database as plaintext and is not automatically emailed. The public browser page and SMTP delivery integration remain pending.</p>
                   <input :value="bookingOfferAcceptanceToken" type="password" readonly autocomplete="off" />
-                  <button class="button button-secondary" type="button" @click="copyBookingOfferCapability">Copy customer capability</button>
+                  <button class="button button-secondary" type="button" @click="copyBookingOfferCapability">Copy customer link</button>
                 </div>
 
                 <div v-if="bookingOfferApprovalStatus" class="offer-approval-list">
