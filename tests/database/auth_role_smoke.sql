@@ -29,6 +29,23 @@ BEGIN
     RAISE EXCEPTION 'authentication role has excessive business-table or identity-delete privileges';
   END IF;
 
+  IF NOT has_column_privilege(current_user, 'eogp.users', 'locale_preference', 'SELECT')
+     OR NOT has_column_privilege(current_user, 'eogp.users', 'locale_preference', 'UPDATE')
+     OR has_column_privilege('eventor_runtime', 'eogp.users', 'locale_preference', 'SELECT')
+     OR NOT has_column_privilege(current_user, 'eogp.organizations', 'default_locale', 'SELECT') THEN
+    RAISE EXCEPTION 'locale preference privileges are not correctly isolated';
+  END IF;
+
+  UPDATE eogp.users
+     SET locale_preference='bs-BA',updated_at=clock_timestamp()
+   WHERE email='ci-extended-a@example.invalid';
+  IF NOT EXISTS (
+    SELECT 1 FROM eogp.users
+     WHERE email='ci-extended-a@example.invalid' AND locale_preference='bs-BA'
+  ) THEN
+    RAISE EXCEPTION 'authentication role could not persist a global user locale preference';
+  END IF;
+
   IF NOT has_column_privilege(current_user, 'eogp.users', 'password_hash', 'SELECT')
      OR NOT has_column_privilege(current_user, 'eogp.users', 'password_hash', 'UPDATE')
      OR NOT has_column_privilege(current_user, 'eogp.users', 'email', 'SELECT') THEN
