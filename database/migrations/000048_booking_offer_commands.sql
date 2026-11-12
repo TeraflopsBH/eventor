@@ -572,7 +572,7 @@ BEGIN
      WHERE dr.organization_id=p_organization_id
        AND dr.id=v_revision.draft_revision_id
        AND dr.draft_id=v_offer.draft_id
-       AND dr.revision_number=v_current_draft_revision_id
+       AND dr.revision_number=v_current_draft_revision_number
   ) THEN
     RAISE EXCEPTION 'offer is based on a stale draft revision' USING ERRCODE = '40001';
   END IF;
@@ -1128,7 +1128,7 @@ BEGIN
      WHERE dr.organization_id=p_organization_id
        AND dr.id=v_revision.draft_revision_id
        AND dr.draft_id=v_offer.draft_id
-       AND dr.revision_number=v_current_draft_revision_id
+       AND dr.revision_number=v_current_draft_revision_number
   ) THEN
     RAISE EXCEPTION 'offer is based on a stale draft revision' USING ERRCODE = '40001';
   END IF;
