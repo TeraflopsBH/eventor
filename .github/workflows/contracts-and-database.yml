@@ -219,7 +219,7 @@ jobs:
         run: psql "$MIGRATOR_URL" -X -v ON_ERROR_STOP=1 -f tests/database/booking_tax_adjustment_calculation_smoke.sql
       - name: Verify booking offer and confirmation financial snapshot consistency
         run: psql "$RUNTIME_URL" -X -v ON_ERROR_STOP=1 -f tests/database/booking_commercial_snapshot_consistency_smoke.sql
-      - name: Verify end-to-end booking offer, financial snapshots and space-hold confirmation
+      - name: Verify end-to-end booking offer, financial snapshots and space/resource-hold confirmation
         run: psql "$MIGRATOR_URL" -X -v ON_ERROR_STOP=1 -f tests/database/booking_commercial_end_to_end_snapshot_smoke.sql
 
       - name: Verify delegated task projection and status command as runtime
