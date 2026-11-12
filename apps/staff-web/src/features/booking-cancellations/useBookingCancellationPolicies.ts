@@ -3,9 +3,9 @@ type StaffTab = "delivery" | "campaign" | "inquiries" | "approvals" | "prices" |
 import type { BookingCancellationPolicy, BookingCancellationPolicyRevisionInput } from "../../api";
 interface Dependencies {
   api: typeof import("../../api").api; busy: Ref<boolean>; pageError: Ref<string>; pageNotice: Ref<string>;
-  activeTab: Ref<StaffTab>; clearMessages: () => void; showError: (error: unknown) => void;
+  activeTab: Ref<StaffTab>; clearMessages: () => void; showError: (error: unknown) => void; translate: (key: string, params?: Record<string, string | number>) => string;
 }
-export function useBookingCancellationPolicies({ api, busy, pageError, pageNotice, activeTab, clearMessages, showError }: Dependencies) {
+export function useBookingCancellationPolicies({ api, busy, pageError, pageNotice, activeTab, clearMessages, showError, translate }: Dependencies) {
 const cancellationPolicies = ref<BookingCancellationPolicy[]>([]);
 const selectedCancellationPolicyId = ref("");
 const cancellationPolicyCreateForm = reactive({ code: "", name: "" });
@@ -45,14 +45,14 @@ function selectBookingCancellationPolicy(policyId: string): void { selectedCance
 
 async function createBookingCancellationPolicy(): Promise<void> {
   const code = cancellationPolicyCreateForm.code.trim(), name = cancellationPolicyCreateForm.name.trim();
-  if (code.length < 2 || code.length > 80 || !name || name.length > 250) { pageError.value = "Enter a valid policy code and name."; return; }
-  if (!window.confirm("Create an organization cancellation policy? It cannot be used for offers until its first revision is published.")) return;
+  if (code.length < 2 || code.length > 80 || !name || name.length > 250) { pageError.value = translate("commercialConfiguration.cancelFields"); return; }
+  if (!window.confirm(translate("commercialConfiguration.cancelCreateConfirm"))) return;
   clearMessages(); busy.value = true;
   try {
     const result = await api.createBookingCancellationPolicy({ code, name });
     cancellationPolicyCreateForm.code = ""; cancellationPolicyCreateForm.name = "";
     selectedCancellationPolicyId.value = result.data.policyId;
-    await loadBookingCancellationPolicies(); pageNotice.value = "Cancellation policy created. Publish its first revision before using it for offers.";
+    await loadBookingCancellationPolicies(); pageNotice.value = translate("commercialConfiguration.cancelCreated");
   } catch (error) { showError(error); } finally { busy.value = false; }
 }
 
@@ -69,23 +69,23 @@ async function saveBookingCancellationPolicyRevision(): Promise<void> {
       approvalRules: parseObject(cancellationPolicyApprovalRulesJson.value, "Approval rules"),
       commercialRules: parseObject(cancellationPolicyCommercialRulesJson.value, "Commercial rules"),
       noticeRules: parseObject(cancellationPolicyNoticeRulesJson.value, "Notice rules") };
-    if (!body.publicTerms || body.publicTerms.length > 10000) throw new Error("Customer-facing terms must contain 1–10,000 characters.");
-  } catch (error) { pageError.value = error instanceof Error ? error.message : "Invalid cancellation policy revision."; return; }
+    if (!body.publicTerms || body.publicTerms.length > 10000) throw new Error(translate("commercialConfiguration.cancelTerms"));
+  } catch (error) { pageError.value = error instanceof Error ? error.message : translate("commercialConfiguration.cancelInvalid"); return; }
   const latest = selectedCancellationPolicyLatestRevision.value;
-  if (!window.confirm(latest?.state === "draft" ? "Save this draft revision?" : "Create a successor draft? Existing offers and bookings retain their pinned policy revision.")) return;
+  if (!window.confirm(latest?.state === "draft" ? translate("commercialConfiguration.cancelSaveConfirm") : translate("commercialConfiguration.cancelSuccessorConfirm"))) return;
   clearMessages(); busy.value = true;
   try {
     const result = latest?.state === "draft" ? await api.updateBookingCancellationPolicyDraftRevision(policy.policyId, latest.revisionId, body) : await api.createBookingCancellationPolicyRevision(policy.policyId, body);
-    await loadBookingCancellationPolicies(); pageNotice.value = "Cancellation policy revision " + result.data.revisionNumber + " saved as a draft.";
+    await loadBookingCancellationPolicies(); pageNotice.value = translate("commercialConfiguration.cancelSaved", { revision: result.data.revisionNumber });
   } catch (error) { showError(error); } finally { busy.value = false; }
 }
 
 async function publishBookingCancellationPolicyRevision(): Promise<void> {
   const policy = selectedCancellationPolicy.value, revision = selectedCancellationPolicyLatestRevision.value;
   if (!policy || !revision || revision.state !== "draft") return;
-  if (!window.confirm("Publish this exact revision? It becomes immutable; existing offers and confirmed bookings remain unchanged.")) return;
+  if (!window.confirm(translate("commercialConfiguration.cancelPublishConfirm"))) return;
   clearMessages(); busy.value = true;
-  try { const result = await api.publishBookingCancellationPolicyRevision(policy.policyId, revision.revisionId); await loadBookingCancellationPolicies(); pageNotice.value = "Cancellation policy revision " + result.data.revisionNumber + " published."; }
+  try { const result = await api.publishBookingCancellationPolicyRevision(policy.policyId, revision.revisionId); await loadBookingCancellationPolicies(); pageNotice.value = translate("commercialConfiguration.cancelPublished", { revision: result.data.revisionNumber }); }
   catch (error) { showError(error); } finally { busy.value = false; }
 }
 return { cancellationPolicies, selectedCancellationPolicyId, cancellationPolicyCreateForm, cancellationPolicyCustomerMode, cancellationPolicyPublicTerms, cancellationPolicyApprovalRulesJson, cancellationPolicyCommercialRulesJson, cancellationPolicyNoticeRulesJson, selectedCancellationPolicy, selectedCancellationPolicyLatestRevision, loadCancellationPolicyEditor, loadBookingCancellationPolicies, openBookingCancellationPolicies, selectBookingCancellationPolicy, createBookingCancellationPolicy, saveBookingCancellationPolicyRevision, publishBookingCancellationPolicyRevision };
