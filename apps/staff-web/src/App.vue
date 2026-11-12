@@ -118,6 +118,11 @@ const canManageBookingDraft = computed(() =>
   bookingDraftDetail.value?.status === "draft" &&
   Boolean(bookingDraftDetail.value.currentRevision),
 );
+const canManageBookingOffer = computed(() =>
+  inquiryCapabilities.value.canManageDraft &&
+  (bookingDraftDetail.value?.status === "draft" || bookingDraftDetail.value?.status === "offered") &&
+  Boolean(bookingDraftDetail.value.currentRevision),
+);
 const bookingOfferApprovalsSatisfied = computed(() => {
   const requirements = bookingOfferApprovalStatus.value?.requirements;
   return Boolean(requirements) && requirements.every((item) =>
@@ -215,6 +220,18 @@ function clearBookingDraftState(): void {
   bookingOfferConfirmationReason.value = "";
   bookingOfferIssueRequestKey.value = "";
   bookingOfferSupersedeCurrent.value = false;
+  bookingOfferValidUntil.value = "";
+  bookingOfferTaxAmount.value = "";
+  bookingOfferInternalReason.value = "";
+  bookingOfferCreateForm.priceListRevisionId = "";
+  bookingOfferCreateForm.cancellationPolicyRevisionId = "";
+  bookingOfferCreateForm.approvalPolicyRevisionId = "";
+  bookingOfferCreateForm.currency = "";
+  bookingOfferCreateForm.taxBasis = "";
+  bookingOfferLineItemsJson.value = "[]";
+  bookingOfferAdjustmentsJson.value = "[]";
+  for (const key of Object.keys(bookingOfferApprovalDecisions)) delete bookingOfferApprovalDecisions[key];
+  for (const key of Object.keys(bookingOfferApprovalReasons)) delete bookingOfferApprovalReasons[key];
 }
 
 function showError(error: unknown): void {
@@ -887,6 +904,8 @@ function bookingOfferWritePayload(): BookingOfferWriteRequest {
   const lineItems = parseOfferJsonArray<{ itemCode: string; quantity: number }>(bookingOfferLineItemsJson.value, "Line items");
   const adjustments = parseOfferJsonArray<{ code: string; label: string; kind: "fee" | "discount" | "credit"; amount: number }>(bookingOfferAdjustmentsJson.value, "Adjustments");
   if (!lineItems.length) throw new Error("Add at least one price-list item to the offer.");
+  const internalReason = bookingOfferInternalReason.value.trim();
+  if (internalReason.length < 3) throw new Error("Enter an internal or tax audit reason of at least 3 characters.");
   return {
     priceListRevisionId,
     cancellationPolicyRevisionId,
@@ -897,7 +916,7 @@ function bookingOfferWritePayload(): BookingOfferWriteRequest {
     lineItems,
     adjustments,
     taxAmount,
-    internalReason: bookingOfferInternalReason.value.trim(),
+    internalReason,
   };
 }
 
@@ -937,7 +956,7 @@ async function loadBookingOffer(): Promise<void> {
 async function saveBookingOfferRevision(): Promise<void> {
   const draft = bookingDraftDetail.value;
   const draftRevisionId = draft?.currentRevision?.revisionId;
-  if (!draft || !draftRevisionId || !canManageBookingDraft.value) return;
+  if (!draft || !draftRevisionId || !canManageBookingOffer.value) return;
   let body: BookingOfferWriteRequest;
   try {
     body = bookingOfferWritePayload();
@@ -1007,6 +1026,12 @@ async function copyBookingOfferCapability(): Promise<void> {
   } catch {
     pageError.value = "Clipboard access was denied. Select and copy the capability manually.";
   }
+}
+
+function canDecideBookingOfferRequirement(requirement: BookingOfferApprovalRequirement): boolean {
+  return !requirement.blocked &&
+    requirement.approvedCount < requirement.requiredApprovals &&
+    !requirement.decisions.some((decision) => decision.membershipId === principal.value?.membershipId);
 }
 
 async function decideBookingOfferApproval(requirement: BookingOfferApprovalRequirement): Promise<void> {
@@ -1513,7 +1538,7 @@ onMounted(() => { void refreshSession(); });
                 <button class="button button-secondary" type="button" :disabled="busy || !bookingOfferIdInput.trim()" @click="loadBookingOffer">Load offer</button>
               </div>
 
-              <div v-if="canManageBookingDraft" class="offer-preparation">
+              <div v-if="canManageBookingOffer" class="offer-preparation">
                 <h5>{{ bookingOffer ? "Prepare successor offer revision" : "Prepare first offer revision" }}</h5>
                 <p class="fine-print">Use IDs of already published and effective organization configuration. Prices are calculated from the selected price-list revision and item codes by the server. Eventor does not supply default prices, cancellation terms, approval thresholds or tax rates.</p>
                 <form class="draft-revision-form" @submit.prevent="saveBookingOfferRevision">
@@ -1622,7 +1647,7 @@ onMounted(() => { void refreshSession(); });
                         <small>{{ decision.membershipId }} · {{ formatInquiryDate(decision.decidedAt) }}</small>
                       </li>
                     </ol>
-                    <div v-if="!requirement.blocked && requirement.approvedCount < requirement.requiredApprovals" class="operator-controls offer-approval-controls">
+                    <div v-if="canDecideBookingOfferRequirement(requirement)" class="operator-controls offer-approval-controls">
                       <label>Decision
                         <select v-model="bookingOfferApprovalDecisions[requirement.ruleCode]">
                           <option value="approved">Approve</option>
