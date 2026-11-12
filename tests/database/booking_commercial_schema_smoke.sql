@@ -21,7 +21,11 @@ DECLARE
     'eogp.decide_booking_offer_with_capability(uuid,text,text,text,text,bytea,bytea,text,bytea)',
     'eogp.decide_booking_offer_approval(uuid,uuid,uuid,uuid,text,text,text)',
     'eogp.get_booking_offer_approval_status(uuid,uuid,uuid)',
-    'eogp.confirm_booking_from_offer(uuid,uuid,uuid,text)'
+    'eogp.confirm_booking_from_offer(uuid,uuid,uuid,text)',
+    'eogp.get_booking_approval_policies(uuid,uuid)',
+    'eogp.create_booking_approval_policy(uuid,uuid,text,text)',
+    'eogp.create_booking_approval_policy_revision(uuid,uuid,uuid,jsonb)',
+    'eogp.publish_booking_approval_policy_revision(uuid,uuid,uuid,uuid)'
   ];
 BEGIN
   FOREACH v_name IN ARRAY v_required_tables LOOP
@@ -87,6 +91,18 @@ BEGIN
       AND NOT t.tgisinternal
   ) THEN
     RAISE EXCEPTION 'terminal offer transition capability-revoke trigger is missing';
+  END IF;
+
+  IF NOT EXISTS (
+    SELECT 1 FROM pg_catalog.pg_trigger t
+    JOIN pg_catalog.pg_class r ON r.oid=t.tgrelid
+    JOIN pg_catalog.pg_namespace n ON n.oid=r.relnamespace
+    WHERE n.nspname='eogp'
+      AND r.relname='booking_approval_policy_revisions'
+      AND t.tgname='booking_approval_policy_revisions_immutable_guard'
+      AND NOT t.tgisinternal
+  ) THEN
+    RAISE EXCEPTION 'published approval policy revision immutability trigger is missing';
   END IF;
 
   IF to_regprocedure('eogp.digest(bytea,text)') IS NULL THEN
