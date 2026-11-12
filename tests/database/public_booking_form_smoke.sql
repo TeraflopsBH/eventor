@@ -82,6 +82,7 @@ BEGIN
      OR v_form->>'organizationId' <> 'a1000000-0000-4000-8000-000000000001'
      OR v_form->>'formRevisionId' <> 'a3000000-0000-4000-8000-000000000001'
      OR v_form->>'locale' <> 'bs-BA'
+     OR v_form->>'defaultLocale' <> 'en'
      OR v_form->'fieldSchema'->'fields'->0->>'code' <> 'event_date' THEN
     RAISE EXCEPTION 'published public form projection did not return the expected safe revision';
   END IF;
@@ -105,6 +106,22 @@ BEGIN
     'EXECUTE'
   ) THEN
     RAISE EXCEPTION 'runtime role cannot execute the safe public-form projection';
+  END IF;
+END;
+$test$;
+
+-- The public projection reflects a later organization-default change
+-- without changing the immutable authored form revision locale.
+UPDATE eogp.organizations SET default_locale='bs-BA'
+ WHERE id='a1000000-0000-4000-8000-000000000001';
+
+DO $test$
+DECLARE
+  v_form jsonb;
+BEGIN
+  v_form := eogp.get_published_public_booking_form('ci-public-form','venue-rental');
+  IF v_form->>'defaultLocale' <> 'bs-BA' OR v_form->>'locale' <> 'bs-BA' THEN
+    RAISE EXCEPTION 'public form projection did not expose the configured organization locale separately from authored revision locale';
   END IF;
 END;
 $test$;
