@@ -119,9 +119,8 @@ BEGIN
   END IF;
 
   IF v_capability.revoked_at IS NOT NULL
-     OR v_capability.expires_at <= v_now
      OR v_capability.use_count >= v_capability.max_uses THEN
-    RAISE EXCEPTION 'booking offer capability is expired, revoked or already used'
+    RAISE EXCEPTION 'booking offer capability is revoked or already used'
       USING ERRCODE = '55000';
   END IF;
 
@@ -160,7 +159,8 @@ BEGIN
       USING ERRCODE = '55000';
   END IF;
 
-  IF v_revision.valid_until IS NOT NULL AND v_revision.valid_until <= v_now THEN
+  IF (v_revision.valid_until IS NOT NULL AND v_revision.valid_until <= v_now)
+     OR v_capability.expires_at <= v_now THEN
     UPDATE eogp.booking_offer_revisions
        SET state='expired'
      WHERE organization_id=v_capability.organization_id
