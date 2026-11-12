@@ -165,6 +165,7 @@ const publishedTaxProfileRevisions = computed(() => bookingTaxProfiles.value.fla
   })) : [],
 ));
 
+const compatibleTaxProfileRevisions = computed(() => publishedTaxProfileRevisions.value.filter((revision) => revision.currency === priceListRevisionForm.currency && revision.taxBasis === priceListRevisionForm.taxBasis));
 const selectedApprovalPolicyId = ref("");
 const approvalPolicyCreateForm = reactive({ code: "", name: "" });
 const approvalPolicyRulesJson = ref("[]");
@@ -1390,6 +1391,7 @@ async function saveBookingPriceListDraft(): Promise<void> {
       effectiveUntil: priceListRevisionForm.effectiveUntil ? new Date(priceListRevisionForm.effectiveUntil).toISOString() : null,
       items: items as BookingPriceListItem[],
     });
+    await api.setBookingPriceListTaxProfileRevision(priceList.priceListId, revision.revisionId, priceListTaxProfileRevisionId.value || null);
     await loadBookingPriceLists();
     pageNotice.value = "Draft saved with " + (result.data.itemCount ?? 0) + " price item(s). It remains unpublished.";
   } catch (error) { showError(error); }
@@ -2693,6 +2695,13 @@ onMounted(() => {
             <label>Effective from<input v-model="priceListRevisionForm.effectiveFrom" type="datetime-local" /></label>
             <label>Effective until<input v-model="priceListRevisionForm.effectiveUntil" type="datetime-local" /></label>
           </div>
+          <label>Published tax-profile revision
+            <select v-model="priceListTaxProfileRevisionId" :disabled="selectedPriceListLatestRevision?.state !== 'draft'">
+              <option value="">No tax profile selected</option>
+              <option v-for="taxRevision in compatibleTaxProfileRevisions" :key="taxRevision.revisionId" :value="taxRevision.revisionId">{{ taxRevision.profileCode }} · {{ taxRevision.profileName }} · rev {{ taxRevision.revisionNumber }}</option>
+            </select>
+          </label>
+          <p class="fine-print">A selected tax profile must match the price-list currency and tax basis. Item taxCode values are checked against its catalogue. The selected revision is copied into every offer's immutable terms snapshot.</p>
           <label>Price items (JSON array)
             <textarea v-model="priceListItemsJson" rows="16" spellcheck="false" :disabled="selectedPriceListLatestRevision?.state !== 'draft'"></textarea>
           </label>
