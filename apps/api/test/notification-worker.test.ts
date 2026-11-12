@@ -121,6 +121,97 @@ test("booking offer expiry worker rejects unsafe limits before discovery", async
   assert.equal(mock.calls.length, 0);
 });
 
+test("booking offer email worker decrypts the queued capability and sends through the configured SMTP transport", async () => {
+  const organizationId = "11111111-1111-4111-8111-111111111111";
+  const offerId = "22222222-2222-4222-8222-222222222222";
+  const offerRevisionId = "33333333-3333-4333-8333-333333333333";
+  const deliveryId = "44444444-4444-4444-8444-444444444444";
+  const contactKey = Buffer.alloc(32, 21);
+  const deliveryKey = Buffer.alloc(32, 22);
+  const capability = "A".repeat(43);
+  const recipientCiphertext = encryptContactValue(
+    "customer@example.test", contactKey,
+    { organizationId, contactKind: "email" },
+  );
+  const capabilityCiphertext = encryptContactValue(
+    capability, contactKey,
+    { organizationId, contactKind: "other" },
+  );
+  const calls: string[] = [];
+  let sentMessage: { to: string; subject: string; text: string } | null = null;
+  let closed = false;
+  const job = {
+    delivery_id: deliveryId,
+    offer_id: offerId,
+    offer_revision_id: offerRevisionId,
+    capability_ciphertext: capabilityCiphertext,
+    recipient_ciphertext: recipientCiphertext,
+    credentials_ciphertext: null,
+    smtp_settings: {
+      host: "smtp.example.test",
+      port: 587,
+      transportSecurity: "starttls" as const,
+      authMode: "none" as const,
+      senderEmail: "offers@example.test",
+      senderName: "Example Venue",
+      replyTo: null,
+      connectionTimeoutMs: 15000,
+    },
+    sender_email: "offers@example.test",
+    sender_name: "Example Venue",
+    reply_to: null,
+    valid_until: new Date("2027-01-01T12:00:00.000Z"),
+    currency: "BAM",
+    total_amount: "125.00",
+  };
+  const client = {
+    async query(sql: string, values: unknown[] = []) {
+      const normalized = sql.replace(/\\s+/g, " ").trim();
+      calls.push(normalized);
+      if (normalized.startsWith("SELECT * FROM eogp.claim_booking_offer_email_delivery")) {
+        return { rows: [job], rowCount: 1 };
+      }
+      if (normalized.startsWith("SELECT eogp.complete_booking_offer_email_delivery")) {
+        assert.deepEqual(values, [organizationId, deliveryId, "sent", null, "smtp-message-id"]);
+        return { rows: [{ result: { retryScheduled: false } }], rowCount: 1 };
+      }
+      return { rows: [], rowCount: 1 };
+    },
+    release() {},
+  };
+  const pool = {
+    async query(sql: string) {
+      calls.push(sql);
+      return { rows: [{ organization_id: organizationId }], rowCount: 1 };
+    },
+    async connect() { return client; },
+  } as unknown as Pool;
+  const factory: SmtpTransportFactory = () => ({
+    async verify() { return true; },
+    async sendMail(message) {
+      sentMessage = message;
+      return { messageId: "smtp-message-id", accepted: [message.to] };
+    },
+    close() { closed = true; },
+  });
+
+  const result = await processPendingBookingOfferEmailDeliveries(
+    pool, contactKey, deliveryKey, "https://eventor.example.test", 10, 10, factory,
+  );
+  assert.equal(result.bookingOfferEmailAttempts, 1);
+  assert.equal(result.bookingOfferEmailSent, 1);
+  assert.equal(result.bookingOfferEmailFailed, 0);
+  assert.equal(result.bookingOfferEmailUncertain, 0);
+  assert.equal(closed, true);
+  assert.ok(sentMessage);
+  assert.equal(sentMessage.to, "customer@example.test");
+  assert.match(sentMessage.text, new RegExp(
+    `https://eventor\\.example\\.test/offers/${offerId}#token=${capability}`,
+  ));
+  assert.ok(calls.some((sql) => sql === "BEGIN"));
+  assert.ok(calls.some((sql) => sql === "COMMIT"));
+});
+
 test("booking offer email worker rejects a non-HTTPS public application URL before discovery", async () => {
   const mock = fakePool([]);
   await assert.rejects(
