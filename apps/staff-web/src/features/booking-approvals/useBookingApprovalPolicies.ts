@@ -3,9 +3,9 @@ type StaffTab = "delivery" | "campaign" | "inquiries" | "approvals" | "prices" |
 import type { BookingApprovalPolicy, BookingApprovalRule } from "../../api";
 interface Dependencies {
   api: typeof import("../../api").api; busy: Ref<boolean>; pageError: Ref<string>; pageNotice: Ref<string>;
-  activeTab: Ref<StaffTab>; clearMessages: () => void; showError: (error: unknown) => void;
+  activeTab: Ref<StaffTab>; clearMessages: () => void; showError: (error: unknown) => void; translate: (key: string, params?: Record<string, string | number>) => string;
 }
-export function useBookingApprovalPolicies({ api, busy, pageError, pageNotice, activeTab, clearMessages, showError }: Dependencies) {
+export function useBookingApprovalPolicies({ api, busy, pageError, pageNotice, activeTab, clearMessages, showError, translate }: Dependencies) {
 const approvalPolicies = ref<BookingApprovalPolicy[]>([]);
 const selectedApprovalPolicyId = ref("");
 const approvalPolicyCreateForm = reactive({ code: "", name: "" });
@@ -55,7 +55,7 @@ async function createBookingApprovalPolicy(): Promise<void> {
   const code = approvalPolicyCreateForm.code.trim();
   const name = approvalPolicyCreateForm.name.trim();
   if (code.length < 2 || code.length > 80 || name.length < 1 || name.length > 250) {
-    pageError.value = "Enter a policy code (2–80 characters) and name (1–250 characters).";
+    pageError.value = translate("commercialConfiguration.approvalFields");
     return;
   }
   if (!window.confirm("Create a new organization approval policy? It has no revisions yet. You will create and explicitly publish its first rules revision before it can be used for a new offer.")) return;
@@ -67,7 +67,7 @@ async function createBookingApprovalPolicy(): Promise<void> {
     approvalPolicyCreateForm.name = "";
     selectedApprovalPolicyId.value = result.data.policyId;
     await loadBookingApprovalPolicies();
-    pageNotice.value = "Approval policy created. Create and publish its first rules revision before selecting it for a new offer.";
+    pageNotice.value = translate("commercialConfiguration.approvalCreated");
   } catch (error) {
     showError(error);
   } finally {
@@ -81,19 +81,19 @@ async function createBookingApprovalPolicyRevision(): Promise<void> {
   let parsed: unknown;
   try {
     parsed = JSON.parse(approvalPolicyRulesJson.value);
-    if (!Array.isArray(parsed)) throw new Error("Rules must be a JSON array.");
-    if (parsed.length > 50) throw new Error("A policy may contain no more than 50 rules.");
+    if (!Array.isArray(parsed)) throw new Error(translate("commercialConfiguration.approvalArray"));
+    if (parsed.length > 50) throw new Error(translate("commercialConfiguration.approvalLimit"));
     for (const item of parsed) {
-      if (!item || typeof item !== "object" || Array.isArray(item)) throw new Error("Each rule must be a JSON object.");
+      if (!item || typeof item !== "object" || Array.isArray(item)) throw new Error(translate("commercialConfiguration.approvalObject"));
       const rule = item as Record<string, unknown>;
       if (typeof rule.code !== "string" || typeof rule.condition !== "object" || !rule.condition ||
           typeof rule.requiredApprovals !== "number" || typeof rule.permission !== "string" ||
           typeof rule.separationOfDuties !== "boolean") {
-        throw new Error("Each rule needs code, condition, requiredApprovals, permission and separationOfDuties.");
+        throw new Error(translate("commercialConfiguration.approvalRuleFields"));
       }
     }
   } catch (error) {
-    pageError.value = error instanceof Error ? error.message : "Approval policy rules are invalid JSON.";
+    pageError.value = error instanceof Error ? error.message : translate("commercialConfiguration.approvalInvalid");
     return;
   }
   const latest = selectedApprovalPolicyLatestRevision.value;
@@ -109,7 +109,7 @@ async function createBookingApprovalPolicyRevision(): Promise<void> {
       ? await api.updateBookingApprovalPolicyDraftRevision(policy.policyId, latest.revisionId, parsed as BookingApprovalRule[])
       : await api.createBookingApprovalPolicyRevision(policy.policyId, parsed as BookingApprovalRule[]);
     await loadBookingApprovalPolicies();
-    pageNotice.value = "Approval policy revision " + result.data.revisionNumber + " saved as a draft. Publish it explicitly when ready.";
+    pageNotice.value = translate("commercialConfiguration.approvalSaved", { revision: result.data.revisionNumber });
   } catch (error) {
     showError(error);
   } finally {
@@ -121,7 +121,7 @@ async function publishBookingApprovalPolicyRevision(): Promise<void> {
   const policy = selectedApprovalPolicy.value;
   const revision = selectedApprovalPolicyLatestRevision.value;
   if (!policy || !revision || revision.state !== "draft") return;
-  if (!window.confirm("Publish approval policy revision " + revision.revisionNumber + "? Published revisions are immutable. Existing offer revisions retain their original approval-rule snapshot.")) return;
+  if (!window.confirm(translate("commercialConfiguration.approvalPublishConfirm", { revision: revision.revisionNumber }))) return;
   clearMessages();
   busy.value = true;
   try {
