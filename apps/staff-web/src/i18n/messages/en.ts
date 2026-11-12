@@ -60,6 +60,8 @@ export default {
     saveOrganization: "Save organization language",
     organizationSaved: "Organization default language saved.",
     userSaved: "Your language preference was saved.",
+    followOrganization: "Your language now follows the organization default.",
+    useOrganization: "Use organization default",
   },
   campaignWorkspace: {
     "eyebrow": "EVENT NOTIFICATIONS",
