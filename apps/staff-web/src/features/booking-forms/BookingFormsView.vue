@@ -51,8 +51,8 @@ function setType(type: string): void {
         </div>
         <div class="booking-form-actions">
           <span class="muted">{{ w.dirty ? t("bookingForms.unsaved") : t("bookingForms.savedState") }}</span>
-          <button class="button button-primary" :disabled="w.busy || !w.editable || !w.dirty" @click="w.save">{{ t("bookingForms.saveDraft") }}</button>
-          <button class="button button-secondary" :disabled="w.busy || !w.editable || w.dirty || !w.schema.fields.length" @click="w.publish">{{ t("bookingForms.publish") }}</button>
+          <button class="button button-primary" :disabled="w.busy.value || !w.editable || !w.dirty" @click="w.save">{{ t("bookingForms.saveDraft") }}</button>
+          <button class="button button-secondary" :disabled="w.busy.value || !w.editable || w.dirty || !w.schema.fields.length" @click="w.publish">{{ t("bookingForms.publish") }}</button>
         </div>
       </section>
       <section class="panel">
