@@ -7,6 +7,7 @@ DECLARE
   v_staff_projection_definition text;
   v_public_projection_definition text;
   v_confirmation_definition text;
+  v_offer_immutability_definition text;
 BEGIN
   SELECT pg_get_functiondef(
     'eogp.save_booking_offer_revision(uuid,uuid,uuid,uuid,uuid,uuid,uuid,text,text,timestamptz,jsonb,jsonb,numeric,text,boolean)'::regprocedure
@@ -66,6 +67,25 @@ BEGIN
      OR position('''terms'',v_revision.terms_snapshot' IN v_confirmation_definition)=0
      OR position('v_snapshot_sha256' IN v_confirmation_definition)=0 THEN
     RAISE EXCEPTION 'booking confirmation does not preserve the accepted offer financial snapshot and approval evidence';
+  END IF;
+
+  -- Issued offer terms cannot be edited or deleted. Only the terminal
+  -- customer-decision state and accepted_at timestamp may change.
+  SELECT pg_get_functiondef('eogp.protect_issued_booking_offer_revision()'::regprocedure)
+    INTO v_offer_immutability_definition;
+  IF NOT EXISTS (
+    SELECT 1
+      FROM pg_catalog.pg_trigger trigger_row
+      JOIN pg_catalog.pg_class relation ON relation.oid=trigger_row.tgrelid
+      JOIN pg_catalog.pg_namespace namespace ON namespace.oid=relation.relnamespace
+     WHERE namespace.nspname='eogp'
+       AND relation.relname='booking_offer_revisions'
+       AND trigger_row.tgname='booking_offer_revisions_issued_immutable_guard'
+       AND NOT trigger_row.tgisinternal
+  ) OR position('to_jsonb(NEW)' IN v_offer_immutability_definition)=0
+     OR position('to_jsonb(OLD)' IN v_offer_immutability_definition)=0
+     OR position('issued booking offer terms are immutable' IN v_offer_immutability_definition)=0 THEN
+    RAISE EXCEPTION 'issued offer revision terms are not protected by the immutability guard';
   END IF;
 
   -- Published tax-profile revisions are immutable; price-list immutability is
