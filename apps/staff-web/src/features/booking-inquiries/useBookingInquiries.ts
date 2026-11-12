@@ -5,8 +5,9 @@ import { formatInquiryAnswer, resolveInquiryAssigneeName } from "./presentation"
 
 type InquiryStatusCommand = "received" | "under_review" | "declined" | "spam";
 type ApiClient = typeof defaultApi;
+type StaffTab = "delivery" | "campaign" | "inquiries" | "approvals" | "prices" | "cancellations" | "taxes";
 interface BookingInquiriesOptions {
-  principal: Ref<Principal | null>; busy: Ref<boolean>; activeTab: Ref<string>;
+  principal: Ref<Principal | null>; busy: Ref<boolean>; activeTab: Ref<StaffTab>;
   pageError: Ref<string>; pageNotice: Ref<string>; api: ApiClient;
   clearMessages: () => void; showError: (error: unknown) => void;
   clearBookingDraftState: () => void;
