@@ -420,6 +420,10 @@ export interface BookingOfferAdjustmentInput {
   label: string;
   kind: "fee" | "discount" | "credit";
   amount: number;
+  /** Required when the selected price list pins a tax profile. */
+  allocationMethod?: "tax_code" | "proportional_to_lines" | "not_applicable";
+  /** Required for tax_code allocation; omitted for proportional/not_applicable. */
+  taxCode?: string | null;
 }
 
 export interface BookingOfferWriteRequest {
