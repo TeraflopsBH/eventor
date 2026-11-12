@@ -1403,6 +1403,50 @@ test("offer approvals are permission-gated, reasoned and scoped to an exact offe
   assert.equal(mock.bookingOfferApprovalStatusCalls, 1);
 });
 
+
+test("public offer review shows only customer-safe terms using a purpose-bound capability", async (t) => {
+  const mock = makePool();
+  const app = makeApi(mock.pool, { authenticated: false });
+  t.after(async () => app.close());
+  const offerId = "18181818-1818-4181-8181-181818181818";
+  const token = "V".repeat(43);
+
+  const response = await app.inject({
+    method: "GET",
+    url: `/public/booking-offers/${offerId}`,
+    headers: { "x-external-booking-token": token },
+  });
+  assert.equal(response.statusCode, 200);
+  const data = response.json<{
+    data: {
+      offerId: string;
+      status: string;
+      totalAmount: number;
+      terms: { lineItems: Array<{ label: string }>; spaces: Array<{ code: string }>; resources: Array<{ label: string }> };
+    };
+  }>().data;
+  assert.equal(data.offerId, offerId);
+  assert.equal(data.status, "issued");
+  assert.equal(data.totalAmount, 275);
+  assert.equal(data.terms.lineItems[0]?.label, "Hall rental");
+  assert.equal(data.terms.spaces[0]?.code, "MAIN-HALL");
+  assert.equal(data.terms.resources[0]?.label, "Chairs");
+  assert.equal("approvalRequirements" in data, false);
+  assert.equal("internalReason" in data.terms, false);
+  assert.equal(mock.publicBookingOfferViewCalls, 1);
+
+  const call = mock.commandCalls.find((item) => item.sql.includes("eogp.get_public_booking_offer_with_capability("));
+  assert.ok(call);
+  assert.equal(call.values[0], offerId);
+  assert.equal(call.values[1], createHash("sha256").update(token, "utf8").digest("hex"));
+
+  const missingToken = await app.inject({
+    method: "GET",
+    url: `/public/booking-offers/${offerId}`,
+  });
+  assert.equal(missingToken.statusCode, 400);
+});
+
 test("customer offer acceptance and rejection use a one-use purpose-bound capability without a staff session", async (t) => {
   const mock = makePool();
   const contactKey = Buffer.alloc(32, 10);
