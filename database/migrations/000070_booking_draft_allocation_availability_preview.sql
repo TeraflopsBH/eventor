@@ -18,6 +18,7 @@ DECLARE
   v_spaces jsonb;
   v_resources jsonb;
   v_resource_interval_valid boolean;
+  v_resource_interval_reason text;
 BEGIN
   PERFORM eogp.assert_booking_draft_permission(
     p_organization_id, p_draft_id, p_actor_membership_id, 'booking.draft.read'
@@ -35,6 +36,10 @@ BEGIN
     p_resource_starts_at IS NOT NULL
     AND p_resource_ends_at IS NOT NULL
     AND p_resource_ends_at > p_resource_starts_at;
+  v_resource_interval_reason := CASE
+    WHEN p_resource_starts_at IS NULL OR p_resource_ends_at IS NULL THEN 'resource_interval_missing'
+    ELSE 'resource_interval_invalid'
+  END;
 
   WITH proposed AS (
     SELECT item.value AS line, item.ordinality::integer AS line_number
@@ -97,7 +102,7 @@ BEGIN
       'requestedQuantity', item.value->>'requestedQuantity',
       'checked', false,
       'available', NULL,
-      'reason', 'resource_interval_missing',
+      'reason', v_resource_interval_reason,
       'availableQuantity', NULL
     ) ORDER BY item.ordinality), '[]'::jsonb)
       INTO v_resources
