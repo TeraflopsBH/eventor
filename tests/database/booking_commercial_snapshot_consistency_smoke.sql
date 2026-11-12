@@ -88,6 +88,21 @@ BEGIN
     RAISE EXCEPTION 'issued offer revision terms are not protected by the immutability guard';
   END IF;
 
+  -- The offer revision also pins the selected tax-profile configuration
+  -- before insertion, so later profile changes cannot rewrite issued terms.
+  IF NOT EXISTS (
+    SELECT 1
+      FROM pg_catalog.pg_trigger trigger_row
+      JOIN pg_catalog.pg_class relation ON relation.oid=trigger_row.tgrelid
+      JOIN pg_catalog.pg_namespace namespace ON namespace.oid=relation.relnamespace
+     WHERE namespace.nspname='eogp'
+       AND relation.relname='booking_offer_revisions'
+       AND trigger_row.tgname='booking_offer_revision_tax_configuration_snapshot'
+       AND NOT trigger_row.tgisinternal
+  ) THEN
+    RAISE EXCEPTION 'offer revision tax-configuration snapshot trigger is missing';
+  END IF;
+
   -- Published tax-profile revisions are immutable; price-list immutability is
   -- checked by the existing commercial schema smoke test.
   IF NOT EXISTS (
