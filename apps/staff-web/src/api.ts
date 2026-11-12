@@ -618,6 +618,7 @@ export interface BookingPriceListRevision {
   revisionNumber: number;
   currency: string;
   taxBasis: "inclusive" | "exclusive" | "not_applicable" | "to_be_confirmed";
+  taxProfileRevisionId?: string | null;
   state: "draft" | "published" | "retired";
   effectiveFrom: string | null;
   effectiveUntil: string | null;
@@ -836,7 +837,7 @@ export const api = {
     request<Envelope<BookingTaxProfileMutationResult>>(
       "/organization/booking-tax-profiles", { method: "POST", body, idempotent: true },
     ),
-  createBookingTaxProfileRevision: (taxProfileId: string, body: BookingTaxProfileRevisionInput) =>
+  createBookingTaxProfileRevision: (taxProfileId: string, body: Omit<BookingTaxProfileRevisionInput, "taxCodes">) =>
     request<Envelope<BookingTaxProfileMutationResult>>(
       `/booking-tax-profiles/${encodeURIComponent(taxProfileId)}/revisions`,
       { method: "POST", body, idempotent: true },
