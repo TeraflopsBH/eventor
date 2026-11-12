@@ -123,6 +123,7 @@ function makePool() {
           organizationId: "11111111-1111-4111-8111-111111111111",
           organizationSlug: values[0],
           organizationName: "GHB",
+          defaultLocale: "en",
           defaultTimezone: "Europe/Sarajevo",
           formCode: values[1],
           formName: "Venue rental inquiry",
