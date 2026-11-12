@@ -48,6 +48,8 @@ const {
   sourceAnswerItems: bookingDraftSourceAnswerItems,
   editorOpen: bookingDraftEditorOpen,
   valuesJson: bookingDraftValuesJson,
+  draftAnswers: bookingDraftAnswers,
+  sourceFormFields: bookingDraftSourceFormFields,
   spaceLinesJson: bookingDraftSpaceLinesJson,
   resourceLinesJson: bookingDraftResourceLinesJson,
   requestedStart: bookingDraftRequestedStart,
@@ -123,7 +125,55 @@ const { busy } = props.workspace;
                   {{ t("commercialBooking.draftImmutableInfo") }}
                 </p>
                 <form class="draft-revision-form" @submit.prevent="saveBookingDraftRevision">
-                  <label>{{$t('commercialBooking.valuesSnapshot')}}<textarea v-model="bookingDraftValuesJson" rows="8" spellcheck="false"></textarea>
+                  <section v-if="bookingDraftSourceFormFields.length" class="draft-answer-editor">
+                    <div class="inquiry-card-heading">
+                      <h5>{{ t("bookingInquiry.editSubmittedAnswers") }}</h5>
+                      <span class="fine-print">{{ t("bookingInquiry.formRevisionLabel", { revision: bookingDraftDetail.currentRevision?.sourceFormRevisionId?.slice(0, 8) ?? "" }) }}</span>
+                    </div>
+                    <template v-for="field in bookingDraftSourceFormFields" :key="field.code">
+                      <label v-if="field.type === 'textarea'">
+                        {{ field.label || field.code }}{{ field.required ? " *" : "" }}
+                        <textarea v-model="bookingDraftAnswers[field.code]" :required="field.required" :minlength="field.minLength" :maxlength="field.maxLength" rows="3"></textarea>
+                        <small v-if="field.description || field.helpText" class="muted">{{ field.description || field.helpText }}</small>
+                      </label>
+                      <label v-else-if="field.type === 'select'">
+                        {{ field.label || field.code }}{{ field.required ? " *" : "" }}
+                        <select v-model="bookingDraftAnswers[field.code]" :required="field.required">
+                          <option value="">{{ t("bookingInquiry.chooseAnswer") }}</option>
+                          <option v-for="option in field.options || []" :key="option.value" :value="option.value">{{ option.label }}</option>
+                        </select>
+                        <small v-if="field.description || field.helpText" class="muted">{{ field.description || field.helpText }}</small>
+                      </label>
+                      <fieldset v-else-if="field.type === 'multiselect'" class="public-choice-group">
+                        <legend>{{ field.label || field.code }}{{ field.required ? " *" : "" }}</legend>
+                        <label v-for="option in field.options || []" :key="option.value" class="public-choice">
+                          <input v-model="bookingDraftAnswers[field.code]" type="checkbox" :value="option.value" />
+                          {{ option.label }}
+                        </label>
+                        <small v-if="field.description || field.helpText" class="muted">{{ field.description || field.helpText }}</small>
+                      </fieldset>
+                      <label v-else-if="field.type === 'checkbox'" class="public-checkbox">
+                        <input v-model="bookingDraftAnswers[field.code]" type="checkbox" />
+                        <span>{{ field.label || field.code }}{{ field.required ? " *" : "" }}</span>
+                      </label>
+                      <label v-else>
+                        {{ field.label || field.code }}{{ field.required ? " *" : "" }}
+                        <input
+                          v-model="bookingDraftAnswers[field.code]"
+                          :type="field.type === 'email' ? 'email' : field.type === 'phone' ? 'tel' : field.type === 'number' ? 'number' : field.type === 'date' ? 'date' : field.type === 'time' ? 'time' : 'text'"
+                          :required="field.required"
+                          :min="field.min"
+                          :max="field.max"
+                          :minlength="field.minLength"
+                          :maxlength="field.maxLength"
+                          :step="field.integer ? 1 : 'any'"
+                        />
+                        <small v-if="field.type === 'datetime'" class="muted">{{ t("bookingInquiry.dateTimeOffsetHelp") }}</small>
+                        <small v-if="field.description || field.helpText" class="muted">{{ field.description || field.helpText }}</small>
+                      </label>
+                    </template>
+                  </section>
+                  <label v-else>{{$t('commercialBooking.valuesSnapshot')}}<textarea v-model="bookingDraftValuesJson" rows="8" spellcheck="false"></textarea>
                   </label>
                   <div class="field-grid">
                     <label>{{$t('commercialBooking.requestedStart')}}<input v-model="bookingDraftRequestedStart" type="text" maxlength="80" placeholder="2027-01-18T09:00:00+01:00" />
