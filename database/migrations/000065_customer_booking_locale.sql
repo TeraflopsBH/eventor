@@ -34,6 +34,9 @@ BEGIN
 END;
 $function$;
 
+REVOKE ALL ON FUNCTION eogp.default_booking_inquiry_customer_locale()
+  FROM PUBLIC,eventor_runtime,eventor_worker,eventor_auth;
+
 CREATE TRIGGER booking_inquiries_default_customer_locale
 BEFORE INSERT ON eogp.booking_inquiries
 FOR EACH ROW EXECUTE FUNCTION eogp.default_booking_inquiry_customer_locale();
