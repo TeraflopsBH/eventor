@@ -4470,7 +4470,7 @@ paths:
       tags: ["Public Booking Intake"]
       operationId: getPublishedPublicBookingForm
       summary: "Return the published public booking form"
-      description: "Returns the active organization's latest published form revision. The fieldSchema follows PublicBookingFormFieldSchemaV1; legacy revisions without schemaVersion are interpreted as v1."
+      description: "Returns the active organization's latest published form revision and configured customer-facing defaultLocale. The public page uses defaultLocale for its initial interface language; locale identifies the authored language of this immutable form revision. The fieldSchema follows PublicBookingFormFieldSchemaV1; legacy revisions without schemaVersion are interpreted as v1."
       security: []
       parameters:
         - $ref: '#/components/parameters/POrganizationSlug'
@@ -6159,11 +6159,12 @@ components:
       properties:
         data:
           type: object
-          required: [organizationId, organizationSlug, organizationName, defaultTimezone, formCode, formName, formRevisionId, revisionNumber, locale, fieldSchema, publishedAt]
+          required: [organizationId, organizationSlug, organizationName, defaultLocale, defaultTimezone, formCode, formName, formRevisionId, revisionNumber, locale, fieldSchema, publishedAt]
           properties:
             organizationId: { type: string, format: uuid }
             organizationSlug: { type: string }
             organizationName: { type: string }
+            defaultLocale: { type: string, enum: [bs-BA, en], description: Organization customer-facing default; public form UI uses this as its initial locale. }
             defaultTimezone: { type: string }
             formCode: { type: string }
             formName: { type: string }
