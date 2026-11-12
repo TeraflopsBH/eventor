@@ -40,6 +40,15 @@ type BookingOfferCreateBody = {
   internalReason?: string;
 };
 type BookingOfferSuccessorBody = BookingOfferCreateBody & { draftRevisionId: string; supersedeCurrentOffer?: boolean };
+type BookingOfferAcceptanceBody = {
+  acceptanceName?: string;
+  acceptanceNote?: string;
+};
+type BookingOfferRejectionBody = {
+  reasonCode: string;
+  reason: string;
+  note?: string;
+};
 
 export type StaffAuthenticator = (request: FastifyRequest) => Promise<StaffPrincipal | null>;
 export type MutationOriginVerifier = (request: FastifyRequest, principal: StaffPrincipal) => Promise<boolean>;
@@ -282,6 +291,37 @@ const bookingOfferSuccessorBody = {
   additionalProperties: false,
 } as const;
 const bookingOfferIssueBody = { type: "object", properties: {}, additionalProperties: false } as const;
+const publicOfferDecisionParams = {
+  type: "object", required: ["offerId"],
+  properties: { offerId: { type: "string", pattern: uuidPattern } },
+  additionalProperties: false,
+} as const;
+const publicOfferDecisionHeaders = {
+  type: "object", required: ["idempotency-key", "x-external-booking-token"],
+  properties: {
+    "idempotency-key": { type: "string", minLength: 8, maxLength: 200 },
+    "x-external-booking-token": { type: "string", pattern: "^[A-Za-z0-9_-]{43}$" },
+  },
+  additionalProperties: true,
+} as const;
+const bookingOfferAcceptanceBody = {
+  type: "object",
+  properties: {
+    acceptanceName: { type: "string", minLength: 1, maxLength: 250 },
+    acceptanceNote: { type: "string", maxLength: 1000 },
+  },
+  additionalProperties: false,
+} as const;
+const bookingOfferRejectionBody = {
+  type: "object",
+  required: ["reasonCode", "reason"],
+  properties: {
+    reasonCode: { type: "string", minLength: 2, maxLength: 100 },
+    reason: { type: "string", minLength: 3, maxLength: 2000 },
+    note: { type: "string", maxLength: 1000 },
+  },
+  additionalProperties: false,
+} as const;
 const bookingDraftParams = {
   type: "object",
   required: ["draftId"],
@@ -783,7 +823,7 @@ function principalIsValid(principal: StaffPrincipal | null): principal is StaffP
 
 export function buildApi(dependencies: ApiDependencies): FastifyInstance {
   const server = Fastify({
-    logger: true,
+    logger: { redact: ["req.headers.x-external-booking-token"] },
     bodyLimit: 64 * 1024,
     trustProxy: dependencies.trustedProxyAddresses?.length
       ? [...dependencies.trustedProxyAddresses]
@@ -811,8 +851,10 @@ export function buildApi(dependencies: ApiDependencies): FastifyInstance {
       /^\/public\/organizations\/[^/]+\/booking-forms\/[^/]+$/.test(pathname);
     const publicBookingInquiryWrite = request.method === "POST" &&
       /^\/public\/organizations\/[^/]+\/booking-inquiries$/.test(pathname);
-    if (publicBookingFormRead || publicBookingInquiryWrite) {
-      // These two public intake operations are the only anonymous application routes.
+    const publicOfferDecision = request.method === "POST" &&
+      /^\\/booking-offers\\/[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89abAB][0-9a-f]{3}-[0-9a-f]{12}\\/(accept|reject)$/.test(pathname);
+    if (publicBookingFormRead || publicBookingInquiryWrite || publicOfferDecision) {
+      // Public intake and purpose-bound offer decisions authenticate through their own capability.
       request.staffPrincipal = null;
       return;
     }
