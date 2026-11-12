@@ -1617,7 +1617,7 @@ export function buildApi(dependencies: ApiDependencies): FastifyInstance {
       await client.query("COMMIT");
       const data = result.rows[0]?.result as Record<string, unknown> | undefined;
       if (!data) throw new ApiError(500, "OFFER_DECISION_RESULT_MISSING", "The offer decision did not return a result.");
-      return reply.code(201).send({ data });
+      return reply.code(data.decision === "expired" ? 410 : 201).send({ data });
     } catch (error) {
       try { await client.query("ROLLBACK"); } catch { /* preserve the decision error */ }
       throw databaseError(error);
