@@ -238,3 +238,6 @@ Booking inquiry and commercial configuration date/currency presentation now foll
 
 
 The booking inquiry and commercial booking workspaces now use feature-scoped `bookingInquiry` and `commercialBooking` translation namespaces in both English and Bosnian (`bs-BA`). Inquiry lifecycle enum values are mapped to localized labels for presentation while their API values remain unchanged. Booking draft, offer preparation, delivery reconciliation, approval and confirmation wording is translated at the view boundary; identifiers, policy codes, tax allocation tokens, currency codes, stored values and customer-entered content remain domain data. The locale catalogue remains the single source for visible workflow copy.
+
+
+The public customer booking-offer page now uses the `publicOffer` English/Bosnian catalogue and provides an explicit language choice. Date and number formatting follow that selected locale. Customer-entered names/notes, organization-authored cancellation terms, currency codes, tax basis values and API/domain values remain unchanged.
