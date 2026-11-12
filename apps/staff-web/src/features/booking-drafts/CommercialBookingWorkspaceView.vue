@@ -21,7 +21,7 @@ const inquiryStatusLabel = (status: string): string => {
 };
 const commercialStatusLabel = (value: string): string => {
   const keys: Record<string, string> = {
-    draft: "stateDraft", issued: "stateIssued", accepted: "stateAccepted", rejected: "stateRejected",
+    draft: "stateDraft", offered: "stateOffered", confirmed: "stateConfirmed", cancelled: "stateCancelled", issued: "stateIssued", accepted: "stateAccepted", rejected: "stateRejected",
     expired: "stateExpired", superseded: "stateSuperseded", queued: "stateQueued", sending: "stateSending",
     sent: "stateSent", failed: "stateFailed", uncertain: "stateUncertain", approved: "stateApproved",
     returned_for_changes: "stateReturnedForChanges", confirmed_sent: "stateConfirmedSent", confirmed_not_sent: "stateConfirmedNotSent",
