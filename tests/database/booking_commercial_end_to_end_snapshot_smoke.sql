@@ -10,7 +10,8 @@ SELECT set_config('app.organization_id','11111111-1111-4111-8111-111111111111',t
 DO $test$
 DECLARE
   v_org uuid := '11111111-1111-4111-8111-111111111111';
-  v_creator uuid := 'aaaaaaaa-1111-4111-8111-aaaaaaaaaaaa';
+  v_creator uuid := 'dddddddd-4444-4444-8444-dddddddddddd';
+  v_creator_user uuid := 'dddddddd-dddd-4ddd-8ddd-dddddddddddd';
   v_approver uuid := 'cccccccc-3333-4333-8333-cccccccccccc';
   v_approver_user uuid := 'cccccccc-cccc-4ccc-8ccc-cccccccccccc';
   v_creator_role uuid := gen_random_uuid();
@@ -56,10 +57,13 @@ BEGIN
   -- The second actor is an isolated approver in the same tenant. The creator
   -- cannot approve because the pinned policy requires separation of duties.
   INSERT INTO eogp.users(id,email,display_name,status)
-  VALUES(v_approver_user,'ci-commercial-approver@example.invalid','CI Commercial Approver','active')
-  ON CONFLICT (id) DO NOTHING;
+  VALUES
+    (v_creator_user,'ci-commercial-creator@example.invalid','CI Commercial Creator','active'),
+    (v_approver_user,'ci-commercial-approver@example.invalid','CI Commercial Approver','active');
   INSERT INTO eogp.organization_memberships(id,organization_id,user_id,status,joined_at)
-  VALUES(v_approver,v_org,v_approver_user,'active',clock_timestamp());
+  VALUES
+    (v_creator,v_org,v_creator_user,'active',clock_timestamp()),
+    (v_approver,v_org,v_approver_user,'active',clock_timestamp());
 
   INSERT INTO eogp.roles(id,organization_id,code,name,scope_kind)
   VALUES
@@ -243,6 +247,17 @@ BEGIN
   IF v_result->>'decision'<>'accepted' OR coalesce((v_result->>'replayed')::boolean,true) THEN
     RAISE EXCEPTION 'customer acceptance did not create a new accepted decision: %',v_result;
   END IF;
+
+  -- The offer creator must be rejected by the separation-of-duties gate.
+  BEGIN
+    PERFORM eogp.decide_booking_offer_approval(
+      v_org,v_offer_id,v_offer_revision_id,v_creator,
+      'commercial-review','approved','Creator must not self-approve'
+    );
+    RAISE EXCEPTION 'offer creator unexpectedly approved their own offer';
+  EXCEPTION WHEN insufficient_privilege THEN
+    NULL;
+  END;
 
   -- Only the independent approver may satisfy the pinned one-approval rule.
   v_result:=eogp.decide_booking_offer_approval(
