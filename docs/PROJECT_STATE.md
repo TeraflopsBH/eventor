@@ -2,7 +2,7 @@
 
 **Status:** accepted product/domain design baseline; 60-migration PostgreSQL 18 implementation, canonical OpenAPI v0.3, Fastify staff API/workers and Vue 3 staff web across stacked draft PRs #26–#29; PostgreSQL 18.6, OpenAPI, API and staff-web CI validation configured; SMTP delivery worker and explicit campaign queue/cancel lifecycle implemented; production-readiness review remains open  
 **Last updated:** 2026-11-12  
-**Implementation status:** PR #28 adds the commercial offer lifecycle; stacked PR #29 adds organization price-list management; stacked PR #30 adds organization cancellation-policy management. CI is intentionally deferred while the monthly GitHub Actions allowance is exhausted; no current-head CI pass or production database deployment is claimed.
+**Implementation status:** PR #28 adds the commercial offer lifecycle; stacked PR #29 adds organization price-list management; stacked PR #30 adds organization cancellation-policy management; stacked PR #31 adds versioned organization tax configuration. CI is intentionally deferred while the monthly GitHub Actions allowance is exhausted; no current-head CI pass or production database deployment is claimed.
 
 ## Product
 
@@ -138,7 +138,7 @@ The PR #27 branch now includes migrations 000040–000046, public booking-form r
 
 The current OpenAPI v0.3 contract contains **125 paths and 143 operations**. It is validated with the repository's structural/security checks, a pinned OpenAPI 3.1 validator and Redocly in CI, but the current head's final validation is still pending. The API implements staff authentication/session lifecycle, selected booking-reservation release, organizer event-change commands, notification campaign review/confirmation/queue/cancel/reporting/reconciliation, tenant SMTP configuration/test, optional signed Resend callbacks, and two narrowly allow-listed anonymous public intake operations: GET of an active organization's latest published booking form and POST of an encrypted, idempotent inquiry submission with a durable ten-per-source-per-UTC-hour rate limit. Staff inquiry operations include a permission-filtered inbox, decrypted detail with form schema, internal annotations, assignment and status histories, assignment/unassignment, controlled review-status transitions and append-only internal notes. Inquiry source/history tables are not directly selectable by the runtime role. Submitted answers are validated against the exact immutable published revision using field-schema v1 before encryption; unsupported schemas and unknown answer keys fail closed. Attachment references are currently rejected. The Vue staff workspace covers sign-in, email delivery configuration, notification campaigns and permission-aware booking inquiry review. Booking offer creation/revisions, customer acceptance/rejection, approval and confirmation, plus the wider venue, guest, spatial and event workspaces remain unimplemented.
 
-No production database has been migrated. The commercial workflow, price-list management and cancellation-policy management remain stacked draft PRs pending code review, fresh CI validation when allowance is available, upgrade/recovery testing, and production security/operational review.
+No production database has been migrated. The commercial workflow, price-list management, cancellation-policy management and tax configuration remain stacked draft PRs pending code review, fresh CI validation when allowance is available, upgrade/recovery testing, and production security/operational review.
 
 ## Database schema review and remaining validation
 
@@ -168,8 +168,8 @@ The separate v0.2 booking SQL addendum duplicates all 22 booking/configuration t
 
 ## Immediate next steps
 
-1. Review and merge the stacked cancellation-policy management PR after validation; then define the jurisdiction-neutral tax model before adding organization tax configuration. Do not hardcode Bosnia and Herzegovina or GHB rates.
-3. Add PostgreSQL functional/concurrency coverage for migrations 000058–000061 and the complete offer/approval/confirmation workflow. CI remains intentionally deferred while the monthly GitHub Actions allowance is exhausted; do not spend further runs until the allowance resets.
+1. Review the stacked commercial PRs in order. Tax configuration is implemented in PR #31 as an organization-owned, versioned profile catalogue; automatic statutory tax calculation remains a separate design and validation gate.
+3. Add PostgreSQL functional/concurrency coverage for migrations 000058–000062 and the complete offer/approval/confirmation workflow. CI remains intentionally deferred while the monthly GitHub Actions allowance is exhausted; do not spend further runs until the allowance resets.
 4. Review offer preparation's effective-period checks against the new price-list revision model, and ensure the staff UI can explicitly select the exact published revision.
 5. Expand venue, building, space and resource administration workspaces after the commercial configuration layer is complete.
 6. Keep production deployment blocked until GHB validates inventory, capacities, prices, tax treatment, cancellation terms and approval authority.
