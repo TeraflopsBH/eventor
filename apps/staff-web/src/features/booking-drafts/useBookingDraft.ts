@@ -45,6 +45,10 @@ export function useBookingDraft(dependencies: BookingDraftDependencies) {
   const allocationOptions = ref<BookingDraftAllocationOptions>({ spaces: [], resources: [] });
   const spaceLines = ref<BookingDraftSpaceAllocationInput[]>([]);
   const resourceLines = ref<BookingDraftResourceAllocationInput[]>([]);
+  const requestedStart = ref("");
+  const requestedEnd = ref("");
+  const timezone = ref("Europe/Sarajevo");
+  const changeReason = ref("");
   const allocationAvailabilityPreview = ref<BookingDraftAllocationAvailabilityPreview | null>(null);
   const allocationAvailabilityPreviewKey = ref("");
   const allocationAvailabilityPreviewBusy = ref(false);
@@ -60,10 +64,6 @@ export function useBookingDraft(dependencies: BookingDraftDependencies) {
     allocationAvailabilityPreview.value !== null
     && allocationAvailabilityPreviewKey.value === allocationPreviewInputKey.value
   );
-  const requestedStart = ref("");
-  const requestedEnd = ref("");
-  const timezone = ref("Europe/Sarajevo");
-  const changeReason = ref("");
 
   const sourceAnswerItems = computed(() => {
     const revision = detail.value?.currentRevision;
