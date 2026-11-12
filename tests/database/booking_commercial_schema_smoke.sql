@@ -46,7 +46,6 @@ DECLARE
     'eogp.update_booking_cancellation_policy_draft_revision(uuid,uuid,uuid,uuid,text,text,jsonb,jsonb,jsonb)',
     'eogp.publish_booking_cancellation_policy_revision(uuid,uuid,uuid,uuid)',
     'eogp.get_booking_tax_profiles(uuid,uuid)',
-    'eogp.get_booking_price_lists(uuid,uuid)',
     'eogp.create_booking_tax_profile(uuid,uuid,text,text,text,text,text,text)',
     'eogp.create_booking_tax_profile_revision(uuid,uuid,uuid,text,text,text,text,text,integer,timestamptz,timestamptz)',
     'eogp.update_booking_tax_profile_draft_revision(uuid,uuid,uuid,uuid,text,text,text,text,text,integer,timestamptz,timestamptz,jsonb)',
