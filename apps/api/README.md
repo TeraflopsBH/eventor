@@ -50,7 +50,7 @@ This package contains the first deployable command API and a separate tenant-awa
 - `POST /organization/delivery/email/resend-webhook/activate` — encrypt and activate the Resend Svix signing secret.
 - `POST /webhooks/resend/{endpointId}` — public, signed callback endpoint; staff session authentication is not used. Raw-body Svix verification is mandatory.
 
-All mutating staff routes require an idempotency key, an authenticated session, an allow-listed browser Origin and a valid CSRF token. Database commands enforce tenant and permission checks. The two public booking-intake routes above are the only anonymous application routes; the signed Resend webhook is separately authenticated with its provider signature.
+All mutating staff routes require an idempotency key, an authenticated session, an allow-listed browser Origin and a valid CSRF token. Database commands enforce tenant and permission checks. Public booking intake routes explicitly declare anonymous access; public booking-offer review and decision routes instead require a purpose-bound customer capability. The signed Resend webhook is separately authenticated with its provider signature.
 
 ## Public booking inquiry intake
 
