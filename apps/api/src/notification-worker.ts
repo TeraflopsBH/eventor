@@ -66,6 +66,7 @@ export interface NotificationWorkerTotals {
   readonly emailFailed: number;
   readonly emailUncertain: number;
   readonly emailRetriesScheduled: number;
+  readonly bookingOffersExpired: number;
 }
 export interface NotificationWorkerOptions {
   readonly batchSize?: number;
@@ -94,6 +95,7 @@ function emptyTotals(): NotificationWorkerTotals {
     emailFailed: 0,
     emailUncertain: 0,
     emailRetriesScheduled: 0,
+    bookingOffersExpired: 0,
   };
 }
 
@@ -337,6 +339,37 @@ export async function processPendingEmailDeliveries(
   return totals;
 }
 
+export async function processExpiredBookingOffers(
+  pool: Pool,
+  batchSize = 100,
+  maxTenantsPerPoll = 100,
+): Promise<{ tenantsVisited: number; expired: number }> {
+  if (!Number.isInteger(batchSize) || batchSize < 1 || batchSize > 500) {
+    throw new RangeError("batchSize must be an integer between 1 and 500.");
+  }
+  if (!Number.isInteger(maxTenantsPerPoll) || maxTenantsPerPoll < 1 || maxTenantsPerPoll > 1000) {
+    throw new RangeError("maxTenantsPerPoll must be an integer between 1 and 1000.");
+  }
+
+  const tenants = await pool.query<PendingTenantRow>(
+    "SELECT organization_id FROM eogp.discover_due_booking_offer_expiry_tenants()",
+  );
+  let tenantsVisited = 0;
+  let expired = 0;
+  for (const tenant of tenants.rows.slice(0, maxTenantsPerPoll)) {
+    const count = await inTenantTransaction(pool, tenant.organization_id, async (client) => {
+      const result = await client.query<{ expired_count: number } & QueryResultRow>(
+        "SELECT eogp.expire_due_booking_offers($1::uuid,$2::integer) AS expired_count",
+        [tenant.organization_id, batchSize],
+      );
+      return Number(result.rows[0]?.expired_count ?? 0);
+    });
+    tenantsVisited += 1;
+    expired += count;
+  }
+  return { tenantsVisited, expired };
+}
+
 /**
  * The worker prepares previews, then sends only explicitly queued email
  * campaigns. SMS recipients remain suppressed until an SMS adapter is enabled.
@@ -375,8 +408,9 @@ export async function runEventNotificationWorker(
           pool, contactKey, deliveryKey, batchSize, maxTenantsPerPoll,
           options.smtpTransportFactory,
         );
+        const expiries = await processExpiredBookingOffers(pool, 100, maxTenantsPerPoll);
         const totals: NotificationWorkerTotals = {
-          tenantsVisited: previews.tenantsVisited + deliveries.tenantsVisited,
+          tenantsVisited: previews.tenantsVisited + deliveries.tenantsVisited + expiries.tenantsVisited,
           processed: previews.processed,
           campaignPreviewsPrepared: previews.campaignPreviewsPrepared,
           deferred: previews.deferred,
@@ -386,9 +420,10 @@ export async function runEventNotificationWorker(
           emailFailed: deliveries.emailFailed,
           emailUncertain: deliveries.emailUncertain,
           emailRetriesScheduled: deliveries.emailRetriesScheduled,
+          bookingOffersExpired: expiries.expired,
         };
-        if (totals.processed > 0 || totals.emailAttempts > 0) options.onBatch?.(totals);
-        if (totals.processed === 0 && totals.emailAttempts === 0) await sleep(idlePollMs);
+        if (totals.processed > 0 || totals.emailAttempts > 0 || totals.bookingOffersExpired > 0) options.onBatch?.(totals);
+        if (totals.processed === 0 && totals.emailAttempts === 0 && totals.bookingOffersExpired === 0) await sleep(idlePollMs);
       } catch (error) {
         options.onError?.(error);
         await sleep(errorPollMs);
