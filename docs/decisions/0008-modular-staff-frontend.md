@@ -61,3 +61,6 @@ The application shell and staff session lifecycle are extracted into `src/featur
 
 
 The booking-draft editor and commercial offer workspace presentation are extracted into `src/features/booking-drafts/CommercialBookingWorkspaceView.vue`. The view provides separate `draft-editor` and `offer-workspace` modes to fit the existing named slots in `BookingInquiryView.vue`, and consumes a typed intersection of the draft and offer composable contracts. It owns no API client or workflow state. `App.vue` now only composes the draft and offer composables and passes their combined workspace to the view; immutable draft revisions, offer issuance/delivery, approval decisions and explicit booking confirmation remain in their existing feature composables.
+
+
+The inquiry presentation helpers now require explicit locale and timezone inputs. A feature-owned `useInquiryPresentation.ts` composable bridges Vue I18n's active locale and the browser-resolved local timezone into the pure date/currency formatting functions, and resolves the empty-date label from the common catalogue. All booking inquiry and commercial configuration views that display these values use the shared presentation composable. Locale changes therefore affect presentation reactively; stored timestamps, ISO currency codes, exact monetary values and domain calculations remain unchanged.
