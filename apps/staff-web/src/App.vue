@@ -1805,6 +1805,7 @@ onMounted(() => {
       </section>
 
       <BookingInquiryView
+        v-else-if="activeTab === 'inquiries'"
         :workspace="{ ...bookingInquiryState, principal, busy, canReadBookingDraft }"
         @open-booking-draft="openBookingDraft"
       >
