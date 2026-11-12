@@ -3,6 +3,7 @@ import { computed, onMounted, ref, watch } from "vue";
 import { useI18n } from "vue-i18n";
 import type { SupportedLocale } from "./i18n";
 import PublicBookingOfferPage from "./features/public-booking-offers/PublicBookingOfferPage.vue";
+import PublicBookingFormPage from "./features/public-booking-forms/PublicBookingFormPage.vue";
 import StaffApplicationShell from "./features/application-shell/StaffApplicationShell.vue";
 import OrganizationLocaleView from "./features/application-shell/OrganizationLocaleView.vue";
 import { useStaffSession } from "./features/application-shell/useStaffSession";
@@ -34,6 +35,7 @@ const localeOptions: Array<{ value: SupportedLocale; label: string }> = [
 ];
 
 const isPublicOfferPage = /^\/offers\/[0-9a-fA-F-]{36}\/?$/.test(window.location.pathname);
+const isPublicBookingFormPage = /^\/book\/[A-Za-z0-9][A-Za-z0-9-]{1,79}\/[A-Za-z0-9][A-Za-z0-9_-]{1,79}\/?$/.test(window.location.pathname);
 const activeTab = ref<"delivery" | "campaign" | "inquiries" | "approvals" | "prices" | "cancellations" | "taxes" | "settings">("delivery");
 const busy = ref(false);
 const pageError = ref("");
@@ -183,14 +185,15 @@ async function openBookingDraft(): Promise<void> {
 
 
 onMounted(() => {
-  if (!isPublicOfferPage) void refreshSession();
+  if (!isPublicOfferPage && !isPublicBookingFormPage) void refreshSession();
 });
 
 </script>
 
 
 <template>
-  <PublicBookingOfferPage v-if="isPublicOfferPage" />
+  <PublicBookingFormPage v-if="isPublicBookingFormPage" />
+  <PublicBookingOfferPage v-else-if="isPublicOfferPage" />
   <StaffApplicationShell v-else :workspace="staffShellWorkspace">
     <EmailDeliveryView v-if="activeTab === 'delivery'" :workspace="emailDeliveryWorkspace" />
     <BookingInquiryView
