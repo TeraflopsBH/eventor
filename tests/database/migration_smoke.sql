@@ -22,6 +22,27 @@ VALUES ('aaaaaaaa-1111-4111-8111-aaaaaaaaaaaa','11111111-1111-4111-8111-11111111
 SELECT set_config('app.organization_id','22222222-2222-4222-8222-222222222222',true);
 INSERT INTO eogp.organization_memberships (id, organization_id, user_id, status, joined_at)
 VALUES ('bbbbbbbb-2222-4222-8222-bbbbbbbbbbbb','22222222-2222-4222-8222-222222222222','bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb','active',clock_timestamp());
+INSERT INTO eogp.roles (id,organization_id,code,name,scope_kind)
+VALUES (
+  '78000000-0000-4000-8000-000000000001',
+  '22222222-2222-4222-8222-222222222222',
+  'ci-organization-administrator',
+  'CI Organization Administrator',
+  'organization'
+);
+INSERT INTO eogp.role_permissions (organization_id,role_id,permission_code)
+VALUES
+  ('22222222-2222-4222-8222-222222222222','78000000-0000-4000-8000-000000000001','organization.manage'),
+  ('22222222-2222-4222-8222-222222222222','78000000-0000-4000-8000-000000000001','organization.delivery.manage');
+INSERT INTO eogp.user_role_grants (
+  organization_id,membership_id,role_id,scope_kind,granted_by_membership_id
+) VALUES (
+  '22222222-2222-4222-8222-222222222222',
+  'bbbbbbbb-2222-4222-8222-bbbbbbbbbbbb',
+  '78000000-0000-4000-8000-000000000001',
+  'organization',
+  'bbbbbbbb-2222-4222-8222-bbbbbbbbbbbb'
+);
 SELECT set_config('app.organization_id','11111111-1111-4111-8111-111111111111',true);
 
 INSERT INTO eogp.venues (id, organization_id, code, name, timezone_name)
