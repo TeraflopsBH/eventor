@@ -5,13 +5,14 @@ SET LOCAL ROLE eventor_owner;
 
 SELECT set_config('app.organization_id','a4000000-0000-4000-8000-000000000001',true);
 
-INSERT INTO eogp.organizations (id,slug,name,status,default_timezone)
+INSERT INTO eogp.organizations (id,slug,name,status,default_timezone,default_locale)
 VALUES (
   'a4000000-0000-4000-8000-000000000001',
   'ci-public-inquiry',
   'CI Public Inquiry Organization',
   'active',
-  'Europe/Sarajevo'
+  'Europe/Sarajevo',
+  'bs-BA'
 );
 
 INSERT INTO eogp.booking_form_definitions (
@@ -66,6 +67,7 @@ DECLARE
   v_missing_revision jsonb;
   v_inquiry_id uuid;
   v_public_reference text;
+  v_customer_locale text;
   v_count integer;
   v_total integer;
   v_ciphertext bytea := decode('45435031' || repeat('00',29),'hex');
@@ -114,6 +116,11 @@ BEGIN
 
   v_inquiry_id := (v_first->>'inquiryId')::uuid;
   v_public_reference := v_first->>'publicReference';
+  SELECT customer_locale INTO v_customer_locale
+    FROM eogp.booking_inquiries WHERE id=v_inquiry_id;
+  IF v_customer_locale IS DISTINCT FROM 'bs-BA' THEN
+    RAISE EXCEPTION 'inquiry did not inherit the organization default locale: %',v_customer_locale;
+  END IF;
 
   -- Replays return the original inquiry and do not consume another rate-limit slot.
   SELECT eogp.submit_public_booking_inquiry(
@@ -163,14 +170,31 @@ BEGIN
   FOR i IN 2..10 LOOP
     v_key_i := repeat(lpad(to_hex(i),2,'0'),32);
     v_request_i := repeat(lpad(to_hex(i+16),2,'0'),32);
-    SELECT eogp.submit_public_booking_inquiry(
-      'ci-public-inquiry','venue-rental',
-      'a6000000-0000-4000-8000-000000000001',
-      v_source,v_key_i,v_request_i,
-      v_ciphertext,v_ciphertext,
-      NULL,NULL,NULL,NULL,
-      NULL,NULL,'Europe/Sarajevo'
-    ) INTO v_result;
+    IF i=2 THEN
+      SELECT eogp.submit_public_booking_inquiry_with_locale(
+        'ci-public-inquiry','venue-rental',
+        'a6000000-0000-4000-8000-000000000001',
+        v_source,v_key_i,v_request_i,
+        v_ciphertext,v_ciphertext,
+        NULL,NULL,NULL,NULL,
+        NULL,NULL,'Europe/Sarajevo','en'
+      ) INTO v_result;
+      SELECT customer_locale INTO v_customer_locale
+        FROM eogp.booking_inquiries
+       WHERE id=(v_result->>'inquiryId')::uuid;
+      IF v_customer_locale IS DISTINCT FROM 'en' THEN
+        RAISE EXCEPTION 'explicit customer locale was not persisted: %',v_customer_locale;
+      END IF;
+    ELSE
+      SELECT eogp.submit_public_booking_inquiry(
+        'ci-public-inquiry','venue-rental',
+        'a6000000-0000-4000-8000-000000000001',
+        v_source,v_key_i,v_request_i,
+        v_ciphertext,v_ciphertext,
+        NULL,NULL,NULL,NULL,
+        NULL,NULL,'Europe/Sarajevo'
+      ) INTO v_result;
+    END IF;
 
     IF v_result->>'status' IS DISTINCT FROM 'received'
        OR v_result->>'replayed' IS DISTINCT FROM 'false' THEN
@@ -220,6 +244,10 @@ BEGIN
   IF NOT has_function_privilege(
     'eventor_runtime',
     'eogp.submit_public_booking_inquiry(text,text,uuid,text,text,text,bytea,bytea,text,bytea,text,bytea,timestamptz,timestamptz,text)',
+    'EXECUTE'
+  ) OR NOT has_function_privilege(
+    'eventor_runtime',
+    'eogp.submit_public_booking_inquiry_with_locale(text,text,uuid,text,text,text,bytea,bytea,text,bytea,text,bytea,timestamptz,timestamptz,text,text)',
     'EXECUTE'
   ) OR NOT has_function_privilege(
     'eventor_runtime',
