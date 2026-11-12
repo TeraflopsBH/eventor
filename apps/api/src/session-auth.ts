@@ -466,8 +466,8 @@ export class PostgresStaffSessionAuth {
   }
 
 
-  async updateUserLocale(principal: StaffPrincipal, locale: "bs-BA" | "en"): Promise<void> {
-    if (locale !== "bs-BA" && locale !== "en") {
+  async updateUserLocale(principal: StaffPrincipal, locale: "bs-BA" | "en" | null): Promise<void> {
+    if (locale !== null && locale !== "bs-BA" && locale !== "en") {
       throw new SessionAuthError(400, "INVALID_LOCALE", "Choose a supported language.");
     }
     const updated = await this.authPool.query(
