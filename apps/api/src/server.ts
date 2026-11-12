@@ -49,6 +49,10 @@ type BookingOfferRejectionBody = {
   reason: string;
   note?: string;
 };
+type BookingConfirmationBody = {
+  expectedDraftRevisionId: string;
+  confirmationReason: string;
+};
 
 export type StaffAuthenticator = (request: FastifyRequest) => Promise<StaffPrincipal | null>;
 export type MutationOriginVerifier = (request: FastifyRequest, principal: StaffPrincipal) => Promise<boolean>;
@@ -292,6 +296,15 @@ const bookingOfferSuccessorBody = {
   additionalProperties: false,
 } as const;
 const bookingOfferIssueBody = { type: "object", properties: {}, additionalProperties: false } as const;
+const bookingConfirmationBody = {
+  type: "object",
+  required: ["expectedDraftRevisionId", "confirmationReason"],
+  properties: {
+    expectedDraftRevisionId: { type: "string", pattern: uuidPattern },
+    confirmationReason: { type: "string", minLength: 3, maxLength: 2000 },
+  },
+  additionalProperties: false,
+} as const;
 const bookingOfferApprovalBody = {
   type: "object",
   required: ["offerRevisionId", "ruleCode", "decision", "reason"],
@@ -1435,6 +1448,37 @@ export function buildApi(dependencies: ApiDependencies): FastifyInstance {
   );
 
 
+
+  server.post<{ Params: { revisionId: string }; Body: BookingConfirmationBody }>(
+    "/booking-draft-revisions/:revisionId/confirm",
+    {
+      schema: {
+        params: bookingOfferRevisionParams,
+        headers: idempotencyHeaders,
+        body: bookingConfirmationBody,
+      },
+    },
+    async (request, reply) => {
+      if (request.body.expectedDraftRevisionId !== request.params.revisionId) {
+        throw new ApiError(409, "DRAFT_REVISION_MISMATCH", "The expected draft revision must match the revision in the request path.");
+      }
+      const principal = request.staffPrincipal!;
+      return withCommand(
+        request, reply, "confirmBooking",
+        { revisionId: request.params.revisionId, ...request.body },
+        async (client) => {
+          const result = await client.query<ResultRow>(
+            "SELECT eogp.confirm_booking_from_offer($1::uuid,$2::uuid,$3::uuid,$4::text) AS result",
+            [
+              principal.organizationId, request.params.revisionId,
+              principal.membershipId, request.body.confirmationReason,
+            ],
+          );
+          return result.rows[0]?.result as Record<string, unknown>;
+        },
+      );
+    },
+  );
 
   server.get<{ Params: { offerId: string } }>(
     "/booking-offers/:offerId/approvals",
