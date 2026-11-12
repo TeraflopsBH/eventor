@@ -86,15 +86,14 @@ BEGIN
     RAISE EXCEPTION 'booking draft revision not found'
       USING ERRCODE = 'P0002';
   END IF;
-  IF v_draft.status <> 'draft'
-     OR NOT EXISTS (
-       SELECT 1 FROM eogp.booking_draft_revisions revision
-        WHERE revision.organization_id=p_organization_id
-          AND revision.id=p_draft_revision_id
-          AND revision.draft_id=v_draft.id
-          AND revision.revision_number=v_draft.current_revision_number
-     ) THEN
-    RAISE EXCEPTION 'booking confirmation requires the current revision of an editable draft'
+  IF NOT EXISTS (
+    SELECT 1 FROM eogp.booking_draft_revisions revision
+     WHERE revision.organization_id=p_organization_id
+       AND revision.id=p_draft_revision_id
+       AND revision.draft_id=v_draft.id
+       AND revision.revision_number=v_draft.current_revision_number
+  ) THEN
+    RAISE EXCEPTION 'booking confirmation requires the current draft revision'
       USING ERRCODE = '40001';
   END IF;
 
@@ -189,6 +188,11 @@ BEGIN
       'draftRevisionId',p_draft_revision_id,
       'replayed',true
     );
+  END IF;
+
+  IF v_draft.status <> 'draft' THEN
+    RAISE EXCEPTION 'booking draft is no longer editable and no matching confirmed booking exists'
+      USING ERRCODE = '55000';
   END IF;
 
   -- Final preflight: every requested space must still have its exact live hold.
