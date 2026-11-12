@@ -16,8 +16,10 @@ import BookingApprovalPoliciesView from "./features/booking-approvals/BookingApp
 import BookingCancellationPoliciesView from "./features/booking-cancellations/BookingCancellationPoliciesView.vue";
 import { useCampaigns } from "./features/campaigns/useCampaigns";
 import CampaignWorkspaceView from "./features/campaigns/CampaignWorkspaceView.vue";
+import { useEmailDelivery } from "./features/email-delivery/useEmailDelivery";
+import EmailDeliveryView from "./features/email-delivery/EmailDeliveryView.vue";
 import { formatBookingMoney, formatInquiryDate } from "./features/booking-inquiries/presentation";
-import { api, ApiError, type EmailConfiguration, type ResendWebhookConfiguration, type Principal, type PublicBookingOffer } from "./api";
+import { api, ApiError, type Principal, type PublicBookingOffer } from "./api";
 
 const { locale } = useI18n();
 watch(locale, (value) => { document.documentElement.lang = value; }, { immediate: true });
@@ -49,25 +51,6 @@ const pageError = ref("");
 const pageNotice = ref("");
 
 const loginForm = reactive({ email: "", password: "", organizationSlug: "" });
-
-const configuration = ref<EmailConfiguration | null>(null);
-const emailForm = reactive({
-  host: "",
-  port: 587,
-  transportSecurity: "starttls" as "starttls" | "implicit_tls",
-  authMode: "password" as "none" | "password",
-  senderEmail: "",
-  senderName: "",
-  replyTo: "",
-  connectionTimeoutMs: 15000,
-  username: "",
-  password: "",
-  clearCredentials: false,
-});
-const testRecipient = ref("");
-const resendWebhook = ref<ResendWebhookConfiguration | null>(null);
-const resendWebhookSigningSecret = ref("");
-const isResendSmtp = computed(() => emailForm.host.trim().toLowerCase() === "smtp.resend.com");
 
 const selectedOrganization = computed(() =>
   principal.value?.memberships?.find((membership) => membership.selected)?.organizationName
@@ -169,7 +152,12 @@ const bookingCancellationPolicyState = useBookingCancellationPolicies({
 const campaignState = useCampaigns({
   api, busy, pageError, pageNotice, clearMessages, showError,
 });
+const emailDeliveryState = useEmailDelivery({
+  api, busy, pageError, pageNotice, clearMessages, showError,
+});
+const { configuration, loadConfiguration } = emailDeliveryState;
 const campaignWorkspace = { ...campaignState, busy, configuration };
+const emailDeliveryWorkspace = { ...emailDeliveryState, busy };
 
 
 
@@ -177,8 +165,7 @@ function showError(error: unknown): void {
   if (error instanceof ApiError) {
     if (error.status === 401) {
       principal.value = null;
-      configuration.value = null;
-      resendWebhook.value = null;
+      emailDeliveryState.reset();
       campaignState.reset();
       resetBookingInquiries();
       pageError.value = "Your session has expired. Please sign in again.";
@@ -192,26 +179,6 @@ function showError(error: unknown): void {
     return;
   }
   pageError.value = error instanceof Error ? error.message : "An unexpected error occurred.";
-}
-
-async function loadConfiguration(): Promise<void> {
-  const [result, webhook] = await Promise.all([
-    api.getEmailConfiguration(),
-    api.getResendWebhookConfiguration(),
-  ]);
-  configuration.value = result.data;
-  resendWebhook.value = webhook.data;
-  const settings = result.data?.settings;
-  if (settings) {
-    emailForm.host = settings.host;
-    emailForm.port = settings.port;
-    emailForm.transportSecurity = settings.transportSecurity;
-    emailForm.authMode = settings.authMode;
-    emailForm.senderEmail = settings.senderEmail;
-    emailForm.senderName = settings.senderName ?? "";
-    emailForm.replyTo = settings.replyTo ?? "";
-    emailForm.connectionTimeoutMs = settings.connectionTimeoutMs ?? 15000;
-  }
 }
 
 async function refreshSession(): Promise<void> {
@@ -256,8 +223,7 @@ async function signOut(): Promise<void> {
   try {
     await api.logout();
     principal.value = null;
-    configuration.value = null;
-    resendWebhook.value = null;
+    emailDeliveryState.reset();
     campaignState.reset();
     resetBookingInquiries();
     pageNotice.value = "You have been signed out.";
@@ -265,119 +231,6 @@ async function signOut(): Promise<void> {
     showError(error);
   } finally {
     busy.value = false;
-  }
-}
-
-function emailConfigurationPayload(): Record<string, unknown> {
-  const body: Record<string, unknown> = {
-    host: emailForm.host.trim(),
-    port: Number(emailForm.port),
-    transportSecurity: emailForm.transportSecurity,
-    authMode: emailForm.authMode,
-    senderEmail: emailForm.senderEmail.trim(),
-    senderName: emailForm.senderName.trim(),
-    replyTo: emailForm.replyTo.trim(),
-    connectionTimeoutMs: Number(emailForm.connectionTimeoutMs),
-  };
-  const username = emailForm.username.trim();
-  const password = emailForm.password;
-  if (!emailForm.clearCredentials && emailForm.authMode === "password" && (username || password)) {
-    if (!username || !password) throw new Error("Enter both SMTP username and password, or leave both blank to retain the stored credentials.");
-    body.credentials = { username, password };
-  }
-  if (emailForm.clearCredentials) body.clearCredentials = true;
-  return body;
-}
-
-async function saveConfiguration(): Promise<void> {
-  clearMessages();
-  busy.value = true;
-  try {
-    await api.saveEmailConfiguration(emailConfigurationPayload());
-    emailForm.password = "";
-    emailForm.username = "";
-    emailForm.clearCredentials = false;
-    await loadConfiguration();
-    pageNotice.value = "A new SMTP configuration revision was saved. Send a test email to enable this revision for campaign delivery.";
-  } catch (error) {
-    showError(error);
-  } finally {
-    busy.value = false;
-  }
-}
-
-async function sendTest(): Promise<void> {
-  clearMessages();
-  busy.value = true;
-  try {
-    await api.sendEmailTest(testRecipient.value.trim());
-    await loadConfiguration();
-    pageNotice.value = "The SMTP test message was accepted by the configured SMTP server. The current configuration revision is now enabled for queueing.";
-  } catch (error) {
-    showError(error);
-  } finally {
-    busy.value = false;
-  }
-}
-
-async function prepareResendWebhook(): Promise<void> {
-  clearMessages();
-  if (!isResendSmtp.value) {
-    pageError.value = "Set the SMTP host to smtp.resend.com before preparing the Resend callback.";
-    return;
-  }
-  if (!window.confirm("Prepare a new Resend callback URL? This replaces the previous Eventor endpoint and disables its previous signing secret.")) return;
-  busy.value = true;
-  try {
-    const result = await api.prepareResendWebhook();
-    resendWebhook.value = {
-      endpointId: result.data.endpointId,
-      configured: false,
-      callbackUrl: result.data.callbackUrl,
-    };
-    resendWebhookSigningSecret.value = "";
-    pageNotice.value = "Callback URL prepared. Add it as a Resend webhook for email.delivered and email.bounced, then paste the generated whsec_ signing secret below.";
-  } catch (error) {
-    showError(error);
-  } finally {
-    busy.value = false;
-  }
-}
-
-async function activateResendWebhook(): Promise<void> {
-  clearMessages();
-  const endpointId = resendWebhook.value?.endpointId;
-  const secret = resendWebhookSigningSecret.value.trim();
-  if (!endpointId || !resendWebhook.value?.callbackUrl) {
-    pageError.value = "Prepare the callback URL first.";
-    return;
-  }
-  if (!/^whsec_[A-Za-z0-9+/]+={0,2}$/.test(secret) || secret.length < 24) {
-    pageError.value = "Paste the Resend webhook signing secret beginning with whsec_.";
-    return;
-  }
-  busy.value = true;
-  try {
-    await api.activateResendWebhook(endpointId, secret);
-    resendWebhookSigningSecret.value = "";
-    await loadConfiguration();
-    pageNotice.value = "Resend callback signature verification is enabled. Delivered and bounced events can now update matching attempts.";
-  } catch (error) {
-    showError(error);
-  } finally {
-    busy.value = false;
-  }
-}
-
-async function copyResendWebhookUrl(): Promise<void> {
-  const url = resendWebhook.value?.callbackUrl;
-  if (!url) return;
-  try {
-    await navigator.clipboard.writeText(url);
-    pageNotice.value = "Resend callback URL copied.";
-    pageError.value = "";
-  } catch {
-    pageError.value = "Clipboard access was denied. Select and copy the callback URL manually.";
   }
 }
 
@@ -657,94 +510,7 @@ onMounted(() => {
         <button :class="{ active: activeTab === 'taxes' }" @click="openBookingTaxProfiles">{{ $t("navigation.taxes") }}</button>
       </nav>
 
-      <section v-if="activeTab === 'delivery'" class="content-grid">
-        <div class="panel main-panel">
-          <div class="section-heading">
-            <div><p class="eyebrow">ORGANIZATION SETTINGS</p><h2>SMTP configuration</h2></div>
-            <span v-if="configuration?.deliveryEnabled" class="pill pill-success">Tested · enabled</span>
-            <span v-else class="pill pill-warning">Not enabled</span>
-          </div>
-          <p class="muted">Configure the organization’s own SMTP server. Credentials are write-only and are encrypted by the API before storage.</p>
-          <form class="settings-form" @submit.prevent="saveConfiguration">
-            <div class="field-grid">
-              <label>SMTP host<input v-model="emailForm.host" type="text" required maxlength="253" placeholder="mail.example.org" /></label>
-              <label>Port<input v-model.number="emailForm.port" type="number" min="1" max="65535" required /></label>
-              <label>Transport security
-                <select v-model="emailForm.transportSecurity">
-                  <option value="starttls">STARTTLS (required TLS)</option>
-                  <option value="implicit_tls">Implicit TLS</option>
-                </select>
-              </label>
-              <label>Authentication
-                <select v-model="emailForm.authMode">
-                  <option value="password">Username and password</option>
-                  <option value="none">No authentication</option>
-                </select>
-              </label>
-              <label>Sender email<input v-model="emailForm.senderEmail" type="email" required maxlength="320" placeholder="events@example.org" /></label>
-              <label>Sender name<input v-model="emailForm.senderName" type="text" maxlength="200" placeholder="Eventor" /></label>
-              <label>Reply-to address<input v-model="emailForm.replyTo" type="email" maxlength="320" placeholder="Optional" /></label>
-              <label>Connection timeout (ms)<input v-model.number="emailForm.connectionTimeoutMs" type="number" min="1000" max="60000" /></label>
-            </div>
-            <div v-if="emailForm.authMode === 'password'" class="credential-box">
-              <div class="credential-heading">
-                <div><strong>SMTP credentials</strong><p>{{ configuration?.credentialsConfigured ? "Credentials are stored. Leave both fields blank to retain them." : "No credentials are currently stored." }}</p></div>
-                <span class="lock-icon">LOCKED</span>
-              </div>
-              <div class="field-grid">
-                <label>Username<input v-model="emailForm.username" type="text" autocomplete="off" maxlength="320" placeholder="Leave blank to retain current" /></label>
-                <label>Password<input v-model="emailForm.password" type="password" autocomplete="new-password" maxlength="4096" placeholder="Write-only · never displayed" /></label>
-              </div>
-            </div>
-            <label v-if="configuration?.credentialsConfigured && emailForm.authMode === 'password'" class="check-row">
-              <input v-model="emailForm.clearCredentials" type="checkbox" /> Clear the currently stored credentials
-            </label>
-            <div class="form-actions">
-              <button class="button button-primary" type="submit" :disabled="busy">{{ busy ? "Saving…" : "Save new revision" }}</button>
-              <span v-if="configuration?.revision" class="fine-print">Current revision {{ configuration.revision }}</span>
-            </div>
-          </form>
-        </div>
-
-        <aside class="panel side-panel">
-          <p class="eyebrow">DELIVERY READINESS</p>
-          <h3>Test before sending</h3>
-          <div class="readiness-row"><span>Configuration</span><strong>{{ configuration?.revision ? `Revision ${configuration.revision}` : "Not configured" }}</strong></div>
-          <div class="readiness-row"><span>Credentials</span><strong>{{ configuration?.credentialsConfigured ? "Stored securely" : emailForm.authMode === "none" ? "Not required" : "Missing" }}</strong></div>
-          <div class="readiness-row"><span>SMTP test</span><strong :class="configuration?.deliveryEnabled ? 'text-success' : 'text-warning'">{{ configuration?.deliveryEnabled ? "Passed" : "Required" }}</strong></div>
-          <div class="divider"></div>
-          <form @submit.prevent="sendTest">
-            <label>Test recipient<input v-model="testRecipient" type="email" required maxlength="320" placeholder="your-address@example.org" /></label>
-            <button class="button button-secondary full-width" type="submit" :disabled="busy || !configuration?.revision">Send test email</button>
-          </form>
-          <p class="fine-print">A successful test enables only the tested current configuration revision. Saving any later revision requires another successful test.</p>
-          <p class="fine-print">“Sent” means accepted by the SMTP server, not confirmed delivered to an inbox.</p>
-          <div v-if="isResendSmtp" class="resend-webhook-box">
-            <div class="resend-webhook-heading">
-              <div>
-                <h4>Resend delivery callbacks</h4>
-                <p class="fine-print">Signed provider events update the matching delivery attempt.</p>
-              </div>
-              <span class="pill" :class="resendWebhook?.configured ? 'pill-success' : 'pill-warning'">{{ resendWebhook?.configured ? "Signature verified" : "Not configured" }}</span>
-            </div>
-            <button class="button button-secondary" type="button" :disabled="busy" @click="prepareResendWebhook">Prepare / replace callback URL</button>
-            <template v-if="resendWebhook?.callbackUrl">
-              <label>Public callback URL
-                <input :value="resendWebhook.callbackUrl" type="url" readonly />
-              </label>
-              <button class="button button-quiet" type="button" @click="copyResendWebhookUrl">Copy callback URL</button>
-              <p class="fine-print">In Resend, create a webhook for exactly these events: <code>email.delivered</code> and <code>email.bounced</code>. Paste the signing secret shown by Resend below. Do not select open/click tracking events for this endpoint.</p>
-              <label>Resend webhook signing secret
-                <input v-model="resendWebhookSigningSecret" type="password" autocomplete="off" maxlength="512" placeholder="whsec_…" />
-              </label>
-              <button class="button button-primary full-width" type="button" :disabled="busy || !resendWebhookSigningSecret.trim()" @click="activateResendWebhook">
-                {{ resendWebhook?.configured ? "Replace signing secret" : "Activate signed callbacks" }}
-              </button>
-            </template>
-            <p class="fine-print">Eventor stores the signing secret encrypted. The callback URL is only a routing identifier; every callback must also pass Svix signature and timestamp verification.</p>
-          </div>
-        </aside>
-      </section>
+      <EmailDeliveryView v-if="activeTab === 'delivery'" :workspace="emailDeliveryWorkspace" />
 
       <BookingInquiryView
         v-else-if="activeTab === 'inquiries'"
