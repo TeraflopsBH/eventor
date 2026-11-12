@@ -130,7 +130,7 @@ const { busy } = props.workspace;
 
               <div v-if="canManageBookingOffer" class="offer-preparation">
                 <h5>{{ bookingOffer ? "Prepare successor offer revision" : "Prepare first offer revision" }}</h5>
-                <p class="fine-print">Use IDs of already published and effective organization configuration. Prices are calculated from the selected price-list revision and item codes by the server. Eventor does not supply default prices, cancellation terms, approval thresholds or tax rates.</p>
+                <p class="fine-print">{{$t('commercialBooking.offerPreparationInfo')}}</p>
                 <form class="draft-revision-form" @submit.prevent="saveBookingOfferRevision">
                   <div class="field-grid">
                     <label>Price-list revision UUID
@@ -157,7 +157,7 @@ const { busy } = props.workspace;
                     <label>Offer valid until (your local time)
                       <input v-model="bookingOfferValidUntil" type="datetime-local" required />
                     </label>
-                    <label>Tax amount (zero = calculate from selected tax profile; positive = manual override)
+                    <label>{{$t('commercialBooking.offerTaxAmount')}}
                       <input v-model="bookingOfferTaxAmount" type="number" min="0" step="0.0001" required />
                     </label>
                   </div>
@@ -166,7 +166,7 @@ const { busy } = props.workspace;
                   </label>
                   <label>Manual adjustments (JSON array)
                     <textarea v-model="bookingOfferAdjustmentsJson" rows="5" spellcheck="false" placeholder='[{"code":"adjustment-code","label":"Reasoned adjustment","kind":"discount","amount":0.01,"allocationMethod":"proportional_to_lines"}]'></textarea>
-                    <small>When the selected price list has a tax profile, every adjustment must explicitly use allocationMethod "tax_code" with a taxCode, "proportional_to_lines" (allocated by the priced lines' tax-code mix), or "not_applicable" for a not-applicable profile. Eventor never guesses tax treatment. Without a selected profile, the legacy manual tax workflow remains available.</small>
+                    <small>{{$t('commercialBooking.taxAllocationHelp')}}</small>
                   </label>
                   <label>Internal reason / tax audit reason
                     <textarea v-model="bookingOfferInternalReason" rows="2" maxlength="2000" required placeholder="Explain manual terms, especially any tax amount or adjustment…"></textarea>
@@ -213,7 +213,7 @@ const { busy } = props.workspace;
 
                 <div v-if="bookingOfferAcceptanceToken" class="offer-capability-box">
                   <strong>{{ t('commercialBooking.customerLink') }}</strong>
-                  <p class="fine-print">This is a bearer secret. It is shown only in this session and is not stored in the database as plaintext. Email delivery is a separate, explicit action and uses the source inquiry email address.</p>
+                  <p class="fine-print">{{$t('commercialBooking.bearerSecretInfo')}}</p>
                   <input :value="bookingOfferAcceptanceToken" type="password" readonly autocomplete="off" />
                   <div class="offer-command-row"><button class="button button-secondary" type="button" @click="copyBookingOfferCapability">{{ t('commercialBooking.copyCustomerLink') }}</button><button v-if="bookingOffer.currentRevision.state === 'issued'" class="button button-secondary" type="button" :disabled="busy" @click="emailBookingOffer">{{ t('commercialBooking.queueOfferEmail') }}</button></div>
                 </div>
@@ -227,16 +227,16 @@ const { busy } = props.workspace;
                     <button class="button button-quiet" type="button" :disabled="busy" @click="refreshBookingOfferEmailData">{{ t('commercialBooking.refreshDelivery') }}</button>
                   </div>
                   <div class="metric-grid compact-metrics">
-                    <div class="metric"><span>Queued</span><strong>{{ bookingOfferEmailMeta?.counts.queued ?? 0 }}</strong></div>
-                    <div class="metric"><span>Sending</span><strong>{{ bookingOfferEmailMeta?.counts.sending ?? 0 }}</strong></div>
-                    <div class="metric"><span>SMTP accepted</span><strong>{{ bookingOfferEmailMeta?.counts.sent ?? 0 }}</strong></div>
-                    <div class="metric"><span>Uncertain</span><strong>{{ bookingOfferEmailMeta?.counts.uncertain ?? 0 }}</strong></div>
-                    <div class="metric"><span>Failed</span><strong>{{ bookingOfferEmailMeta?.counts.failed ?? 0 }}</strong></div>
+                    <div class="metric"><span>{{$t('commercialBooking.emailCountsQueued')}}</span><strong>{{ bookingOfferEmailMeta?.counts.queued ?? 0 }}</strong></div>
+                    <div class="metric"><span>{{$t('commercialBooking.emailCountsSending')}}</span><strong>{{ bookingOfferEmailMeta?.counts.sending ?? 0 }}</strong></div>
+                    <div class="metric"><span>{{$t('commercialBooking.emailCountsSent')}}</span><strong>{{ bookingOfferEmailMeta?.counts.sent ?? 0 }}</strong></div>
+                    <div class="metric"><span>{{$t('commercialBooking.emailCountsUncertain')}}</span><strong>{{ bookingOfferEmailMeta?.counts.uncertain ?? 0 }}</strong></div>
+                    <div class="metric"><span>{{$t('commercialBooking.emailCountsFailed')}}</span><strong>{{ bookingOfferEmailMeta?.counts.failed ?? 0 }}</strong></div>
                   </div>
                   <div class="delivery-toolbar">
                     <label>Filter email status
                       <select v-model="bookingOfferEmailStatusFilter" @change="bookingOfferEmailOffset = 0; refreshBookingOfferEmailData()">
-                        <option value="">All statuses</option>
+                        <option value="">{{$t('commercialBooking.allStatuses')}}</option>
                         <option v-for="status in ['queued','sending','sent','failed','uncertain']" :key="status" :value="status">{{ status }}</option>
                       </select>
                     </label>
@@ -263,27 +263,27 @@ const { busy } = props.workspace;
                         <span v-if="delivery.lastOperatorAt">Reconciled: {{ formatDate(delivery.lastOperatorAt) }}</span>
                       </div>
                       <div v-if="delivery.canReconcile" class="operator-controls">
-                        <label>Verified SMTP outcome
+                        <label>{{$t('commercialBooking.verifiedOutcome')}}
                           <select v-model="bookingOfferEmailResolution[delivery.deliveryId]">
-                            <option disabled value="">Choose verified outcome…</option>
-                            <option value="confirmed_sent">SMTP server accepted the message</option>
-                            <option value="confirmed_not_sent">SMTP server did not accept the message</option>
+                            <option disabled value="">{{$t('commercialBooking.chooseOutcome')}}</option>
+                            <option value="confirmed_sent">{{$t('commercialBooking.smtpServerAccepted')}}</option>
+                            <option value="confirmed_not_sent">{{$t('commercialBooking.smtpServerRejected')}}</option>
                           </select>
                         </label>
-                        <label v-if="bookingOfferEmailResolution[delivery.deliveryId] === 'confirmed_sent'">Provider message reference (optional)
+                        <label v-if="bookingOfferEmailResolution[delivery.deliveryId] === 'confirmed_sent'">{{$t('commercialBooking.providerReference')}}
                           <input v-model="bookingOfferEmailReference[delivery.deliveryId]" maxlength="998" placeholder="Message-ID or SMTP queue reference" />
                         </label>
-                        <label>Audit reason
+                        <label>{{$t('commercialBooking.auditReasonLabel')}}
                           <textarea v-model="bookingOfferEmailReason[delivery.deliveryId]" rows="2" maxlength="1000" placeholder="How was the SMTP outcome verified?"></textarea>
                         </label>
                         <button class="button button-secondary" type="button" :disabled="busy" @click="reconcileBookingOfferEmail(delivery)">Record reconciliation</button>
                       </div>
                       <div v-if="delivery.canRetry" class="operator-controls">
-                        <p class="fine-print">The previous submission was explicitly recorded as not accepted. Only one manual retry is permitted for this delivery.</p>
-                        <label>Retry reason
+                        <p class="fine-print">{{$t('commercialBooking.retryOnceInfo')}}</p>
+                        <label>{{$t('commercialBooking.retryReasonLabel')}}
                           <textarea v-model="bookingOfferEmailRetryReason[delivery.deliveryId]" rows="2" maxlength="1000" placeholder="Explain why retrying is safe…"></textarea>
                         </label>
-                        <button class="button button-danger" type="button" :disabled="busy" @click="retryBookingOfferEmail(delivery)">Authorise one-time retry</button>
+                        <button class="button button-danger" type="button" :disabled="busy" @click="retryBookingOfferEmail(delivery)">{{$t('commercialBooking.retryOnceAction')}}</button>
                       </div>
                     </article>
                   </div>
@@ -293,7 +293,7 @@ const { busy } = props.workspace;
                     <span>{{ bookingOfferEmailMeta?.totalCount ?? 0 }} deliveries</span>
                     <button class="button button-quiet" type="button" :disabled="busy || !bookingOfferEmailMeta || bookingOfferEmailOffset + 25 >= bookingOfferEmailMeta.totalCount" @click="bookingOfferEmailOffset += 25; refreshBookingOfferEmailData()">Next</button>
                   </div>
-                  <p class="fine-print">Contact addresses and encrypted payloads are never exposed in this history. Reconciliation changes records only; it never sends an email.</p>
+                  <p class="fine-print">{{$t('commercialBooking.historyPrivacy')}}</p>
                 </section>
 
                 <div v-if="bookingOfferApprovalStatus" class="offer-approval-list">
@@ -324,7 +324,7 @@ const { busy } = props.workspace;
                           <option value="returned_for_changes">{{ t('commercialBooking.returnChanges') }}</option>
                         </select>
                       </label>
-                      <label>Reason
+                      <label>{{$t('commercialBooking.decisionReasonLabel')}}
                         <textarea v-model="bookingOfferApprovalReasons[requirement.ruleCode]" rows="2" maxlength="2000" placeholder="Record the decision rationale…"></textarea>
                       </label>
                       <button class="button button-secondary" type="button" :disabled="busy || (bookingOfferApprovalReasons[requirement.ruleCode] ?? '').trim().length < 3" @click="decideBookingOfferApproval(requirement)">{{ t('commercialBooking.recordDecision') }}</button>
@@ -334,7 +334,7 @@ const { busy } = props.workspace;
 
                 <div v-if="canConfirmBookingOffer" class="offer-confirm-box">
                   <h5>{{ t('commercialBooking.confirmAccepted') }}</h5>
-                  <p class="fine-print">The exact draft revision has an accepted customer offer and all pinned approvals are satisfied. Final space and resource availability is rechecked transactionally on confirmation.</p>
+                  <p class="fine-print">{{$t('commercialBooking.confirmationInfo')}}</p>
                   <label>Booking confirmation reason
                     <textarea v-model="bookingOfferConfirmationReason" rows="2" maxlength="2000" placeholder="Record why this booking is being confirmed…"></textarea>
                   </label>
@@ -343,7 +343,7 @@ const { busy } = props.workspace;
                 <p v-else-if="bookingOffer.currentRevision.state === 'accepted'" class="fine-print text-warning">{{ t('commercialBooking.confirmationUnavailable') }}</p>
 
                 <div v-if="bookingOffer.revisionHistory.length" class="draft-revision-history">
-                  <h5>Offer revision history</h5>
+                  <h5>{{$t('commercialBooking.offerHistory')}}</h5>
                   <ol class="history-list">
                     <li v-for="history in bookingOffer.revisionHistory" :key="history.offerRevisionId">
                       <strong>Offer revision {{ history.revisionNumber }} · {{ history.state }}</strong>
