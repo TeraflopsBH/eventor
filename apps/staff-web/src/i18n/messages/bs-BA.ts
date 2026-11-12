@@ -128,7 +128,7 @@ export default {
     "revisionLabel": "verzija",
     "openDraftButton": "Otvori nacrt rezervacije",
   },
-  commercialBooking: {
+    commercialBooking: {
     "close": "Zatvori",
     "revisionHistory": "Historija verzija",
     "noChangeReason": "Razlog izmjene nije zabilježen",
@@ -289,10 +289,10 @@ export default {
     "auditReasonValue": "Razlog evidentiranja: {value}",
     "reconciledDate": "Usklađeno: {date}",
     "previousPage": "Prethodna",
-    "deliveryCount": "dostava",
     "nextPage": "Sljedeća",
     "bookingConfirmationReason": "Razlog potvrde rezervacije",
     "issuedDate": "izdano {date}",
+    "recordReconciliation": "Evidentiraj usklađivanje",
   },
   publicOffer: {
     "language": "Jezik",
