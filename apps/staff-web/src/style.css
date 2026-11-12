@@ -411,3 +411,29 @@ textarea:focus { border-color: var(--accent); box-shadow: 0 0 0 3px #f5863420; }
   .public-booking-content { margin-top: 36px; }
   .public-booking-panel { padding: 20px; }
 }
+
+
+/* Booking form authoring */
+.booking-form-create { margin-bottom: 1.25rem; }
+.booking-form-layout { display: grid; grid-template-columns: minmax(210px, .75fr) minmax(0, 2.25fr); gap: 1rem; align-items: start; }
+.booking-form-list { display: grid; gap: .65rem; }
+.booking-form-list-item { display: grid; gap: .2rem; text-align: left; padding: .8rem; border: 1px solid var(--border, #333); border-radius: .65rem; background: transparent; color: inherit; cursor: pointer; }
+.booking-form-list-item.active, .booking-form-field-chip.active { border-color: var(--accent, #f58634); background: color-mix(in srgb, var(--accent, #f58634) 10%, transparent); }
+.booking-form-list-item span, .booking-form-list-item small, .booking-form-field-chip small { color: var(--muted, #999); font-size: .8rem; }
+.booking-form-editor { display: grid; gap: 1rem; min-width: 0; }
+.section-heading.compact { align-items: center; margin-bottom: .9rem; }
+.booking-form-actions { display: flex; flex-wrap: wrap; gap: .65rem; align-items: center; justify-content: flex-end; margin-top: 1rem; }
+.booking-form-actions .muted { margin-right: auto; }
+.booking-form-field-list { display: flex; flex-wrap: wrap; gap: .5rem; margin-bottom: 1rem; }
+.booking-form-field-chip { display: grid; gap: .1rem; text-align: left; padding: .55rem .75rem; border: 1px solid var(--border, #333); border-radius: .6rem; background: transparent; color: inherit; cursor: pointer; }
+.checkbox-label { display: flex; align-items: center; gap: .5rem; }
+.checkbox-label input { width: auto; }
+.option-editor, .translation-section { border-top: 1px solid var(--border, #333); margin-top: 1rem; padding-top: 1rem; }
+.translation-section h4 { display: flex; justify-content: space-between; }
+.translation-section h4 small { color: var(--muted, #999); }
+.option-row { align-items: end; margin-bottom: .5rem; }
+.booking-form-preview { max-width: 680px; padding: 1rem; border: 1px solid var(--border, #333); border-radius: .75rem; }
+.booking-form-preview h3 { margin-top: 0; }
+.preview-field { display: grid; gap: .35rem; margin: 1rem 0; }
+.preview-field input, .preview-field textarea, .preview-field select { width: 100%; }
+@media (max-width: 850px) { .booking-form-layout { grid-template-columns: 1fr; } .booking-form-actions { justify-content: flex-start; } }
