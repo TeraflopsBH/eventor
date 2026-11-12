@@ -28,7 +28,10 @@ DECLARE
     'eogp.create_booking_approval_policy_revision(uuid,uuid,uuid,jsonb)',
     'eogp.update_booking_approval_policy_draft_revision(uuid,uuid,uuid,uuid,jsonb)',
     'eogp.publish_booking_approval_policy_revision(uuid,uuid,uuid,uuid)',
-    'eogp.queue_booking_offer_email_delivery(uuid,uuid,uuid,text,text,bytea)'
+    'eogp.queue_booking_offer_email_delivery(uuid,uuid,uuid,text,text,bytea)',
+    'eogp.list_booking_offer_email_deliveries(uuid,uuid,uuid,text,integer,integer)',
+    'eogp.reconcile_booking_offer_email_delivery(uuid,uuid,uuid,text,text,text)',
+    'eogp.retry_booking_offer_email_delivery(uuid,uuid,uuid,text)'
   ];
 BEGIN
   FOREACH v_name IN ARRAY v_required_tables LOOP
@@ -146,6 +149,13 @@ BEGIN
 
   IF has_table_privilege('eventor_worker','eogp.booking_offer_email_deliveries','SELECT') THEN
     RAISE EXCEPTION 'worker role has direct access to booking offer email payloads';
+  END IF;
+
+  IF has_table_privilege('eventor_runtime','eogp.booking_offer_email_deliveries','SELECT')
+     OR NOT has_function_privilege('eventor_runtime','eogp.list_booking_offer_email_deliveries(uuid,uuid,uuid,text,integer,integer)','EXECUTE')
+     OR NOT has_function_privilege('eventor_runtime','eogp.reconcile_booking_offer_email_delivery(uuid,uuid,uuid,text,text,text)','EXECUTE')
+     OR NOT has_function_privilege('eventor_runtime','eogp.retry_booking_offer_email_delivery(uuid,uuid,uuid,text)','EXECUTE') THEN
+    RAISE EXCEPTION 'runtime role is missing permission-gated offer email operations';
   END IF;
 
   IF NOT has_table_privilege('eventor_worker','eogp.booking_offer_email_delivery_tenant_queue','SELECT')
