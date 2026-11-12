@@ -278,6 +278,64 @@ const bookingPriceListRevisionParams = {
   },
   additionalProperties: false,
 } as const;
+const bookingTaxProfileParams = {
+  type: "object", required: ["taxProfileId"],
+  properties: { taxProfileId: { type: "string", pattern: uuidPattern } },
+  additionalProperties: false,
+} as const;
+const bookingTaxProfileRevisionParams = {
+  type: "object", required: ["taxProfileId", "revisionId"],
+  properties: {
+    taxProfileId: { type: "string", pattern: uuidPattern },
+    revisionId: { type: "string", pattern: uuidPattern },
+  },
+  additionalProperties: false,
+} as const;
+const bookingTaxProfileCreateBody = {
+  type: "object", required: ["code", "name", "currency", "taxBasis"],
+  properties: {
+    code: { type: "string", minLength: 2, maxLength: 80, pattern: "^[A-Za-z0-9][A-Za-z0-9._-]*$" },
+    name: { type: "string", minLength: 1, maxLength: 250 },
+    jurisdictionCode: { type: ["string", "null"], maxLength: 100 },
+    registrationIdentifier: { type: ["string", "null"], maxLength: 120 },
+    currency: { type: "string", pattern: "^[A-Z]{3}$" },
+    taxBasis: { type: "string", enum: ["inclusive", "exclusive", "not_applicable"] },
+  },
+  additionalProperties: false,
+} as const;
+const bookingTaxProfileRevisionBody = {
+  type: "object",
+  required: ["jurisdictionCode", "registrationIdentifier", "currency", "taxBasis", "roundingMethod", "roundingScale", "effectiveFrom", "effectiveUntil", "taxCodes"],
+  properties: {
+    jurisdictionCode: { type: ["string", "null"], maxLength: 100 },
+    registrationIdentifier: { type: ["string", "null"], maxLength: 120 },
+    currency: { type: "string", pattern: "^[A-Z]{3}$" },
+    taxBasis: { type: "string", enum: ["inclusive", "exclusive", "not_applicable"] },
+    roundingMethod: { type: "string", enum: ["per_line", "per_tax_code", "invoice_total"] },
+    roundingScale: { type: "integer", minimum: 0, maximum: 4 },
+    effectiveFrom: { type: ["string", "null"], format: "date-time" },
+    effectiveUntil: { type: ["string", "null"], format: "date-time" },
+    taxCodes: {
+      type: "array", maxItems: 200,
+      items: {
+        type: "object", required: ["taxCode", "label", "treatment", "rate"],
+        properties: {
+          taxCode: { type: "string", minLength: 1, maxLength: 80, pattern: "^[A-Za-z0-9][A-Za-z0-9._-]*$" },
+          label: { type: "string", minLength: 1, maxLength: 200 },
+          treatment: { type: "string", enum: ["percentage", "zero_rated", "exempt", "out_of_scope", "manual"] },
+          rate: { type: ["number", "null"], minimum: 0, maximum: 100 },
+        },
+        additionalProperties: false,
+      },
+    },
+  },
+  additionalProperties: false,
+} as const;
+const bookingPriceListTaxProfileBody = {
+  type: "object", required: ["taxProfileRevisionId"],
+  properties: { taxProfileRevisionId: { type: ["string", "null"], pattern: uuidPattern } },
+  additionalProperties: false,
+} as const;
 const bookingCancellationPolicyCreateBody = {
   type: "object", required: ["code", "name"],
   properties: {
@@ -1910,6 +1968,126 @@ export function buildApi(dependencies: ApiDependencies): FastifyInstance {
           return result.rows[0]?.result as Record<string, unknown>;
         },
       );
+    },
+  );
+
+  server.get(
+    "/organization/booking-tax-profiles",
+    async (request, reply) => {
+      const principal = request.staffPrincipal!;
+      const client = await dependencies.pool.connect();
+      try {
+        await client.query("BEGIN");
+        await client.query("SELECT set_config('app.organization_id',$1,true)", [principal.organizationId]);
+        const result = await client.query<ResultRow>(
+          "SELECT eogp.get_booking_tax_profiles($1::uuid,$2::uuid) AS result",
+          [principal.organizationId, principal.membershipId],
+        );
+        await client.query("COMMIT");
+        return reply.code(200).send({ data: result.rows[0]?.result ?? [] });
+      } catch (error) {
+        try { await client.query("ROLLBACK"); } catch { /* preserve the read error */ }
+        throw databaseError(error);
+      } finally { client.release(); }
+    },
+  );
+
+  server.post<{ Body: {
+    code: string; name: string; jurisdictionCode?: string | null; registrationIdentifier?: string | null;
+    currency: string; taxBasis: "inclusive" | "exclusive" | "not_applicable";
+  } }>(
+    "/organization/booking-tax-profiles",
+    { schema: { headers: idempotencyHeaders, body: bookingTaxProfileCreateBody } },
+    async (request, reply) => {
+      const principal = request.staffPrincipal!;
+      const body = request.body;
+      return withCommand(request, reply, "createBookingTaxProfile", body, async (client) => {
+        const result = await client.query<ResultRow>(
+          "SELECT eogp.create_booking_tax_profile($1::uuid,$2::uuid,$3::text,$4::text,$5::text,$6::text,$7::text,$8::text) AS result",
+          [principal.organizationId,principal.membershipId,body.code,body.name,body.jurisdictionCode ?? null,
+           body.registrationIdentifier ?? null,body.currency,body.taxBasis],
+        );
+        return result.rows[0]?.result as Record<string,unknown>;
+      });
+    },
+  );
+
+  server.post<{ Params: { taxProfileId: string }; Body: {
+    jurisdictionCode: string | null; registrationIdentifier: string | null; currency: string;
+    taxBasis: "inclusive" | "exclusive" | "not_applicable";
+    roundingMethod: "per_line" | "per_tax_code" | "invoice_total"; roundingScale: number;
+    effectiveFrom: string | null; effectiveUntil: string | null;
+  } }>(
+    "/booking-tax-profiles/:taxProfileId/revisions",
+    { schema: { params: bookingTaxProfileParams, headers: idempotencyHeaders, body: bookingTaxProfileRevisionBody } },
+    async (request, reply) => {
+      const principal=request.staffPrincipal!, body=request.body;
+      return withCommand(request,reply,"createBookingTaxProfileRevision",
+        {taxProfileId:request.params.taxProfileId,...body},async(client)=>{
+          const result=await client.query<ResultRow>(
+            "SELECT eogp.create_booking_tax_profile_revision($1::uuid,$2::uuid,$3::uuid,$4::text,$5::text,$6::text,$7::text,$8::text,$9::integer,$10::timestamptz,$11::timestamptz) AS result",
+            [principal.organizationId,request.params.taxProfileId,principal.membershipId,body.jurisdictionCode,
+             body.registrationIdentifier,body.currency,body.taxBasis,body.roundingMethod,body.roundingScale,
+             body.effectiveFrom,body.effectiveUntil],
+          );
+          return result.rows[0]?.result as Record<string,unknown>;
+        });
+    },
+  );
+
+  server.put<{ Params: { taxProfileId: string; revisionId: string }; Body: {
+    jurisdictionCode: string | null; registrationIdentifier: string | null; currency: string;
+    taxBasis: "inclusive" | "exclusive" | "not_applicable";
+    roundingMethod: "per_line" | "per_tax_code" | "invoice_total"; roundingScale: number;
+    effectiveFrom: string | null; effectiveUntil: string | null;
+    taxCodes: Array<{taxCode:string;label:string;treatment:"percentage"|"zero_rated"|"exempt"|"out_of_scope"|"manual";rate:number|null}>;
+  } }>(
+    "/booking-tax-profiles/:taxProfileId/revisions/:revisionId",
+    { schema: { params: bookingTaxProfileRevisionParams, headers: idempotencyHeaders, body: bookingTaxProfileRevisionBody } },
+    async (request, reply) => {
+      const principal=request.staffPrincipal!, body=request.body;
+      return withCommand(request,reply,"updateBookingTaxProfileDraftRevision",
+        {taxProfileId:request.params.taxProfileId,revisionId:request.params.revisionId,...body},async(client)=>{
+          const result=await client.query<ResultRow>(
+            "SELECT eogp.update_booking_tax_profile_draft_revision($1::uuid,$2::uuid,$3::uuid,$4::uuid,$5::text,$6::text,$7::text,$8::text,$9::text,$10::integer,$11::timestamptz,$12::timestamptz,$13::jsonb) AS result",
+            [principal.organizationId,request.params.taxProfileId,request.params.revisionId,principal.membershipId,
+             body.jurisdictionCode,body.registrationIdentifier,body.currency,body.taxBasis,body.roundingMethod,
+             body.roundingScale,body.effectiveFrom,body.effectiveUntil,JSON.stringify(body.taxCodes)],
+          );
+          return result.rows[0]?.result as Record<string,unknown>;
+        });
+    },
+  );
+
+  server.post<{ Params: { taxProfileId: string; revisionId: string } }>(
+    "/booking-tax-profiles/:taxProfileId/revisions/:revisionId/publish",
+    { schema: { params: bookingTaxProfileRevisionParams, headers: idempotencyHeaders } },
+    async (request,reply)=>{
+      const principal=request.staffPrincipal!;
+      return withCommand(request,reply,"publishBookingTaxProfileRevision",
+        {taxProfileId:request.params.taxProfileId,revisionId:request.params.revisionId},async(client)=>{
+          const result=await client.query<ResultRow>(
+            "SELECT eogp.publish_booking_tax_profile_revision($1::uuid,$2::uuid,$3::uuid,$4::uuid) AS result",
+            [principal.organizationId,request.params.taxProfileId,request.params.revisionId,principal.membershipId],
+          );
+          return result.rows[0]?.result as Record<string,unknown>;
+        });
+    },
+  );
+
+  server.put<{ Params: { priceListId: string; revisionId: string }; Body: { taxProfileRevisionId: string | null } }>(
+    "/booking-price-lists/:priceListId/revisions/:revisionId/tax-profile",
+    { schema: { params: bookingPriceListRevisionParams, headers: idempotencyHeaders, body: bookingPriceListTaxProfileBody } },
+    async (request,reply)=>{
+      const principal=request.staffPrincipal!, body=request.body;
+      return withCommand(request,reply,"setBookingPriceListTaxProfileRevision",
+        {priceListId:request.params.priceListId,revisionId:request.params.revisionId,...body},async(client)=>{
+          const result=await client.query<ResultRow>(
+            "SELECT eogp.set_booking_price_list_tax_profile_revision($1::uuid,$2::uuid,$3::uuid,$4::uuid,$5::uuid) AS result",
+            [principal.organizationId,request.params.priceListId,request.params.revisionId,body.taxProfileRevisionId,principal.membershipId],
+          );
+          return result.rows[0]?.result as Record<string,unknown>;
+        });
     },
   );
 
