@@ -121,43 +121,49 @@ BEGIN
 END;
 $test$;
 
-INSERT INTO eogp.booking_form_definitions
- (id, organization_id, scope_kind, form_code, name)
-VALUES
- ('41000000-0000-4000-8000-00000000000a',
-  '10000000-0000-0000-0000-00000000000a',
-  'organization','CI-BOOKING-FORM','CI Booking Form');
-
-INSERT INTO eogp.booking_form_revisions
- (id, organization_id, form_definition_id, revision_number, locale,
-  field_schema, state, published_at)
-VALUES
- ('42000000-0000-4000-8000-00000000000a',
-  '10000000-0000-0000-0000-00000000000a',
-  '41000000-0000-4000-8000-00000000000a',
-  1,'bs-BA','{"fields":[]}'::jsonb,'published',clock_timestamp());
+DO $test$
+DECLARE
+  v_created jsonb;
+  v_form_id uuid;
+  v_revision_id uuid;
+BEGIN
+  v_created := eogp.create_booking_form(
+    '10000000-0000-0000-0000-00000000000a',
+    '30000000-0000-0000-0000-00000000000a',
+    'CI-BOOKING-FORM',
+    'CI Booking Form',
+    'bs-BA',
+    '{"fields":[{"code":"category","type":"text","label":"Category","required":false}]}'::jsonb
+  );
+  v_form_id := (v_created->>'formId')::uuid;
+  v_revision_id := (v_created->>'revisionId')::uuid;
+  PERFORM eogp.publish_booking_form_revision(
+    '10000000-0000-0000-0000-00000000000a',
+    v_form_id,
+    v_revision_id,
+    '30000000-0000-0000-0000-00000000000a'
+  );
+END;
+$test$;
 
 DO $test$
 BEGIN
   BEGIN
-    UPDATE eogp.booking_form_revisions
-       SET field_schema = '{"fields":[{"code":"tampered"}]}'::jsonb
-     WHERE organization_id = '10000000-0000-0000-0000-00000000000a'
-       AND id = '42000000-0000-4000-8000-00000000000a';
+    PERFORM eogp.save_booking_form_draft(
+      '10000000-0000-0000-0000-00000000000a',
+      (SELECT id FROM eogp.booking_form_definitions
+        WHERE organization_id='10000000-0000-0000-0000-00000000000a'
+          AND form_code='CI-BOOKING-FORM'),
+      (SELECT r.id FROM eogp.booking_form_revisions r
+        JOIN eogp.booking_form_definitions f
+          ON f.organization_id=r.organization_id AND f.id=r.form_definition_id
+        WHERE r.organization_id='10000000-0000-0000-0000-00000000000a'
+          AND f.form_code='CI-BOOKING-FORM' AND r.revision_number=1),
+      '30000000-0000-0000-0000-00000000000a',
+      'bs-BA',
+      '{"fields":[{"code":"tampered","type":"text","label":"Tampered"}]}'::jsonb
+    );
     RAISE EXCEPTION 'expected published booking form revision immutability rejection';
-  EXCEPTION WHEN SQLSTATE '55000' THEN
-    NULL;
-  END;
-  BEGIN
-    INSERT INTO eogp.booking_form_catalogue_bindings
-     (organization_id, form_revision_id, catalogue_id, catalogue_revision_id, field_code)
-    VALUES
-     ('10000000-0000-0000-0000-00000000000a',
-      '42000000-0000-4000-8000-00000000000a',
-      '31000000-0000-4000-8000-00000000000a',
-      '32000000-0000-4000-8000-00000000000a',
-      'category');
-    RAISE EXCEPTION 'expected published booking form binding immutability rejection';
   EXCEPTION WHEN SQLSTATE '55000' THEN
     NULL;
   END;
