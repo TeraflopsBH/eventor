@@ -1600,9 +1600,12 @@ test("public offer review shows only customer-safe terms using a purpose-bound c
     headers: { "x-external-booking-token": token },
   });
   assert.equal(response.statusCode, 200);
+  assert.equal(response.headers["cache-control"], "no-store, private");
+  assert.equal(response.headers["referrer-policy"], "no-referrer");
+  assert.equal(response.headers["x-robots-tag"], "noindex, nofollow, noarchive");
   const data = response.json<{
     data: {
-      offerId: string;
+      offerId: string,
       status: string;
       totalAmount: number;
       terms: { lineItems: Array<{ label: string }>; spaces: Array<{ code: string }>; resources: Array<{ label: string }> };
