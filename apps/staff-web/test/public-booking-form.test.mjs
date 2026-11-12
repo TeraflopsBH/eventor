@@ -12,6 +12,7 @@ import {
   validatePublicBookingChoices,
   validatePublicBookingAnswers,
   normalizePublicBookingAnswers,
+  mergePublicBookingAnswers,
 } from "../src/features/public-booking-forms/publicBookingForm.ts";
 
 function makeForm(overrides = {}) {
@@ -267,5 +268,23 @@ test("normalizes numeric draft answers while leaving nonnumeric answers intact",
     equipment: ["projector"],
     estimated_guests: 42,
     accept_terms: true,
+  });
+});
+
+
+test("merges normalized schema answers without discarding unknown legacy keys", () => {
+  const fields = makeForm().fieldSchema.fields;
+  assert.deepEqual(mergePublicBookingAnswers(fields, {
+    event_name: "Event",
+    equipment: ["projector"],
+    estimated_guests: "42",
+    accept_terms: true,
+    legacy_field: { retained: true },
+  }), {
+    event_name: "Event",
+    equipment: ["projector"],
+    estimated_guests: 42,
+    accept_terms: true,
+    legacy_field: { retained: true },
   });
 });
