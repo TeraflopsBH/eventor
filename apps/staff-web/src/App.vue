@@ -16,6 +16,7 @@ const publicRejectionReason = ref("");
 const publicRejectionNote = ref("");
 const publicDecisionBusy = ref(false);
 const publicDecisionKey = ref("");
+const publicDecisionKind = ref<"accepted" | "rejected" | null>(null);
 const principal = ref<Principal | null>(null);
 const loadingSession = ref(true);
 const activeTab = ref<"delivery" | "campaign" | "inquiries" | "approvals">("delivery");
@@ -1046,8 +1047,12 @@ async function issueBookingOffer(): Promise<void> {
 async function copyBookingOfferCapability(): Promise<void> {
   if (!bookingOfferAcceptanceToken.value) return;
   try {
-    await navigator.clipboard.writeText(bookingOfferAcceptanceToken.value);
-    pageNotice.value = "Customer offer capability copied. Treat it as a bearer secret and do not paste it into internal notes or tickets.";
+    const offerId = bookingOffer.value?.offerId;
+    if (!offerId) throw new Error("The issued offer is not available.");
+    const customerUrl = new URL(`/offers/${encodeURIComponent(offerId)}`, window.location.origin);
+    customerUrl.hash = new URLSearchParams({ token: bookingOfferAcceptanceToken.value }).toString();
+    await navigator.clipboard.writeText(customerUrl.toString());
+    pageNotice.value = "Customer offer link copied. It contains a private bearer capability; send it only to the intended customer over an approved channel.";
     pageError.value = "";
   } catch {
     pageError.value = "Clipboard access was denied. Select and copy the capability manually.";
@@ -1291,7 +1296,10 @@ async function submitPublicOfferAcceptance(): Promise<void> {
   if (!publicOfferId || !publicOfferToken.value || !publicOffer || publicOffer.value.status !== "issued") return;
   publicDecisionBusy.value = true;
   publicOfferError.value = "";
-  if (!publicDecisionKey.value) publicDecisionKey.value = createPublicDecisionKey();
+  if (publicDecisionKind.value !== "accepted") {
+    publicDecisionKey.value = createPublicDecisionKey();
+    publicDecisionKind.value = "accepted";
+  }
   try {
     await api.acceptPublicBookingOffer(
       publicOfferId,
@@ -1316,7 +1324,10 @@ async function submitPublicOfferRejection(): Promise<void> {
   if (!publicOfferId || !publicOfferToken.value || !publicOffer || publicOffer.value.status !== "issued") return;
   publicDecisionBusy.value = true;
   publicOfferError.value = "";
-  if (!publicDecisionKey.value) publicDecisionKey.value = createPublicDecisionKey();
+  if (publicDecisionKind.value !== "rejected") {
+    publicDecisionKey.value = createPublicDecisionKey();
+    publicDecisionKind.value = "rejected";
+  }
   try {
     await api.rejectPublicBookingOffer(
       publicOfferId,
@@ -1332,11 +1343,18 @@ async function submitPublicOfferRejection(): Promise<void> {
   }
 }
 
-function formatPublicDate(value: string | null | undefined): string {
+function formatPublicDate(value: string | null | undefined, timezone?: string | null): string {
   if (!value) return "Not specified";
   const date = new Date(value);
   if (Number.isNaN(date.getTime())) return value;
-  return new Intl.DateTimeFormat(undefined, { dateStyle: "medium", timeStyle: "short" }).format(date);
+  try {
+    return new Intl.DateTimeFormat(undefined, {
+      dateStyle: "medium", timeStyle: "short",
+      ...(timezone ? { timeZone: timezone } : {}),
+    }).format(date);
+  } catch {
+    return new Intl.DateTimeFormat(undefined, { dateStyle: "medium", timeStyle: "short" }).format(date);
+  }
 }
 
 onMounted(() => {
@@ -1367,13 +1385,13 @@ onMounted(() => {
       <section class="public-offer-panel">
         <div class="public-offer-summary">
           <div><span>Offer valid until</span><strong>{{ formatPublicDate(publicOffer.validUntil) }}</strong></div>
-          <div><span>Requested start</span><strong>{{ formatPublicDate(publicOffer.terms.requestedStart) }}</strong></div>
-          <div><span>Requested end</span><strong>{{ formatPublicDate(publicOffer.terms.requestedEnd) }}</strong></div>
+          <div><span>Requested start</span><strong>{{ formatPublicDate(publicOffer.terms.requestedStart, publicOffer.terms.timezone) }}</strong></div>
+          <div><span>Requested end</span><strong>{{ formatPublicDate(publicOffer.terms.requestedEnd, publicOffer.terms.timezone) }}</strong></div>
         </div>
         <h2>Venue and resources</h2>
         <div v-if="publicOffer.terms.spaces.length" class="public-offer-list">
           <div v-for="(space, index) in publicOffer.terms.spaces" :key="index" class="public-offer-line">
-            <div><strong>{{ space.name }}</strong><span>{{ space.blockKind.replaceAll("_", " ") }} · {{ formatPublicDate(space.startsAt) }} – {{ formatPublicDate(space.endsAt) }}</span></div>
+            <div><strong>{{ space.name }}</strong><span>{{ space.blockKind.replaceAll("_", " ") }} · {{ formatPublicDate(space.startsAt, publicOffer.terms.timezone) }} – {{ formatPublicDate(space.endsAt, publicOffer.terms.timezone) }}</span></div>
             <span v-if="space.requestedCapacity">Capacity {{ space.requestedCapacity }}</span>
           </div>
         </div>
