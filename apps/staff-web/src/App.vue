@@ -261,12 +261,7 @@ const bookingInquiryState = useBookingInquiries({
   clearMessages, showError, clearBookingDraftState,
 });
 const {
-  inquiryRows, inquiryMeta, inquiryOffset, inquiryFilters, inquiryDetail, inquiryAssignees,
-  inquiryCapabilities, selectedInquiryId, inquiryAssignmentChoice, inquiryStatusChoice,
-  inquiryStatusReason, inquiryAnnotationText, inquiryStatusTargets, inquiryAnswerItems,
-  canEditInquiryAssignment, canConvertInquiry, refreshInquiryDetailData,
-  loadInquiryList, openInquiryWorkspace, openInquiry, refreshInquiryDetail,
-  saveInquiryAssignment, saveInquiryStatus, saveInquiryConversion, saveInquiryAnnotation,
+  inquiryDetail, inquiryCapabilities, refreshInquiryDetailData, openInquiryWorkspace,
   reset: resetBookingInquiries,
 } = bookingInquiryState;
 
