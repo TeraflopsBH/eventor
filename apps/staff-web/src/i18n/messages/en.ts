@@ -1,4 +1,7 @@
 export default {
+  common: {
+    notProvided: "Not provided",
+  },
   app: {
     staffWorkspace: "STAFF WORKSPACE",
     authenticatedSession: "Authenticated staff session",
