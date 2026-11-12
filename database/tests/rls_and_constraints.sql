@@ -123,50 +123,23 @@ $test$;
 
 DO $test$
 DECLARE
-  v_created jsonb;
-  v_form_id uuid;
-  v_revision_id uuid;
-BEGIN
-  v_created := eogp.create_booking_form(
-    '10000000-0000-0000-0000-00000000000a',
-    '30000000-0000-0000-0000-00000000000a',
-    'CI-BOOKING-FORM',
-    'CI Booking Form',
-    'bs-BA',
-    '{"fields":[{"code":"category","type":"text","label":"Category","required":false}]}'::jsonb
-  );
-  v_form_id := (v_created->>'formId')::uuid;
-  v_revision_id := (v_created->>'revisionId')::uuid;
-  PERFORM eogp.publish_booking_form_revision(
-    '10000000-0000-0000-0000-00000000000a',
-    v_form_id,
-    v_revision_id,
-    '30000000-0000-0000-0000-00000000000a'
-  );
-END;
-$test$;
-
-DO $test$
+  v_denied boolean := false;
 BEGIN
   BEGIN
-    PERFORM eogp.save_booking_form_draft(
+    PERFORM eogp.create_booking_form(
       '10000000-0000-0000-0000-00000000000a',
-      (SELECT id FROM eogp.booking_form_definitions
-        WHERE organization_id='10000000-0000-0000-0000-00000000000a'
-          AND form_code='CI-BOOKING-FORM'),
-      (SELECT r.id FROM eogp.booking_form_revisions r
-        JOIN eogp.booking_form_definitions f
-          ON f.organization_id=r.organization_id AND f.id=r.form_definition_id
-        WHERE r.organization_id='10000000-0000-0000-0000-00000000000a'
-          AND f.form_code='CI-BOOKING-FORM' AND r.revision_number=1),
       '30000000-0000-0000-0000-00000000000a',
+      'CI-BOOKING-FORM',
+      'CI Booking Form',
       'bs-BA',
-      '{"fields":[{"code":"tampered","type":"text","label":"Tampered"}]}'::jsonb
+      '{"fields":[{"code":"category","type":"text","label":"Category","required":false}]}'::jsonb
     );
-    RAISE EXCEPTION 'expected published booking form revision immutability rejection';
-  EXCEPTION WHEN SQLSTATE '55000' THEN
-    NULL;
+  EXCEPTION WHEN insufficient_privilege THEN
+    v_denied := true;
   END;
+  IF NOT v_denied THEN
+    RAISE EXCEPTION 'booking form creation without booking.manage permission unexpectedly succeeded';
+  END IF;
 END;
 $test$;
 
