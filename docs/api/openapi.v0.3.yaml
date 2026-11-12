@@ -252,7 +252,7 @@ paths:
               required: [locale]
               additionalProperties: false
               properties:
-                locale: { type: string, enum: [bs-BA, en] }
+                locale: { type: [string, "null"], enum: [bs-BA, en, null] }
       responses:
         '200':
           description: "User language preference saved."
