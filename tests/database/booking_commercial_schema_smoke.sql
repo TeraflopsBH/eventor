@@ -11,7 +11,8 @@ DECLARE
     'booking_offer_decision_history',
     'booking_offer_approval_decisions',
     'booking_offer_capability_idempotency',
-    'booking_offer_email_deliveries'
+    'booking_offer_email_deliveries',
+    'booking_price_lists','booking_price_list_revisions','booking_price_items'
   ];
   v_required_functions text[] := ARRAY[
     'eogp.save_booking_offer_revision(uuid,uuid,uuid,uuid,uuid,uuid,uuid,text,text,timestamptz,jsonb,jsonb,numeric,text,boolean)',
@@ -31,7 +32,12 @@ DECLARE
     'eogp.queue_booking_offer_email_delivery(uuid,uuid,uuid,text,text,bytea)',
     'eogp.list_booking_offer_email_deliveries(uuid,uuid,uuid,text,integer,integer)',
     'eogp.reconcile_booking_offer_email_delivery(uuid,uuid,uuid,text,text,text)',
-    'eogp.retry_booking_offer_email_delivery(uuid,uuid,uuid,text)'
+    'eogp.retry_booking_offer_email_delivery(uuid,uuid,uuid,text)',
+    'eogp.get_booking_price_lists(uuid,uuid)',
+    'eogp.create_booking_price_list(uuid,uuid,text,text,text,uuid,uuid,text,text)',
+    'eogp.create_booking_price_list_revision(uuid,uuid,uuid,text,text,timestamptz,timestamptz)',
+    'eogp.replace_booking_price_list_draft_items(uuid,uuid,uuid,uuid,text,text,timestamptz,timestamptz,jsonb)',
+    'eogp.publish_booking_price_list_revision(uuid,uuid,uuid,uuid)'
   ];
 BEGIN
   FOREACH v_name IN ARRAY v_required_tables LOOP
@@ -64,7 +70,10 @@ BEGIN
      OR has_table_privilege(current_user,'eogp.booking_approval_policy_revisions','SELECT')
      OR has_table_privilege(current_user,'eogp.booking_offer_expiry_tenant_queue','SELECT')
      OR has_table_privilege(current_user,'eogp.booking_offer_email_deliveries','SELECT')
-     OR has_table_privilege(current_user,'eogp.booking_offer_email_delivery_tenant_queue','SELECT') THEN
+     OR has_table_privilege(current_user,'eogp.booking_offer_email_delivery_tenant_queue','SELECT')
+     OR has_table_privilege(current_user,'eogp.booking_price_lists','SELECT')
+     OR has_table_privilege(current_user,'eogp.booking_price_list_revisions','SELECT')
+     OR has_table_privilege(current_user,'eogp.booking_price_items','SELECT') THEN
     RAISE EXCEPTION 'runtime role has direct table read access to protected commercial data';
   END IF;
 
@@ -198,5 +207,21 @@ BEGIN
   IF to_regprocedure('eogp.digest(bytea,text)') IS NULL THEN
     RAISE EXCEPTION 'pgcrypto digest function is not installed in the eogp schema';
   END IF;
+  IF NOT EXISTS (
+    SELECT 1 FROM pg_catalog.pg_trigger t
+    JOIN pg_catalog.pg_class r ON r.oid=t.tgrelid
+    JOIN pg_catalog.pg_namespace n ON n.oid=r.relnamespace
+    WHERE n.nspname='eogp' AND r.relname='booking_price_list_revisions'
+      AND t.tgname='booking_price_list_revision_guard' AND NOT t.tgisinternal
+  ) OR NOT EXISTS (
+    SELECT 1 FROM pg_catalog.pg_trigger t
+    JOIN pg_catalog.pg_class r ON r.oid=t.tgrelid
+    JOIN pg_catalog.pg_namespace n ON n.oid=r.relnamespace
+    WHERE n.nspname='eogp' AND r.relname='booking_price_items'
+      AND t.tgname='booking_price_item_revision_guard' AND NOT t.tgisinternal
+  ) THEN
+    RAISE EXCEPTION 'price-list revision and item immutability guards are missing';
+  END IF;
+
 END;
 $test$;
