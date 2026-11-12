@@ -789,7 +789,7 @@ paths:
       tags: ["Booking Administration"]
       operationId: publishBookingPriceListRevision
       summary: "Publish a complete price-list revision"
-      description: "Requires booking.manage. The latest draft must contain at least one valid item. Published effective periods for one price list may not overlap."
+      description: "Requires booking.manage. The latest draft must contain at least one valid item. Effective bounds are eligibility metadata; offers pin the exact selected published revision."
       security: [{ StaffSession: [], StaffCsrf: [] }]
       parameters:
         - name: priceListId
