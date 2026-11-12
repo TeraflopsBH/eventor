@@ -6,7 +6,7 @@
 
 ## Context
 
-Eventor is a self-hosted, multi-organization product. The reference deployment is in Bosnia and Herzegovina, but the platform is intended for organizations and customers who may use different languages. The current staff workspace is a Vue 3 application with user-visible strings embedded directly in a large component. The API returns a principal and organization memberships, but neither the organization model nor the staff principal currently exposes a locale preference. Organization records have a default timezone; timezone is not a substitute for locale.
+Eventor is a self-hosted, multi-organization product. The reference deployment is in Bosnia and Herzegovina, but the platform is intended for organizations and customers who may use different languages. The staff workspace is a Vue 3 application with a shared i18n runtime. Organization records now have a persisted default locale as well as a default timezone; timezone is not a substitute for locale. Staff-user locale preference persistence remains a separate implementation task.
 
 Adding translations after the staff and customer interfaces expand would require invasive changes and risk mixing translated labels with stable business values. Customer communications also need to be understandable in the recipient's language without changing the immutable commercial terms accepted by the customer.
 
@@ -40,7 +40,7 @@ Resolve a customer-facing page or communication using:
 3. The owning organization's configured default locale.
 4. The deployment fallback locale (`en`).
 
-A public page may accept a locale hint, but the hint is presentation input only and cannot grant access or change the underlying booking/offer. Do not infer language from a person's name, nationality, location or other personal attributes.
+A public page may accept a locale hint, but the hint is presentation input only and cannot grant access or change the underlying booking/offer. Public booking inquiry submissions may include an explicit `customerLocale`; it is validated against the deployment's supported locales and stored on the inquiry. If omitted, the inquiry inherits the owning organization's `default_locale`. The resolved inquiry locale is carried into the public offer projection and queued offer-email job. Do not infer language from a person's name, nationality, location or other personal attributes.
 
 ### 4. Translation resources and authored content
 
@@ -69,7 +69,7 @@ A public page may accept a locale hint, but the hint is presentation input only 
 
 ## Consequences
 
-- Organization and user locale preferences require a reviewed schema/API implementation; this ADR does not itself add database columns or alter current API responses.
+- Organization `default_locale` and inquiry `customer_locale` are persisted for the initial `bs-BA` and `en` locales. Organization-default administration and staff-user locale preference persistence still require permission-checked settings/API workflows.
 - The current staff workspace should be migrated incrementally from inline English strings to namespaced translation keys, beginning with shared navigation, authentication and common status/action labels.
 - Customer-facing offer, booking inquiry, invitation/RSVP and cancellation communications must resolve and record an explicit locale before broader rollout.
 - Vendor-authored translatable content needs a versioned translation model so historical offers, policies and sent messages remain reproducible.
@@ -81,7 +81,7 @@ A public page may accept a locale hint, but the hint is presentation input only 
 
 1. Add supported-locale catalogues and staff-client i18n runtime, migrate shared shell/authentication strings, and test fallback/plural/formatting behavior.
 2. Add organization default locale and user preference persistence, expose them through permission-appropriate API projections and settings commands, and test cross-tenant behavior.
-3. Add locale resolution to public booking forms/offers and customer communication jobs; record the resolved locale and rendered template/content revision with delivery evidence.
+3. Resolve and persist the locale on public booking inquiries, expose it only through the capability-protected customer offer projection, and use it for the queued offer email. Extend the same locale contract to public booking forms and other customer communications; retain rendered template/content revisions with delivery evidence.
 4. Add versioned translations for vendor-authored public descriptions, policy text and reusable templates as those administration workflows are implemented.
 5. Extend the same locale contract to guest portal, invitations/RSVP, cancellation notices, check-in and operational interfaces.
 
