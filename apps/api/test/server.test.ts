@@ -89,6 +89,7 @@ function makePool() {
   let bookingOfferGetCalls = 0;
   let bookingOfferIssueCalls = 0;
   let customerOfferDecisionCalls = 0;
+  let publicBookingOfferViewCalls = 0;
   let bookingOfferApprovalDecisionCalls = 0;
   let bookingOfferApprovalStatusCalls = 0;
   let bookingConfirmationCalls = 0;
@@ -247,6 +248,31 @@ function makePool() {
             blocked: false,
             decisions: [{ membershipId: "cccccccc-2222-4222-8222-cccccccccccc", decision: "approved", reason: "Reviewed amount.", decidedAt: "2026-11-12T12:30:00.000Z" }],
           }],
+        } }], rowCount: 1 };
+      }
+      if (normalized.includes("eogp.get_public_booking_offer_with_capability(")) {
+        publicBookingOfferViewCalls += 1;
+        commandCalls.push({ sql: normalized, values });
+        return { rows: [{ result: {
+          offerId: values[0],
+          status: "issued",
+          revisionNumber: 1,
+          currency: "BAM",
+          subtotal: 250,
+          taxAmount: 25,
+          totalAmount: 275,
+          validUntil: "2026-12-01T12:00:00.000Z",
+          terms: {
+            requestedStart: "2027-01-18T09:00:00.000Z",
+            requestedEnd: "2027-01-18T12:00:00.000Z",
+            timezone: "Europe/Sarajevo",
+            taxBasis: "exclusive",
+            lineItems: [{ label: "Hall rental", unit: "hour", quantity: 3, unitAmount: 83.33, lineTotal: 250 }],
+            adjustments: [],
+            spaces: [{ code: "MAIN-HALL", name: "Main Hall", blockKind: "event_use" }],
+            resources: [{ label: "Chairs", requestedQuantity: 120 }],
+            cancellationTerms: "Cancellation terms as published.",
+          },
         } }], rowCount: 1 };
       }
       if (normalized.includes("eogp.resolve_booking_offer_capability(")) {
@@ -721,6 +747,7 @@ function makePool() {
     get bookingOfferGetCalls() { return bookingOfferGetCalls; },
     get bookingOfferIssueCalls() { return bookingOfferIssueCalls; },
     get customerOfferDecisionCalls() { return customerOfferDecisionCalls; },
+    get publicBookingOfferViewCalls() { return publicBookingOfferViewCalls; },
     get bookingOfferApprovalDecisionCalls() { return bookingOfferApprovalDecisionCalls; },
     get bookingOfferApprovalStatusCalls() { return bookingOfferApprovalStatusCalls; },
     get bookingConfirmationCalls() { return bookingConfirmationCalls; },
