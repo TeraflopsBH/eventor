@@ -490,6 +490,7 @@ export default {
       "active_hold": "Active temporary hold"
     },
     "availabilityReason": {
+      "space_unavailable": "This space is no longer active or available in the venue catalogue.",
       "resource_interval_missing": "Set both booking start and end dates to check resource capacity.",
       "resource_interval_invalid": "The booking end date must be later than the start date.",
       "resource_unavailable": "This resource type is no longer reservable.",
