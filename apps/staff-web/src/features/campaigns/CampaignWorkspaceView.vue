@@ -10,7 +10,10 @@ type Workspace = ReturnType<typeof useCampaigns> & {
 };
 
 const props = defineProps<{ workspace: Workspace }>();
-const { t } = useI18n();
+const { t, locale } = useI18n();
+function formatDate(value: string): string {
+  return new Intl.DateTimeFormat(locale.value, { dateStyle: "medium", timeStyle: "short" }).format(new Date(value));
+}
 function statusLabel(status: string): string {
   const known = ["previewed", "confirmed", "queued", "sending", "completed", "failed", "cancelled", "uncertain", "sent", "delivered", "bounced", "suppressed", "pending", "draft", "published", "retired"];
   return known.includes(status) ? (t(`campaignWorkspace.status.${status}` as never) as string) : status.replaceAll("_", " ");
@@ -58,7 +61,7 @@ const {
           <div v-for="item in campaigns" :key="item.campaignId" class="campaign-list-row">
             <div>
               <strong>{{ item.purpose.replaceAll("_", " ") }}</strong>
-              <span>{{ statusLabel(item.status) }} · {{ item.actualRecipientCount }} recipients · {{ new Date(item.createdAt).toLocaleString() }}</span>
+              <span>{{ statusLabel(item.status) }} · {{ item.actualRecipientCount }} recipients · {{ formatDate(item.createdAt) }}</span>
               <small class="mono">{{ item.campaignId }}</small>
             </div>
             <button class="button button-secondary" type="button" :disabled="busy" @click="openListedCampaign(item)">{{ $t("campaignWorkspace.open") }}</button>
@@ -97,8 +100,8 @@ const {
                 <dt>{{ $t("campaignWorkspace.eventId") }}</dt><dd class="mono">{{ campaign.eventId }}</dd>
                 <dt>{{ $t("campaignWorkspace.decisionId") }}</dt><dd class="mono">{{ campaign.eventDecisionId }}</dd>
                 <dt>{{ $t("campaignWorkspace.actualRecipients") }}</dt><dd>{{ campaign.actualRecipientCount }}</dd>
-                <dt>{{ $t("campaignWorkspace.created") }}</dt><dd>{{ new Date(campaign.createdAt).toLocaleString() }}</dd>
-                <dt>{{ $t("campaignWorkspace.confirmed") }}</dt><dd>{{ campaign.confirmedAt ? new Date(campaign.confirmedAt).toLocaleString() : $t("campaignWorkspace.notYetConfirmed") }}</dd>
+                <dt>{{ $t("campaignWorkspace.created") }}</dt><dd>{{ formatDate(campaign.createdAt) }}</dd>
+                <dt>{{ $t("campaignWorkspace.confirmed") }}</dt><dd>{{ campaign.confirmedAt ? formatDate(campaign.confirmedAt) : $t("campaignWorkspace.notYetConfirmed") }}</dd>
               </dl>
             </div>
             <div class="review-card">
@@ -151,7 +154,7 @@ const {
                   <span>{{ $t("campaignWorkspace.provider") }}: {{ attempt.provider ?? "—" }}</span>
                   <span>{{ $t("campaignWorkspace.failure") }}: {{ attempt.failureCode ?? "—" }}</span>
                   <span>{{ $t("campaignWorkspace.retryScheduled") }}: {{ attempt.retryScheduled ? $t("campaignWorkspace.yes") : $t("campaignWorkspace.no") }}</span>
-                  <span>{{ $t("campaignWorkspace.completed") }}: {{ attempt.completedAt ? new Date(attempt.completedAt).toLocaleString() : "—" }}</span>
+                  <span>{{ $t("campaignWorkspace.completed") }}: {{ attempt.completedAt ? formatDate(attempt.completedAt) : "—" }}</span>
                 </div>
                 <div v-if="attempt.status === 'uncertain' || (attempt.status === 'failed' && !attempt.retryScheduled)" class="operator-controls">
                   <label>{{ $t("campaignWorkspace.verifiedOutcome") }}
