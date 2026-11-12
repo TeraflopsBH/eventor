@@ -55,7 +55,7 @@ test("keeps unknown legacy answer keys visible instead of silently dropping them
     }),
     [
       { code: "known_field", label: "Known field", type: "text", value: "Value" },
-      { code: "legacy answer", label: "legacy answer", type: "unknown", value: "Preserved value" },
+      { code: "legacy_answer", label: "legacy answer", type: "unknown", value: "Preserved value" },
     ],
   );
 });
