@@ -174,7 +174,7 @@ onMounted(() => { void loadForm(); });
       <label class="public-language">
         <span>{{ t("publicBookingForm.language") }}</span>
         <select :value="locale" @change="setLocale(($event.target as HTMLSelectElement).value)">
-          <option v-for="option in localeOptions" :key="option.value" :value="option.value">{{ option.label }}</option>
+          <option v-for="option in localeOptions" :key="option.value" :value="option.value">{{ optionLabel(field, option.value, option.label) }}</option>
         </select>
       </label>
     </header>
@@ -220,30 +220,30 @@ onMounted(() => { void loadForm(); });
             <label v-if="field.type === 'textarea'">
               {{ fieldLabel(field) }}{{ field.required ? " *" : "" }}
               <textarea v-model="answers[field.code]" :name="field.code" :required="field.required" :minlength="field.minLength" :maxlength="field.maxLength" :placeholder="fieldPlaceholder(field)" rows="4" />
-              <small v-if="field.description || field.helpText" class="muted">{{ fieldDescription(field) || fieldHelpText(field) }}</small>
+              <small v-if="fieldDescription(field) || fieldHelpText(field)" class="muted">{{ fieldDescription(field) || fieldHelpText(field) }}</small>
             </label>
             <label v-else-if="field.type === 'select'">
-              {{ field.label || field.code }}{{ field.required ? " *" : "" }}
+              {{ fieldLabel(field) }}{{ field.required ? " *" : "" }}
               <select v-model="answers[field.code]" :name="field.code" :required="field.required">
                 <option value="">{{ t("publicBookingForm.chooseOption") }}</option>
-                <option v-for="option in field.options || []" :key="option.value" :value="option.value">{{ option.label }}</option>
+                <option v-for="option in field.options || []" :key="option.value" :value="option.value">{{ optionLabel(field, option.value, option.label) }}</option>
               </select>
-              <small v-if="field.description || field.helpText" class="muted">{{ field.description || field.helpText }}</small>
+              <small v-if="fieldDescription(field) || fieldHelpText(field)" class="muted">{{ fieldDescription(field) || fieldHelpText(field) }}</small>
             </label>
             <fieldset v-else-if="field.type === 'multiselect'" class="public-choice-group">
-              <legend>{{ field.label || field.code }}{{ field.required ? " *" : "" }}</legend>
+              <legend>{{ fieldLabel(field) }}{{ field.required ? " *" : "" }}</legend>
               <label v-for="option in field.options || []" :key="option.value" class="public-choice">
                 <input type="checkbox" :checked="selectedValues(field.code).includes(option.value)" @change="toggleOption(field.code, option.value, ($event.target as HTMLInputElement).checked)" />
-                {{ option.label }}
+                {{ optionLabel(field, option.value, option.label) }}
               </label>
-              <small v-if="field.description || field.helpText" class="muted">{{ field.description || field.helpText }}</small>
+              <small v-if="fieldDescription(field) || fieldHelpText(field)" class="muted">{{ fieldDescription(field) || fieldHelpText(field) }}</small>
             </fieldset>
             <label v-else-if="field.type === 'checkbox'" class="public-checkbox">
               <input v-model="answers[field.code]" type="checkbox" :name="field.code" :required="field.required" />
-              <span>{{ field.label || field.code }}{{ field.required ? " *" : "" }}</span>
+              <span>{{ fieldLabel(field) }}{{ field.required ? " *" : "" }}</span>
             </label>
             <label v-else>
-              {{ field.label || field.code }}{{ field.required ? " *" : "" }}
+              {{ fieldLabel(field) }}{{ field.required ? " *" : "" }}
               <input
                 v-model="answers[field.code]"
                 :name="field.code"
@@ -254,10 +254,10 @@ onMounted(() => { void loadForm(); });
                 :minlength="field.minLength"
                 :maxlength="field.maxLength"
                 :step="field.integer ? 1 : 'any'"
-                :placeholder="field.placeholder || (field.type === 'datetime' ? 'YYYY-MM-DDTHH:mm:ss+01:00' : undefined)"
+                :placeholder="fieldPlaceholder(field) || (field.type === 'datetime' ? 'YYYY-MM-DDTHH:mm:ss+01:00' : undefined)"
               />
               <small v-if="field.type === 'datetime'" class="muted">{{ t("publicBookingForm.dateTimeOffsetHelp") }}</small>
-              <small v-if="field.description || field.helpText" class="muted">{{ field.description || field.helpText }}</small>
+              <small v-if="fieldDescription(field) || fieldHelpText(field)" class="muted">{{ fieldDescription(field) || fieldHelpText(field) }}</small>
             </label>
           </template>
 
