@@ -4,7 +4,7 @@ import type {
   BookingDraftResourceLine,
 } from "../../api";
 
-export type BookingDraftSpaceAllocationInput = Omit<BookingDraftSpaceLine, "spaceLineId">;
+export type BookingDraftSpaceAllocationInput = Omit<BookingDraftSpaceLine, "spaceLineId" | "requestedCapacity"> & { requestedCapacity?: number | "" | null };
 export type BookingDraftResourceAllocationInput = Omit<BookingDraftResourceLine, "resourceLineId" | "lineCode" | "label">;
 
 export type BookingDraftAllocationIssue =
@@ -42,7 +42,7 @@ export function validateBookingDraftAllocations(
       return { kind: "spaceIntervalInvalid", index };
     }
     if (!blockKinds.has(line.blockKind)) return { kind: "spaceBlockKindInvalid", index };
-    if (line.requestedCapacity !== undefined && line.requestedCapacity !== null) {
+    if (line.requestedCapacity !== undefined && line.requestedCapacity !== null && line.requestedCapacity !== "") {
       if (!Number.isInteger(line.requestedCapacity) || line.requestedCapacity < 1) {
         return { kind: "spaceCapacityInvalid", index };
       }
@@ -78,7 +78,7 @@ export function formatBookingDraftSpaceLines(
 ): BookingDraftSpaceAllocationInput[] {
   return lines.map(({ venueSpaceId, startsAt, endsAt, blockKind, requestedCapacity }) => ({
     venueSpaceId, startsAt, endsAt, blockKind,
-    ...(requestedCapacity === null ? {} : { requestedCapacity }),
+    ...(requestedCapacity === null || requestedCapacity === 0 ? {} : { requestedCapacity }),
   }));
 }
 
