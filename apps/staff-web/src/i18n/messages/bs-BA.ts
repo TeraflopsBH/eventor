@@ -151,8 +151,6 @@ export default {
     "campaignConfirmed": "Kampanja je potvrđena. Nijedna poruka nije stavljena u red niti poslana.",
     "campaignQueued": "Kampanja je stavljena u red. Dostava se izvršava asinhrono putem radnog procesa.",
     "campaignCancelled": "Kampanja je otkazana prije početka slanja."
-      "attempts": "pokušaja",
-    "auditPlaceholder": "Zabilježite kako je ishod provjeren…",
   },
   emailDelivery: {
     "eyebrow": "POSTAVKE ORGANIZACIJE",
