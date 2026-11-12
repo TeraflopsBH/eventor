@@ -111,7 +111,7 @@ const bookingApprovalPolicyState = useBookingApprovalPolicies({
 
 
 const bookingCancellationPolicyState = useBookingCancellationPolicies({
-  api, busy, pageError, pageNotice, activeTab, clearMessages, showError,
+  api, busy, pageError, pageNotice, activeTab, clearMessages, showError, translate,
 });
 
 const campaignState = useCampaigns({
