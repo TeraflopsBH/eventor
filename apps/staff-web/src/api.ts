@@ -591,6 +591,7 @@ export const api = {
       `/booking-offers/${encodeURIComponent(offerId)}/reject`,
       {
         method: "POST", body, idempotent: true, idempotencyKey: requestKey,
+        credentials: "omit",
         extraHeaders: { "X-External-Booking-Token": token },
       },
     ),
