@@ -459,7 +459,6 @@ export class PostgresStaffSessionAuth {
         organizationId: row.organization_id,
         organizationSlug: row.organization_slug,
         organizationName: row.organization_name,
-        defaultLocale: row.default_locale,
         selected: row.organization_id === principal.organizationId
           && row.membership_id === principal.membershipId,
       })),
