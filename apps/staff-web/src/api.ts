@@ -523,9 +523,9 @@ export interface BookingApprovalPolicy {
 
 export interface BookingApprovalPolicyMutationResult {
   policyId: string;
-  revisionId: string;
-  revisionNumber: number;
-  state: "draft" | "published";
+  revisionId?: string;
+  revisionNumber?: number;
+  state: "draft" | "published" | "active";
   publishedAt?: string;
 }
 
