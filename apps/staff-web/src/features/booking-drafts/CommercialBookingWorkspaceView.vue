@@ -15,10 +15,6 @@ const props = defineProps<{
 }>();
 const { formatDate, formatMoney } = useInquiryPresentation();
 const { t } = useI18n();
-const inquiryStatusLabel = (status: string): string => {
-  const keys: Record<string, string> = { received: "received", under_review: "underReview", converted: "converted", declined: "declined", withdrawn: "withdrawn", spam: "spam" };
-  return keys[status] ? t(`bookingInquiry.${keys[status]}`) : status.replaceAll("_", " ");
-};
 const commercialStatusLabel = (value: string): string => {
   const labels: Record<string, () => string> = {
     draft: () => t("commercialBooking.stateDraft"),
@@ -59,6 +55,7 @@ const {
   resourceLines: bookingDraftResourceLines,
   addSpaceLine: addBookingDraftSpaceLine,
   removeSpaceLine: removeBookingDraftSpaceLine,
+  applySpaceAlternative: applyBookingDraftSpaceAlternative,
   addResourceLine: addBookingDraftResourceLine,
   removeResourceLine: removeBookingDraftResourceLine,
   requestedStart: bookingDraftRequestedStart,
@@ -142,7 +139,7 @@ const { busy } = props.workspace;
                     <template v-for="field in bookingDraftSourceFormFields" :key="field.code">
                       <label v-if="field.type === 'textarea'">
                         {{ field.label || field.code }}{{ field.required ? " *" : "" }}
-                        <textarea v-model="bookingDraftAnswers[field.code]" :required="field.required" :minlength="field.minLength" :maxlength="field.maxLength" rows="3"></textarea>
+                        <textarea :value="String(bookingDraftAnswers[field.code] ?? '')" :required="field.required" :minlength="field.minLength" :maxlength="field.maxLength" rows="3" @input="bookingDraftAnswers[field.code] = ($event.target as HTMLTextAreaElement).value"></textarea>
                         <small v-if="field.description || field.helpText" class="muted">{{ field.description || field.helpText }}</small>
                       </label>
                       <label v-else-if="field.type === 'select'">
@@ -288,6 +285,23 @@ const { busy } = props.workspace;
                         <p v-for="(conflict, conflictIndex) in result.conflicts" :key="conflictIndex" class="fine-print">
                           {{ t("commercialBooking.conflictKind." + conflict.kind) }} · {{ formatDate(conflict.startsAt) }} – {{ formatDate(conflict.endsAt) }}
                         </p>
+                        <div
+                          v-if="!result.available && bookingDraftAllocationAvailabilityPreview.spaceAlternatives.find((entry) => entry.index === result.index)?.alternatives.length"
+                          class="allocation-alternatives"
+                        >
+                          <strong>{{ t("commercialBooking.spaceAlternatives") }}</strong>
+                          <button
+                            v-for="alternative in bookingDraftAllocationAvailabilityPreview.spaceAlternatives.find((entry) => entry.index === result.index)?.alternatives ?? []"
+                            :key="alternative.venueSpaceId"
+                            class="button button-quiet"
+                            type="button"
+                            :disabled="busy"
+                            @click="applyBookingDraftSpaceAlternative(result.index, alternative.venueSpaceId)"
+                          >
+                            {{ t("commercialBooking.useSpaceAlternative", { space: alternative.venueName + ' · ' + alternative.name }) }}
+                            <span v-if="alternative.capacity !== null">({{ alternative.capacity }})</span>
+                          </button>
+                        </div>
                       </div>
                       <div v-for="result in bookingDraftAllocationAvailabilityPreview.resources" :key="'resource-preview-' + result.index" class="allocation-preview-result">
                         <strong>{{ t("commercialBooking.resource") }} {{ result.index }}</strong>
@@ -301,6 +315,18 @@ const { busy } = props.workspace;
                         <p v-if="result.reason && result.reason !== 'resource_interval_missing' && result.reason !== 'resource_interval_invalid'" class="fine-print">
                           {{ t("commercialBooking.availabilityReason." + result.reason) }}
                         </p>
+                        <div
+                          v-if="bookingDraftAllocationAvailabilityPreview.resourcePools.find((entry) => entry.index === result.index)?.pools.length"
+                          class="allocation-pool-breakdown"
+                        >
+                          <strong>{{ t("commercialBooking.resourcePoolBreakdown") }}</strong>
+                          <p class="fine-print">{{ t("commercialBooking.resourcePoolBreakdownHelp") }}</p>
+                          <ul>
+                          <li v-for="pool in bookingDraftAllocationAvailabilityPreview.resourcePools.find((entry) => entry.index === result.index)?.pools ?? []" :key="pool.resourcePoolId">
+                            {{ pool.venueName }} · {{ pool.name }}: {{ t("commercialBooking.poolCapacityAvailable", { available: pool.availableQuantity, capacity: pool.capacity }) }}
+                          </li>
+                          </ul>
+                        </div>
                       </div>
                       <p class="fine-print">{{ t("commercialBooking.availabilityPreviewAdvisory") }}</p>
                     </template>

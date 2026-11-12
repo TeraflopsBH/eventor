@@ -70,7 +70,13 @@ export function useBookingDraft(dependencies: BookingDraftDependencies) {
 
   const sourceAnswerItems = computed(() => {
     const revision = detail.value?.currentRevision;
-    return formatBookingAnswerItems(revision?.fieldSchema, revision?.values?.answers);
+    const answers = revision?.values?.answers;
+    return formatBookingAnswerItems(
+      revision?.fieldSchema,
+      answers && typeof answers === "object" && !Array.isArray(answers)
+        ? answers as Record<string, unknown>
+        : null,
+    );
   });
 
   const canManage = computed(() =>
@@ -169,8 +175,10 @@ export function useBookingDraft(dependencies: BookingDraftDependencies) {
     const requestedKey = allocationPreviewInputKey.value;
     try {
       const result = await bookingApi.previewBookingDraftAllocationAvailability(draft.draftId, {
-        spaceLines: spaceLines.value.map(({ venueSpaceId, startsAt, endsAt, blockKind }) => ({
+        spaceLines: spaceLines.value.map(({ venueSpaceId, startsAt, endsAt, blockKind, requestedCapacity }) => ({
           venueSpaceId, startsAt, endsAt, blockKind,
+          ...(requestedCapacity === "" || requestedCapacity === null || requestedCapacity === undefined
+            ? {} : { requestedCapacity }),
         })),
         resourceLines: resourceLines.value.map(({ resourceTypeId, requestedQuantity }) => ({
           resourceTypeId, requestedQuantity,
@@ -210,9 +218,9 @@ export function useBookingDraft(dependencies: BookingDraftDependencies) {
       }
       normalizedSpaceLines = spaceLines.value.map(({ requestedCapacity, ...line }) => ({
         ...line,
-        ...(requestedCapacity === "" || requestedCapacity === 0 || requestedCapacity === null || requestedCapacity === undefined
-          ? {}
-          : { requestedCapacity }),
+        requestedCapacity: typeof requestedCapacity === "number" && requestedCapacity > 0
+          ? requestedCapacity
+          : null,
       }));
       normalizedResourceLines = resourceLines.value.map((line) => ({ ...line, values: { ...(line.values ?? {}) } }));
       if (sourceFormFields.value.length) {
@@ -299,6 +307,10 @@ export function useBookingDraft(dependencies: BookingDraftDependencies) {
       blockKind: "event_use",
     }),
     removeSpaceLine: (index: number) => spaceLines.value.splice(index, 1),
+    applySpaceAlternative: (lineNumber: number, venueSpaceId: string) => {
+      const line = spaceLines.value[lineNumber - 1];
+      if (line) line.venueSpaceId = venueSpaceId;
+    },
     addResourceLine: () => resourceLines.value.push({ resourceTypeId: "", requestedQuantity: 1, values: {} }),
     removeResourceLine: (index: number) => resourceLines.value.splice(index, 1),
     requestedStart,

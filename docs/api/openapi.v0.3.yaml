@@ -642,7 +642,7 @@ paths:
       tags: ["Booking Administration"]
       operationId: previewBookingDraftAllocationAvailability
       summary: "Preview conflicts for proposed booking-draft space and resource allocations"
-      description: "Read-only advisory preview requiring booking.draft.read or booking.draft.manage. Checks proposed space intervals against active holds, confirmed bookings and maintenance blocks, and estimates pooled-resource capacity over the supplied overall booking interval. It does not create holds or guarantee availability; reservation commands and final confirmation remain authoritative."
+      description: "Read-only advisory preview requiring booking.draft.read or booking.draft.manage. Checks proposed space intervals against active holds, confirmed bookings and maintenance blocks, suggests conflict-free alternatives in the same venue that satisfy requested capacity, and reports estimated availability by active resource pool. It does not create holds or guarantee availability; reservation commands and final confirmation remain authoritative."
       security: [{ StaffSession: [], StaffCsrf: [] }]
       parameters:
         - $ref: '#/components/parameters/PDraftId'
@@ -665,6 +665,7 @@ paths:
                       startsAt: { type: string, format: date-time }
                       endsAt: { type: string, format: date-time }
                       blockKind: { type: string, enum: [setup, rehearsal, event_use, teardown, buffer] }
+                      requestedCapacity: { type: integer, minimum: 1 }
                 resourceLines:
                   type: array
                   maxItems: 100
@@ -687,11 +688,13 @@ paths:
                 properties:
                   data:
                     type: object
-                    required: [spaces, resources, resourceIntervalChecked, advisoryOnly, checkedAt]
+                    required: [spaces, resources, resourceIntervalChecked, spaceAlternatives, resourcePools, advisoryOnly, checkedAt]
                     properties:
                       spaces: { type: array, items: { type: object } }
                       resources: { type: array, items: { type: object } }
                       resourceIntervalChecked: { type: boolean }
+                      spaceAlternatives: { type: array, description: "Conflict-free alternative spaces in the originally selected space's venue." }
+                      resourcePools: { type: array, description: "Per-pool estimated remaining quantity over the requested overall booking interval." }
                       advisoryOnly: { type: boolean, enum: [true] }
                       checkedAt: { type: string, format: date-time }
         '400': { $ref: '#/components/responses/BadRequest' }
@@ -5534,7 +5537,29 @@ components:
           type: string
           minLength: 1
           maxLength: 80
-          pattern: '^[a-z][a-z0-9_]{0,79}      type: object
+          pattern: '^[a-z][a-z0-9_]{0,79}$'
+        type:
+          type: string
+          enum: [text, textarea, email, phone, number, date, datetime, time, select, multiselect, checkbox]
+        label: { type: string, maxLength: 200 }
+        description: { type: string, maxLength: 1000 }
+        helpText: { type: string, maxLength: 1000 }
+        placeholder: { type: string, maxLength: 200 }
+        required: { type: boolean }
+        options:
+          type: array
+          maxItems: 250
+          items: { $ref: '#/components/schemas/PublicBookingFormOptionV1' }
+        minLength: { type: integer, minimum: 0, maximum: 5000 }
+        maxLength: { type: integer, minimum: 1, maximum: 5000 }
+        min: { type: number }
+        max: { type: number }
+        integer: { type: boolean }
+        minItems: { type: integer, minimum: 0 }
+        maxItems: { type: integer, minimum: 1 }
+      additionalProperties: false
+    PublicBookingInquirySubmissionV1:
+      type: object
       required: [formCode, formRevisionId, requester, requested, answers]
       properties:
         formCode:
@@ -5792,7 +5817,8 @@ components:
         priceListRevisionId: { type: string, format: uuid }
         cancellationPolicyRevisionId: { type: string, format: uuid }
         approvalPolicyRevisionId: { type: string, format: uuid }
-        currency: { type: string, pattern: '^[A-Z]{3}    OfferAcceptanceRequest:
+         currency: { type: string, pattern: '^[A-Z]{3}$' }
+    OfferAcceptanceRequest:
       type: object
       properties:
         acceptanceName: { type: string, minLength: 1, maxLength: 250 }
@@ -5898,7 +5924,8 @@ components:
           properties:
             kind: { type: string, const: total_at_least }
             amount: { type: number, exclusiveMinimum: 0 }
-            currency: { type: string, pattern: '^[A-Z]{3}    BookingConfirmationRequest:
+            currency: { type: string, pattern: '^[A-Z]{3}$' }
+    BookingConfirmationRequest:
       type: object
       required: [expectedDraftRevisionId, confirmationReason]
       properties:
@@ -14379,7 +14406,32 @@ components:
           type: string
           minLength: 1
           maxLength: 80
-          pattern: '^[a-z][a-z0-9_]{0,79}      type: object
+          pattern: '^[a-z][a-z0-9_]{0,79}$'
+        type:
+          type: string
+          enum: [text, textarea, email, phone, number, date, datetime, time, select, multiselect, checkbox]
+        label: { type: string, maxLength: 200 }
+        description: { type: string, maxLength: 1000 }
+        helpText: { type: string, maxLength: 1000 }
+        placeholder: { type: string, maxLength: 200 }
+        required: { type: boolean }
+        options:
+          type: array
+          maxItems: 250
+          items: { $ref: '#/components/schemas/PublicBookingFormOptionV1' }
+        minLength: { type: integer, minimum: 0, maximum: 5000 }
+        maxLength: { type: integer, minimum: 1, maximum: 5000 }
+        min: { type: number }
+        max: { type: number }
+        integer: { type: boolean }
+        minItems: { type: integer, minimum: 0 }
+        maxItems: { type: integer, minimum: 1 }
+      additionalProperties: false
+    PublicBookingInquirySubmissionV1:
+      type: object
+      required: [formCode, formRevisionId, requester, requested, answers]
+      properties:
+        formCode:
       required: [formCode, formRevisionId, requester, requested, answers]
       properties:
         formCode:
@@ -14637,7 +14689,8 @@ components:
         priceListRevisionId: { type: string, format: uuid }
         cancellationPolicyRevisionId: { type: string, format: uuid }
         approvalPolicyRevisionId: { type: string, format: uuid }
-        currency: { type: string, pattern: '^[A-Z]{3}    OfferAcceptanceRequest:
+         currency: { type: string, pattern: '^[A-Z]{3}$' }
+    OfferAcceptanceRequest:
       type: object
       properties:
         acceptanceName: { type: string, minLength: 1, maxLength: 250 }
@@ -14698,7 +14751,8 @@ components:
           properties:
             kind: { type: string, const: total_at_least }
             amount: { type: number, exclusiveMinimum: 0 }
-            currency: { type: string, pattern: '^[A-Z]{3}    BookingConfirmationRequest:
+            currency: { type: string, pattern: '^[A-Z]{3}$' }
+    BookingConfirmationRequest:
       type: object
       required: [expectedDraftRevisionId, confirmationReason]
       properties:

@@ -347,3 +347,12 @@ Draft PR #75 adds a read-only availability preview on top of PR #74. The authent
 The staff editor exposes an explicit Check availability action, displays per-space conflicts and per-resource available quantities, and marks results stale when the draft revision, overall dates or allocation rows change. If overall booking dates are missing or invalid, resource availability is reported as not checked rather than guessed. The preview is strictly advisory and read-only: it never places holds, and reservation commands/final booking confirmation remain authoritative.
 
 API route tests assert tenant/member scoping and preview response handling. Static source review only; no test suite, typecheck, production build, database migration execution or browser validation was run in this connector session. GitHub Actions was not triggered because the monthly allowance remains exhausted. PR #75 is stacked on PR #74; no PRs were merged.
+
+
+## Booking allocation alternatives
+
+Draft PR #76 extends the read-only booking-draft availability preview with conflict-free alternatives from the originally selected space's venue. Alternatives must be active, belong to an active venue, have no overlapping confirmed booking/maintenance/active hold, and satisfy the line's requested capacity when configured. Staff explicitly apply a suggested space; this changes the allocation input and invalidates the previous preview, so another check is required.
+
+Resource results now include a per-active-pool capacity breakdown for the overall booking interval, accounting for pooled and individually tracked reservations and expiring holds. The breakdown is informational: the current booking resource-line model identifies a resource type and quantity, not a specific pool, so the UI does not pretend to assign or reserve a pool. A future allocation-model change would be needed before staff can pin a pool explicitly.
+
+The API request carries optional requested space capacity into alternative matching. English and Bosnian staff copy, route tests, OpenAPI and API/staff documentation were updated. Static source review only; tests, typecheck, production build, migration execution and browser validation were not run. GitHub Actions was not triggered because the monthly allowance remains exhausted. PR #76 is stacked on PR #75; no PRs were merged.

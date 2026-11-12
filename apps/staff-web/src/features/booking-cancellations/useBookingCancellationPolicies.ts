@@ -1,5 +1,5 @@
 import { computed, reactive, ref, type Ref } from "vue";
-type StaffTab = "delivery" | "campaign" | "inquiries" | "approvals" | "prices" | "cancellations" | "taxes";
+type StaffTab = "delivery" | "campaign" | "inquiries" | "approvals" | "prices" | "cancellations" | "taxes" | "forms" | "settings";
 import type { BookingCancellationPolicy, BookingCancellationPolicyRevisionInput } from "../../api";
 interface Dependencies {
   api: typeof import("../../api").api; busy: Ref<boolean>; pageError: Ref<string>; pageNotice: Ref<string>;
@@ -76,7 +76,7 @@ async function saveBookingCancellationPolicyRevision(): Promise<void> {
   clearMessages(); busy.value = true;
   try {
     const result = latest?.state === "draft" ? await api.updateBookingCancellationPolicyDraftRevision(policy.policyId, latest.revisionId, body) : await api.createBookingCancellationPolicyRevision(policy.policyId, body);
-    await loadBookingCancellationPolicies(); pageNotice.value = translate("commercialConfiguration.cancelSaved", { revision: result.data.revisionNumber });
+    await loadBookingCancellationPolicies(); pageNotice.value = translate("commercialConfiguration.cancelSaved", { revision: result.data.revisionNumber ?? 0 });
   } catch (error) { showError(error); } finally { busy.value = false; }
 }
 
@@ -85,7 +85,7 @@ async function publishBookingCancellationPolicyRevision(): Promise<void> {
   if (!policy || !revision || revision.state !== "draft") return;
   if (!window.confirm(translate("commercialConfiguration.cancelPublishConfirm"))) return;
   clearMessages(); busy.value = true;
-  try { const result = await api.publishBookingCancellationPolicyRevision(policy.policyId, revision.revisionId); await loadBookingCancellationPolicies(); pageNotice.value = translate("commercialConfiguration.cancelPublished", { revision: result.data.revisionNumber }); }
+  try { const result = await api.publishBookingCancellationPolicyRevision(policy.policyId, revision.revisionId); await loadBookingCancellationPolicies(); pageNotice.value = translate("commercialConfiguration.cancelPublished", { revision: result.data.revisionNumber ?? 0 }); }
   catch (error) { showError(error); } finally { busy.value = false; }
 }
 return { cancellationPolicies, selectedCancellationPolicyId, cancellationPolicyCreateForm, cancellationPolicyCustomerMode, cancellationPolicyPublicTerms, cancellationPolicyApprovalRulesJson, cancellationPolicyCommercialRulesJson, cancellationPolicyNoticeRulesJson, selectedCancellationPolicy, selectedCancellationPolicyLatestRevision, loadCancellationPolicyEditor, loadBookingCancellationPolicies, openBookingCancellationPolicies, selectBookingCancellationPolicy, createBookingCancellationPolicy, saveBookingCancellationPolicyRevision, publishBookingCancellationPolicyRevision };

@@ -64,3 +64,6 @@ Run the focused helper tests with npm test from apps/staff-web; the new booking-
 The booking-draft allocation editor includes an explicit availability check. It reports overlapping active space holds, confirmed bookings and maintenance blocks for each proposed space interval, and estimates available pooled-resource quantities over the overall requested booking interval. Results are invalidated when the draft, dates or allocation rows change. Resource capacity is not checked until both overall booking dates are supplied.
 
 The preview is read-only and advisory. It does not reserve inventory and cannot guarantee that availability remains unchanged; the existing server-side revision and final booking-confirmation checks remain authoritative. API route coverage is included in apps/api/test/server.test.ts.
+
+
+When a space conflicts, the preview can offer other conflict-free spaces in the same venue that meet the line's requested capacity. Staff explicitly apply an alternative; doing so invalidates the prior preview and requires another check. Resource results also show estimated available quantity per active pool, helping staff understand where supply exists. Pool rows are informational rather than assignments: the current booking resource-line model allocates by resource type, not by a pinned pool.

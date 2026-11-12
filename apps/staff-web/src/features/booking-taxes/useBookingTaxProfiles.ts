@@ -1,5 +1,5 @@
 import { computed, reactive, ref, type Ref } from "vue";
-type StaffTab = "delivery" | "campaign" | "inquiries" | "approvals" | "prices" | "cancellations" | "taxes";
+type StaffTab = "delivery" | "campaign" | "inquiries" | "approvals" | "prices" | "cancellations" | "taxes" | "forms" | "settings";
 import type { BookingTaxProfile, BookingTaxProfileRevisionInput, BookingTaxCode } from "../../api";
 interface Dependencies {
   api: typeof import("../../api").api; busy: Ref<boolean>; pageError: Ref<string>; pageNotice: Ref<string>;
@@ -141,7 +141,7 @@ async function saveBookingTaxProfileDraft(): Promise<void> {
   clearMessages();busy.value=true;
   try{
     const result=await api.updateBookingTaxProfileDraftRevision(profile.taxProfileId,revision.revisionId,body);
-    await loadBookingTaxProfiles();pageNotice.value=translate("commercialConfiguration.taxSaved", { revision: result.data.revisionNumber });
+    await loadBookingTaxProfiles();pageNotice.value=translate("commercialConfiguration.taxSaved", { revision: result.data.revisionNumber ?? 0 });
   }catch(error){showError(error);}finally{busy.value=false;}
 }
 
@@ -152,7 +152,7 @@ async function publishBookingTaxProfileRevision(): Promise<void> {
   clearMessages();busy.value=true;
   try{
     const result=await api.publishBookingTaxProfileRevision(profile.taxProfileId,revision.revisionId);
-    await loadBookingTaxProfiles();pageNotice.value=translate("commercialConfiguration.taxPublished", { revision: result.data.revisionNumber });
+    await loadBookingTaxProfiles();pageNotice.value=translate("commercialConfiguration.taxPublished", { revision: result.data.revisionNumber ?? 0 });
   }catch(error){showError(error);}finally{busy.value=false;}
 }
 return { bookingTaxProfiles, selectedTaxProfileId, taxProfileCreateForm, taxProfileRevisionForm, taxCodesJson, selectedTaxProfile, selectedTaxProfileLatestRevision, publishedTaxProfileRevisions, syncTaxProfileEditor, loadBookingTaxProfiles, openBookingTaxProfiles, selectBookingTaxProfile, taxProfileRevisionPayload, createBookingTaxProfile, createBookingTaxProfileRevision, saveBookingTaxProfileDraft, publishBookingTaxProfileRevision };

@@ -6,6 +6,7 @@ on:
       - feat/postgresql18-migrations-openapi-v0.3
       - fix/pr26-high-risk-integrity-review
       - feat/booking-commercial-workflow
+      - feat/booking-allocation-alternatives
       - main
   pull_request:
     branches:

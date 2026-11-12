@@ -1,5 +1,5 @@
 import { computed, reactive, ref, type Ref } from "vue";
-type StaffTab = "delivery" | "campaign" | "inquiries" | "approvals" | "prices" | "cancellations" | "taxes";
+type StaffTab = "delivery" | "campaign" | "inquiries" | "approvals" | "prices" | "cancellations" | "taxes" | "forms" | "settings";
 import type { BookingApprovalPolicy, BookingApprovalRule } from "../../api";
 interface Dependencies {
   api: typeof import("../../api").api; busy: Ref<boolean>; pageError: Ref<string>; pageNotice: Ref<string>;
@@ -109,7 +109,7 @@ async function createBookingApprovalPolicyRevision(): Promise<void> {
       ? await api.updateBookingApprovalPolicyDraftRevision(policy.policyId, latest.revisionId, parsed as BookingApprovalRule[])
       : await api.createBookingApprovalPolicyRevision(policy.policyId, parsed as BookingApprovalRule[]);
     await loadBookingApprovalPolicies();
-    pageNotice.value = translate("commercialConfiguration.approvalSaved", { revision: result.data.revisionNumber });
+    pageNotice.value = translate("commercialConfiguration.approvalSaved", { revision: result.data.revisionNumber ?? 0 });
   } catch (error) {
     showError(error);
   } finally {

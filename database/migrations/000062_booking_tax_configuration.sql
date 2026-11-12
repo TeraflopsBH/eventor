@@ -389,10 +389,12 @@ RETURNS trigger LANGUAGE plpgsql SECURITY DEFINER SET search_path=pg_catalog,eog
 DECLARE v_tax eogp.booking_tax_profile_revisions%ROWTYPE; v_profile_status text;
 BEGIN
   IF NEW.state='published' AND NEW.tax_profile_revision_id IS NOT NULL THEN
-    SELECT r,p.status INTO v_tax,v_profile_status
+    SELECT r.* INTO v_tax
       FROM eogp.booking_tax_profile_revisions r
-      JOIN eogp.booking_tax_profiles p ON p.organization_id=r.organization_id AND p.id=r.tax_profile_id
      WHERE r.organization_id=NEW.organization_id AND r.id=NEW.tax_profile_revision_id;
+    SELECT p.status INTO v_profile_status
+      FROM eogp.booking_tax_profiles p
+     WHERE p.organization_id=NEW.organization_id AND p.id=v_tax.tax_profile_id;
     IF NOT FOUND OR v_tax.state<>'published' OR v_profile_status<>'active'
        OR v_tax.currency<>NEW.currency OR v_tax.tax_basis<>NEW.tax_basis
        OR (v_tax.effective_from IS NOT NULL AND (NEW.effective_from IS NULL OR v_tax.effective_from>NEW.effective_from))

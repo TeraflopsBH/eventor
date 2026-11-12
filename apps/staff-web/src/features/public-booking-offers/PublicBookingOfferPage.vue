@@ -69,7 +69,7 @@ async function submitPublicOfferAcceptance(): Promise<void> {
     publicOfferError.value = t("publicOffer.enterName");
     return;
   }
-  if (!publicOfferId || !publicOfferToken.value || !publicOffer || publicOffer.value.status !== "issued") return;
+  if (!publicOfferId || !publicOfferToken.value || !publicOffer.value || publicOffer.value.status !== "issued") return;
   publicDecisionBusy.value = true;
   publicOfferError.value = "";
   if (publicDecisionKind.value !== "accepted") {
@@ -97,7 +97,7 @@ async function submitPublicOfferRejection(): Promise<void> {
     publicOfferError.value = t("publicOffer.rejectionReasonMin");
     return;
   }
-  if (!publicOfferId || !publicOfferToken.value || !publicOffer || publicOffer.value.status !== "issued") return;
+  if (!publicOfferId || !publicOfferToken.value || !publicOffer.value || publicOffer.value.status !== "issued") return;
   publicDecisionBusy.value = true;
   publicOfferError.value = "";
   if (publicDecisionKind.value !== "rejected") {

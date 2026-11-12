@@ -193,6 +193,28 @@ function makePool() {
             reason: "resource_capacity_conflict",
           }],
           resourceIntervalChecked: true,
+          spaceAlternatives: [{
+            index: 1,
+            alternatives: [{
+              venueSpaceId: "66666666-6666-4666-8666-666666666666",
+              venueId: "77777777-7777-4777-8777-777777777777",
+              venueName: "Main Venue",
+              code: "ROOM-B",
+              name: "Room B",
+              capacity: 120,
+            }],
+          }],
+          resourcePools: [{
+            index: 1,
+            pools: [{
+              resourcePoolId: "88888888-8888-4888-8888-888888888888",
+              code: "CHAIRS-A",
+              name: "Chair pool A",
+              venueName: "Main Venue",
+              capacity: 20,
+              availableQuantity: 4,
+            }],
+          }],
           advisoryOnly: true,
           checkedAt: "2026-11-12T12:00:00.000Z",
         } }], rowCount: 1 };
@@ -1452,6 +1474,7 @@ test("staff inquiry inbox decrypts authorized projections and routes assignment,
         startsAt: "2027-01-18T09:00:00.000Z",
         endsAt: "2027-01-18T13:00:00.000Z",
         blockKind: "event_use",
+        requestedCapacity: 100,
       }],
       resourceLines: [{
         resourceTypeId: "55555555-5555-4555-8555-555555555555",
@@ -1466,6 +1489,8 @@ test("staff inquiry inbox decrypts authorized projections and routes assignment,
     data: {
       spaces: Array<{ available: boolean; conflicts: Array<{ kind: string }> }>;
       resources: Array<{ available: boolean; availableQuantity: number }>;
+      spaceAlternatives: Array<{ alternatives: Array<{ venueSpaceId: string; capacity: number }> }>;
+      resourcePools: Array<{ pools: Array<{ availableQuantity: number }> }>;
       advisoryOnly: boolean;
     };
   }>().data;
@@ -1474,6 +1499,8 @@ test("staff inquiry inbox decrypts authorized projections and routes assignment,
   assert.equal(previewData.spaces[0]?.conflicts[0]?.kind, "confirmed_booking");
   assert.equal(previewData.resources[0]?.available, false);
   assert.equal(previewData.resources[0]?.availableQuantity, 4);
+  assert.equal(previewData.spaceAlternatives[0]?.alternatives[0]?.venueSpaceId, "66666666-6666-4666-8666-666666666666");
+  assert.equal(previewData.resourcePools[0]?.pools[0]?.availableQuantity, 4);
   assert.equal(mock.bookingDraftAllocationPreviewCalls, 1);
   const previewCall = mock.commandCalls.find((call) => call.sql.includes("preview_booking_draft_allocation_availability"));
   assert.ok(previewCall);
@@ -1481,6 +1508,7 @@ test("staff inquiry inbox decrypts authorized projections and routes assignment,
   assert.equal(previewCall.values[1], draftId);
   assert.equal(previewCall.values[2], principal.membershipId);
   assert.equal(JSON.parse(String(previewCall.values[3])).length, 1);
+  assert.equal(JSON.parse(String(previewCall.values[3]))[0].requestedCapacity, 100);
   assert.equal(JSON.parse(String(previewCall.values[4])).length, 1);
   assert.equal(previewCall.values[5], "2027-01-18T09:00:00.000Z");
   assert.equal(previewCall.values[6], "2027-01-18T13:00:00.000Z");
