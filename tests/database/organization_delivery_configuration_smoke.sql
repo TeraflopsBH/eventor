@@ -44,7 +44,7 @@ BEGIN
   BEGIN
     PERFORM eogp.set_organization_default_locale(
       '22222222-2222-4222-8222-bbbbbbbbbbbb',
-      '22222222-2222-4222-8222-222222222222',
+      'bbbbbbbb-2222-4222-8222-bbbbbbbbbbbb',
       'fr'
     );
     RAISE EXCEPTION 'unsupported organization locale should have been rejected';
