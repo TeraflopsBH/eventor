@@ -144,6 +144,10 @@ BEGIN
     RAISE EXCEPTION 'booking offer expiry queue triggers are missing';
   END IF;
 
+  IF has_table_privilege('eventor_worker','eogp.booking_offer_email_deliveries','SELECT') THEN
+    RAISE EXCEPTION 'worker role has direct access to booking offer email payloads';
+  END IF;
+
   IF NOT has_table_privilege('eventor_worker','eogp.booking_offer_email_delivery_tenant_queue','SELECT')
      OR NOT has_function_privilege('eventor_worker','eogp.discover_pending_booking_offer_email_tenants()','EXECUTE')
      OR NOT has_function_privilege('eventor_worker','eogp.claim_booking_offer_email_delivery(uuid)','EXECUTE')
