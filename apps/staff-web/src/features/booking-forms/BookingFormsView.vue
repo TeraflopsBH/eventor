@@ -47,7 +47,7 @@ function setType(type: string): void {
         </div>
         <div class="form-grid">
           <label>{{ t("bookingForms.baseLanguage") }}<select v-model="w.baseLocale" :disabled="!w.editable" @change="w.markDirty"><option v-for="item in locales" :key="item.value" :value="item.value">{{ item.label }}</option></select></label>
-          <label>{{ t("bookingForms.formName") }}<input :value="w.translation(w.baseLocale).formName || w.selectedForm.name" :disabled="!w.editable" @input="w.translation(w.baseLocale).formName = ($event.target as HTMLInputElement).value; w.markDirty()" /></label>
+          <label>{{ t("bookingForms.formName") }}<input :value="w.translation(w.baseLocale).formName || w.selectedForm.name" :disabled="!w.editable" @input="w.setFormTranslationName(w.baseLocale, ($event.target as HTMLInputElement).value)" /></label>
         </div>
         <div class="booking-form-actions">
           <span class="muted">{{ w.dirty ? t("bookingForms.unsaved") : t("bookingForms.savedState") }}</span>
@@ -62,8 +62,12 @@ function setType(type: string): void {
           <p v-if="!w.schema.fields.length" class="muted">{{ t("bookingForms.noFields") }}</p>
         </div>
         <template v-if="w.selectedField">
+          <div class="booking-form-reorder">
+            <button class="button button-quiet" :disabled="!w.editable || w.schema.fields.findIndex(field => field.code === w.selectedField!.code) === 0" @click="w.moveField(w.schema.fields.findIndex(field => field.code === w.selectedField!.code), -1)">{{ t("bookingForms.moveUp") }}</button>
+            <button class="button button-quiet" :disabled="!w.editable || w.schema.fields.findIndex(field => field.code === w.selectedField!.code) === w.schema.fields.length - 1" @click="w.moveField(w.schema.fields.findIndex(field => field.code === w.selectedField!.code), 1)">{{ t("bookingForms.moveDown") }}</button>
+          </div>
           <div class="form-grid">
-            <label>{{ t("bookingForms.fieldCode") }}<input v-model="w.selectedField.code" pattern="[a-z][a-z0-9_]{0,79}" :disabled="!w.editable" @input="w.markDirty" /></label>
+            <label>{{ t("bookingForms.fieldCode") }}<input  :value="w.selectedField.code" pattern="[a-z][a-z0-9_]{0,79}" :disabled="!w.editable" @input="w.updateFieldCode(w.selectedField!, ($event.target as HTMLInputElement).value)" /></label>
             <label>{{ t("bookingForms.fieldType") }}<select :value="w.selectedField.type" :disabled="!w.editable" @change="setType(($event.target as HTMLSelectElement).value)"><option v-for="type in ['text','textarea','email','phone','number','date','datetime','time','select','multiselect','checkbox']" :key="type" :value="type">{{ type }}</option></select></label>
             <label>{{ t("bookingForms.label") }}<input v-model="w.selectedField.label" :disabled="!w.editable" @input="w.markDirty" /></label>
             <label class="checkbox-label"><input v-model="w.selectedField.required" type="checkbox" :disabled="!w.editable" @change="w.markDirty" />{{ t("bookingForms.required") }}</label>
@@ -78,7 +82,7 @@ function setType(type: string): void {
           <div v-if="['select','multiselect'].includes(w.selectedField.type)" class="option-editor">
             <div class="section-heading compact"><h4>{{ t("bookingForms.options") }}</h4><button class="button button-quiet" :disabled="!w.editable" @click="w.addOption(w.selectedField!)">{{ t("bookingForms.addOption") }}</button></div>
             <div v-for="(option, index) in w.selectedField.options || []" :key="option.value" class="form-grid option-row">
-              <label>{{ t("bookingForms.optionValue") }}<input v-model="option.value" :disabled="!w.editable" @input="w.markDirty" /></label>
+              <label>{{ t("bookingForms.optionValue") }}<input  :value="option.value" :disabled="!w.editable" @input="w.updateOptionValue(w.selectedField!, option.value, ($event.target as HTMLInputElement).value)" /></label>
               <label>{{ t("bookingForms.optionLabel") }}<input v-model="option.label" :disabled="!w.editable" @input="w.markDirty" /></label>
               <button class="button button-quiet" :disabled="!w.editable" @click="w.selectedField!.options!.splice(index,1); w.markDirty()">{{ t("bookingForms.remove") }}</button>
             </div>
@@ -90,7 +94,7 @@ function setType(type: string): void {
         <div class="section-heading compact"><div><h3>{{ t("bookingForms.translations") }}</h3><p class="muted">{{ t("bookingForms.translationHelp") }}</p></div></div>
         <div v-for="locale in locales" :key="locale.value" class="translation-section">
           <h4>{{ locale.label }} <small>{{ w.completeness(locale.value).complete }}/{{ w.completeness(locale.value).total }}</small></h4>
-          <label>{{ t("bookingForms.translatedFormName") }}<input :value="w.translation(locale.value).formName" :disabled="!w.editable" @input="w.translation(locale.value).formName = ($event.target as HTMLInputElement).value; w.markDirty()" /></label>
+          <label>{{ t("bookingForms.translatedFormName") }}<input :value="w.translation(locale.value).formName" :disabled="!w.editable" @input="w.setFormTranslationName(locale.value, ($event.target as HTMLInputElement).value)" /></label>
           <template v-for="field in w.schema.fields" :key="field.code">
             <div class="form-grid">
               <label>{{ field.code }} · {{ t("bookingForms.label") }}<input :value="w.fieldText(locale.value, field, 'label')" :disabled="!w.editable" @input="w.setFieldText(locale.value,field,'label',($event.target as HTMLInputElement).value)" /></label>
@@ -104,7 +108,7 @@ function setType(type: string): void {
       </section>
       <section class="panel">
         <div class="section-heading compact"><div><h3>{{ t("bookingForms.preview") }}</h3><p class="muted">{{ t("bookingForms.previewHelp") }}</p></div><select v-model="w.previewLocale"><option v-for="item in locales" :key="item.value" :value="item.value">{{ item.label }}</option></select></div>
-        <div class="booking-form-preview"><h3>{{ previewName }}</h3><div v-for="field in w.schema.fields" :key="field.code" class="preview-field"><label>{{ w.previewFieldLabel(w.previewLocale,field) }} <span v-if="field.required">*</span></label><textarea v-if="field.type === 'textarea'" disabled rows="2"></textarea><select v-else-if="field.type === 'select' || field.type === 'multiselect'" disabled><option>{{ t("bookingForms.previewChoice") }}</option><option v-for="option in field.options || []" :key="option.value">{{ w.previewOptionLabel(w.previewLocale,field,option) }}</option></select><input v-else-if="field.type !== 'checkbox'" :type="field.type === 'email' ? 'email' : field.type === 'number' ? 'number' : ['date','datetime','time'].includes(field.type) ? field.type === 'datetime' ? 'datetime-local' : field.type : field.type === 'phone' ? 'tel' : 'text'" disabled /><label v-else><input type="checkbox" disabled /> {{ w.previewFieldLabel(w.previewLocale,field) }}</label></div></div>
+        <div class="booking-form-preview"><h3>{{ previewName }}</h3><div v-for="field in w.schema.fields" :key="field.code" class="preview-field"><label>{{ w.previewFieldLabel(w.previewLocale,field) }} <span v-if="field.required">*</span></label><p v-if="w.fieldText(w.previewLocale,field,'description')" class="muted">{{ w.fieldText(w.previewLocale,field,'description') }}</p><textarea v-if="field.type === 'textarea'" :placeholder="w.fieldText(w.previewLocale,field,'placeholder')" disabled rows="2"></textarea><select v-else-if="field.type === 'select' || field.type === 'multiselect'" disabled><option>{{ t("bookingForms.previewChoice") }}</option><option v-for="option in field.options || []" :key="option.value">{{ w.previewOptionLabel(w.previewLocale,field,option) }}</option></select><input v-else-if="field.type !== 'checkbox'" :placeholder="w.fieldText(w.previewLocale,field,'placeholder')" :type="field.type === 'email' ? 'email' : field.type === 'number' ? 'number' : ['date','datetime','time'].includes(field.type) ? field.type === 'datetime' ? 'datetime-local' : field.type : field.type === 'phone' ? 'tel' : 'text'" disabled /><label v-else><input type="checkbox" disabled /> {{ w.previewFieldLabel(w.previewLocale,field) }}</label></div></div>
       </section>
     </div>
     <div v-else class="panel muted">{{ t("bookingForms.selectForm") }}</div>
