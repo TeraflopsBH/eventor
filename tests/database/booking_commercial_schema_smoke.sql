@@ -1,4 +1,3 @@
-\\set ON_ERROR_STOP on
 
 -- This smoke test runs as eventor_runtime. It verifies that the commercial
 -- workflow is installed, tenant-protected, and callable only through commands.
@@ -54,25 +53,25 @@ BEGIN
   END IF;
 
   IF NOT EXISTS (
-    SELECT 1 FROM pg_catalog.pg_trigger trigger
-    JOIN pg_catalog.pg_class relation ON relation.oid=trigger.tgrelid
-    JOIN pg_catalog.pg_namespace namespace ON namespace.oid=relation.relnamespace
-    WHERE namespace.nspname='eogp'
-      AND relation.relname='external_action_capabilities'
-      AND trigger.tgname='booking_offer_capability_lookup_insert'
-      AND NOT trigger.tgisinternal
+    SELECT 1 FROM pg_catalog.pg_trigger t
+    JOIN pg_catalog.pg_class r ON r.oid=t.tgrelid
+    JOIN pg_catalog.pg_namespace n ON n.oid=r.relnamespace
+    WHERE n.nspname='eogp'
+      AND r.relname='external_action_capabilities'
+      AND t.tgname='booking_offer_capability_lookup_insert'
+      AND NOT t.tgisinternal
   ) THEN
     RAISE EXCEPTION 'offer capability hash lookup trigger is missing';
   END IF;
 
   IF NOT EXISTS (
-    SELECT 1 FROM pg_catalog.pg_trigger trigger
-    JOIN pg_catalog.pg_class relation ON relation.oid=trigger.tgrelid
-    JOIN pg_catalog.pg_namespace namespace ON namespace.oid=relation.relnamespace
-    WHERE namespace.nspname='eogp'
-      AND relation.relname='booking_offer_revisions'
-      AND trigger.tgname='booking_offer_approval_requirements_pin'
-      AND NOT trigger.tgisinternal
+    SELECT 1 FROM pg_catalog.pg_trigger t
+    JOIN pg_catalog.pg_class r ON r.oid=t.tgrelid
+    JOIN pg_catalog.pg_namespace n ON n.oid=r.relnamespace
+    WHERE n.nspname='eogp'
+      AND r.relname='booking_offer_revisions'
+      AND t.tgname='booking_offer_approval_requirements_pin'
+      AND NOT t.tgisinternal
   ) THEN
     RAISE EXCEPTION 'pinned approval-requirement evaluation trigger is missing';
   END IF;
