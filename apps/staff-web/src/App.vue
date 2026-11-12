@@ -169,6 +169,7 @@ const bookingCancellationPolicyState = useBookingCancellationPolicies({
 const campaignState = useCampaigns({
   api, busy, pageError, pageNotice, clearMessages, showError,
 });
+const campaignWorkspace = { ...campaignState, busy, configuration };
 
 
 
@@ -1066,7 +1067,7 @@ onMounted(() => {
 
       <BookingCancellationPoliciesView v-else-if="activeTab === 'cancellations'" :workspace="{ ...bookingCancellationPolicyState, busy }" />
 
-      <CampaignWorkspaceView v-else :workspace="{ ...campaignState, busy, configuration }" />
+      <CampaignWorkspaceView v-else :workspace="campaignWorkspace" />
     </template>
 
     <div v-if="pageError" class="message message-error" role="alert">{{ pageError }}</div>
