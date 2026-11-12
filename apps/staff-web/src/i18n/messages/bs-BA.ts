@@ -490,6 +490,7 @@ export default {
       "active_hold": "Aktivna privremena rezervacija"
     },
     "availabilityReason": {
+      "space_unavailable": "Ovaj prostor više nije aktivan ili dostupan u katalogu prostora.",
       "resource_interval_missing": "Unesite početni i završni datum događaja za provjeru kapaciteta resursa.",
       "resource_interval_invalid": "Završni datum događaja mora biti nakon početnog.",
       "resource_unavailable": "Ova vrsta resursa više nije dostupna za rezervaciju.",
