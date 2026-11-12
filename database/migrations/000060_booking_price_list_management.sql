@@ -58,7 +58,8 @@ BEGIN
   IF v_state IS DISTINCT FROM 'draft' THEN
     RAISE EXCEPTION 'price-list items may only change while their revision is a draft' USING ERRCODE = '55000';
   END IF;
-  RETURN CASE WHEN TG_OP = 'DELETE' THEN OLD ELSE NEW END;
+  IF TG_OP = 'DELETE' THEN RETURN OLD; END IF;
+  RETURN NEW;
 END;
 $function$;
 
@@ -333,7 +334,10 @@ BEGIN
        OR jsonb_typeof(v_item->'itemCode') IS DISTINCT FROM 'string'
        OR jsonb_typeof(v_item->'label') IS DISTINCT FROM 'string'
        OR jsonb_typeof(v_item->'unit') IS DISTINCT FROM 'string'
-       OR jsonb_typeof(v_item->'unitAmount') IS DISTINCT FROM 'number' THEN
+       OR jsonb_typeof(v_item->'unitAmount') IS DISTINCT FROM 'number'
+       OR (v_item ? 'quantityMin' AND jsonb_typeof(v_item->'quantityMin') NOT IN ('number','null'))
+       OR (v_item ? 'quantityMax' AND jsonb_typeof(v_item->'quantityMax') NOT IN ('number','null'))
+       OR (v_item ? 'taxCode' AND jsonb_typeof(v_item->'taxCode') NOT IN ('string','null')) THEN
       RAISE EXCEPTION 'each price item requires itemCode, label, unit and numeric unitAmount' USING ERRCODE = '22023';
     END IF;
     v_code := btrim(v_item->>'itemCode');
@@ -442,16 +446,10 @@ BEGIN
   IF v_item_count=0 THEN
     RAISE EXCEPTION 'a price list must contain at least one item before publication' USING ERRCODE = '22023';
   END IF;
-  IF EXISTS (
-    SELECT 1 FROM eogp.booking_price_list_revisions existing
-     WHERE existing.organization_id=p_organization_id
-       AND existing.price_list_id=p_price_list_id
-       AND existing.state='published'
-       AND coalesce(existing.effective_from,'-infinity'::timestamptz) < coalesce(v_revision.effective_until,'infinity'::timestamptz)
-       AND coalesce(v_revision.effective_from,'-infinity'::timestamptz) < coalesce(existing.effective_until,'infinity'::timestamptz)
-  ) THEN
-    RAISE EXCEPTION 'published price-list effective periods cannot overlap' USING ERRCODE = '23P01';
-  END IF;
+  -- Revision identity is always explicit in offer preparation. Effective windows are
+  -- descriptive eligibility bounds, not a uniqueness key; overlapping windows are
+  -- permitted so a successor can take effect without mutating a published revision.
+
 
   UPDATE eogp.booking_price_list_revisions
      SET state='published',published_at=v_published_at
