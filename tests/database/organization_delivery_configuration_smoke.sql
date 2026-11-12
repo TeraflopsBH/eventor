@@ -174,10 +174,13 @@ BEGIN
       repeat('1',64),
       repeat('2',64)
     );
+    -- The permission-checked database command returns the encrypted EDC1
+    -- envelope to the trusted API process so it can perform the SMTP test.
+    -- The API must never include this internal field in its HTTP response.
     IF (v_test ->> 'created')::boolean IS DISTINCT FROM true
        OR v_test ->> 'status' <> 'pending'
-       OR v_test ->> 'credentialsCiphertextBase64' IS NOT NULL THEN
-      RAISE EXCEPTION 'SMTP test request did not create a safe pending request: %',v_test;
+       OR v_test ->> 'credentialsCiphertextBase64' NOT LIKE 'RURDMQ%' THEN
+      RAISE EXCEPTION 'SMTP test request did not return its internal encrypted credential envelope: %',v_test;
     END IF;
 
     v_enabled := eogp.complete_organization_email_delivery_test(
