@@ -174,7 +174,7 @@ onMounted(() => { void loadForm(); });
       <label class="public-language">
         <span>{{ t("publicBookingForm.language") }}</span>
         <select :value="locale" @change="setLocale(($event.target as HTMLSelectElement).value)">
-          <option v-for="option in localeOptions" :key="option.value" :value="option.value">{{ optionLabel(field, option.value, option.label) }}</option>
+          <option v-for="option in localeOptions" :key="option.value" :value="option.value">{{ option.label }}</option>
         </select>
       </label>
     </header>
