@@ -735,6 +735,36 @@ paths:
         '422': { $ref: '#/components/responses/UnprocessableEntity' }
         '429': { $ref: '#/components/responses/TooManyRequests' }
         '500': { $ref: '#/components/responses/InternalServerError' }
+  "/booking-offers/{offerId}/reject":
+    post:
+      tags: ["Booking Administration"]
+      operationId: rejectBookingOffer
+      summary: "Reject the exact issued offer using its purpose-bound customer capability"
+      description: "This is a customer action, not a staff action. The capability is single-use, scoped to this offer revision, and its token is supplied in X-External-Booking-Token. Rejection is terminal for this offer revision and does not modify the booking draft."
+      security: [{ BookingActionCapability: [] }]
+      parameters:
+        - $ref: '#/components/parameters/POfferId'
+        - $ref: '#/components/parameters/IdempotencyKey'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/OfferRejectionRequest' }
+      responses:
+        '201':
+          description: "Offer decision recorded."
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/DataEnvelope' }
+        '400': { $ref: '#/components/responses/BadRequest' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '404': { $ref: '#/components/responses/NotFound' }
+        '409': { $ref: '#/components/responses/Conflict' }
+        '410': { $ref: '#/components/responses/Gone' }
+        '422': { $ref: '#/components/responses/UnprocessableEntity' }
+        '429': { $ref: '#/components/responses/TooManyRequests' }
+        '500': { $ref: '#/components/responses/InternalServerError' }
   "/booking-offers/{offerId}":
     get:
       tags: ["Booking Administration"]
@@ -763,7 +793,8 @@ paths:
     post:
       tags: ["Booking Administration"]
       operationId: acceptBookingOffer
-      summary: "Accept an offer using a purpose-bound booking capability"
+      summary: "Accept the exact issued offer using its purpose-bound customer capability"
+      description: "This is a customer action, not a staff action. The capability is single-use, scoped to this offer revision, and its token is supplied in X-External-Booking-Token. Acceptance does not confirm or reserve the booking."
       security: [{ BookingActionCapability: [] }]
       parameters:
         - $ref: '#/components/parameters/POfferId'
@@ -4675,8 +4706,16 @@ components:
         currency: { type: string, pattern: '^[A-Z]{3}    OfferAcceptanceRequest:
       type: object
       properties:
-        acceptanceName: { type: string, maxLength: 250 }
+        acceptanceName: { type: string, minLength: 1, maxLength: 250 }
         acceptanceNote: { type: string, maxLength: 1000 }
+      additionalProperties: false
+    OfferRejectionRequest:
+      type: object
+      required: [reasonCode, reason]
+      properties:
+        reasonCode: { type: string, minLength: 2, maxLength: 100 }
+        reason: { type: string, minLength: 3, maxLength: 2000 }
+        note: { type: string, maxLength: 1000 }
       additionalProperties: false
     BookingConfirmationRequest:
       type: object
