@@ -473,6 +473,27 @@ export default {
     "chooseResource": "Choose a resource",
     "requestedQuantity": "Requested quantity",
     "resourceCapacityHelp": "The displayed limit is the combined capacity of active pools. Actual availability is checked when reservations are finalized.",
+    "availabilityPreview": "Availability preview",
+    "availabilityPreviewHelp": "Check proposed space intervals and pooled resource capacity against current reservations and maintenance blocks.",
+    "checkAvailability": "Check availability",
+    "checkingAvailability": "Checking…",
+    "availabilityPreviewStale": "Allocations or dates changed after this check. Run the preview again.",
+    "availabilityCheckedAt": "Checked at {value}",
+    "availabilityAvailable": "Available at check time",
+    "availabilityConflict": "Conflict detected",
+    "resourceIntervalNotChecked": "Not checked — set both booking dates",
+    "resourceAvailabilityQuantity": "Requested: {requested}; available across active pools: {available}",
+    "availabilityPreviewAdvisory": "Advisory result only. Availability can change immediately; saving and final confirmation perform authoritative server-side checks.",
+    "conflictKind": {
+      "maintenance": "Maintenance block",
+      "confirmed_booking": "Confirmed booking",
+      "active_hold": "Active temporary hold"
+    },
+    "availabilityReason": {
+      "resource_unavailable": "This resource type is no longer reservable.",
+      "no_active_resource_pools": "No active resource pools are available.",
+      "resource_capacity_conflict": "Requested quantity exceeds the available capacity for this interval."
+    },
     "allocationValidation": {
       "spaceUnavailable": "Space allocation {index} refers to a space that is not in the active venue catalogue.",
       "spaceIntervalInvalid": "Space allocation {index} needs valid start and end timestamps with UTC offsets; the end must follow the start.",
