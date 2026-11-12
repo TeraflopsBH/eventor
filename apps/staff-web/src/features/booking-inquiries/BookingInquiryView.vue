@@ -99,7 +99,7 @@ const {
                 </span>
                 <strong class="inquiry-requester">{{ item.requesterName }}</strong>
                 <span class="inquiry-list-meta">
-                  {{ item.requestedStart ? formatDate(item.requestedStart) : "Date not specified" }}
+                  {{ item.requestedStart ? formatDate(item.requestedStart) : t("bookingInquiry.dateNotSpecified") }}
                 </span>
                 <span class="inquiry-list-meta">{{ t("bookingInquiry.assignedPrefix") }} {{ resolveInquiryAssigneeName(item.assignedToMembershipId, principal?.membershipId, inquiryAssignees) }}</span>
               </button>
