@@ -25,7 +25,7 @@ cd apps/staff-web
 npm test
 ```
 
-The focused suite covers booking-form schema validation, field ordering, translation-key migration, canonical/base-language editing, translation read purity, completeness counts, and save/publication validation gates. It imports the feature modules directly, so it does not require a browser or running API.
+The focused suites cover booking-form schema validation, field ordering, translation-key migration, canonical/base-language editing, translation read purity, completeness counts, save/publication validation gates, and the public booking workflow: translated content with per-field fallback, translation completeness warnings, multi-select initialization/toggling/bounds, number normalization, requester cleanup, and submission pinned to the exact loaded published revision. They import feature modules directly, so they do not require a browser or running API. API-side answer validation, stale-revision rejection and encrypted inquiry persistence are covered separately by the API test suite.
 
 ## Implemented UI
 
