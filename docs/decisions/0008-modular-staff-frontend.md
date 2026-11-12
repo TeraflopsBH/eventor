@@ -67,3 +67,6 @@ The inquiry presentation helpers now require explicit locale and timezone inputs
 
 
 The booking inquiry and commercial booking workspace views consume feature-scoped `bookingInquiry` and `commercialBooking` namespaces from both locale catalogues. Domain status values remain the untranslated `value` of controls and API payloads; only their displayed labels are localized. Commercial identifiers, codes, currency values, tax-allocation method tokens, immutable snapshots and user-entered text are not translated. This keeps language selection strictly at the presentation boundary.
+
+
+The public booking-offer capability page uses the `publicOffer` feature namespace and an explicit customer language choice rather than inferring language from customer identity or location. Locale-aware date/number formatting follows that choice; customer-entered and organization-authored commercial terms remain untouched.
