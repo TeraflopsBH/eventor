@@ -8,9 +8,10 @@ interface CampaignsDependencies {
   pageNotice: Ref<string>;
   clearMessages: () => void;
   showError: (error: unknown) => void;
+  translate: (key: string, params?: Record<string, string | number>) => string;
 }
 
-export function useCampaigns({ api, busy, pageError, pageNotice, clearMessages, showError }: CampaignsDependencies) {
+export function useCampaigns({ api, busy, pageError, pageNotice, clearMessages, showError, translate }: CampaignsDependencies) {
   const campaignId = ref("");
   const campaign = ref<CampaignReview | null>(null);
   const campaignProgress = ref<CampaignProgress | null>(null);
@@ -32,7 +33,7 @@ export function useCampaigns({ api, busy, pageError, pageNotice, clearMessages, 
     clearMessages();
     const id = campaignId.value.trim();
     if (!/^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(id)) {
-      pageError.value = "Enter a valid campaign UUID.";
+      pageError.value = translate("campaignWorkspace.invalidCampaignId");
       return;
     }
     busy.value = true;
@@ -42,7 +43,7 @@ export function useCampaigns({ api, busy, pageError, pageNotice, clearMessages, 
       deliveryOffset.value = 0;
       deliveryStatusFilter.value = "";
       await refreshCampaignDeliveryData();
-      pageNotice.value = "Campaign review and delivery report loaded. Recipient contact details are intentionally not exposed here.";
+      pageNotice.value = translate("campaignWorkspace.reviewLoaded");
     } catch (error) {
       showError(error);
     } finally {
@@ -89,26 +90,26 @@ export function useCampaigns({ api, busy, pageError, pageNotice, clearMessages, 
     const resolution = operatorResolution[attempt.attemptId] ?? "";
     const reason = (operatorReason[attempt.attemptId] ?? "").trim();
     if (!resolution) {
-      pageError.value = "Choose the verified delivery outcome before reconciling this attempt.";
+      pageError.value = translate("campaignWorkspace.chooseVerifiedOutcome");
       return;
     }
     if (reason.length < 3) {
-      pageError.value = "Enter an audit reason of at least 3 characters.";
+      pageError.value = translate("campaignWorkspace.auditReasonMin");
       return;
     }
     const labels: Record<string, string> = {
-      confirmed_sent: "confirmed SMTP/provider acceptance",
-      confirmed_not_sent: "confirmed not accepted",
-      confirmed_delivered: "confirmed delivered",
-      confirmed_bounced: "confirmed bounced",
+      confirmed_sent: translate("campaignWorkspace.outcome.providerAccepted"),
+      confirmed_not_sent: translate("campaignWorkspace.outcome.notAccepted"),
+      confirmed_delivered: translate("campaignWorkspace.outcome.delivered"),
+      confirmed_bounced: translate("campaignWorkspace.outcome.bounced"),
     };
-    if (!window.confirm(`Record that this attempt was ${labels[resolution]}? This records an audited decision and does not send a message.`)) return;
+    if (!window.confirm(translate("campaignWorkspace.confirmReconciliation", { outcome: labels[resolution] }))) return;
     clearMessages();
     busy.value = true;
     try {
       await api.reconcileDeliveryAttempt(attempt.attemptId, { resolution, reason });
       await refreshCampaignDeliveryData();
-      pageNotice.value = "The delivery attempt was reconciled. No message was sent.";
+      pageNotice.value = translate("campaignWorkspace.reconciliationSaved");
     } catch (error) {
       showError(error);
     } finally {
@@ -119,16 +120,16 @@ export function useCampaigns({ api, busy, pageError, pageNotice, clearMessages, 
   async function retryDeliveryAttempt(attempt: DeliveryAttempt): Promise<void> {
     const reason = (operatorReason[attempt.attemptId] ?? "").trim();
     if (reason.length < 3) {
-      pageError.value = "Enter an audit reason of at least 3 characters before retrying.";
+      pageError.value = translate("campaignWorkspace.retryReasonMin");
       return;
     }
-    if (!window.confirm("Authorize a new delivery attempt? This may send another message. Only use it after confirming the previous attempt was not accepted.")) return;
+    if (!window.confirm(translate("campaignWorkspace.confirmRetry"))) return;
     clearMessages();
     busy.value = true;
     try {
       await api.retryDeliveryAttempt(attempt.attemptId, reason);
       await refreshCampaignDeliveryData();
-      pageNotice.value = "A distinct retry attempt was queued under your authorization.";
+      pageNotice.value = translate("campaignWorkspace.retryQueued");
     } catch (error) {
       showError(error);
     } finally {
@@ -139,9 +140,9 @@ export function useCampaigns({ api, busy, pageError, pageNotice, clearMessages, 
   async function runCampaignAction(action: "confirm" | "queue" | "cancel"): Promise<void> {
     if (!campaign.value) return;
     const labels = {
-      confirm: "Confirm this reviewed campaign? This records authorization but does not send messages.",
-      queue: "Queue this confirmed campaign for delivery? The worker may begin sending immediately.",
-      cancel: "Cancel this queued campaign? This is only possible before the first delivery attempt starts.",
+      confirm: translate("campaignWorkspace.confirmCampaignPrompt"),
+      queue: translate("campaignWorkspace.queueCampaignPrompt"),
+      cancel: translate("campaignWorkspace.cancelCampaignPrompt"),
     };
     if (!window.confirm(labels[action])) return;
 
@@ -155,10 +156,10 @@ export function useCampaigns({ api, busy, pageError, pageNotice, clearMessages, 
       campaign.value = result.data;
       await refreshCampaignDeliveryData();
       pageNotice.value = action === "confirm"
-        ? "Campaign confirmed. No messages have been queued or sent."
+        ? translate("campaignWorkspace.campaignConfirmed")
         : action === "queue"
-          ? "Campaign queued. Delivery is handled asynchronously by the worker."
-          : "Campaign cancelled before sending began.";
+          ? translate("campaignWorkspace.campaignQueued")
+          : translate("campaignWorkspace.campaignCancelled");
     } catch (error) {
       showError(error);
       try {
