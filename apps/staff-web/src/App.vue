@@ -995,7 +995,7 @@ function bookingOfferWritePayload(): BookingOfferWriteRequest {
   if (!bookingOfferValidUntil.value) throw new Error("Set the offer expiry date and time.");
   const validUntilDate = new Date(bookingOfferValidUntil.value);
   if (Number.isNaN(validUntilDate.getTime())) throw new Error("The offer expiry date and time is invalid.");
-  if (bookingOfferTaxAmount.value.trim() === "") throw new Error("Enter the tax amount. Use zero only when the approved tax treatment calls for zero.");
+  if (bookingOfferTaxAmount.value.trim() === "") throw new Error("Enter a tax amount. Use zero to calculate from the selected tax profile, or when no tax applies.");
   const taxAmount = Number(bookingOfferTaxAmount.value);
   if (!Number.isFinite(taxAmount) || taxAmount < 0) throw new Error("Tax amount must be a non-negative number.");
   const lineItems = parseOfferJsonArray<{ itemCode: string; quantity: number }>(bookingOfferLineItemsJson.value, "Line items");
