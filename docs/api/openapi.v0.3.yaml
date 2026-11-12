@@ -889,7 +889,7 @@ paths:
           description: "Offer email delivery page and status counts."
           content:
             application/json:
-              schema: { $ref: '#/components/schemas/PaginatedDataEnvelope' }
+              schema: { $ref: '#/components/schemas/ListEnvelope' }
         '401': { $ref: '#/components/responses/Unauthorized' }
         '403': { $ref: '#/components/responses/Forbidden' }
         '404': { $ref: '#/components/responses/NotFound' }
