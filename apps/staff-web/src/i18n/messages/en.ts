@@ -125,8 +125,8 @@ export default {
       "delivered": "Delivered",
       "bounced": "Bounced",
       "suppressed": "Suppressed",
-      "pending": "Pending"
-          "draft": "Draft",
+      "pending": "Pending",
+      "draft": "Draft",
       "published": "Published",
       "retired": "Retired",
     },
@@ -219,8 +219,8 @@ export default {
     "signingSecretInvalid": "Paste the Resend webhook signing secret beginning with whsec_.",
     "webhookActivated": "Resend callback signature verification is enabled. Delivered and bounced events can now update matching attempts.",
     "callbackCopied": "Resend callback URL copied.",
-    "clipboardDenied": "Clipboard access was denied. Select and copy the callback URL manually."
-      "andEvent": "and",
+    "clipboardDenied": "Clipboard access was denied. Select and copy the callback URL manually.",
+    "andEvent": "and",
   },
   bookingInquiry: {
     "venueBooking": "VENUE BOOKING",
