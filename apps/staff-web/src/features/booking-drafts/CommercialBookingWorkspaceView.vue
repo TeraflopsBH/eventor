@@ -9,10 +9,10 @@ type Workspace = ReturnType<typeof useBookingDraft> & ReturnType<typeof useBooki
 };
 
 const props = defineProps<{
-const { formatDate, formatMoney } = useInquiryPresentation();
   section: "draft-editor" | "offer-workspace";
   workspace: Workspace;
 }>();
+const { formatDate, formatMoney } = useInquiryPresentation();
 
 const {
   detail: bookingDraftDetail,
