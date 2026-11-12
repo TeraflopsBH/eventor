@@ -331,6 +331,10 @@ const bookingTaxProfileRevisionBody = {
   },
   additionalProperties: false,
 } as const;
+const bookingTaxProfileRevisionCreateBody = {
+  ...bookingTaxProfileRevisionBody,
+  required: ["jurisdictionCode", "registrationIdentifier", "currency", "taxBasis", "roundingMethod", "roundingScale", "effectiveFrom", "effectiveUntil"],
+} as const;
 const bookingPriceListTaxProfileBody = {
   type: "object", required: ["taxProfileRevisionId"],
   properties: { taxProfileRevisionId: { type: ["string", "null"], pattern: uuidPattern } },
@@ -2019,7 +2023,7 @@ export function buildApi(dependencies: ApiDependencies): FastifyInstance {
     effectiveFrom: string | null; effectiveUntil: string | null;
   } }>(
     "/booking-tax-profiles/:taxProfileId/revisions",
-    { schema: { params: bookingTaxProfileParams, headers: idempotencyHeaders, body: bookingTaxProfileRevisionBody } },
+    { schema: { params: bookingTaxProfileParams, headers: idempotencyHeaders, body: bookingTaxProfileRevisionCreateBody } },
     async (request, reply) => {
       const principal=request.staffPrincipal!, body=request.body;
       return withCommand(request,reply,"createBookingTaxProfileRevision",
