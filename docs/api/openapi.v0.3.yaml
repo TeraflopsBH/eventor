@@ -838,7 +838,7 @@ paths:
       tags: ["Booking Administration"]
       operationId: queueBookingOfferEmailDelivery
       summary: "Queue an issued booking offer for email delivery"
-      description: "Requires booking.manage and the active customer capability returned by issueBookingOffer. The recipient is the encrypted email address on the source inquiry. The capability is encrypted in the tenant-scoped queue and decrypted only by the worker. SMTP acceptance is not proof of inbox delivery."
+      description: "Requires booking.manage and the active customer capability returned by issueBookingOffer. The recipient is the encrypted email address on the source inquiry. The capability is encrypted in the tenant-scoped queue and decrypted only by the worker. Repeat requests return the existing delivery for this immutable offer revision instead of creating duplicate sends. SMTP acceptance is not proof of inbox delivery."
       security: [{ StaffSession: [], StaffCsrf: [] }]
       parameters:
         - $ref: '#/components/parameters/POfferId'
