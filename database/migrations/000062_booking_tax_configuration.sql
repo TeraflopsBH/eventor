@@ -236,7 +236,7 @@ BEGIN
     currency,tax_basis,rounding_method,rounding_scale,effective_from,effective_until,state,tax_codes
   ) VALUES(v_id,p_organization_id,p_tax_profile_id,v_number,nullif(btrim(p_jurisdiction_code),''),
     nullif(btrim(p_registration_identifier),''),p_currency,p_tax_basis,p_rounding_method,p_rounding_scale,
-    p_effective_from,p_effective_until,'draft','[]'::jsonb);
+    p_effective_from,p_effective_until,'draft',v_latest.tax_codes);
   INSERT INTO eogp.audit_events(organization_id,actor_organization_id,actor_membership_id,actor_kind,
     action,aggregate_type,aggregate_id,reason_code,safe_metadata)
   VALUES(p_organization_id,p_organization_id,p_actor_membership_id,'membership',
