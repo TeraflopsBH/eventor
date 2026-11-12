@@ -60,6 +60,8 @@ export default {
     saveOrganization: "Sačuvaj jezik organizacije",
     organizationSaved: "Zadani jezik organizacije je sačuvan.",
     userSaved: "Vaša jezička postavka je sačuvana.",
+    followOrganization: "Vaš jezik sada prati zadani jezik organizacije.",
+    useOrganization: "Koristi zadani jezik organizacije",
   },
   campaignWorkspace: {
     "eyebrow": "OBAVJEŠTENJA O DOGAĐAJIMA",
