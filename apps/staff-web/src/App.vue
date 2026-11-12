@@ -57,6 +57,7 @@ const { principal, showError, refreshSession } = staffSessionState;
 function applyOrganizationDefaultLocale(value: SupportedLocale): void {
   if (principal.value?.userLocale === null) locale.value = value;
 }
+const organizationLocaleWorkspace = { busy, pageNotice };
 
 
 const canReadBookingDraft = computed(() =>
@@ -231,7 +232,7 @@ onMounted(() => {
 
       <BookingCancellationPoliciesView v-else-if="activeTab === 'cancellations'" :workspace="bookingCancellationPoliciesWorkspace" />
 
-      <OrganizationLocaleView v-else-if="activeTab === 'settings'" :busy="busy" :page-notice="pageNotice" :show-error="showError" :translate="translate" :on-default-locale-changed="applyOrganizationDefaultLocale" />
+      <OrganizationLocaleView v-else-if="activeTab === 'settings'" :busy="organizationLocaleWorkspace.busy" :page-notice="organizationLocaleWorkspace.pageNotice" :show-error="showError" :translate="translate" :on-default-locale-changed="applyOrganizationDefaultLocale" />
 
       <CampaignWorkspaceView v-else :workspace="campaignWorkspace" />
     
