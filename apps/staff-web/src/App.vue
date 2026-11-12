@@ -10,6 +10,10 @@ import { useBookingTaxProfiles } from "./features/booking-taxes/useBookingTaxPro
 import { useBookingApprovalPolicies } from "./features/booking-approvals/useBookingApprovalPolicies";
 import { useBookingCancellationPolicies } from "./features/booking-cancellations/useBookingCancellationPolicies";
 import BookingInquiryView from "./features/booking-inquiries/BookingInquiryView.vue";
+import BookingPriceListsView from "./features/booking-prices/BookingPriceListsView.vue";
+import BookingTaxProfilesView from "./features/booking-taxes/BookingTaxProfilesView.vue";
+import BookingApprovalPoliciesView from "./features/booking-approvals/BookingApprovalPoliciesView.vue";
+import BookingCancellationPoliciesView from "./features/booking-cancellations/BookingCancellationPoliciesView.vue";
 import { formatBookingMoney, formatInquiryDate } from "./features/booking-inquiries/presentation";
 import { api, ApiError, type CampaignReview, type CampaignProgress, type CampaignListItem, type DeliveryAttempt, type PageMeta, type EmailConfiguration, type ResendWebhookConfiguration, type Principal, type PublicBookingOffer } from "./api";
 
@@ -159,51 +163,23 @@ const {
 const bookingTaxProfileState = useBookingTaxProfiles({
   api, busy, pageError, pageNotice, activeTab, clearMessages, showError,
 });
-const {
-  bookingTaxProfiles, selectedTaxProfileId, taxProfileCreateForm, taxProfileRevisionForm,
-  taxCodesJson, selectedTaxProfile, selectedTaxProfileLatestRevision,
-  publishedTaxProfileRevisions, syncTaxProfileEditor, loadBookingTaxProfiles,
-  openBookingTaxProfiles, selectBookingTaxProfile, taxProfileRevisionPayload,
-  createBookingTaxProfile, createBookingTaxProfileRevision, saveBookingTaxProfileDraft,
-  publishBookingTaxProfileRevision,
-} = bookingTaxProfileState;
+const { publishedTaxProfileRevisions, loadBookingTaxProfiles } = bookingTaxProfileState;
 
 const bookingPriceListState = useBookingPriceLists({
   api, busy, pageError, pageNotice, activeTab, clearMessages, showError,
   publishedTaxProfileRevisions, loadBookingTaxProfiles,
 });
-const {
-  bookingPriceLists, selectedPriceListId, priceListCreateForm, priceListRevisionForm,
-  priceListItemsJson, priceListTaxProfileRevisionId, selectedPriceList,
-  selectedPriceListLatestRevision, compatibleTaxProfileRevisions,
-  loadBookingPriceLists, syncSelectedPriceListDraft, openBookingPriceLists,
-  selectBookingPriceList, createBookingPriceList, createBookingPriceListRevision,
-  saveBookingPriceListDraft, publishBookingPriceListRevision,
-} = bookingPriceListState;
+
 
 const bookingApprovalPolicyState = useBookingApprovalPolicies({
   api, busy, pageError, pageNotice, activeTab, clearMessages, showError,
 });
-const {
-  approvalPolicies, selectedApprovalPolicyId, approvalPolicyCreateForm, approvalPolicyRulesJson,
-  selectedApprovalPolicy, selectedApprovalPolicyLatestRevision, loadBookingApprovalPolicies,
-  openBookingApprovalPolicies, selectBookingApprovalPolicy, createBookingApprovalPolicy,
-  createBookingApprovalPolicyRevision, publishBookingApprovalPolicyRevision,
-} = bookingApprovalPolicyState;
+
 
 const bookingCancellationPolicyState = useBookingCancellationPolicies({
   api, busy, pageError, pageNotice, activeTab, clearMessages, showError,
 });
-const {
-  cancellationPolicies, selectedCancellationPolicyId, cancellationPolicyCreateForm,
-  cancellationPolicyCustomerMode, cancellationPolicyPublicTerms,
-  cancellationPolicyApprovalRulesJson, cancellationPolicyCommercialRulesJson,
-  cancellationPolicyNoticeRulesJson, selectedCancellationPolicy,
-  selectedCancellationPolicyLatestRevision, loadCancellationPolicyEditor,
-  loadBookingCancellationPolicies, openBookingCancellationPolicies,
-  selectBookingCancellationPolicy, createBookingCancellationPolicy,
-  saveBookingCancellationPolicyRevision, publishBookingCancellationPolicyRevision,
-} = bookingCancellationPolicyState;
+
 
 
 function showError(error: unknown): void {
@@ -1236,322 +1212,14 @@ onMounted(() => {
       </BookingInquiryView>
 
 
-            <section v-else-if="activeTab === 'prices'" class="panel inquiry-panel approval-policy-workspace">
-        <div class="section-heading">
-          <div>
-            <p class="eyebrow">ORGANIZATION COMMERCIAL CONFIGURATION</p>
-            <h2>Price lists</h2>
-            <p class="muted">Manage versioned prices for bookable services. Drafts can be edited; published revisions are immutable and remain pinned to offers that use them.</p>
-          </div>
-          <button class="button button-secondary" type="button" :disabled="busy" @click="loadBookingPriceLists">Refresh price lists</button>
-        </div>
-        <div class="inquiry-detail-grid">
-          <section class="inquiry-card">
-            <h4>Create organization price list</h4>
-            <form class="draft-revision-form" @submit.prevent="createBookingPriceList">
-              <label>Code<input v-model="priceListCreateForm.code" type="text" required minlength="2" maxlength="80" placeholder="venue_services" /></label>
-              <label>Name<input v-model="priceListCreateForm.name" type="text" required maxlength="250" placeholder="Venue services" /></label>
-              <label>Currency<input v-model="priceListCreateForm.currency" type="text" required minlength="3" maxlength="3" pattern="[A-Z]{3}" /></label>
-              <label>Tax basis
-                <select v-model="priceListCreateForm.taxBasis">
-                  <option value="to_be_confirmed">To be confirmed</option>
-                  <option value="inclusive">Tax inclusive</option>
-                  <option value="exclusive">Tax exclusive</option>
-                  <option value="not_applicable">Not applicable</option>
-                </select>
-              </label>
-              <button class="button button-primary" type="submit" :disabled="busy || priceListCreateForm.code.trim().length < 2 || !priceListCreateForm.name.trim()">Create price list</button>
-              <p class="fine-print">Currency and tax basis are explicit organization inputs. Eventor does not assume GHB prices or tax treatment.</p>
-            </form>
-          </section>
-          <section class="inquiry-card">
-            <h4>Existing price lists</h4>
-            <label>Select price list
-              <select v-model="selectedPriceListId" @change="selectBookingPriceList(selectedPriceListId)">
-                <option value="">Choose a price list…</option>
-                <option v-for="priceList in bookingPriceLists" :key="priceList.priceListId" :value="priceList.priceListId">
-                  {{ priceList.code }} · {{ priceList.name }} ({{ priceList.status }})
-                </option>
-              </select>
-            </label>
-            <p v-if="!bookingPriceLists.length" class="muted">No price lists are configured for this organization.</p>
-            <div v-if="selectedPriceList" class="policy-summary">
-              <strong>{{ selectedPriceList.name }}</strong>
-              <span>{{ selectedPriceList.code }} · {{ selectedPriceList.scopeKind }} · {{ selectedPriceList.status }}</span>
-              <small class="mono">{{ selectedPriceList.priceListId }}</small>
-            </div>
-          </section>
-        </div>
-        <template v-if="selectedPriceList">
-          <div class="divider"></div>
-          <div class="policy-revision-heading">
-            <div>
-              <h3>Revision editor · {{ selectedPriceList.name }}</h3>
-              <p class="fine-print">Edit the latest draft, or create a successor draft after publication. Save replaces the full draft item set. Publication is a separate, irreversible action.</p>
-            </div>
-            <span class="pill" :class="selectedPriceListLatestRevision?.state === 'published' ? 'pill-success' : 'pill-warning'">
-              Latest: {{ selectedPriceListLatestRevision?.state ?? "No revision" }}
-            </span>
-          </div>
-          <div v-if="selectedPriceListLatestRevision" class="policy-revision-meta">
-            <span>Revision {{ selectedPriceListLatestRevision.revisionNumber }}</span>
-            <span>{{ selectedPriceListLatestRevision.currency }} · {{ selectedPriceListLatestRevision.taxBasis.replaceAll("_", " ") }}</span>
-            <span>Created {{ formatInquiryDate(selectedPriceListLatestRevision.createdAt) }}</span>
-            <span>Published {{ formatInquiryDate(selectedPriceListLatestRevision.publishedAt) }}</span>
-            <span class="mono">{{ selectedPriceListLatestRevision.revisionId }}</span>
-          </div>
-          <div class="field-grid">
-            <label>Currency<input v-model="priceListRevisionForm.currency" type="text" required minlength="3" maxlength="3" pattern="[A-Z]{3}" /></label>
-            <label>Tax basis
-              <select v-model="priceListRevisionForm.taxBasis">
-                <option value="to_be_confirmed">To be confirmed</option>
-                <option value="inclusive">Tax inclusive</option>
-                <option value="exclusive">Tax exclusive</option>
-                <option value="not_applicable">Not applicable</option>
-              </select>
-            </label>
-            <label>Effective from<input v-model="priceListRevisionForm.effectiveFrom" type="datetime-local" /></label>
-            <label>Effective until<input v-model="priceListRevisionForm.effectiveUntil" type="datetime-local" /></label>
-          </div>
-          <label>Published tax-profile revision
-            <select v-model="priceListTaxProfileRevisionId" :disabled="selectedPriceListLatestRevision?.state !== 'draft'">
-              <option value="">No tax profile selected</option>
-              <option v-for="taxRevision in compatibleTaxProfileRevisions" :key="taxRevision.revisionId" :value="taxRevision.revisionId">{{ taxRevision.profileCode }} · {{ taxRevision.profileName }} · rev {{ taxRevision.revisionNumber }}</option>
-            </select>
-          </label>
-          <p class="fine-print">A selected tax profile must match the price-list currency and tax basis. Every price item must use a taxCode from its catalogue; not-applicable profiles require null taxCode values. The selected revision is copied into each offer's immutable terms snapshot.</p>
-          <label>Price items (JSON array)
-            <textarea v-model="priceListItemsJson" rows="16" spellcheck="false" :disabled="selectedPriceListLatestRevision?.state !== 'draft'"></textarea>
-          </label>
-          <div class="policy-rule-reference">
-            <strong>Item format</strong>
-            <p class="fine-print">Each item has a stable itemCode, customer-facing label, unit, unitAmount, optional taxCode, quantityMin (default 1) and quantityMax (optional). Amounts are non-negative decimal values.</p>
-            <pre>[
-  {
-    "itemCode": "MAIN_HALL_DAY",
-    "label": "Main hall · full day",
-    "unit": "day",
-    "unitAmount": 0,
-    "taxCode": null,
-    "quantityMin": 1,
-    "quantityMax": 1
-  }
-]</pre>
-            <p class="fine-print">The zero amount above is a format example only, not a suggested or seeded price.</p>
-          </div>
-          <div class="form-actions">
-            <button v-if="selectedPriceListLatestRevision?.state !== 'draft'" class="button button-secondary" type="button" :disabled="busy" @click="createBookingPriceListRevision">Create successor draft revision</button>
-            <button v-if="selectedPriceListLatestRevision?.state === 'draft'" class="button button-secondary" type="button" :disabled="busy" @click="saveBookingPriceListDraft">Save draft</button>
-            <button v-if="selectedPriceListLatestRevision?.state === 'draft'" class="button button-primary" type="button" :disabled="busy || !selectedPriceListLatestRevision?.items.length" @click="publishBookingPriceListRevision">Publish revision</button>
-          </div>
-          <div v-if="selectedPriceList.revisions.length" class="draft-revision-history">
-            <h5>Revision history</h5>
-            <ol class="history-list">
-              <li v-for="revision in selectedPriceList.revisions" :key="revision.revisionId">
-                <strong>Revision {{ revision.revisionNumber }} · {{ revision.state }} · {{ revision.items.length }} item(s)</strong>
-                <span>{{ revision.currency }} · {{ revision.taxBasis.replaceAll("_", " ") }}</span>
-                <small>Created {{ formatInquiryDate(revision.createdAt) }} · Published {{ formatInquiryDate(revision.publishedAt) }}</small>
-              </li>
-            </ol>
-          </div>
-        </template>
-        <p v-else class="inquiry-detail-empty">
-          <span class="brand-mark">E</span>
-          <strong>Select or create a price list</strong>
-          <span class="muted">Price-list management requires the organization-level booking.manage permission.</span>
-        </p>
-      </section>
+      <BookingPriceListsView v-else-if="activeTab === 'prices'" :workspace="{ ...bookingPriceListState, busy }" />
 
-      <section v-else-if="activeTab === 'approvals'" class="panel inquiry-panel approval-policy-workspace">
-        <div class="section-heading">
-          <div>
-            <p class="eyebrow">ORGANIZATION COMMERCIAL CONTROLS</p>
-            <h2>Booking approval policies</h2>
-            <p class="muted">Create versioned rules that determine which offers require internal approval. Published revisions are immutable and only affect offers created against that revision.</p>
-          </div>
-          <button class="button button-secondary" type="button" :disabled="busy" @click="loadBookingApprovalPolicies">Refresh policies</button>
-        </div>
+      <BookingApprovalPoliciesView v-else-if="activeTab === 'approvals'" :workspace="{ ...bookingApprovalPolicyState, busy }" />
 
-        <div class="inquiry-detail-grid">
-          <section class="inquiry-card">
-            <h4>Create approval policy</h4>
-            <form class="draft-revision-form" @submit.prevent="createBookingApprovalPolicy">
-              <label>Policy code
-                <input v-model="approvalPolicyCreateForm.code" type="text" required minlength="2" maxlength="80" placeholder="venue_booking_approvals" />
-              </label>
-              <label>Policy name
-                <input v-model="approvalPolicyCreateForm.name" type="text" required maxlength="250" placeholder="Venue booking approvals" />
-              </label>
-              <button class="button button-primary" type="submit" :disabled="busy || approvalPolicyCreateForm.code.trim().length < 2 || !approvalPolicyCreateForm.name.trim()">Create policy</button>
-            </form>
-          </section>
-          <section class="inquiry-card">
-            <h4>Existing policies</h4>
-            <label>Select policy
-              <select v-model="selectedApprovalPolicyId" @change="selectBookingApprovalPolicy(selectedApprovalPolicyId)">
-                <option value="">Choose a policy…</option>
-                <option v-for="policy in approvalPolicies" :key="policy.policyId" :value="policy.policyId">
-                  {{ policy.code }} · {{ policy.name }} ({{ policy.status }})
-                </option>
-              </select>
-            </label>
-            <p v-if="!approvalPolicies.length" class="muted">No approval policies are configured for this organization.</p>
-            <div v-if="selectedApprovalPolicy" class="policy-summary">
-              <strong>{{ selectedApprovalPolicy.name }}</strong>
-              <span>{{ selectedApprovalPolicy.code }} · {{ selectedApprovalPolicy.status }}</span>
-              <small class="mono">{{ selectedApprovalPolicy.policyId }}</small>
-            </div>
-          </section>
-        </div>
+      <BookingTaxProfilesView v-else-if="activeTab === 'taxes'" :workspace="{ ...bookingTaxProfileState, busy }" />
 
-        <template v-if="selectedApprovalPolicy">
-          <div class="divider"></div>
-          <div class="policy-revision-heading">
-            <div>
-              <h3>Rule editor · {{ selectedApprovalPolicy.name }}</h3>
-              <p class="fine-print">Edit the latest draft revision or start the next revision after publication. Publish it as a separate explicit action. The backend validates rule semantics and permissions.</p>
-            </div>
-            <span class="pill" :class="selectedApprovalPolicyLatestRevision?.state === 'published' ? 'pill-success' : 'pill-warning'">
-              Latest: {{ selectedApprovalPolicyLatestRevision?.state ?? "No revision" }}
-            </span>
-          </div>
-          <div v-if="selectedApprovalPolicyLatestRevision" class="policy-revision-meta">
-            <span>Revision {{ selectedApprovalPolicyLatestRevision.revisionNumber }}</span>
-            <span>Created {{ formatInquiryDate(selectedApprovalPolicyLatestRevision.createdAt) }}</span>
-            <span>Published {{ formatInquiryDate(selectedApprovalPolicyLatestRevision.publishedAt) }}</span>
-            <span class="mono">{{ selectedApprovalPolicyLatestRevision.revisionId }}</span>
-          </div>
-          <label>Approval rules (JSON array)
-            <textarea v-model="approvalPolicyRulesJson" rows="16" spellcheck="false"></textarea>
-          </label>
-          <div class="policy-rule-reference">
-            <strong>Supported conditions</strong>
-            <ul>
-              <li><code>always</code> — every offer using the policy triggers the requirement.</li>
-              <li><code>total_at_least</code> — requires <code>amount</code> and matching three-letter <code>currency</code>.</li>
-              <li><code>discount_at_least</code> — triggers when discounts and credits reach the configured amount.</li>
-              <li><code>adjustment_present</code> — triggers when any adjustment, or a selected fee/discount/credit kind, exists.</li>
-            </ul>
-            <p class="fine-print">Each rule must define a unique code, requiredApprovals (1–10), permission exactly <code>booking.approve</code>, and separationOfDuties (true/false). No role assignments or monetary thresholds are preconfigured by Eventor.</p>
-            <pre>[
-  {
-    "code": "high_value",
-    "condition": { "kind": "total_at_least", "amount": 1000, "currency": "BAM" },
-    "requiredApprovals": 2,
-    "permission": "booking.approve",
-    "separationOfDuties": true
-  }
-]</pre>
-          </div>
-          <div class="form-actions">
-            <button class="button button-secondary" type="button" :disabled="busy || selectedApprovalPolicy.status !== 'active'" @click="createBookingApprovalPolicyRevision">
-              {{ selectedApprovalPolicyLatestRevision?.state === "draft" ? "Save draft revision" : selectedApprovalPolicy.revisions.length ? "Create successor draft revision" : "Create first draft revision" }}
-            </button>
-            <button
-              v-if="selectedApprovalPolicyLatestRevision?.state === 'draft'"
-              class="button button-primary"
-              type="button"
-              :disabled="busy"
-              @click="publishBookingApprovalPolicyRevision"
-            >
-              Publish latest revision
-            </button>
-          </div>
-          <div v-if="selectedApprovalPolicy.revisions.length" class="draft-revision-history">
-            <h5>Revision history</h5>
-            <ol class="history-list">
-              <li v-for="revision in selectedApprovalPolicy.revisions" :key="revision.revisionId">
-                <strong>Revision {{ revision.revisionNumber }} · {{ revision.state }} · {{ revision.rules.length }} rule(s)</strong>
-                <span>Created {{ formatInquiryDate(revision.createdAt) }}</span>
-                <small>Published {{ formatInquiryDate(revision.publishedAt) }} · {{ revision.revisionId }}</small>
-              </li>
-            </ol>
-          </div>
-        </template>
-        <p v-else class="inquiry-detail-empty">
-          <span class="brand-mark">E</span>
-          <strong>Select or create an approval policy</strong>
-          <span class="muted">Policy management requires the organization-level booking.manage permission.</span>
-        </p>
-      </section>
+      <BookingCancellationPoliciesView v-else-if="activeTab === 'cancellations'" :workspace="{ ...bookingCancellationPolicyState, busy }" />
 
-      <section v-else-if="activeTab === 'taxes'" class="panel inquiry-panel approval-policy-workspace">
-        <div class="section-heading"><div><p class="eyebrow">ORGANIZATION COMMERCIAL CONFIGURATION</p><h2>Tax profiles</h2>
-          <p class="muted">Maintain jurisdiction-neutral tax identifiers, tax codes, rates and rounding settings as immutable revisions.</p></div>
-          <button class="button button-secondary" type="button" :disabled="busy" @click="loadBookingTaxProfiles">Refresh profiles</button></div>
-        <div class="inquiry-detail-grid">
-          <section class="inquiry-card"><h4>Create tax profile</h4><form class="draft-revision-form" @submit.prevent="createBookingTaxProfile">
-            <label>Profile code<input v-model="taxProfileCreateForm.code" required minlength="2" maxlength="80" /></label>
-            <label>Profile name<input v-model="taxProfileCreateForm.name" required maxlength="250" /></label>
-            <label>Jurisdiction / authority identifier<input v-model="taxProfileCreateForm.jurisdictionCode" maxlength="100" placeholder="Organization-defined identifier" /></label>
-            <label>Tax registration identifier<input v-model="taxProfileCreateForm.registrationIdentifier" maxlength="120" /></label>
-            <label>Currency<input v-model="taxProfileCreateForm.currency" required minlength="3" maxlength="3" pattern="[A-Z]{3}" /></label>
-            <label>Tax basis<select v-model="taxProfileCreateForm.taxBasis"><option value="inclusive">Inclusive</option><option value="exclusive">Exclusive</option><option value="not_applicable">Not applicable</option></select></label>
-            <button class="button button-primary" type="submit" :disabled="busy">Create profile</button></form></section>
-          <section class="inquiry-card"><h4>Existing profiles</h4><label>Select profile<select v-model="selectedTaxProfileId" @change="selectBookingTaxProfile(selectedTaxProfileId)">
-            <option value="">Choose a profile…</option><option v-for="profile in bookingTaxProfiles" :key="profile.taxProfileId" :value="profile.taxProfileId">{{ profile.code }} · {{ profile.name }} ({{ profile.status }})</option>
-          </select></label><p v-if="!bookingTaxProfiles.length" class="muted">No tax profiles are configured.</p>
-            <div v-if="selectedTaxProfile" class="policy-summary"><strong>{{ selectedTaxProfile.name }}</strong><span>{{ selectedTaxProfile.code }} · {{ selectedTaxProfile.status }}</span></div></section>
-        </div>
-        <template v-if="selectedTaxProfile"><div class="divider"></div>
-          <div class="policy-revision-heading"><div><h3>Revision editor · {{ selectedTaxProfile.name }}</h3><p class="fine-print">Published revisions are immutable. Create a successor to change rates or tax treatment; prior price lists and offers remain pinned.</p></div>
-            <span class="pill" :class="selectedTaxProfileLatestRevision?.state === 'published' ? 'pill-success' : 'pill-warning'">Latest: {{ selectedTaxProfileLatestRevision?.state ?? "No revision" }}</span></div>
-          <div v-if="selectedTaxProfileLatestRevision" class="policy-revision-meta"><span>Revision {{ selectedTaxProfileLatestRevision.revisionNumber }}</span><span>{{ selectedTaxProfileLatestRevision.currency }} · {{ selectedTaxProfileLatestRevision.taxBasis }}</span><span>Created {{ formatInquiryDate(selectedTaxProfileLatestRevision.createdAt) }}</span><span>Published {{ formatInquiryDate(selectedTaxProfileLatestRevision.publishedAt) }}</span></div>
-          <div class="field-grid">
-            <label>Jurisdiction / authority identifier<input v-model="taxProfileRevisionForm.jurisdictionCode" maxlength="100" /></label>
-            <label>Tax registration identifier<input v-model="taxProfileRevisionForm.registrationIdentifier" maxlength="120" /></label>
-            <label>Currency<input v-model="taxProfileRevisionForm.currency" required minlength="3" maxlength="3" pattern="[A-Z]{3}" /></label>
-            <label>Tax basis<select v-model="taxProfileRevisionForm.taxBasis"><option value="inclusive">Inclusive</option><option value="exclusive">Exclusive</option><option value="not_applicable">Not applicable</option></select></label>
-            <label>Rounding method<select v-model="taxProfileRevisionForm.roundingMethod"><option value="per_line">Per line</option><option value="per_tax_code">Per tax code</option><option value="invoice_total">Invoice total</option></select></label>
-            <label>Rounding decimal places<input v-model.number="taxProfileRevisionForm.roundingScale" type="number" min="0" max="4" /></label>
-            <label>Effective from<input v-model="taxProfileRevisionForm.effectiveFrom" type="datetime-local" /></label>
-            <label>Effective until<input v-model="taxProfileRevisionForm.effectiveUntil" type="datetime-local" /></label>
-          </div>
-          <label>Tax-code catalogue (JSON array)<textarea v-model="taxCodesJson" rows="14" spellcheck="false" :disabled="selectedTaxProfileLatestRevision?.state !== 'draft'"></textarea></label>
-          <div class="policy-rule-reference"><strong>Tax-code format</strong><p class="fine-print">Each entry has taxCode, label, treatment and rate. Treatments: percentage (rate required, 0–100), zero_rated, exempt, out_of_scope and manual (rate must be null). These are labels/configuration only; tax calculation and legal classification are not performed here.</p>
-            <pre>[{"taxCode":"STANDARD","label":"Standard rate","treatment":"percentage","rate":0}]</pre><p class="fine-print">The zero rate is a format example only, not a suggested statutory rate.</p></div>
-          <p class="fine-print">No country, tax authority, registration status, rate, exemption or legal treatment is assumed. Validate the profile with the organization's qualified tax adviser before use.</p>
-          <div class="form-actions"><button v-if="selectedTaxProfileLatestRevision?.state !== 'draft'" class="button button-secondary" type="button" :disabled="busy" @click="createBookingTaxProfileRevision">Create successor draft revision</button>
-            <button v-if="selectedTaxProfileLatestRevision?.state === 'draft'" class="button button-secondary" type="button" :disabled="busy" @click="saveBookingTaxProfileDraft">Save draft</button>
-            <button v-if="selectedTaxProfileLatestRevision?.state === 'draft'" class="button button-primary" type="button" :disabled="busy" @click="publishBookingTaxProfileRevision">Publish revision</button></div>
-          <div v-if="selectedTaxProfile.revisions.length" class="draft-revision-history"><h5>Revision history</h5><ol class="history-list"><li v-for="revision in selectedTaxProfile.revisions" :key="revision.revisionId"><strong>Revision {{ revision.revisionNumber }} · {{ revision.state }} · {{ revision.taxCodes.length }} tax code(s)</strong><span>{{ revision.currency }} · {{ revision.taxBasis }} · {{ revision.roundingMethod }}</span><small>Published {{ formatInquiryDate(revision.publishedAt) }} · {{ revision.revisionId }}</small></li></ol></div>
-        </template>
-        <p v-else class="inquiry-detail-empty"><span class="brand-mark">E</span><strong>Select or create a tax profile</strong><span class="muted">Requires organization-level booking.manage permission.</span></p>
-      </section>
-
-      <section v-else-if="activeTab === 'cancellations'" class="panel inquiry-panel approval-policy-workspace">
-        <div class="section-heading"><div><p class="eyebrow">ORGANIZATION COMMERCIAL CONTROLS</p><h2>Booking cancellation policies</h2>
-          <p class="muted">Configure customer-facing terms and rules. Offers and confirmed bookings retain the exact policy revision they were issued with.</p></div>
-          <button class="button button-secondary" type="button" :disabled="busy" @click="loadBookingCancellationPolicies">Refresh policies</button></div>
-        <div class="inquiry-detail-grid">
-          <section class="inquiry-card"><h4>Create cancellation policy</h4><form class="draft-revision-form" @submit.prevent="createBookingCancellationPolicy">
-            <label>Policy code<input v-model="cancellationPolicyCreateForm.code" required minlength="2" maxlength="80" /></label>
-            <label>Policy name<input v-model="cancellationPolicyCreateForm.name" required maxlength="250" /></label>
-            <button class="button button-primary" type="submit" :disabled="busy">Create policy</button></form></section>
-          <section class="inquiry-card"><h4>Existing policies</h4><label>Select policy<select v-model="selectedCancellationPolicyId" @change="selectBookingCancellationPolicy(selectedCancellationPolicyId)">
-            <option value="">Choose a policy…</option><option v-for="policy in cancellationPolicies" :key="policy.policyId" :value="policy.policyId">{{ policy.code }} · {{ policy.name }} ({{ policy.status }})</option>
-          </select></label><p v-if="!cancellationPolicies.length" class="muted">No cancellation policies are configured.</p>
-          <div v-if="selectedCancellationPolicy" class="policy-summary"><strong>{{ selectedCancellationPolicy.name }}</strong><span>{{ selectedCancellationPolicy.code }} · {{ selectedCancellationPolicy.status }}</span></div></section>
-        </div>
-        <template v-if="selectedCancellationPolicy"><div class="divider"></div>
-          <div class="policy-revision-heading"><div><h3>Revision editor · {{ selectedCancellationPolicy.name }}</h3><p class="fine-print">Edit the latest draft or create a successor after publication. Published revisions are immutable.</p></div>
-            <span class="pill" :class="selectedCancellationPolicyLatestRevision?.state === 'published' ? 'pill-success' : 'pill-warning'">Latest: {{ selectedCancellationPolicyLatestRevision?.state ?? 'No revision' }}</span></div>
-          <div v-if="selectedCancellationPolicyLatestRevision" class="policy-revision-meta"><span>Revision {{ selectedCancellationPolicyLatestRevision.revisionNumber }}</span>
-            <span>Created {{ formatInquiryDate(selectedCancellationPolicyLatestRevision.createdAt) }}</span><span>Published {{ formatInquiryDate(selectedCancellationPolicyLatestRevision.publishedAt) }}</span></div>
-          <label>Customer cancellation mode<select v-model="cancellationPolicyCustomerMode"><option value="request_only">Request only</option><option value="approval_required">Approval required</option><option value="self_service">Self-service</option></select></label>
-          <label>Customer-facing terms<textarea v-model="cancellationPolicyPublicTerms" rows="6" maxlength="10000" placeholder="Enter the exact terms shown to customers."></textarea></label>
-          <div class="field-grid"><label>Approval rules (JSON object)<textarea v-model="cancellationPolicyApprovalRulesJson" rows="7" spellcheck="false"></textarea></label>
-            <label>Commercial consequences (JSON object)<textarea v-model="cancellationPolicyCommercialRulesJson" rows="7" spellcheck="false"></textarea></label></div>
-          <label>Notice rules (JSON object)<textarea v-model="cancellationPolicyNoticeRulesJson" rows="7" spellcheck="false"></textarea></label>
-          <p class="fine-print">Rule objects are organization-defined. No notice periods, refund percentages, fees, deposits or legal terms are assumed or prefilled.</p>
-          <div class="form-actions"><button class="button button-secondary" type="button" :disabled="busy || selectedCancellationPolicy.status !== 'active'" @click="saveBookingCancellationPolicyRevision">
-            {{ selectedCancellationPolicyLatestRevision?.state === 'draft' ? 'Save draft revision' : selectedCancellationPolicy.revisions.length ? 'Create successor draft revision' : 'Create first draft revision' }}</button>
-            <button v-if="selectedCancellationPolicyLatestRevision?.state === 'draft'" class="button button-primary" type="button" :disabled="busy" @click="publishBookingCancellationPolicyRevision">Publish latest revision</button></div>
-          <div v-if="selectedCancellationPolicy.revisions.length" class="draft-revision-history"><h5>Revision history</h5><ol class="history-list">
-            <li v-for="revision in selectedCancellationPolicy.revisions" :key="revision.revisionId"><strong>Revision {{ revision.revisionNumber }} · {{ revision.state }} · {{ revision.customerMode.replaceAll('_', ' ') }}</strong>
-              <span>Created {{ formatInquiryDate(revision.createdAt) }}</span><small>Published {{ formatInquiryDate(revision.publishedAt) }} · {{ revision.revisionId }}</small></li></ol></div>
-        </template><p v-else class="inquiry-detail-empty"><span class="brand-mark">E</span><strong>Select or create a cancellation policy</strong><span class="muted">Requires organization-level booking.manage permission.</span></p>
-      </section>
       <section v-else class="panel campaign-panel">
         <div class="section-heading">
           <div><p class="eyebrow">EVENT NOTIFICATIONS</p><h2>Campaign review and authorization</h2></div>
