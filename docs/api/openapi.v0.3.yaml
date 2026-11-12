@@ -637,6 +637,69 @@ paths:
         '404': { $ref: '#/components/responses/NotFound' }
         '429': { $ref: '#/components/responses/TooManyRequests' }
         '500': { $ref: '#/components/responses/InternalServerError' }
+  "/booking-drafts/{draftId}/allocation-availability-preview":
+    post:
+      tags: ["Booking Administration"]
+      operationId: previewBookingDraftAllocationAvailability
+      summary: "Preview conflicts for proposed booking-draft space and resource allocations"
+      description: "Read-only advisory preview requiring booking.draft.read or booking.draft.manage. Checks proposed space intervals against active holds, confirmed bookings and maintenance blocks, and estimates pooled-resource capacity over the supplied overall booking interval. It does not create holds or guarantee availability; reservation commands and final confirmation remain authoritative."
+      security: [{ StaffSession: [], StaffCsrf: [] }]
+      parameters:
+        - $ref: '#/components/parameters/PDraftId'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [spaceLines, resourceLines, resourceStartsAt, resourceEndsAt]
+              properties:
+                spaceLines:
+                  type: array
+                  maxItems: 50
+                  items:
+                    type: object
+                    required: [venueSpaceId, startsAt, endsAt, blockKind]
+                    properties:
+                      venueSpaceId: { type: string, format: uuid }
+                      startsAt: { type: string, format: date-time }
+                      endsAt: { type: string, format: date-time }
+                      blockKind: { type: string, enum: [setup, rehearsal, event_use, teardown, buffer] }
+                resourceLines:
+                  type: array
+                  maxItems: 100
+                  items:
+                    type: object
+                    required: [resourceTypeId, requestedQuantity]
+                    properties:
+                      resourceTypeId: { type: string, format: uuid }
+                      requestedQuantity: { type: number, exclusiveMinimum: 0, maximum: 999999999.999 }
+                resourceStartsAt: { type: string, format: date-time, nullable: true }
+                resourceEndsAt: { type: string, format: date-time, nullable: true }
+      responses:
+        '200':
+          description: "Advisory allocation availability result."
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [data]
+                properties:
+                  data:
+                    type: object
+                    required: [spaces, resources, resourceIntervalChecked, advisoryOnly, checkedAt]
+                    properties:
+                      spaces: { type: array, items: { type: object } }
+                      resources: { type: array, items: { type: object } }
+                      resourceIntervalChecked: { type: boolean }
+                      advisoryOnly: { type: boolean, enum: [true] }
+                      checkedAt: { type: string, format: date-time }
+        '400': { $ref: '#/components/responses/BadRequest' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '404': { $ref: '#/components/responses/NotFound' }
+        '429': { $ref: '#/components/responses/TooManyRequests' }
+        '500': { $ref: '#/components/responses/InternalServerError' }
   "/booking-drafts/{draftId}/revisions":
     post:
       tags: ["Booking Administration"]
