@@ -1,6 +1,5 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import type { PublicBookingForm } from "../src/api";
 import {
   buildPublicBookingInquirySubmission,
   initializePublicBookingAnswers,
@@ -13,7 +12,7 @@ import {
   validatePublicBookingChoices,
 } from "../src/features/public-booking-forms/publicBookingForm.ts";
 
-function makeForm(overrides: Partial<PublicBookingForm> = {}): PublicBookingForm {
+function makeForm(overrides = {}) {
   return {
     organizationId: "11111111-1111-4111-8111-111111111111",
     organizationSlug: "ghb",
@@ -102,10 +101,10 @@ test("reports missing translations only when customer-visible source content fal
   assert.equal(publicBookingContentHasFallback(form, "bs-BA"), false);
   assert.equal(publicBookingContentHasFallback(form, "en"), false);
 
-  form.fieldSchema.contentTranslations!.en!.fields.event_name!.placeholder = undefined;
+  form.fieldSchema.contentTranslations.en.fields.event_name.placeholder = undefined;
   assert.equal(publicBookingContentHasFallback(form, "en"), true);
 
-  delete form.fieldSchema.contentTranslations!.en;
+  delete form.fieldSchema.contentTranslations.en;
   assert.equal(publicBookingContentHasFallback(form, "en"), true);
 });
 
@@ -115,7 +114,7 @@ test("initializes only controls that need explicit empty values", () => {
 });
 
 test("multiselect toggling is idempotent and preserves other selections", () => {
-  const answers: Record<string, unknown> = { equipment: ["projector"] };
+  const answers = { equipment: ["projector"] };
   togglePublicBookingOption(answers, "equipment", "microphone", true);
   togglePublicBookingOption(answers, "equipment", "microphone", true);
   assert.deepEqual(selectedPublicBookingValues(answers, "equipment"), ["projector", "microphone"]);
@@ -138,7 +137,7 @@ test("multiselect client validation enforces required, configured minimum and ma
 test("required multiselect cannot be bypassed by a zero configured minimum", () => {
   const fields = [{
     code: "equipment",
-    type: "multiselect" as const,
+    type: "multiselect",
     required: true,
     minItems: 0,
     options: [{ value: "projector", label: "Projector" }],
