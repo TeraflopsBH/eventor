@@ -51,6 +51,10 @@ const {
   draftAnswers: bookingDraftAnswers,
   sourceFormFields: bookingDraftSourceFormFields,
   allocationOptions: bookingDraftAllocationOptions,
+  allocationAvailabilityPreview: bookingDraftAllocationAvailabilityPreview,
+  allocationAvailabilityPreviewIsCurrent: bookingDraftAllocationAvailabilityPreviewIsCurrent,
+  allocationAvailabilityPreviewBusy: bookingDraftAllocationAvailabilityPreviewBusy,
+  previewAvailability: previewBookingDraftAllocationAvailability,
   spaceLines: bookingDraftSpaceLines,
   resourceLines: bookingDraftResourceLines,
   addSpaceLine: addBookingDraftSpaceLine,
@@ -257,6 +261,46 @@ const { busy } = props.workspace;
                       <button class="button button-quiet" type="button" :disabled="busy" @click="removeBookingDraftResourceLine(index)">{{ t("commercialBooking.removeLine") }}</button>
                     </div>
                     <p class="fine-print">{{ t("commercialBooking.resourceCapacityHelp") }}</p>
+                  </section>
+                  <section class="draft-allocation-preview">
+                    <div class="inquiry-card-heading">
+                      <div>
+                        <h5>{{ t("commercialBooking.availabilityPreview") }}</h5>
+                        <p class="fine-print">{{ t("commercialBooking.availabilityPreviewHelp") }}</p>
+                      </div>
+                      <button class="button button-secondary" type="button" :disabled="busy || bookingDraftAllocationAvailabilityPreviewBusy" @click="previewBookingDraftAllocationAvailability">
+                        {{ bookingDraftAllocationAvailabilityPreviewBusy ? t("commercialBooking.checkingAvailability") : t("commercialBooking.checkAvailability") }}
+                      </button>
+                    </div>
+                    <p v-if="bookingDraftAllocationAvailabilityPreview && !bookingDraftAllocationAvailabilityPreviewIsCurrent" class="fine-print">
+                      {{ t("commercialBooking.availabilityPreviewStale") }}
+                    </p>
+                    <template v-else-if="bookingDraftAllocationAvailabilityPreviewIsCurrent && bookingDraftAllocationAvailabilityPreview">
+                      <p class="fine-print">{{ t("commercialBooking.availabilityCheckedAt", { value: formatDate(bookingDraftAllocationAvailabilityPreview.checkedAt) }) }}</p>
+                      <div v-for="result in bookingDraftAllocationAvailabilityPreview.spaces" :key="'space-preview-' + result.index" class="allocation-preview-result">
+                        <strong>{{ t("commercialBooking.space") }} {{ result.index }}</strong>
+                        <span :class="result.available ? 'pill pill-success' : 'pill pill-warning'">
+                          {{ result.available ? t("commercialBooking.availabilityAvailable") : t("commercialBooking.availabilityConflict") }}
+                        </span>
+                        <p v-for="(conflict, conflictIndex) in result.conflicts" :key="conflictIndex" class="fine-print">
+                          {{ t("commercialBooking.conflictKind." + conflict.kind) }} · {{ formatDate(conflict.startsAt) }} – {{ formatDate(conflict.endsAt) }}
+                        </p>
+                      </div>
+                      <div v-for="result in bookingDraftAllocationAvailabilityPreview.resources" :key="'resource-preview-' + result.index" class="allocation-preview-result">
+                        <strong>{{ t("commercialBooking.resource") }} {{ result.index }}</strong>
+                        <span v-if="!result.checked" class="pill pill-neutral">{{ t("commercialBooking.resourceIntervalNotChecked") }}</span>
+                        <span v-else :class="result.available ? 'pill pill-success' : 'pill pill-warning'">
+                          {{ result.available ? t("commercialBooking.availabilityAvailable") : t("commercialBooking.availabilityConflict") }}
+                        </span>
+                        <p v-if="result.checked" class="fine-print">
+                          {{ t("commercialBooking.resourceAvailabilityQuantity", { requested: result.totalRequestedQuantity, available: result.availableQuantity ?? 0 }) }}
+                        </p>
+                        <p v-if="result.reason && result.reason !== 'resource_interval_missing'" class="fine-print">
+                          {{ t("commercialBooking.availabilityReason." + result.reason) }}
+                        </p>
+                      </div>
+                      <p class="fine-print">{{ t("commercialBooking.availabilityPreviewAdvisory") }}</p>
+                    </template>
                   </section>
                   <label>{{$t('commercialBooking.changeReason')}}<textarea v-model="bookingDraftChangeReason" rows="2" maxlength="2000" required  :placeholder="t('commercialBooking.changeReasonPlaceholder')"></textarea>
                   </label>
