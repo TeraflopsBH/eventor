@@ -45,6 +45,7 @@ const commercialStatusLabel = (value: string): string => {
 
 const {
   detail: bookingDraftDetail,
+  sourceAnswerItems: bookingDraftSourceAnswerItems,
   editorOpen: bookingDraftEditorOpen,
   valuesJson: bookingDraftValuesJson,
   spaceLinesJson: bookingDraftSpaceLinesJson,
@@ -85,6 +86,26 @@ const { busy } = props.workspace;
                 </div>
                 <button class="button button-quiet" type="button" :disabled="busy" @click="bookingDraftEditorOpen = false">{{ t('commercialBooking.close') }}</button>
               </div>
+
+              <section
+                v-if="bookingDraftDetail.currentRevision?.sourceFormRevisionId"
+                class="inquiry-card source-inquiry-answers"
+              >
+                <div class="inquiry-card-heading">
+                  <h5>{{ t("bookingInquiry.submittedAnswers") }}</h5>
+                  <span class="fine-print">
+                    {{ t("bookingInquiry.formRevisionLabel", {
+                      revision: bookingDraftDetail.currentRevision.sourceFormRevisionId.slice(0, 8),
+                    }) }}
+                  </span>
+                </div>
+                <dl v-if="bookingDraftSourceAnswerItems.length" class="answer-list">
+                  <template v-for="answer in bookingDraftSourceAnswerItems" :key="answer.code">
+                    <dt>{{ answer.label }}</dt><dd>{{ answer.value }}</dd>
+                  </template>
+                </dl>
+                <p v-else class="muted">{{ t("bookingInquiry.noAnswers") }}</p>
+              </section>
 
               <div v-if="bookingDraftDetail.revisionHistory.length" class="draft-revision-history">
                 <h5>{{ t('commercialBooking.revisionHistory') }}</h5>
