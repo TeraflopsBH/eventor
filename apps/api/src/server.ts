@@ -1378,6 +1378,122 @@ export function buildApi(dependencies: ApiDependencies): FastifyInstance {
     },
   );
 
+
+  server.post<{ Params: { revisionId: string }; Body: BookingOfferCreateBody }>(
+    "/booking-draft-revisions/:revisionId/offers",
+    {
+      schema: {
+        params: bookingOfferRevisionParams,
+        headers: idempotencyHeaders,
+        body: bookingOfferCreateBody,
+      },
+    },
+    async (request, reply) => {
+      const principal = request.staffPrincipal!;
+      const body = request.body;
+      return withCommand(
+        request, reply, "createBookingOffer",
+        { revisionId: request.params.revisionId, body },
+        async (client) => {
+          const result = await client.query<ResultRow>(
+            "SELECT eogp.save_booking_offer_revision($1::uuid,$2::uuid,$3::uuid,NULL::uuid,$4::uuid,$5::uuid,$6::uuid,$7::text,$8::text,$9::timestamptz,$10::jsonb,$11::jsonb,$12::numeric,$13::text,false) AS result",
+            [
+              principal.organizationId, request.params.revisionId, principal.membershipId,
+              body.priceListRevisionId, body.cancellationPolicyRevisionId, body.approvalPolicyRevisionId,
+              body.currency, body.taxBasis, body.validUntil, JSON.stringify(body.lineItems),
+              JSON.stringify(body.adjustments ?? []), body.taxAmount, body.internalReason ?? null,
+            ],
+          );
+          return result.rows[0]?.result as Record<string, unknown>;
+        },
+      );
+    },
+  );
+
+  server.post<{ Params: { offerId: string }; Body: BookingOfferSuccessorBody }>(
+    "/booking-offers/:offerId/revisions",
+    {
+      schema: {
+        params: bookingOfferParams,
+        headers: idempotencyHeaders,
+        body: bookingOfferSuccessorBody,
+      },
+    },
+    async (request, reply) => {
+      const principal = request.staffPrincipal!;
+      const body = request.body;
+      return withCommand(
+        request, reply, "createBookingOfferSuccessorRevision",
+        { offerId: request.params.offerId, body },
+        async (client) => {
+          const result = await client.query<ResultRow>(
+            "SELECT eogp.save_booking_offer_revision($1::uuid,$2::uuid,$3::uuid,$4::uuid,$5::uuid,$6::uuid,$7::uuid,$8::text,$9::text,$10::timestamptz,$11::jsonb,$12::jsonb,$13::numeric,$14::text,$15::boolean) AS result",
+            [
+              principal.organizationId, body.draftRevisionId, principal.membershipId, request.params.offerId,
+              body.priceListRevisionId, body.cancellationPolicyRevisionId, body.approvalPolicyRevisionId,
+              body.currency, body.taxBasis, body.validUntil, JSON.stringify(body.lineItems),
+              JSON.stringify(body.adjustments ?? []), body.taxAmount, body.internalReason ?? null,
+              body.supersedeCurrentOffer ?? false,
+            ],
+          );
+          return result.rows[0]?.result as Record<string, unknown>;
+        },
+      );
+    },
+  );
+
+  server.get<{ Params: { offerId: string } }>(
+    "/booking-offers/:offerId",
+    { schema: { params: bookingOfferParams } },
+    async (request, reply) => {
+      const principal = request.staffPrincipal!;
+      const client = await dependencies.pool.connect();
+      try {
+        await client.query("BEGIN");
+        await client.query("SELECT set_config('app.organization_id',$1,true)", [principal.organizationId]);
+        const result = await client.query<ResultRow>(
+          "SELECT eogp.get_booking_offer($1::uuid,$2::uuid,$3::uuid) AS result",
+          [principal.organizationId, request.params.offerId, principal.membershipId],
+        );
+        await client.query("COMMIT");
+        return reply.code(200).send({ data: result.rows[0]?.result ?? null });
+      } catch (error) {
+        try { await client.query("ROLLBACK"); } catch { /* preserve the read error */ }
+        throw databaseError(error);
+      } finally {
+        client.release();
+      }
+    },
+  );
+
+  server.post<{ Params: { offerId: string }; Body: Record<string, never> }>(
+    "/booking-offers/:offerId/issue",
+    {
+      schema: {
+        params: bookingOfferParams,
+        headers: idempotencyHeaders,
+        body: bookingOfferIssueBody,
+      },
+    },
+    async (request, reply) => {
+      const principal = request.staffPrincipal!;
+      const acceptanceToken = randomBytes(32).toString("base64url");
+      const tokenHash = createHash("sha256").update(acceptanceToken, "utf8").digest("hex");
+      return withCommand(
+        request, reply, "issueBookingOffer",
+        { offerId: request.params.offerId },
+        async (client) => {
+          const result = await client.query<ResultRow>(
+            "SELECT eogp.issue_booking_offer($1::uuid,$2::uuid,$3::uuid,$4::text) AS result",
+            [principal.organizationId, request.params.offerId, principal.membershipId, tokenHash],
+          );
+          const value = result.rows[0]?.result as Record<string, unknown>;
+          return { ...value, acceptanceToken };
+        },
+      );
+    },
+  );
+
   server.post<{
     Params: { inquiryId: string };
   }>(
