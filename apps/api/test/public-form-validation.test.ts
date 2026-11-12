@@ -4,6 +4,7 @@ import {
   PublicFormAnswersError,
   PublicFormSchemaError,
   validatePublicFormAnswers,
+  validatePublicFormSchema,
 } from "../src/public-form-validation.js";
 
 const fieldSchema = {
@@ -37,6 +38,22 @@ const fieldSchema = {
     { code: "optional_note", type: "textarea", required: false, maxLength: 1000 },
   ],
 };
+
+test("shared schema validator accepts valid bilingual form content and rejects unsupported locales", () => {
+  assert.doesNotThrow(() => validatePublicFormSchema({
+    schemaVersion: 1,
+    fields: [{ code: "event_name", type: "text", label: "Event name" }],
+    contentTranslations: {
+      "bs-BA": { formName: "Upit", fields: { event_name: { label: "Naziv događaja" } } },
+      en: { formName: "Inquiry", fields: { event_name: { label: "Event name" } } },
+    },
+  }));
+  assert.throws(() => validatePublicFormSchema({
+    schemaVersion: 1,
+    fields: [{ code: "event_name", type: "text" }],
+    contentTranslations: { fr: { formName: "Form", fields: {} } },
+  }), PublicFormSchemaError);
+});
 
 test("public form v1 accepts valid typed values and legacy schemas without an explicit version", () => {
   assert.doesNotThrow(() => validatePublicFormAnswers(fieldSchema, {
