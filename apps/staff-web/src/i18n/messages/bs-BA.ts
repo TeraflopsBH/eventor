@@ -263,6 +263,10 @@ export default {
     "stateConfirmedSent": "Potvrđeno kao poslano",
     "stateConfirmedNotSent": "Potvrđeno kao neposlano",
     "timezone": "Vremenska zona",
+    "approvalSummary": "{approved} / {required} approvals · separation of duties {separation}",
+    "stateOffered": "offered",
+    "stateConfirmed": "confirmed",
+    "stateCancelled": "cancelled",
   },
   publicOffer: {
     "language": "Jezik",
