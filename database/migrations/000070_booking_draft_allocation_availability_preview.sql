@@ -166,7 +166,7 @@ BEGIN
                     AND reservation.ends_at > p_resource_starts_at
                     AND (
                       reservation.status IN ('confirmed','blocked')
-                      OR (reservation.status = 'held' AND reservation.expires_at > clock_timestamp())
+                      OR (reservation.status = 'held' AND reservation.expires_at > greatest(clock_timestamp(), p_resource_starts_at))
                     )
                ),
                grouped_events AS (
@@ -181,7 +181,7 @@ BEGIN
                    FROM grouped_events
                )
                SELECT greatest(coalesce(max(in_use), 0), 0) FROM running_usage
-             ), 0)::integer AS peak_usage
+             ), 0)::bigint AS peak_usage
         FROM eogp.resource_pools pool
         JOIN eogp.venues venue
           ON venue.organization_id = pool.organization_id
