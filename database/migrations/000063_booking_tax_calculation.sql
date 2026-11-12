@@ -38,13 +38,7 @@ BEGIN
   IF eogp.current_organization_id() IS DISTINCT FROM p_organization_id THEN
     RAISE EXCEPTION 'organization context mismatch' USING ERRCODE='42501';
   END IF;
-  PERFORM eogp.assert_booking_commercial_permission(
-    p_organization_id,
-    (SELECT id FROM eogp.organization_memberships
-      WHERE organization_id=p_organization_id AND user_id=eogp.current_user_id()
-        AND status='active' ORDER BY created_at LIMIT 1),
-    ARRAY['booking.manage']::text[]
-  );
+  -- The enclosing save_booking_offer_revision command performs the actor permission check.
 
   SELECT revision.tax_profile_revision_id INTO v_profile_id
     FROM eogp.booking_price_list_revisions revision
