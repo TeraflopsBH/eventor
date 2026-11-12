@@ -366,7 +366,7 @@ async function confirmBookingFromAcceptedOffer(): Promise<void> {
       expectedDraftRevisionId: draftRevisionId,
       confirmationReason: reason,
     });
-    await Promise.all([refreshBookingDraft(), refreshInquiryDetailData()]);
+    await Promise.all([refreshBookingDraft(), refreshInquiryDetail()]);
     await refreshBookingOfferData();
     pageNotice.value = "Booking " + result.data.bookingCode + " is " + result.data.status + (result.data.replayed ? " (existing confirmation)." : ".");
   } catch (error) {
