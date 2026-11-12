@@ -13,7 +13,7 @@ Codes are unique within a revision. A revision can contain up to 200 codes. No j
 
 ## Price-list and offer linkage
 
-A price-list revision may select one published tax-profile revision. The database requires matching currency and tax basis. When a profile is selected, every non-null price-item `taxCode` must exist in that exact profile revision. Publication also checks that the tax profile's effective window covers the price-list revision's effective window.
+A price-list revision may select one published tax-profile revision. The database requires matching currency and tax basis. When a profile is selected, every price item must have a `taxCode` present in that exact profile revision. A `not_applicable` profile has no tax-code catalogue and requires every price-item `taxCode` to be null. Publication also checks that the tax profile's effective window covers the price-list revision's effective window.
 
 The selected revision is stored as a foreign key on the immutable price-list revision. New offer revisions automatically receive a snapshot of the selected tax profile revision and its tax-code catalogue in `terms_snapshot`. Confirmed booking snapshots already preserve the full offer terms snapshot and its hash, so subsequent tax-profile publication cannot alter existing offers or bookings.
 
