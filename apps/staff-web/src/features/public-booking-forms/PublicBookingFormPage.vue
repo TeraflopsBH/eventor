@@ -3,6 +3,17 @@ import { computed, onMounted, ref, watch } from "vue";
 import { useI18n } from "vue-i18n";
 import { setLocale, type SupportedLocale } from "../../i18n";
 import { api, ApiError, type PublicBookingForm, type PublicBookingFormField } from "../../api";
+import {
+  buildPublicBookingInquirySubmission,
+  initializePublicBookingAnswers,
+  publicBookingContentHasFallback,
+  publicBookingFieldText,
+  publicBookingFormName,
+  publicBookingOptionLabel,
+  selectedPublicBookingValues,
+  togglePublicBookingOption,
+  validatePublicBookingChoices,
+} from "./publicBookingForm";
 
 const { locale, t } = useI18n();
 const match = window.location.pathname.match(/^\/book\/([A-Za-z0-9][A-Za-z0-9-]{1,79})\/([A-Za-z0-9][A-Za-z0-9_-]{1,79})\/?$/);
@@ -19,40 +30,40 @@ const localeOptions: Array<{ value: SupportedLocale; label: string }> = [
   { value: "bs-BA", label: "Bosanski" },
   { value: "en", label: "English" },
 ];
-const localizedContent = computed(() => form.value?.fieldSchema.contentTranslations?.[locale.value as SupportedLocale]);
-const localizedFormName = computed(() => localizedContent.value?.formName || form.value?.formName || "");
-const contentLocaleDiffers = computed(() => {
-  if (!form.value || form.value.locale === locale.value) return false;
-  const translation = localizedContent.value;
-  if (!translation?.formName) return true;
-  return form.value.fieldSchema.fields.some(field => {
-    const translated = translation.fields[field.code];
-    if (field.label && !translated?.label) return true;
-    if (field.description && !translated?.description) return true;
-    if (field.helpText && !translated?.helpText) return true;
-    if (field.placeholder && !translated?.placeholder) return true;
-    return (field.options || []).some(option => !translated?.options?.[option.value]);
-  });
-});
+const localizedFormName = computed(() => form.value
+  ? publicBookingFormName(form.value, locale.value as SupportedLocale)
+  : "");
+const contentLocaleDiffers = computed(() => Boolean(form.value &&
+  publicBookingContentHasFallback(form.value, locale.value as SupportedLocale)));
 
 function fieldLabel(field: PublicBookingFormField): string {
-  return localizedContent.value?.fields[field.code]?.label || field.label || field.code;
+  return form.value
+    ? publicBookingFieldText(form.value, field, locale.value as SupportedLocale, "label")
+    : field.label || field.code;
 }
 
 function fieldDescription(field: PublicBookingFormField): string {
-  return localizedContent.value?.fields[field.code]?.description || field.description || "";
+  return form.value
+    ? publicBookingFieldText(form.value, field, locale.value as SupportedLocale, "description")
+    : field.description || "";
 }
 
 function fieldHelpText(field: PublicBookingFormField): string {
-  return localizedContent.value?.fields[field.code]?.helpText || field.helpText || "";
+  return form.value
+    ? publicBookingFieldText(form.value, field, locale.value as SupportedLocale, "helpText")
+    : field.helpText || "";
 }
 
 function fieldPlaceholder(field: PublicBookingFormField): string | undefined {
-  return localizedContent.value?.fields[field.code]?.placeholder || field.placeholder;
+  return (form.value
+    ? publicBookingFieldText(form.value, field, locale.value as SupportedLocale, "placeholder")
+    : field.placeholder) || undefined;
 }
 
 function optionLabel(field: PublicBookingFormField, value: string, fallback: string): string {
-  return localizedContent.value?.fields[field.code]?.options?.[value] || fallback;
+  return form.value
+    ? publicBookingOptionLabel(form.value, field, locale.value as SupportedLocale, value, fallback)
+    : fallback;
 }
 
 watch(locale, value => {
@@ -69,15 +80,11 @@ function inputType(type: string): string {
 }
 
 function selectedValues(code: string): string[] {
-  const value = answers.value[code];
-  return Array.isArray(value) ? value.filter((item): item is string => typeof item === "string") : [];
+  return selectedPublicBookingValues(answers.value, code);
 }
 
 function toggleOption(code: string, option: string, checked: boolean): void {
-  const current = selectedValues(code);
-  answers.value[code] = checked
-    ? [...current, option]
-    : current.filter(value => value !== option);
+  togglePublicBookingOption(answers.value, code, option, checked);
 }
 
 function localizedApiError(value: unknown): string {
@@ -98,10 +105,7 @@ async function loadForm(): Promise<void> {
     const result = await api.getPublicBookingForm(organizationSlug, formCode);
     form.value = result.data;
     setLocale(result.data.defaultLocale);
-    for (const field of result.data.fieldSchema.fields) {
-      if (field.type === "multiselect") answers.value[field.code] = [];
-      else if (field.type === "checkbox") answers.value[field.code] = false;
-    }
+    answers.value = initializePublicBookingAnswers(result.data.fieldSchema.fields);
   } catch {
     error.value = t("publicBookingForm.unavailable");
   } finally {
@@ -111,48 +115,30 @@ async function loadForm(): Promise<void> {
 
 async function submitInquiry(): Promise<void> {
   if (!form.value || submitting.value) return;
-  const invalidChoice = form.value.fieldSchema.fields.find(field => {
-    if (field.type !== "multiselect") return false;
-    const count = selectedValues(field.code).length;
-    const minimum = Math.max(field.required ? 1 : 0, field.minItems ?? 0);
-    return count < minimum || (field.maxItems !== undefined && count > field.maxItems);
-  });
+  const invalidChoice = validatePublicBookingChoices(form.value.fieldSchema.fields, answers.value);
   if (invalidChoice) {
-    const count = selectedValues(invalidChoice.code).length;
-    const minimum = Math.max(invalidChoice.required ? 1 : 0, invalidChoice.minItems ?? 0);
-    error.value = count < minimum
+    const field = form.value.fieldSchema.fields.find(item => item.code === invalidChoice.code);
+    error.value = invalidChoice.kind === "minimum"
       ? t("publicBookingForm.selectMinimum", {
-          field: invalidChoice.label || invalidChoice.code,
-          count: minimum,
+          field: field ? fieldLabel(field) : invalidChoice.code,
+          count: invalidChoice.minimum,
         })
       : t("publicBookingForm.selectMaximum", {
-          field: invalidChoice.label || invalidChoice.code,
-          count: invalidChoice.maxItems ?? 0,
+          field: field ? fieldLabel(field) : invalidChoice.code,
+          count: invalidChoice.maximum,
         });
     return;
   }
   submitting.value = true;
   error.value = "";
-  const normalizedAnswers: Record<string, unknown> = {};
-  for (const field of form.value.fieldSchema.fields) {
-    const value = answers.value[field.code];
-    normalizedAnswers[field.code] = field.type === "number" && value !== "" && value !== null && value !== undefined
-      ? Number(value)
-      : value;
-  }
+  const payload = buildPublicBookingInquirySubmission(
+    form.value,
+    locale.value as SupportedLocale,
+    requester.value,
+    answers.value,
+  );
   try {
-    const result = await api.submitPublicBookingInquiry(organizationSlug, {
-      formCode: form.value.formCode,
-      formRevisionId: form.value.formRevisionId,
-      customerLocale: locale.value as SupportedLocale,
-      requester: {
-        displayName: requester.value.displayName.trim(),
-        ...(requester.value.email.trim() ? { email: requester.value.email.trim() } : {}),
-        ...(requester.value.phone.trim() ? { phone: requester.value.phone.trim() } : {}),
-      },
-      requested: {},
-      answers: normalizedAnswers,
-    });
+    const result = await api.submitPublicBookingInquiry(organizationSlug, payload);
     submittedReference.value = result.data.publicReference;
   } catch (cause) {
     error.value = localizedApiError(cause);
@@ -174,7 +160,7 @@ onMounted(() => { void loadForm(); });
       <label class="public-language">
         <span>{{ t("publicBookingForm.language") }}</span>
         <select :value="locale" @change="setLocale(($event.target as HTMLSelectElement).value)">
-          <option v-for="option in localeOptions" :key="option.value" :value="option.value">{{ optionLabel(field, option.value, option.label) }}</option>
+          <option v-for="option in localeOptions" :key="option.value" :value="option.value">{{ option.label }}</option>
         </select>
       </label>
     </header>
