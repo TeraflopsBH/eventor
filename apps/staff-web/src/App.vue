@@ -1112,9 +1112,7 @@ async function loadBookingApprovalPolicies(): Promise<void> {
     selectedApprovalPolicyId.value = result.data[0]!.policyId;
   }
   const revision = selectedApprovalPolicyLatestRevision.value;
-  if (revision?.state === "draft") {
-    approvalPolicyRulesJson.value = JSON.stringify(revision.rules, null, 2);
-  }
+  approvalPolicyRulesJson.value = JSON.stringify(revision?.rules ?? [], null, 2);
 }
 
 async function openBookingApprovalPolicies(): Promise<void> {
@@ -1143,7 +1141,7 @@ async function createBookingApprovalPolicy(): Promise<void> {
     pageError.value = "Enter a policy code (2–80 characters) and name (1–250 characters).";
     return;
   }
-  if (!window.confirm("Create a new organization approval policy? Its initial revision is an empty draft; it will not affect existing offers until published and selected for a new offer.")) return;
+  if (!window.confirm("Create a new organization approval policy? It has no revisions yet. You will create and explicitly publish its first rules revision before it can be used for a new offer.")) return;
   clearMessages();
   busy.value = true;
   try {
@@ -1152,7 +1150,7 @@ async function createBookingApprovalPolicy(): Promise<void> {
     approvalPolicyCreateForm.name = "";
     selectedApprovalPolicyId.value = result.data.policyId;
     await loadBookingApprovalPolicies();
-    pageNotice.value = "Approval policy created. Its first revision is an empty draft. Create a rules revision and publish it before using it on offers.";
+    pageNotice.value = "Approval policy created. Create and publish its first rules revision before selecting it for a new offer.";
   } catch (error) {
     showError(error);
   } finally {
