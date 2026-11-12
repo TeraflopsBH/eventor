@@ -44,6 +44,7 @@ const staffSessionState = useStaffSession({
   api, busy, pageError, pageNotice, clearMessages,
   loadConfiguration: () => loadEmailConfiguration(),
   resetWorkspace: () => resetWorkspace(),
+  translate,
 });
 const { principal, showError, refreshSession } = staffSessionState;
 
