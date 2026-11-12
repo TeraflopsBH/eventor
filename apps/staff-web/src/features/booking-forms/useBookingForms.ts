@@ -141,6 +141,11 @@ export function useBookingForms({ api, busy, pageError, pageNotice, clearMessage
     return translated ?? base;
   }
   function setFieldText(locale: Locale, field: BookingFormField, key: "label" | "description" | "helpText" | "placeholder", value: string): void {
+    if (locale === baseLocale.value) {
+      field[key] = value;
+      markDirty();
+      return;
+    }
     const content = translation(locale);
     content.fields[field.code] ??= {};
     content.fields[field.code]![key] = value;
@@ -150,6 +155,12 @@ export function useBookingForms({ api, busy, pageError, pageNotice, clearMessage
     return (locale === baseLocale.value ? fallback : translation(locale).fields[field.code]?.options?.[value]) ?? fallback;
   }
   function setOptionText(locale: Locale, field: BookingFormField, value: string, label: string): void {
+    if (locale === baseLocale.value) {
+      const option = field.options?.find(item => item.value === value);
+      if (option) option.label = label;
+      markDirty();
+      return;
+    }
     const content = translation(locale);
     content.fields[field.code] ??= {};
     content.fields[field.code]!.options ??= {};
