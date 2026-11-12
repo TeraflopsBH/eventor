@@ -1482,6 +1482,8 @@ test("staff inquiry inbox decrypts authorized projections and routes assignment,
   assert.equal(previewCall.values[2], principal.membershipId);
   assert.equal(JSON.parse(String(previewCall.values[3])).length, 1);
   assert.equal(JSON.parse(String(previewCall.values[4])).length, 1);
+  assert.equal(previewCall.values[5], "2027-01-18T09:00:00.000Z");
+  assert.equal(previewCall.values[6], "2027-01-18T13:00:00.000Z");
 
   const revisionBody = {
     expectedRevisionNumber: 1,
