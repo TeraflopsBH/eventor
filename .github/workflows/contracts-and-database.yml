@@ -5,11 +5,13 @@ on:
     branches:
       - feat/postgresql18-migrations-openapi-v0.3
       - fix/pr26-high-risk-integrity-review
+      - feat/booking-commercial-workflow
       - main
   pull_request:
     branches:
       - main
       - feat/postgresql18-migrations-openapi-v0.3
+      - fix/pr26-high-risk-integrity-review
 
 permissions:
   contents: read
@@ -210,6 +212,9 @@ jobs:
 
       - name: Verify selected booking reservation release as runtime
         run: psql "$RUNTIME_URL" -X -v ON_ERROR_STOP=1 -f tests/database/booking_reservation_release_runtime_smoke.sql
+
+      - name: Verify booking commercial workflow schema and runtime boundaries
+        run: psql "$RUNTIME_URL" -X -v ON_ERROR_STOP=1 -f tests/database/booking_commercial_schema_smoke.sql
 
       - name: Verify delegated task projection and status command as runtime
         run: psql "$RUNTIME_URL" -X -v ON_ERROR_STOP=1 -f tests/database/delegated_task_runtime_smoke.sql
