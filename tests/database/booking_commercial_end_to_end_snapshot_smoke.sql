@@ -360,7 +360,7 @@ BEGIN
     starts_at,ends_at,expires_at,idempotency_key,actor_membership_id
   ) VALUES(
     v_org,v_space_id,v_draft_revision_id,'draft_hold','held',
-    v_space_starts_at,v_space_ends_at,v_space_ends_at+interval '1 day',
+    v_space_starts_at,v_space_ends_at,clock_timestamp()+interval '1 day',
     'ci-e2e-live-space-hold',v_creator
   );
 
@@ -586,7 +586,7 @@ BEGIN
     starts_at,ends_at,expires_at,idempotency_key,actor_membership_id
   ) VALUES
     (v_org,v_held_alternative_space_id,v_draft_revision_id,'draft_hold','held',
-     v_space_starts_at,v_space_ends_at,clock_timestamp()+interval '1 day',
+     v_space_starts_at,v_space_ends_at,v_space_ends_at+interval '1 day',
      'ci-preview-active-alternative-hold',v_creator),
     (v_org,v_expired_alternative_space_id,v_draft_revision_id,'draft_hold','expired',
      v_space_starts_at,v_space_ends_at,clock_timestamp()-interval '1 minute',
@@ -607,7 +607,7 @@ BEGIN
      v_space_starts_at,v_space_ends_at,'expired',clock_timestamp()-interval '1 minute',
      'ci-preview-expired-resource-hold'),
     (v_org,v_second_resource_pool_id,v_draft_revision_id,2,
-     v_space_starts_at,v_space_ends_at,'held',clock_timestamp()+interval '1 day',
+     v_space_starts_at,v_space_ends_at,'held',v_space_ends_at+interval '1 day',
      'ci-preview-active-resource-hold');
 
   SELECT count(*) INTO v_before_reservation_count
