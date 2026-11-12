@@ -58,7 +58,7 @@ async function createBookingApprovalPolicy(): Promise<void> {
     pageError.value = translate("commercialConfiguration.approvalFields");
     return;
   }
-  if (!window.confirm("Create a new organization approval policy? It has no revisions yet. You will create and explicitly publish its first rules revision before it can be used for a new offer.")) return;
+  if (!window.confirm(translate("commercialConfiguration.approvalCreateConfirm"))) return;
   clearMessages();
   busy.value = true;
   try {
@@ -127,7 +127,7 @@ async function publishBookingApprovalPolicyRevision(): Promise<void> {
   try {
     await api.publishBookingApprovalPolicyRevision(policy.policyId, revision.revisionId);
     await loadBookingApprovalPolicies();
-    pageNotice.value = "Approval policy revision published. New offer revisions may now pin this policy revision.";
+    pageNotice.value = translate("commercialConfiguration.approvalPublished");
   } catch (error) {
     showError(error);
   } finally {
