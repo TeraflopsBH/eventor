@@ -262,6 +262,7 @@ export default {
     "stateReturnedForChanges": "returned_for_changes",
     "stateConfirmedSent": "confirmed_sent",
     "stateConfirmedNotSent": "confirmed_not_sent",
+    "timezone": "Timezone",
   },
   publicOffer: {
     "language": "Language",
@@ -310,5 +311,6 @@ export default {
     "thanksAcceptance": "Thank you. Your acceptance has been securely recorded. The organization will complete its internal approval and booking-confirmation steps separately.",
     "thanksRejection": "Your decision to decline this offer has been securely recorded.",
     "privateLinkFooter": "This customer link is private. Anyone who has it may be able to act on this offer. Do not forward it.",
+    "revision": "REVISION",
   },
 } as const;
