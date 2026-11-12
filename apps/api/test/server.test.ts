@@ -378,20 +378,21 @@ function makePool() {
       }
       if (normalized.includes("eogp.save_booking_offer_revision(")) {
         commandCalls.push({ sql: normalized, values });
-        if (values[3] !== null) bookingOfferSuccessorCalls += 1;
-        else bookingOfferPrepareCalls += 1;
+        const preparing = normalized.includes("NULL::uuid");
+        if (preparing) bookingOfferPrepareCalls += 1;
+        else bookingOfferSuccessorCalls += 1;
         return { rows: [{ result: {
           offerId: "18181818-1818-4181-8181-181818181818",
-          offerRevisionId: values[3] !== null ? "19191919-1919-4191-8191-191919191919" : "18181818-1818-4181-8181-181818181819",
+          offerRevisionId: preparing ? "18181818-1818-4181-8181-181818181819" : "19191919-1919-4191-8191-191919191919",
           draftRevisionId: values[1],
-          revisionNumber: values[3] !== null ? 2 : 1,
+          revisionNumber: preparing ? 1 : 2,
           state: "draft",
-          currency: values[7],
-          taxBasis: values[8],
+          currency: values[6],
+          taxBasis: values[7],
           subtotal: 250,
-          taxAmount: values[12],
+          taxAmount: values[11],
           totalAmount: 275,
-          validUntil: values[9],
+          validUntil: values[8],
         } }], rowCount: 1 };
       }
       if (normalized.includes("eogp.get_booking_offer(")) {
@@ -1573,10 +1574,10 @@ test("staff inquiry inbox decrypts authorized projections and routes assignment,
     principal.organizationId,
     "16161616-1616-4161-8161-161616161616",
     principal.membershipId,
-    null,
+    offerBody.priceListRevisionId,
   ]);
-  assert.deepEqual(JSON.parse(String(prepareCall.values[10])), offerBody.lineItems);
-  assert.deepEqual(JSON.parse(String(prepareCall.values[11])), []);
+  assert.deepEqual(JSON.parse(String(prepareCall.values[9])), offerBody.lineItems);
+  assert.deepEqual(JSON.parse(String(prepareCall.values[10])), []);
 
   const offerRead = await app.inject({
     method: "GET",
