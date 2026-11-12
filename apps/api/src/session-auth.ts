@@ -69,6 +69,11 @@ interface MembershipRow extends QueryResultRow {
   organization_id: string;
   organization_slug: string;
   organization_name: string;
+  default_locale: string;
+}
+
+interface UserLocaleRow extends QueryResultRow {
+  locale_preference: string | null;
 }
 
 function sha256(value: string): string {
@@ -425,7 +430,8 @@ export class PostgresStaffSessionAuth {
          membership.id AS membership_id,
          organization.id AS organization_id,
          organization.slug AS organization_slug,
-         organization.name AS organization_name
+         organization.name AS organization_name,
+         organization.default_locale
        FROM eogp.organization_memberships AS membership
        JOIN eogp.organizations AS organization
          ON organization.id = membership.organization_id
@@ -435,19 +441,45 @@ export class PostgresStaffSessionAuth {
        ORDER BY organization.name, organization.id`,
       [principal.userId],
     );
+    const preference = await this.authPool.query<UserLocaleRow>(
+      "SELECT locale_preference FROM eogp.users WHERE id=$1",
+      [principal.userId],
+    );
+    const selectedMembership = memberships.rows.find((row) =>
+      row.organization_id === principal.organizationId && row.membership_id === principal.membershipId
+    );
     return {
       userId: principal.userId,
       organizationId: principal.organizationId,
       membershipId: principal.membershipId,
+      userLocale: preference.rows[0]?.locale_preference ?? null,
+      organizationDefaultLocale: selectedMembership?.default_locale ?? "en",
       memberships: memberships.rows.map((row) => ({
         membershipId: row.membership_id,
         organizationId: row.organization_id,
         organizationSlug: row.organization_slug,
         organizationName: row.organization_name,
+        defaultLocale: row.default_locale,
         selected: row.organization_id === principal.organizationId
           && row.membership_id === principal.membershipId,
       })),
     };
+  }
+
+
+  async updateUserLocale(principal: StaffPrincipal, locale: "bs-BA" | "en"): Promise<void> {
+    if (locale !== "bs-BA" && locale !== "en") {
+      throw new SessionAuthError(400, "INVALID_LOCALE", "Choose a supported language.");
+    }
+    const updated = await this.authPool.query(
+      `UPDATE eogp.users
+          SET locale_preference=$2,updated_at=clock_timestamp()
+        WHERE id=$1 AND status='active'`,
+      [principal.userId,locale],
+    );
+    if (updated.rowCount !== 1) {
+      throw new SessionAuthError(404, "USER_NOT_FOUND", "The staff account is no longer available.");
+    }
   }
 
   private async recordFailedLogin(
