@@ -133,6 +133,8 @@ BEGIN
       RAISE EXCEPTION 'a manual tax amount is required for a tax code configured as manual' USING ERRCODE='22023';
     END IF;
     v_tax_total:=p_manual_tax_amount;
+    SELECT coalesce(jsonb_agg(value-'roundedTaxAmount'),'[]'::jsonb)
+      INTO v_breakdown FROM jsonb_array_elements(v_breakdown);
   ELSIF v_profile_revision.rounding_method='per_tax_code' THEN
     FOR v_tax_code IN SELECT key FROM jsonb_each(v_codes) LOOP
       v_code_raw:=(v_codes->>v_tax_code)::numeric;
