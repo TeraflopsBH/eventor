@@ -7,6 +7,8 @@ ALTER TABLE eogp.booking_offer_email_deliveries
     CHECK (manual_retry_count BETWEEN 0 AND 1),
   ADD COLUMN last_operator_resolution text
     CHECK (last_operator_resolution IN ('confirmed_sent','confirmed_not_sent')),
+  ADD COLUMN last_operator_reason text
+    CHECK (last_operator_reason IS NULL OR length(last_operator_reason) BETWEEN 3 AND 1000),
   ADD COLUMN last_operator_membership_id uuid,
   ADD COLUMN last_operator_at timestamptz,
   ADD CONSTRAINT booking_offer_email_delivery_operator_membership_fk
@@ -65,6 +67,7 @@ BEGIN
     'sentAt',page.sent_at,
     'lastFailureCode',page.last_failure_code,
     'lastOperatorResolution',page.last_operator_resolution,
+    'lastOperatorReason',page.last_operator_reason,
     'lastOperatorAt',page.last_operator_at,
     'canReconcile',page.status='uncertain',
     'canRetry',page.status='failed'
@@ -162,6 +165,7 @@ BEGIN
          last_failure_code=CASE WHEN p_resolution='confirmed_not_sent'
            THEN 'OPERATOR_CONFIRMED_NOT_SENT' ELSE NULL END,
          last_operator_resolution=p_resolution,
+         last_operator_reason=btrim(p_reason),
          last_operator_membership_id=p_actor_membership_id,
          last_operator_at=clock_timestamp(),
          updated_at=clock_timestamp()
