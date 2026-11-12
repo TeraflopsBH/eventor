@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { computed, onMounted, reactive, ref } from "vue";
-import { api, ApiError, type CampaignReview, type CampaignProgress, type CampaignListItem, type DeliveryAttempt, type PageMeta, type EmailConfiguration, type ResendWebhookConfiguration, type Principal, type BookingInquiryListItem, type BookingInquiryDetail, type BookingInquiryAssignee, type BookingInquiryCapabilities } from "./api";
+import { api, ApiError, type CampaignReview, type CampaignProgress, type CampaignListItem, type DeliveryAttempt, type PageMeta, type EmailConfiguration, type ResendWebhookConfiguration, type Principal, type BookingInquiryListItem, type BookingInquiryDetail, type BookingInquiryAssignee, type BookingInquiryCapabilities, type BookingOfferRecord, type BookingOfferApprovalStatus, type BookingOfferApprovalRequirement, type BookingOfferWriteRequest } from "./api";
 
 const principal = ref<Principal | null>(null);
 const loadingSession = ref(true);
@@ -72,6 +72,27 @@ const bookingDraftRequestedStart = ref("");
 const bookingDraftRequestedEnd = ref("");
 const bookingDraftTimezone = ref("Europe/Sarajevo");
 const bookingDraftChangeReason = ref("");
+const bookingOffer = ref<BookingOfferRecord | null>(null);
+const bookingOfferApprovalStatus = ref<BookingOfferApprovalStatus | null>(null);
+const bookingOfferIdInput = ref("");
+const bookingOfferAcceptanceToken = ref("");
+const bookingOfferConfirmationReason = ref("");
+const bookingOfferIssueRequestKey = ref("");
+const bookingOfferSupersedeCurrent = ref(false);
+const bookingOfferValidUntil = ref("");
+const bookingOfferTaxAmount = ref("");
+const bookingOfferInternalReason = ref("");
+const bookingOfferCreateForm = reactive({
+  priceListRevisionId: "",
+  cancellationPolicyRevisionId: "",
+  approvalPolicyRevisionId: "",
+  currency: "",
+  taxBasis: "" as "" | "inclusive" | "exclusive" | "not_applicable" | "to_be_confirmed",
+});
+const bookingOfferLineItemsJson = ref("[]");
+const bookingOfferAdjustmentsJson = ref("[]");
+const bookingOfferApprovalDecisions = reactive<Record<string, "approved" | "rejected" | "returned_for_changes">>({});
+const bookingOfferApprovalReasons = reactive<Record<string, string>>({});
 
 const selectedOrganization = computed(() =>
   principal.value?.memberships?.find((membership) => membership.selected)?.organizationName
@@ -97,6 +118,22 @@ const canManageBookingDraft = computed(() =>
   bookingDraftDetail.value?.status === "draft" &&
   Boolean(bookingDraftDetail.value.currentRevision),
 );
+const bookingOfferApprovalsSatisfied = computed(() => {
+  const requirements = bookingOfferApprovalStatus.value?.requirements;
+  return Boolean(requirements) && requirements.every((item) =>
+    !item.blocked && item.approvedCount >= item.requiredApprovals,
+  );
+});
+const canConfirmBookingOffer = computed(() => {
+  const revision = bookingOffer.value?.currentRevision;
+  const draftRevisionId = bookingDraftDetail.value?.currentRevision?.revisionId;
+  return Boolean(
+    bookingOffer.value &&
+    revision?.state === "accepted" &&
+    revision.draftRevisionId === draftRevisionId &&
+    bookingOfferApprovalsSatisfied.value,
+  );
+});
 const inquiryStatusTargets = computed<InquiryStatusCommand[]>(() => {
   if (inquiryDetail.value?.status === "received") return ["under_review", "declined", "spam"];
   if (inquiryDetail.value?.status === "under_review") return ["received", "declined", "spam"];
@@ -146,6 +183,16 @@ function formatInquiryDate(value: string | null | undefined): string {
   return Number.isNaN(parsed.getTime()) ? value : parsed.toLocaleString();
 }
 
+function formatBookingMoney(value: string | number, currency: string): string {
+  const amount = Number(value);
+  if (!Number.isFinite(amount)) return String(value) + " " + currency;
+  try {
+    return new Intl.NumberFormat(undefined, { style: "currency", currency }).format(amount);
+  } catch {
+    return amount.toFixed(2) + " " + currency;
+  }
+}
+
 function clearMessages(): void {
   pageError.value = "";
   pageNotice.value = "";
@@ -161,6 +208,13 @@ function clearBookingDraftState(): void {
   bookingDraftRequestedEnd.value = "";
   bookingDraftTimezone.value = "Europe/Sarajevo";
   bookingDraftChangeReason.value = "";
+  bookingOffer.value = null;
+  bookingOfferApprovalStatus.value = null;
+  bookingOfferIdInput.value = "";
+  bookingOfferAcceptanceToken.value = "";
+  bookingOfferConfirmationReason.value = "";
+  bookingOfferIssueRequestKey.value = "";
+  bookingOfferSupersedeCurrent.value = false;
 }
 
 function showError(error: unknown): void {
@@ -807,6 +861,209 @@ async function saveBookingDraftRevision(): Promise<void> {
   }
 }
 
+function parseOfferJsonArray<T>(value: string, label: string): T[] {
+  const parsed: unknown = JSON.parse(value);
+  if (!Array.isArray(parsed)) throw new Error(label + " must be a JSON array.");
+  return parsed as T[];
+}
+
+function bookingOfferWritePayload(): BookingOfferWriteRequest {
+  const currency = bookingOfferCreateForm.currency.trim().toUpperCase();
+  if (!/^[A-Z]{3}$/.test(currency)) throw new Error("Enter a three-letter ISO currency code.");
+  if (!bookingOfferCreateForm.taxBasis) throw new Error("Select the tax treatment before preparing an offer.");
+  const priceListRevisionId = bookingOfferCreateForm.priceListRevisionId.trim();
+  const cancellationPolicyRevisionId = bookingOfferCreateForm.cancellationPolicyRevisionId.trim();
+  const approvalPolicyRevisionId = bookingOfferCreateForm.approvalPolicyRevisionId.trim();
+  const uuid = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
+  if (![priceListRevisionId, cancellationPolicyRevisionId, approvalPolicyRevisionId].every((value) => uuid.test(value))) {
+    throw new Error("Price-list, cancellation-policy and approval-policy revision IDs must each be valid UUIDs.");
+  }
+  if (!bookingOfferValidUntil.value) throw new Error("Set the offer expiry date and time.");
+  const validUntilDate = new Date(bookingOfferValidUntil.value);
+  if (Number.isNaN(validUntilDate.getTime())) throw new Error("The offer expiry date and time is invalid.");
+  if (bookingOfferTaxAmount.value.trim() === "") throw new Error("Enter the tax amount. Use zero only when the approved tax treatment calls for zero.");
+  const taxAmount = Number(bookingOfferTaxAmount.value);
+  if (!Number.isFinite(taxAmount) || taxAmount < 0) throw new Error("Tax amount must be a non-negative number.");
+  const lineItems = parseOfferJsonArray<{ itemCode: string; quantity: number }>(bookingOfferLineItemsJson.value, "Line items");
+  const adjustments = parseOfferJsonArray<{ code: string; label: string; kind: "fee" | "discount" | "credit"; amount: number }>(bookingOfferAdjustmentsJson.value, "Adjustments");
+  if (!lineItems.length) throw new Error("Add at least one price-list item to the offer.");
+  return {
+    priceListRevisionId,
+    cancellationPolicyRevisionId,
+    approvalPolicyRevisionId,
+    currency,
+    taxBasis: bookingOfferCreateForm.taxBasis,
+    validUntil: validUntilDate.toISOString(),
+    lineItems,
+    adjustments,
+    taxAmount,
+    internalReason: bookingOfferInternalReason.value.trim(),
+  };
+}
+
+async function refreshBookingOfferData(): Promise<void> {
+  const offerId = bookingOfferIdInput.value.trim();
+  if (!offerId) return;
+  const [offerResult, approvalResult] = await Promise.all([
+    api.getBookingOffer(offerId),
+    api.getBookingOfferApprovals(offerId),
+  ]);
+  if (bookingDraftDetail.value && offerResult.data.draftId !== bookingDraftDetail.value.draftId) {
+    throw new Error("That offer belongs to a different booking draft.");
+  }
+  bookingOffer.value = offerResult.data;
+  bookingOfferApprovalStatus.value = approvalResult.data;
+}
+
+async function loadBookingOffer(): Promise<void> {
+  const value = bookingOfferIdInput.value.trim();
+  if (!/^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(value)) {
+    pageError.value = "Enter a valid booking-offer UUID.";
+    return;
+  }
+  clearMessages();
+  busy.value = true;
+  try {
+    await refreshBookingOfferData();
+    bookingOfferAcceptanceToken.value = "";
+    pageNotice.value = "Offer and approval status loaded. Customer acceptance and staff approval remain separate steps.";
+  } catch (error) {
+    showError(error);
+  } finally {
+    busy.value = false;
+  }
+}
+
+async function saveBookingOfferRevision(): Promise<void> {
+  const draft = bookingDraftDetail.value;
+  const draftRevisionId = draft?.currentRevision?.revisionId;
+  if (!draft || !draftRevisionId || !canManageBookingDraft.value) return;
+  let body: BookingOfferWriteRequest;
+  try {
+    body = bookingOfferWritePayload();
+  } catch (error) {
+    pageError.value = error instanceof Error ? error.message : "Offer terms are invalid.";
+    return;
+  }
+  if (bookingOffer.value && bookingOffer.value.draftId !== draft.draftId) {
+    pageError.value = "The loaded offer does not belong to this draft.";
+    return;
+  }
+  const action = bookingOffer.value ? "Create a successor offer revision" : "Prepare this booking offer";
+  const warning = bookingOffer.value
+    ? " Earlier offer revisions and customer decisions remain immutable. The server will enforce whether superseding the current offer is permitted."
+    : " This creates a draft offer only; it does not send it to the customer or reserve resources.";
+  if (!window.confirm(action + " from draft revision " + draft.currentRevisionNumber + "?" + warning)) return;
+  clearMessages();
+  busy.value = true;
+  try {
+    const result = bookingOffer.value
+      ? await api.createBookingOfferSuccessor(bookingOffer.value.offerId, {
+          ...body,
+          draftRevisionId,
+          supersedeCurrentOffer: bookingOfferSupersedeCurrent.value,
+        })
+      : await api.createBookingOffer(draftRevisionId, body);
+    bookingOfferIdInput.value = result.data.offerId;
+    bookingOfferAcceptanceToken.value = "";
+    bookingOfferIssueRequestKey.value = "";
+    await refreshBookingOfferData();
+    pageNotice.value = "Offer revision " + result.data.revisionNumber + " prepared. It is still a draft and has not been sent or accepted.";
+  } catch (error) {
+    showError(error);
+  } finally {
+    busy.value = false;
+  }
+}
+
+async function issueBookingOffer(): Promise<void> {
+  const offer = bookingOffer.value;
+  if (!offer || offer.currentRevision.state !== "draft") return;
+  if (!window.confirm("Issue this exact offer revision to the customer? This creates a customer capability. It does not confirm the booking or reserve capacity.")) return;
+  clearMessages();
+  busy.value = true;
+  try {
+    if (!bookingOfferIssueRequestKey.value) {
+      if (!globalThis.crypto?.randomUUID) throw new Error("This browser cannot create a secure idempotency key.");
+      bookingOfferIssueRequestKey.value = globalThis.crypto.randomUUID();
+    }
+    const result = await api.issueBookingOffer(offer.offerId, bookingOfferIssueRequestKey.value);
+    bookingOfferAcceptanceToken.value = result.data.acceptanceToken;
+    await refreshBookingOfferData();
+    pageNotice.value = "Offer issued. Copy the capability now and deliver it to the customer through an approved channel. Automatic offer email and the customer-facing browser page are not part of this UI slice.";
+  } catch (error) {
+    showError(error);
+  } finally {
+    busy.value = false;
+  }
+}
+
+async function copyBookingOfferCapability(): Promise<void> {
+  if (!bookingOfferAcceptanceToken.value) return;
+  try {
+    await navigator.clipboard.writeText(bookingOfferAcceptanceToken.value);
+    pageNotice.value = "Customer offer capability copied. Treat it as a bearer secret and do not paste it into internal notes or tickets.";
+    pageError.value = "";
+  } catch {
+    pageError.value = "Clipboard access was denied. Select and copy the capability manually.";
+  }
+}
+
+async function decideBookingOfferApproval(requirement: BookingOfferApprovalRequirement): Promise<void> {
+  const offer = bookingOffer.value;
+  const decision = bookingOfferApprovalDecisions[requirement.ruleCode] ?? "approved";
+  const reason = (bookingOfferApprovalReasons[requirement.ruleCode] ?? "").trim();
+  if (!offer) return;
+  if (reason.length < 3) {
+    pageError.value = "Enter an approval decision reason of at least 3 characters.";
+    return;
+  }
+  if (!window.confirm("Record " + decision.replaceAll("_", " ") + " for approval rule " + requirement.ruleCode + "? This decision is immutable.")) return;
+  clearMessages();
+  busy.value = true;
+  try {
+    await api.decideBookingOfferApproval(offer.offerId, {
+      offerRevisionId: offer.currentRevision.offerRevisionId,
+      ruleCode: requirement.ruleCode,
+      decision,
+      reason,
+    });
+    await refreshBookingOfferData();
+    pageNotice.value = "Approval decision recorded for rule " + requirement.ruleCode + ".";
+  } catch (error) {
+    showError(error);
+  } finally {
+    busy.value = false;
+  }
+}
+
+async function confirmBookingFromAcceptedOffer(): Promise<void> {
+  const offer = bookingOffer.value;
+  const draftRevisionId = bookingDraftDetail.value?.currentRevision?.revisionId;
+  const reason = bookingOfferConfirmationReason.value.trim();
+  if (!offer || !draftRevisionId || !canConfirmBookingOffer.value) return;
+  if (reason.length < 3) {
+    pageError.value = "Enter a booking-confirmation reason of at least 3 characters.";
+    return;
+  }
+  if (!window.confirm("Confirm the booking from this exact accepted offer revision? This finalizes resource reservations and creates the booking record. Availability is checked transactionally by the server.")) return;
+  clearMessages();
+  busy.value = true;
+  try {
+    const result = await api.confirmBookingFromOffer(draftRevisionId, {
+      expectedDraftRevisionId: draftRevisionId,
+      confirmationReason: reason,
+    });
+    await Promise.all([refreshBookingDraft(), refreshInquiryDetailData()]);
+    await refreshBookingOfferData();
+    pageNotice.value = "Booking " + result.data.bookingCode + " is " + result.data.status + (result.data.replayed ? " (existing confirmation)." : ".");
+  } catch (error) {
+    showError(error);
+  } finally {
+    busy.value = false;
+  }
+}
+
 async function saveInquiryAnnotation(): Promise<void> {
   const detail = inquiryDetail.value;
   const annotation = inquiryAnnotationText.value.trim();
@@ -1238,6 +1495,170 @@ onMounted(() => { void refreshSession(); });
                 </form>
               </template>
               <p v-else class="fine-print">This draft is read-only for your current membership, or is no longer editable in draft status.</p>
+            </section>
+
+            <section v-if="bookingDraftDetail" class="inquiry-card booking-offer-workspace">
+              <div class="inquiry-card-heading">
+                <div>
+                  <h4>Commercial offer and booking confirmation</h4>
+                  <p class="fine-print">Customer acceptance, internal approvals and booking confirmation are independent decisions. Capacity is finalized only by the confirmation command.</p>
+                </div>
+                <span class="pill pill-neutral">Explicit actions</span>
+              </div>
+
+              <div class="offer-load-row">
+                <label>Offer UUID
+                  <input v-model="bookingOfferIdInput" type="text" maxlength="36" placeholder="Load an existing offer for this draft" />
+                </label>
+                <button class="button button-secondary" type="button" :disabled="busy || !bookingOfferIdInput.trim()" @click="loadBookingOffer">Load offer</button>
+              </div>
+
+              <div v-if="canManageBookingDraft" class="offer-preparation">
+                <h5>{{ bookingOffer ? "Prepare successor offer revision" : "Prepare first offer revision" }}</h5>
+                <p class="fine-print">Use IDs of already published and effective organization configuration. Prices are calculated from the selected price-list revision and item codes by the server. Eventor does not supply default prices, cancellation terms, approval thresholds or tax rates.</p>
+                <form class="draft-revision-form" @submit.prevent="saveBookingOfferRevision">
+                  <div class="field-grid">
+                    <label>Price-list revision UUID
+                      <input v-model="bookingOfferCreateForm.priceListRevisionId" type="text" required maxlength="36" />
+                    </label>
+                    <label>Cancellation-policy revision UUID
+                      <input v-model="bookingOfferCreateForm.cancellationPolicyRevisionId" type="text" required maxlength="36" />
+                    </label>
+                    <label>Approval-policy revision UUID
+                      <input v-model="bookingOfferCreateForm.approvalPolicyRevisionId" type="text" required maxlength="36" />
+                    </label>
+                    <label>Currency (ISO 4217)
+                      <input v-model="bookingOfferCreateForm.currency" type="text" required maxlength="3" placeholder="e.g. BAM" />
+                    </label>
+                    <label>Tax treatment
+                      <select v-model="bookingOfferCreateForm.taxBasis" required>
+                        <option value="">Choose tax treatment…</option>
+                        <option value="inclusive">Tax inclusive</option>
+                        <option value="exclusive">Tax exclusive</option>
+                        <option value="not_applicable">Not applicable</option>
+                        <option value="to_be_confirmed">To be confirmed</option>
+                      </select>
+                    </label>
+                    <label>Offer valid until (your local time)
+                      <input v-model="bookingOfferValidUntil" type="datetime-local" required />
+                    </label>
+                    <label>Tax amount
+                      <input v-model="bookingOfferTaxAmount" type="number" min="0" step="0.01" required />
+                    </label>
+                  </div>
+                  <label>Price-list line items (JSON array)
+                    <textarea v-model="bookingOfferLineItemsJson" rows="5" spellcheck="false" placeholder='[{"itemCode":"published-item-code","quantity":1}]'></textarea>
+                  </label>
+                  <label>Manual adjustments (JSON array)
+                    <textarea v-model="bookingOfferAdjustmentsJson" rows="4" spellcheck="false" placeholder='[{"code":"adjustment-code","label":"Reasoned adjustment","kind":"discount","amount":0.01}]'></textarea>
+                  </label>
+                  <label>Internal reason / tax audit reason
+                    <textarea v-model="bookingOfferInternalReason" rows="2" maxlength="2000" required placeholder="Explain manual terms, especially any tax amount or adjustment…"></textarea>
+                  </label>
+                  <label v-if="bookingOffer" class="check-row">
+                    <input v-model="bookingOfferSupersedeCurrent" type="checkbox" />
+                    Request superseding the current offer (server validates eligibility)
+                  </label>
+                  <div class="form-actions">
+                    <button class="button button-primary" type="submit" :disabled="busy || !bookingOfferValidUntil || !bookingOfferTaxAmount.trim()">
+                      {{ bookingOffer ? "Create successor revision" : "Prepare offer" }}
+                    </button>
+                  </div>
+                </form>
+              </div>
+              <p v-else class="fine-print">Your membership cannot prepare or revise offer terms. The server still enforces the separate commercial permissions on each command.</p>
+
+              <template v-if="bookingOffer">
+                <div class="offer-summary-grid">
+                  <div class="metric"><span>Offer status</span><strong>{{ bookingOffer.status }}</strong><small>Offer {{ bookingOffer.offerId }}</small></div>
+                  <div class="metric"><span>Offer revision</span><strong>{{ bookingOffer.currentRevision.revisionNumber }}</strong><small>{{ bookingOffer.currentRevision.state }}</small></div>
+                  <div class="metric"><span>Subtotal</span><strong>{{ formatBookingMoney(bookingOffer.currentRevision.subtotal, bookingOffer.currentRevision.currency) }}</strong></div>
+                  <div class="metric"><span>Total</span><strong>{{ formatBookingMoney(bookingOffer.currentRevision.totalAmount, bookingOffer.currentRevision.currency) }}</strong><small>Tax {{ formatBookingMoney(bookingOffer.currentRevision.taxAmount, bookingOffer.currentRevision.currency) }}</small></div>
+                </div>
+                <dl class="offer-reference-list">
+                  <dt>Draft revision</dt><dd class="mono">{{ bookingOffer.currentRevision.draftRevisionId }}</dd>
+                  <dt>Price-list revision</dt><dd class="mono">{{ bookingOffer.currentRevision.priceListRevisionId }}</dd>
+                  <dt>Cancellation policy</dt><dd class="mono">{{ bookingOffer.currentRevision.cancellationPolicyRevisionId }}</dd>
+                  <dt>Approval policy</dt><dd class="mono">{{ bookingOffer.currentRevision.approvalPolicyRevisionId }}</dd>
+                  <dt>Valid until</dt><dd>{{ formatInquiryDate(bookingOffer.currentRevision.validUntil) }}</dd>
+                  <dt>Issued</dt><dd>{{ formatInquiryDate(bookingOffer.currentRevision.issuedAt) }}</dd>
+                  <dt>Customer accepted</dt><dd>{{ formatInquiryDate(bookingOffer.currentRevision.acceptedAt) }}</dd>
+                </dl>
+                <details class="offer-terms-details">
+                  <summary>Inspect immutable customer terms snapshot</summary>
+                  <pre>{{ JSON.stringify(bookingOffer.currentRevision.terms, null, 2) }}</pre>
+                </details>
+
+                <div class="offer-command-row">
+                  <button v-if="bookingOffer.currentRevision.state === 'draft'" class="button button-secondary" type="button" :disabled="busy" @click="issueBookingOffer">Issue offer to customer</button>
+                  <span v-else class="pill pill-neutral">This revision is {{ bookingOffer.currentRevision.state }}</span>
+                  <button class="button button-quiet" type="button" :disabled="busy" @click="loadBookingOffer">Refresh offer</button>
+                </div>
+
+                <div v-if="bookingOfferAcceptanceToken" class="offer-capability-box">
+                  <strong>Customer capability — copy now</strong>
+                  <p class="fine-print">This is a bearer secret. It is shown only in this session, is not stored in the database as plaintext and is not automatically emailed. The public browser page and SMTP delivery integration remain pending.</p>
+                  <input :value="bookingOfferAcceptanceToken" type="password" readonly autocomplete="off" />
+                  <button class="button button-secondary" type="button" @click="copyBookingOfferCapability">Copy customer capability</button>
+                </div>
+
+                <div v-if="bookingOfferApprovalStatus" class="offer-approval-list">
+                  <h5>Internal approval requirements</h5>
+                  <p v-if="!bookingOfferApprovalStatus.requirements.length" class="muted">No approval rules matched this offer revision. Customer acceptance and explicit booking confirmation are still required.</p>
+                  <article v-for="requirement in bookingOfferApprovalStatus.requirements" :key="requirement.ruleCode" class="offer-approval-item">
+                    <div class="inquiry-card-heading">
+                      <div>
+                        <strong>{{ requirement.ruleCode }}</strong>
+                        <p class="fine-print">{{ requirement.approvedCount }} / {{ requirement.requiredApprovals }} approvals · separation of duties {{ requirement.separationOfDuties ? "required" : "not required" }}</p>
+                      </div>
+                      <span class="pill" :class="requirement.blocked ? 'pill-danger' : requirement.approvedCount >= requirement.requiredApprovals ? 'pill-success' : 'pill-warning'">
+                        {{ requirement.blocked ? "Blocked" : requirement.approvedCount >= requirement.requiredApprovals ? "Satisfied" : "Pending" }}
+                      </span>
+                    </div>
+                    <ol v-if="requirement.decisions.length" class="history-list">
+                      <li v-for="(decision, index) in requirement.decisions" :key="decision.membershipId + '-' + index">
+                        <strong>{{ decision.decision.replaceAll("_", " ") }}</strong>
+                        <span>{{ decision.reason }}</span>
+                        <small>{{ decision.membershipId }} · {{ formatInquiryDate(decision.decidedAt) }}</small>
+                      </li>
+                    </ol>
+                    <div v-if="!requirement.blocked && requirement.approvedCount < requirement.requiredApprovals" class="operator-controls offer-approval-controls">
+                      <label>Decision
+                        <select v-model="bookingOfferApprovalDecisions[requirement.ruleCode]">
+                          <option value="approved">Approve</option>
+                          <option value="rejected">Reject</option>
+                          <option value="returned_for_changes">Return for changes</option>
+                        </select>
+                      </label>
+                      <label>Reason
+                        <textarea v-model="bookingOfferApprovalReasons[requirement.ruleCode]" rows="2" maxlength="2000" placeholder="Record the decision rationale…"></textarea>
+                      </label>
+                      <button class="button button-secondary" type="button" :disabled="busy || (bookingOfferApprovalReasons[requirement.ruleCode] ?? '').trim().length < 3" @click="decideBookingOfferApproval(requirement)">Record decision</button>
+                    </div>
+                  </article>
+                </div>
+
+                <div v-if="canConfirmBookingOffer" class="offer-confirm-box">
+                  <h5>Confirm accepted booking</h5>
+                  <p class="fine-print">The exact draft revision has an accepted customer offer and all pinned approvals are satisfied. Final space and resource availability is rechecked transactionally on confirmation.</p>
+                  <label>Booking confirmation reason
+                    <textarea v-model="bookingOfferConfirmationReason" rows="2" maxlength="2000" placeholder="Record why this booking is being confirmed…"></textarea>
+                  </label>
+                  <button class="button button-primary" type="button" :disabled="busy || bookingOfferConfirmationReason.trim().length < 3" @click="confirmBookingFromAcceptedOffer">Confirm booking</button>
+                </div>
+                <p v-else-if="bookingOffer.currentRevision.state === 'accepted'" class="fine-print text-warning">Confirmation is not available yet. Check that this accepted offer targets the current draft revision and that every approval requirement is satisfied.</p>
+
+                <div v-if="bookingOffer.revisionHistory.length" class="draft-revision-history">
+                  <h5>Offer revision history</h5>
+                  <ol class="history-list">
+                    <li v-for="history in bookingOffer.revisionHistory" :key="history.offerRevisionId">
+                      <strong>Offer revision {{ history.revisionNumber }} · {{ history.state }}</strong>
+                      <span>Draft revision {{ history.draftRevisionId }}</span>
+                      <small>{{ formatInquiryDate(history.createdAt) }} · issued {{ formatInquiryDate(history.issuedAt) }}</small>
+                    </li>
+                  </ol>
+                </div>
+              </template>
             </section>
 
             <section class="inquiry-card">
