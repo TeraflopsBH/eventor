@@ -341,6 +341,7 @@ export default {
     "spaceLines": "Stavke prostora (JSON niz)",
     "resourceLines": "Stavke resursa (JSON niz)",
     "changeReason": "Razlog izmjene",
+    "noChangeReasonRecorded": "Razlog izmjene nije evidentiran.",
     "changeReasonPlaceholder": "Objasnite zašto se kreira ova verzija…",
     "loadOfferPlaceholder": "Učitajte postojeću ponudu za ovaj nacrt",
     "currencyExamplePlaceholder": "npr. BAM",
