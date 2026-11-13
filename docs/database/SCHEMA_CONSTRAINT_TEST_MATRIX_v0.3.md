@@ -84,7 +84,7 @@ This matrix tracks executable PostgreSQL integration coverage and remaining gaps
 - [x] Individually tracked unit reservations are included in the booking resource line quantity limit; a fifth overlapping unit is rejected when the requested quantity is four.
 - [x] Pooled and individually tracked reservations share one aggregate pool-capacity invariant.
 - [x] Pooled reservation idempotency compares the booking resource line as part of the payload.
-- [ ] Disjoint sub-interval reservations that both intersect a long requested interval are evaluated by peak simultaneous quantity, not incorrectly summed across the entire interval.
+- [x] Disjoint sub-interval reservations that both intersect a long requested interval are evaluated by peak simultaneous quantity, not incorrectly summed across the entire interval.
 - [x] Adjacent half-open pool intervals do not count as simultaneous.
 - [x] Expired pooled and individually tracked holds are expired by the worker; pool capacity is reclaimed and the same discrete unit can be reserved again.
 - [ ] Resource line request/approval/delivery values remain separate from actual reservation records.
