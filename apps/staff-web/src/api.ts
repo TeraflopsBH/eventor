@@ -17,7 +17,7 @@ export class ApiError extends Error {
   }
 }
 
-const apiBase = (import.meta.env.VITE_API_BASE_URL || "/api").replace(/\/$/, "");
+const apiBase = (import.meta.env?.VITE_API_BASE_URL || "/api").replace(/\/$/, "");
 const csrfCookieName = "__Host-eventor_csrf";
 
 function readCookie(name: string): string | null {
