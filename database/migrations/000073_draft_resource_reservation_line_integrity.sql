@@ -27,6 +27,13 @@ LANGUAGE plpgsql
 SET search_path = pg_catalog, eogp
 AS $function$
 BEGIN
+  IF NEW.booking_draft_revision_id IS NOT NULL THEN
+    PERFORM pg_advisory_xact_lock(hashtextextended(
+      NEW.organization_id::text || ':' || NEW.booking_draft_revision_id::text,
+      731904
+    ));
+  END IF;
+
   IF NEW.booking_draft_revision_id IS NOT NULL
      AND NEW.booking_resource_line_id IS NULL
      AND EXISTS (
@@ -58,6 +65,11 @@ LANGUAGE plpgsql
 SET search_path = pg_catalog, eogp
 AS $function$
 BEGIN
+  PERFORM pg_advisory_xact_lock(hashtextextended(
+    NEW.organization_id::text || ':' || NEW.draft_revision_id::text,
+    731904
+  ));
+
   IF EXISTS (
     SELECT 1
       FROM eogp.resource_reservations reservation
