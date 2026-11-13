@@ -110,6 +110,14 @@ BEGIN
     RAISE EXCEPTION 'offer-save command does not use the adjustment tax allocation helper';
   END IF;
 
+  IF position('booking.approve' in v_definition)=0
+     OR position('a reason is required for a manually supplied tax amount' in lower(v_definition))=0 THEN
+    RAISE EXCEPTION 'manual invoice-level tax overrides must retain their reason and booking.approve gate';
+  END IF;
+  IF position('manual price adjustments require an explicit audited invoice tax override' in lower(v_definition))>0 THEN
+    RAISE EXCEPTION 'automatic tax calculation must not retain the obsolete blanket adjustment override gate';
+  END IF;
+
   IF NOT EXISTS (
     SELECT 1 FROM pg_catalog.pg_trigger t
     JOIN pg_catalog.pg_class r ON r.oid=t.tgrelid

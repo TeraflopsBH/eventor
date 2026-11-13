@@ -15,6 +15,7 @@ AS $function$
 DECLARE
   v_profile_revision_id uuid;
   v_profile_basis text;
+  v_profile_codes jsonb;
   v_adjustment jsonb;
   v_code text;
   v_method text;
@@ -52,7 +53,7 @@ BEGIN
     RETURN NULL;
   END IF;
 
-  SELECT revision.tax_basis INTO v_profile_basis
+  SELECT revision.tax_basis,revision.tax_codes INTO v_profile_basis,v_profile_codes
     FROM eogp.booking_tax_profile_revisions revision
    WHERE revision.organization_id=p_organization_id
      AND revision.id=v_profile_revision_id
@@ -62,7 +63,8 @@ BEGIN
     RAISE EXCEPTION 'the pinned tax profile does not match the offer tax basis' USING ERRCODE='55000';
   END IF;
 
-  IF jsonb_typeof(p_line_items)<>'array' OR jsonb_typeof(p_adjustments)<>'array' THEN
+  IF p_line_items IS NULL OR p_adjustments IS NULL
+     OR jsonb_typeof(p_line_items)<>'array' OR jsonb_typeof(p_adjustments)<>'array' THEN
     RAISE EXCEPTION 'offer lines and adjustments must be JSON arrays' USING ERRCODE='22023';
   END IF;
 
@@ -89,6 +91,13 @@ BEGIN
     ELSIF v_method='tax_code' THEN
       IF v_code IS NULL THEN
         RAISE EXCEPTION 'adjustment % requires a taxCode for tax_code allocation',v_adjustment_count
+          USING ERRCODE='22023';
+      END IF;
+      IF NOT EXISTS (
+        SELECT 1 FROM jsonb_array_elements(v_profile_codes) AS configured(value)
+         WHERE value->>'taxCode'=v_code
+      ) THEN
+        RAISE EXCEPTION 'adjustment % tax code is absent from the pinned tax profile',v_adjustment_count
           USING ERRCODE='22023';
       END IF;
       v_signed_amount:=CASE WHEN v_kind='fee' THEN v_amount ELSE -v_amount END;
