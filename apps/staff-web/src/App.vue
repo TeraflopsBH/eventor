@@ -115,10 +115,10 @@ const bookingCancellationPolicyState = useBookingCancellationPolicies({
 });
 
 const campaignState = useCampaigns({
-  api, busy, pageError, pageNotice, clearMessages, showError,
+  api, busy, pageError, pageNotice, clearMessages, showError, translate,
 });
 const emailDeliveryState = useEmailDelivery({
-  api, busy, pageError, pageNotice, clearMessages, showError,
+  api, busy, pageError, pageNotice, clearMessages, showError, translate,
 });
 const { configuration, loadConfiguration } = emailDeliveryState;
 loadEmailConfiguration = loadConfiguration;

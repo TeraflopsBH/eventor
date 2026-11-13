@@ -8,9 +8,10 @@ interface EmailDeliveryDependencies {
   pageNotice: Ref<string>;
   clearMessages: () => void;
   showError: (error: unknown) => void;
+  translate: (key: string, params?: Record<string, string | number>) => string;
 }
 
-export function useEmailDelivery({ api, busy, pageError, pageNotice, clearMessages, showError }: EmailDeliveryDependencies) {
+export function useEmailDelivery({ api, busy, pageError, pageNotice, clearMessages, showError, translate }: EmailDeliveryDependencies) {
   const configuration = ref<EmailConfiguration | null>(null);
   const emailForm = reactive({
     host: "",
@@ -70,7 +71,7 @@ export function useEmailDelivery({ api, busy, pageError, pageNotice, clearMessag
     const username = emailForm.username.trim();
     const password = emailForm.password;
     if (!emailForm.clearCredentials && emailForm.authMode === "password" && (username || password)) {
-      if (!username || !password) throw new Error("Enter both SMTP username and password, or leave both blank to retain the stored credentials.");
+      if (!username || !password) throw new Error(translate("emailDelivery.credentialsPairRequired"));
       body.credentials = { username, password };
     }
     if (emailForm.clearCredentials) body.clearCredentials = true;
@@ -86,7 +87,7 @@ export function useEmailDelivery({ api, busy, pageError, pageNotice, clearMessag
       emailForm.username = "";
       emailForm.clearCredentials = false;
       await loadConfiguration();
-      pageNotice.value = "A new SMTP configuration revision was saved. Send a test email to enable this revision for campaign delivery.";
+      pageNotice.value = translate("emailDelivery.configurationSaved");
     } catch (error) {
       showError(error);
     } finally {
@@ -100,7 +101,7 @@ export function useEmailDelivery({ api, busy, pageError, pageNotice, clearMessag
     try {
       await api.sendEmailTest(testRecipient.value.trim());
       await loadConfiguration();
-      pageNotice.value = "The SMTP test message was accepted by the configured SMTP server. The current configuration revision is now enabled for queueing.";
+      pageNotice.value = translate("emailDelivery.testAccepted");
     } catch (error) {
       showError(error);
     } finally {
@@ -111,10 +112,10 @@ export function useEmailDelivery({ api, busy, pageError, pageNotice, clearMessag
   async function prepareResendWebhook(): Promise<void> {
     clearMessages();
     if (!isResendSmtp.value) {
-      pageError.value = "Set the SMTP host to smtp.resend.com before preparing the Resend callback.";
+      pageError.value = translate("emailDelivery.resendHostRequired");
       return;
     }
-    if (!window.confirm("Prepare a new Resend callback URL? This replaces the previous Eventor endpoint and disables its previous signing secret.")) return;
+    if (!window.confirm(translate("emailDelivery.prepareWebhookPrompt"))) return;
     busy.value = true;
     try {
       const result = await api.prepareResendWebhook();
@@ -124,7 +125,7 @@ export function useEmailDelivery({ api, busy, pageError, pageNotice, clearMessag
         callbackUrl: result.data.callbackUrl,
       };
       resendWebhookSigningSecret.value = "";
-      pageNotice.value = "Callback URL prepared. Add it as a Resend webhook for email.delivered and email.bounced, then paste the generated whsec_ signing secret below.";
+      pageNotice.value = translate("emailDelivery.webhookPrepared");
     } catch (error) {
       showError(error);
     } finally {
@@ -137,11 +138,11 @@ export function useEmailDelivery({ api, busy, pageError, pageNotice, clearMessag
     const endpointId = resendWebhook.value?.endpointId;
     const secret = resendWebhookSigningSecret.value.trim();
     if (!endpointId || !resendWebhook.value?.callbackUrl) {
-      pageError.value = "Prepare the callback URL first.";
+      pageError.value = translate("emailDelivery.prepareUrlFirst");
       return;
     }
     if (!/^whsec_[A-Za-z0-9+/]+={0,2}$/.test(secret) || secret.length < 24) {
-      pageError.value = "Paste the Resend webhook signing secret beginning with whsec_.";
+      pageError.value = translate("emailDelivery.signingSecretInvalid");
       return;
     }
     busy.value = true;
@@ -149,7 +150,7 @@ export function useEmailDelivery({ api, busy, pageError, pageNotice, clearMessag
       await api.activateResendWebhook(endpointId, secret);
       resendWebhookSigningSecret.value = "";
       await loadConfiguration();
-      pageNotice.value = "Resend callback signature verification is enabled. Delivered and bounced events can now update matching attempts.";
+      pageNotice.value = translate("emailDelivery.webhookActivated");
     } catch (error) {
       showError(error);
     } finally {
@@ -162,10 +163,10 @@ export function useEmailDelivery({ api, busy, pageError, pageNotice, clearMessag
     if (!url) return;
     try {
       await navigator.clipboard.writeText(url);
-      pageNotice.value = "Resend callback URL copied.";
+      pageNotice.value = translate("emailDelivery.callbackCopied");
       pageError.value = "";
     } catch {
-      pageError.value = "Clipboard access was denied. Select and copy the callback URL manually.";
+      pageError.value = translate("emailDelivery.clipboardDenied");
     }
   }
 
