@@ -39,7 +39,7 @@ BEGIN
      OR NOT EXISTS (
        SELECT 1
          FROM unnest(coalesce(v_search_path, ARRAY[]::text[])) AS setting
-        WHERE regexp_replace(setting,'\\s','','g') = 'search_path=pg_catalog,eogp'
+        WHERE replace(setting,' ','') = 'search_path=pg_catalog,eogp'
      ) THEN
     RAISE EXCEPTION 'outbox processor must be SECURITY DEFINER with a fixed search_path';
   END IF;
