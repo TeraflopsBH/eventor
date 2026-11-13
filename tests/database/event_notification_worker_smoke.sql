@@ -33,13 +33,13 @@ BEGIN
     JOIN pg_namespace AS namespace ON namespace.oid = procedure.pronamespace
    WHERE namespace.nspname = 'eogp'
      AND procedure.proname = 'process_event_notification_outbox'
-     AND pg_get_function_identity_arguments(procedure.oid) = 'integer';
+     AND procedure.pronargs = 1;
 
   IF v_security_definer IS DISTINCT FROM true
      OR NOT EXISTS (
        SELECT 1
          FROM unnest(coalesce(v_search_path, ARRAY[]::text[])) AS setting
-        WHERE replace(setting,' ','') = 'search_path=pg_catalog,eogp'
+        WHERE regexp_replace(setting,'\\s','','g') = 'search_path=pg_catalog,eogp'
      ) THEN
     RAISE EXCEPTION 'outbox processor must be SECURITY DEFINER with a fixed search_path';
   END IF;
