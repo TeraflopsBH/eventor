@@ -127,6 +127,7 @@ CREATE FUNCTION eogp.process_event_notification_outbox(
   p_batch_size integer DEFAULT 20
 ) RETURNS jsonb
 LANGUAGE plpgsql
+SECURITY DEFINER
 SET search_path = pg_catalog, eogp
 AS $function$
 DECLARE
@@ -145,7 +146,7 @@ DECLARE
   v_processed integer := 0;
   v_inserted_count integer;
 BEGIN
-  IF current_user <> 'eventor_worker' THEN
+  IF session_user <> 'eventor_worker' THEN
     RAISE EXCEPTION 'notification outbox processing requires eventor_worker'
       USING ERRCODE = '42501';
   END IF;
@@ -548,6 +549,13 @@ BEGIN
   );
 END;
 $function$;
+
+-- The worker discovers pending tenants using only queue metadata columns.
+-- Full outbox payloads and identifiers are available only inside the tenant-bound
+-- SECURITY DEFINER processor after it sets/validates transaction tenant context.
+REVOKE ALL ON eogp.outbox_events FROM eventor_worker;
+GRANT SELECT (id, organization_id, topic, available_at, published_at, dead_lettered_at)
+  ON eogp.outbox_events TO eventor_worker;
 
 REVOKE ALL ON FUNCTION eogp.process_event_notification_outbox(integer) FROM PUBLIC;
 GRANT EXECUTE ON FUNCTION eogp.process_event_notification_outbox(integer) TO eventor_worker;
