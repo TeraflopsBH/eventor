@@ -163,6 +163,7 @@ test("booking offer email worker decrypts the queued capability and sends throug
     valid_until: new Date("2027-01-01T12:00:00.000Z"),
     currency: "BAM",
     total_amount: "125.00",
+    customer_locale: "bs-BA",
   };
   const client = {
     async query(sql: string, values: unknown[] = []) {
@@ -206,6 +207,9 @@ test("booking offer email worker decrypts the queued capability and sends throug
   assert.equal(sentMessages.length, 1);
   const sentMessage = sentMessages[0]!;
   assert.equal(sentMessage.to, "customer@example.test");
+  assert.equal(sentMessage.subject, "Ponuda za rezervaciju");
+  assert.match(sentMessage.text, /Primili ste ponudu za rezervaciju/);
+  assert.match(sentMessage.text, /Ukupan iznos ponude/);
   assert.match(sentMessage.text, new RegExp(
     `https://eventor\\.example\\.test/offers/${offerId}#token=${capability}`,
   ));

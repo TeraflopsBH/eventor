@@ -138,7 +138,7 @@ function makePool() {
         } : null;
         return { rows: [{ result }], rowCount: 1 };
       }
-      if (normalized.includes("eogp.submit_public_booking_inquiry(")) {
+      if (normalized.includes("eogp.submit_public_booking_inquiry_with_locale(")) {
         publicBookingInquiryCalls += 1;
         commandCalls.push({ sql: normalized, values });
         return { rows: [{ result: {
@@ -938,6 +938,7 @@ test("public booking intake exposes only published forms and stores anonymous in
   const inquiryBody = {
     formCode: "venue-rental",
     formRevisionId: form.formRevisionId,
+    customerLocale: "bs-BA" as const,
     requester: {
       displayName: "Jane Example",
       email: "jane@example.test",
@@ -992,6 +993,15 @@ test("public booking intake exposes only published forms and stores anonymous in
   }
   assert.equal(mock.publicBookingInquiryCalls, 1);
 
+  const unsupportedLocale = await app.inject({
+    method: "POST",
+    url: "/public/organizations/ghb/booking-inquiries",
+    headers: { "idempotency-key": "anonymous-inquiry-locale-01" },
+    payload: { ...inquiryBody, customerLocale: "fr" },
+  });
+  assert.equal(unsupportedLocale.statusCode, 400);
+  assert.equal(mock.publicBookingInquiryCalls, 1);
+
   const staleRevision = await app.inject({
     method: "POST",
     url: "/public/organizations/ghb/booking-inquiries",
@@ -1011,7 +1021,7 @@ test("public booking intake exposes only published forms and stores anonymous in
   assert.equal(missingForm.json<{ code: string }>().code, "PUBLIC_BOOKING_FORM_NOT_FOUND");
   assert.equal(mock.publicBookingInquiryCalls, 1);
 
-  const submissionCall = mock.commandCalls.find((call) => call.sql.includes("eogp.submit_public_booking_inquiry("));
+  const submissionCall = mock.commandCalls.find((call) => call.sql.includes("eogp.submit_public_booking_inquiry_with_locale("));
   assert.ok(submissionCall);
   assert.equal(submissionCall.values[0], "ghb");
   assert.equal(submissionCall.values[1], "venue-rental");
@@ -1023,6 +1033,7 @@ test("public booking intake exposes only published forms and stores anonymous in
   assert.ok(Buffer.isBuffer(submissionCall.values[7]));
   assert.ok(Buffer.isBuffer(submissionCall.values[9]));
   assert.ok(Buffer.isBuffer(submissionCall.values[11]));
+  assert.equal(submissionCall.values[15], "bs-BA");
   assert.notEqual(submissionCall.values[8], "jane@example.test");
   assert.notEqual(submissionCall.values[10], "+38761123456");
   assert.equal(

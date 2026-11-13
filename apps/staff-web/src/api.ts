@@ -693,6 +693,7 @@ export interface BookingApprovalPolicyMutationResult {
 
 export interface PublicBookingOffer {
   offerId: string;
+  customerLocale: "bs-BA" | "en";
   status: "issued" | "expired";
   revisionNumber: number;
   currency: string;

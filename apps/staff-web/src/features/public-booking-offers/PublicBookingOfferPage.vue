@@ -55,6 +55,7 @@ async function loadPublicBookingOffer(): Promise<void> {
   try {
     const result = await api.getPublicBookingOffer(publicOfferId, publicOfferToken.value);
     publicOffer.value = result.data;
+    setLocale(result.data.customerLocale);
   } catch (error) {
     publicOfferError.value = formatPublicOfferError(error, "publicOffer.couldNotLoad");
   } finally {
