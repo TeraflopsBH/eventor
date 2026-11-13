@@ -341,6 +341,7 @@ export default {
     "spaceLines": "Space lines (JSON array)",
     "resourceLines": "Resource lines (JSON array)",
     "changeReason": "Change reason",
+    "noChangeReasonRecorded": "No change reason recorded.",
     "changeReasonPlaceholder": "Explain why this revision is being created…",
     "loadOfferPlaceholder": "Load an existing offer for this draft",
     "currencyExamplePlaceholder": "e.g. BAM",
