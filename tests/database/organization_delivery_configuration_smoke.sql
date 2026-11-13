@@ -10,6 +10,8 @@ DECLARE
   v_invalid_rejected boolean := false;
   v_count integer;
   v_test jsonb;
+  v_test_retry jsonb;
+  v_projection jsonb;
   v_enabled jsonb;
   v_queue jsonb;
   v_campaign_id uuid;
@@ -124,24 +126,41 @@ BEGIN
     RAISE EXCEPTION 'expected one audit event per delivery configuration revision; got %', v_count;
   END IF;
 
-  IF eogp.get_organization_email_delivery_config(
+  v_projection := eogp.get_organization_email_delivery_config(
     '22222222-2222-4222-8222-222222222222',
     'bbbbbbbb-2222-4222-8222-bbbbbbbbbbbb'
-  ) ->> 'credentialsConfigured' <> 'true' THEN
-    RAISE EXCEPTION 'delivery configuration projection did not return the current head';
+  );
+  IF v_projection ->> 'credentialsConfigured' <> 'true'
+     OR v_projection::text LIKE '%45444331%'
+     OR v_projection ? 'credentialsCiphertextBase64' THEN
+    RAISE EXCEPTION 'delivery configuration projection did not return a safe current-head view';
   END IF;
 
-    v_test := eogp.begin_organization_email_delivery_test(
-      '22222222-2222-4222-8222-222222222222',
-      'bbbbbbbb-2222-4222-8222-bbbbbbbbbbbb',
-      repeat('1',64),
-      repeat('2',64)
-    );
-    IF (v_test ->> 'created')::boolean IS DISTINCT FROM true
-       OR v_test ->> 'status' <> 'pending'
-       OR v_test ->> 'credentialsCiphertextBase64' IS NOT NULL THEN
-      RAISE EXCEPTION 'SMTP test request did not create a safe pending request: %',v_test;
-    END IF;
+  v_test := eogp.begin_organization_email_delivery_test(
+    '22222222-2222-4222-8222-222222222222',
+    'bbbbbbbb-2222-4222-8222-bbbbbbbbbbbb',
+    repeat('1',64),
+    repeat('2',64)
+  );
+  IF (v_test ->> 'created')::boolean IS DISTINCT FROM true
+     OR v_test ->> 'status' <> 'pending'
+     OR v_test ->> 'credentialsCiphertextBase64' IS NULL
+     OR decode(v_test ->> 'credentialsCiphertextBase64','base64')
+          IS DISTINCT FROM decode('45444331' || repeat('00',29),'hex') THEN
+    RAISE EXCEPTION 'SMTP test request did not return only the expected encrypted credential envelope: %',v_test;
+  END IF;
+
+  v_test_retry := eogp.begin_organization_email_delivery_test(
+    '22222222-2222-4222-8222-222222222222',
+    'bbbbbbbb-2222-4222-8222-bbbbbbbbbbbb',
+    repeat('1',64),
+    repeat('2',64)
+  );
+  IF (v_test_retry ->> 'created')::boolean IS DISTINCT FROM false
+     OR v_test_retry ->> 'status' <> 'pending'
+     OR v_test_retry ->> 'credentialsCiphertextBase64' IS NOT NULL THEN
+    RAISE EXCEPTION 'idempotent SMTP test retry must not return the encrypted credential envelope again: %',v_test_retry;
+  END IF;
 
     v_enabled := eogp.complete_organization_email_delivery_test(
       '22222222-2222-4222-8222-222222222222',
@@ -165,7 +184,7 @@ BEGIN
       'bbbbbbbb-2222-4222-8222-bbbbbbbbbbbb'
     );
     IF v_queue ->> 'status' <> 'queued'
-       OR (v_queue ->> 'emailRecipientCount')::integer <> 2 THEN
+       OR (v_queue ->> 'emailRecipientCount')::integer <> 3 THEN
       RAISE EXCEPTION 'explicit campaign queue did not queue the expected email recipients: %',v_queue;
     END IF;
 
@@ -173,8 +192,8 @@ BEGIN
       FROM eogp.event_notification_delivery_attempts
      WHERE organization_id='22222222-2222-4222-8222-222222222222'
        AND campaign_id=v_campaign_id AND status='queued';
-    IF v_queued <> 2 THEN
-      RAISE EXCEPTION 'expected two queued SMTP attempts, got %',v_queued;
+    IF v_queued <> 3 THEN
+      RAISE EXCEPTION 'expected three queued SMTP attempts, got %',v_queued;
     END IF;
 
 END;
