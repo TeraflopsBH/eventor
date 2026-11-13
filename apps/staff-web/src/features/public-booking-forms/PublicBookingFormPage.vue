@@ -2,7 +2,7 @@
 import { computed, onMounted, ref, watch } from "vue";
 import { useI18n } from "vue-i18n";
 import { setLocale, type SupportedLocale } from "../../i18n";
-import { api, ApiError, type PublicBookingForm } from "../../api";
+import { api, ApiError, type PublicBookingForm, type PublicBookingFormField } from "../../api";
 
 const { locale, t } = useI18n();
 const match = window.location.pathname.match(/^\/book\/([A-Za-z0-9][A-Za-z0-9-]{1,79})\/([A-Za-z0-9][A-Za-z0-9_-]{1,79})\/?$/);
@@ -19,7 +19,41 @@ const localeOptions: Array<{ value: SupportedLocale; label: string }> = [
   { value: "bs-BA", label: "Bosanski" },
   { value: "en", label: "English" },
 ];
-const contentLocaleDiffers = computed(() => Boolean(form.value && form.value.locale !== locale.value));
+const localizedContent = computed(() => form.value?.fieldSchema.contentTranslations?.[locale.value as SupportedLocale]);
+const localizedFormName = computed(() => localizedContent.value?.formName || form.value?.formName || "");
+const contentLocaleDiffers = computed(() => {
+  if (!form.value || form.value.locale === locale.value) return false;
+  const translation = localizedContent.value;
+  if (!translation?.formName) return true;
+  return form.value.fieldSchema.fields.some(field => {
+    const translated = translation.fields[field.code];
+    if (field.label && !translated?.label) return true;
+    if (field.description && !translated?.description) return true;
+    if (field.helpText && !translated?.helpText) return true;
+    if (field.placeholder && !translated?.placeholder) return true;
+    return (field.options || []).some(option => !translated?.options?.[option.value]);
+  });
+});
+
+function fieldLabel(field: PublicBookingFormField): string {
+  return localizedContent.value?.fields[field.code]?.label || field.label || field.code;
+}
+
+function fieldDescription(field: PublicBookingFormField): string {
+  return localizedContent.value?.fields[field.code]?.description || field.description || "";
+}
+
+function fieldHelpText(field: PublicBookingFormField): string {
+  return localizedContent.value?.fields[field.code]?.helpText || field.helpText || "";
+}
+
+function fieldPlaceholder(field: PublicBookingFormField): string | undefined {
+  return localizedContent.value?.fields[field.code]?.placeholder || field.placeholder;
+}
+
+function optionLabel(field: PublicBookingFormField, value: string, fallback: string): string {
+  return localizedContent.value?.fields[field.code]?.options?.[value] || fallback;
+}
 
 watch(locale, value => {
   document.documentElement.lang = value;
@@ -161,7 +195,7 @@ onMounted(() => { void loadForm(); });
       </template>
       <template v-else-if="form">
         <p class="muted">{{ form.organizationName }}</p>
-        <h1>{{ form.formName }}</h1>
+        <h1>{{ localizedFormName }}</h1>
         <p class="muted">{{ t("publicBookingForm.intro") }}</p>
         <p v-if="contentLocaleDiffers" class="public-language-note">
           {{ t("publicBookingForm.contentLanguageNote", { language: form.locale === "bs-BA" ? "Bosanski" : "English" }) }}
@@ -184,32 +218,32 @@ onMounted(() => { void loadForm(); });
 
           <template v-for="field in form.fieldSchema.fields" :key="field.code">
             <label v-if="field.type === 'textarea'">
-              {{ field.label || field.code }}{{ field.required ? " *" : "" }}
-              <textarea v-model="answers[field.code]" :name="field.code" :required="field.required" :minlength="field.minLength" :maxlength="field.maxLength" :placeholder="field.placeholder" rows="4" />
-              <small v-if="field.description || field.helpText" class="muted">{{ field.description || field.helpText }}</small>
+              {{ fieldLabel(field) }}{{ field.required ? " *" : "" }}
+              <textarea v-model="answers[field.code]" :name="field.code" :required="field.required" :minlength="field.minLength" :maxlength="field.maxLength" :placeholder="fieldPlaceholder(field)" rows="4" />
+              <small v-if="fieldDescription(field) || fieldHelpText(field)" class="muted">{{ fieldDescription(field) || fieldHelpText(field) }}</small>
             </label>
             <label v-else-if="field.type === 'select'">
-              {{ field.label || field.code }}{{ field.required ? " *" : "" }}
+              {{ fieldLabel(field) }}{{ field.required ? " *" : "" }}
               <select v-model="answers[field.code]" :name="field.code" :required="field.required">
                 <option value="">{{ t("publicBookingForm.chooseOption") }}</option>
-                <option v-for="option in field.options || []" :key="option.value" :value="option.value">{{ option.label }}</option>
+                <option v-for="option in field.options || []" :key="option.value" :value="option.value">{{ optionLabel(field, option.value, option.label) }}</option>
               </select>
-              <small v-if="field.description || field.helpText" class="muted">{{ field.description || field.helpText }}</small>
+              <small v-if="fieldDescription(field) || fieldHelpText(field)" class="muted">{{ fieldDescription(field) || fieldHelpText(field) }}</small>
             </label>
             <fieldset v-else-if="field.type === 'multiselect'" class="public-choice-group">
-              <legend>{{ field.label || field.code }}{{ field.required ? " *" : "" }}</legend>
+              <legend>{{ fieldLabel(field) }}{{ field.required ? " *" : "" }}</legend>
               <label v-for="option in field.options || []" :key="option.value" class="public-choice">
                 <input type="checkbox" :checked="selectedValues(field.code).includes(option.value)" @change="toggleOption(field.code, option.value, ($event.target as HTMLInputElement).checked)" />
-                {{ option.label }}
+                {{ optionLabel(field, option.value, option.label) }}
               </label>
-              <small v-if="field.description || field.helpText" class="muted">{{ field.description || field.helpText }}</small>
+              <small v-if="fieldDescription(field) || fieldHelpText(field)" class="muted">{{ fieldDescription(field) || fieldHelpText(field) }}</small>
             </fieldset>
             <label v-else-if="field.type === 'checkbox'" class="public-checkbox">
               <input v-model="answers[field.code]" type="checkbox" :name="field.code" :required="field.required" />
-              <span>{{ field.label || field.code }}{{ field.required ? " *" : "" }}</span>
+              <span>{{ fieldLabel(field) }}{{ field.required ? " *" : "" }}</span>
             </label>
             <label v-else>
-              {{ field.label || field.code }}{{ field.required ? " *" : "" }}
+              {{ fieldLabel(field) }}{{ field.required ? " *" : "" }}
               <input
                 v-model="answers[field.code]"
                 :name="field.code"
@@ -220,10 +254,10 @@ onMounted(() => { void loadForm(); });
                 :minlength="field.minLength"
                 :maxlength="field.maxLength"
                 :step="field.integer ? 1 : 'any'"
-                :placeholder="field.placeholder || (field.type === 'datetime' ? 'YYYY-MM-DDTHH:mm:ss+01:00' : undefined)"
+                :placeholder="fieldPlaceholder(field) || (field.type === 'datetime' ? 'YYYY-MM-DDTHH:mm:ss+01:00' : undefined)"
               />
               <small v-if="field.type === 'datetime'" class="muted">{{ t("publicBookingForm.dateTimeOffsetHelp") }}</small>
-              <small v-if="field.description || field.helpText" class="muted">{{ field.description || field.helpText }}</small>
+              <small v-if="fieldDescription(field) || fieldHelpText(field)" class="muted">{{ fieldDescription(field) || fieldHelpText(field) }}</small>
             </label>
           </template>
 

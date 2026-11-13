@@ -828,7 +828,7 @@ export default {
     invalidAddress: "This booking form address is invalid.",
     unavailable: "This booking form is unavailable.",
     intro: "Complete the details below and the organization will review your inquiry.",
-    contentLanguageNote: "The organization's form content is currently authored in {language}; the interface language can be changed above.",
+    contentLanguageNote: "Some form content is still shown in {language}.",
     contactDetails: "Your contact details",
     fullName: "Full name",
     email: "Email address",

@@ -744,7 +744,20 @@ export interface PublicBookingForm {
   revisionNumber: number;
   /** Language of vendor-authored labels/options in this immutable form revision. */
   locale: "bs-BA" | "en";
-  fieldSchema: { schemaVersion?: number; fields: PublicBookingFormField[] };
+  fieldSchema: {
+    schemaVersion?: number;
+    fields: PublicBookingFormField[];
+    contentTranslations?: Partial<Record<"bs-BA" | "en", {
+      formName: string;
+      fields: Record<string, {
+        label?: string;
+        description?: string;
+        helpText?: string;
+        placeholder?: string;
+        options?: Record<string, string>;
+      }>;
+    }>>;
+  };
   publishedAt: string;
 }
 export interface PublicBookingInquirySubmission {

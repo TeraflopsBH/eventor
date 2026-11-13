@@ -130,11 +130,19 @@ function makePool() {
           formRevisionId: "12121212-1212-4121-8121-121212121212",
           revisionNumber: 3,
           locale: "bs-BA",
-          fieldSchema: { fields: [
+          fieldSchema: {
+            fields: [
             { code: "event_date", type: "date", required: true },
             { code: "event_name", type: "text", required: true, minLength: 2, maxLength: 120 },
             { code: "estimated_guests", type: "number", required: true, integer: true, min: 1, max: 5000 },
-          ] },
+            ],
+            contentTranslations: {
+              "bs-BA": {
+                formName: "Upit za iznajmljivanje prostora",
+                fields: { event_date: { label: "Datum događaja" } },
+              },
+            },
+          },
           publishedAt: "2026-11-11T12:00:00.000Z",
         } : null;
         return { rows: [{ result }], rowCount: 1 };
@@ -985,7 +993,13 @@ test("public booking intake exposes only published forms and stores anonymous in
       defaultLocale: "bs-BA" | "en";
       formCode: string;
       formRevisionId: string;
-      fieldSchema: { fields: Array<{ code: string }> };
+      fieldSchema: {
+        fields: Array<{ code: string }>;
+        contentTranslations?: Partial<Record<"bs-BA" | "en", {
+          formName: string;
+          fields: Record<string, { label?: string }>;
+        }>>;
+      };
     };
   }>().data;
   assert.equal(form.organizationSlug, "ghb");
@@ -994,6 +1008,8 @@ test("public booking intake exposes only published forms and stores anonymous in
   assert.equal(form.formCode, "venue-rental");
   assert.equal(form.formRevisionId, "12121212-1212-4121-8121-121212121212");
   assert.equal(form.fieldSchema.fields[0]?.code, "event_date");
+  assert.equal(form.fieldSchema.contentTranslations?.["bs-BA"]?.formName, "Upit za iznajmljivanje prostora");
+  assert.equal(form.fieldSchema.contentTranslations?.["bs-BA"]?.fields.event_date?.label, "Datum događaja");
 
   const inquiryBody = {
     formCode: "venue-rental",
