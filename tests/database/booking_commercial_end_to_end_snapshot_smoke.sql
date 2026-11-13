@@ -30,6 +30,7 @@ DECLARE
   v_before_reservation_count integer;
   v_after_reservation_count integer;
   v_tenant_denied boolean := false;
+  v_unlinked_resource_hold_rejected boolean := false;
   v_resource_type_id uuid := gen_random_uuid();
   v_resource_pool_id uuid := gen_random_uuid();
   v_resource_unit_id uuid := gen_random_uuid();
@@ -141,6 +142,24 @@ BEGIN
      'Pooled chairs',3,'{"fixture":"pooled-resource"}'::jsonb),
     (v_discrete_line_id,v_org,v_draft_revision_id,v_resource_type_id,'CHAIR-UNIT',
      'Tracked chair',1,'{"fixture":"discrete-resource"}'::jsonb);
+
+  -- A draft hold without a requested resource-line owner must never be
+  -- accepted: confirmation converts all live draft holds into booking stock.
+  BEGIN
+    INSERT INTO eogp.resource_reservations(
+      organization_id,resource_pool_id,booking_draft_revision_id,
+      quantity,starts_at,ends_at,status,expires_at,idempotency_key
+    ) VALUES(
+      v_org,v_resource_pool_id,v_draft_revision_id,1,
+      v_space_starts_at,v_space_ends_at,'held',
+      clock_timestamp()+interval '1 day','ci-e2e-unlinked-draft-hold'
+    );
+  EXCEPTION WHEN check_violation THEN
+    v_unlinked_resource_hold_rejected := true;
+  END;
+  IF NOT v_unlinked_resource_hold_rejected THEN
+    RAISE EXCEPTION 'draft resource hold without a resource line was accepted';
+  END IF;
 
   -- Publish tax profile revision 1 at 20%.
   v_result:=eogp.create_booking_tax_profile(v_org,v_creator,
