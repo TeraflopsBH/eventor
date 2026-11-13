@@ -68,8 +68,9 @@ GRANT SELECT, INSERT, UPDATE ON eogp.user_sessions, eogp.auth_login_attempts
   TO eventor_auth;
 
 -- A worker may discover only the tenant IDs of pending organizer event-change
--- messages. It still has to set that tenant's transaction-local context before
--- reading or changing any event, recipient, template or campaign rows.
+-- messages. It must set that tenant's transaction-local context before calling
+-- the restricted processor; the processor performs all event/recipient/template
+-- reads and campaign writes under the owner role with forced tenant RLS.
 ALTER TABLE eogp.outbox_events
   ADD COLUMN dead_lettered_at timestamptz;
 DROP INDEX eogp.outbox_ready_idx;
@@ -552,8 +553,8 @@ END;
 $function$;
 
 -- The worker discovers pending tenants using only queue metadata columns.
--- Full outbox payloads and identifiers are available only inside the tenant-bound
--- SECURITY DEFINER processor after it sets/validates transaction tenant context.
+-- Payload, aggregate and idempotency fields are available only inside the
+-- SECURITY DEFINER processor after the caller sets and the function validates tenant context.
 REVOKE ALL ON eogp.outbox_events FROM eventor_worker;
 GRANT SELECT (id, organization_id, topic, available_at, published_at, dead_lettered_at)
   ON eogp.outbox_events TO eventor_worker;
