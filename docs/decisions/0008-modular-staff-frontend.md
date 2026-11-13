@@ -73,3 +73,5 @@ The public booking-offer capability page uses the `publicOffer` feature namespac
 
 
 Booking workflow composables receive a typed translation function from `App.vue` rather than owning or importing a locale runtime. Client-owned validation, confirmation prompts, success/error notices and JSON parsing feedback use the feature catalogues. This keeps locale selection at the application boundary and makes workflow copy react to locale changes without changing domain values, API behavior or server-originated error messages.
+
+Commercial-configuration workflow composables follow the same localization boundary as inquiry and offer workflows: `App.vue` supplies the active translator, while each feature composable owns its domain validation and command orchestration. Client-owned confirmations, validation feedback and success notices resolve through the `commercialConfiguration` catalogue in English and Bosnian. The composables remain independent of Vue I18n runtime imports; domain values and server-originated API errors are not rewritten. Static view-copy localization remains a separate presentation concern.
