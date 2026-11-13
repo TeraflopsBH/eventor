@@ -1,6 +1,7 @@
 export default {
   common: {
     notProvided: "Nije navedeno",
+      "unexpectedError": "Došlo je do neočekivane greške.",
   },
   app: {
     staffWorkspace: "RADNI PROSTOR OSOBLJA",
@@ -9,6 +10,9 @@ export default {
     checkingSession: "Provjera sesije…",
     workspaceSections: "Sekcije radnog prostora",
     language: "Jezik",
+      "staffHome": "Početna stranica osoblja Eventora",
+    "footerBrand": "EVENTOR · RADNI PROSTOR OSOBLJA",
+    "footerDescription": "Samostalno hostovano · Ograničeno na organizaciju · API je mjerodavan",
   },
   auth: {
     platformEyebrow: "PLATFORMA ZA ORGANIZACIJU DOGAĐAJA",
@@ -23,6 +27,10 @@ export default {
     signingIn: "Prijava u toku…",
     signInSecurely: "Sigurna prijava",
     passwordNote: "Lozinka se šalje isključivo konfigurisanom Eventor API-ju putem HTTPS-a. Kolačići sesije su HttpOnly i Secure.",
+      "sessionExpired": "Vaša sesija je istekla. Prijavite se ponovo.",
+    "permissionDenied": "Pristup odbijen: {message}",
+    "signedIn": "Uspješno ste se prijavili.",
+    "signedOut": "Uspješno ste se odjavili.",
   },
   navigation: {
     delivery: "Dostava e-pošte",

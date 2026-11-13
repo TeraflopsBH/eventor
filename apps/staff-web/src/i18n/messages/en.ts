@@ -1,6 +1,7 @@
 export default {
   common: {
     notProvided: "Not provided",
+      "unexpectedError": "An unexpected error occurred.",
   },
   app: {
     staffWorkspace: "STAFF WORKSPACE",
@@ -9,6 +10,9 @@ export default {
     checkingSession: "Checking staff session…",
     workspaceSections: "Staff workspace sections",
     language: "Language",
+      "staffHome": "Eventor staff home",
+    "footerBrand": "EVENTOR · STAFF WORKSPACE",
+    "footerDescription": "Self-hosted · Organization-scoped · API-authoritative",
   },
   auth: {
     platformEyebrow: "EVENT OPERATIONS PLATFORM",
@@ -23,6 +27,10 @@ export default {
     signingIn: "Signing in…",
     signInSecurely: "Sign in securely",
     passwordNote: "Your password is sent only to the configured Eventor API over HTTPS. Session cookies are HttpOnly and Secure.",
+      "sessionExpired": "Your session has expired. Please sign in again.",
+    "permissionDenied": "Permission denied: {message}",
+    "signedIn": "Signed in successfully.",
+    "signedOut": "You have been signed out.",
   },
   navigation: {
     delivery: "Email delivery",

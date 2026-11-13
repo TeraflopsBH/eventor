@@ -9,10 +9,11 @@ interface StaffSessionDependencies {
   clearMessages: () => void;
   loadConfiguration: () => Promise<void>;
   resetWorkspace: () => void;
+  translate: (key: string, params?: Record<string, string | number>) => string;
 }
 
 export function useStaffSession({
-  api, busy, pageError, pageNotice, clearMessages, loadConfiguration, resetWorkspace,
+  api, busy, pageError, pageNotice, clearMessages, loadConfiguration, resetWorkspace, translate,
 }: StaffSessionDependencies) {
   const principal = ref<Principal | null>(null);
   const loadingSession = ref(true);
@@ -28,17 +29,17 @@ export function useStaffSession({
       if (error.status === 401) {
         principal.value = null;
         resetWorkspace();
-        pageError.value = "Your session has expired. Please sign in again.";
+        pageError.value = translate("auth.sessionExpired");
         return;
       }
       if (error.status === 403) {
-        pageError.value = `Permission denied: ${error.message}`;
+        pageError.value = translate("auth.permissionDenied", { message: error.message });
         return;
       }
       pageError.value = `${error.message} [${error.code}]`;
       return;
     }
-    pageError.value = error instanceof Error ? error.message : "An unexpected error occurred.";
+    pageError.value = error instanceof Error ? error.message : translate("common.unexpectedError");
   }
 
   async function refreshSession(): Promise<void> {
@@ -69,7 +70,7 @@ export function useStaffSession({
       });
       loginForm.password = "";
       await refreshSession();
-      if (principal.value) pageNotice.value = "Signed in successfully.";
+      if (principal.value) pageNotice.value = translate("auth.signedIn");
     } catch (error) {
       showError(error);
     } finally {
@@ -84,7 +85,7 @@ export function useStaffSession({
       await api.logout();
       principal.value = null;
       resetWorkspace();
-      pageNotice.value = "You have been signed out.";
+      pageNotice.value = translate("auth.signedOut");
     } catch (error) {
       showError(error);
     } finally {
