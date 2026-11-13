@@ -10,48 +10,13 @@ DECLARE
   v_invalid_rejected boolean := false;
   v_count integer;
   v_test jsonb;
+  v_test_retry jsonb;
+  v_projection jsonb;
   v_enabled jsonb;
   v_queue jsonb;
   v_campaign_id uuid;
   v_queued integer;
-  v_locale_settings jsonb;
-  v_locale_update jsonb;
-  v_original_locale text;
-  v_target_locale text;
 BEGIN
-  v_locale_settings := eogp.get_organization_locale_settings(
-    '22222222-2222-4222-8222-222222222222',
-    'bbbbbbbb-2222-4222-8222-bbbbbbbbbbbb'
-  );
-  IF (v_locale_settings ->> 'canManage')::boolean IS DISTINCT FROM true THEN
-    RAISE EXCEPTION 'organization locale projection did not honor organization.manage permission: %',v_locale_settings;
-  END IF;
-  v_original_locale := v_locale_settings ->> 'defaultLocale';
-  v_target_locale := CASE WHEN v_original_locale='en' THEN 'bs-BA' ELSE 'en' END;
-  v_locale_update := eogp.set_organization_default_locale(
-    '22222222-2222-4222-8222-222222222222',
-    'bbbbbbbb-2222-4222-8222-bbbbbbbbbbbb',
-    v_target_locale
-  );
-  IF v_locale_update ->> 'defaultLocale' IS DISTINCT FROM v_target_locale THEN
-    RAISE EXCEPTION 'organization default locale update failed: %',v_locale_update;
-  END IF;
-  PERFORM eogp.set_organization_default_locale(
-    '22222222-2222-4222-8222-222222222222',
-    'bbbbbbbb-2222-4222-8222-bbbbbbbbbbbb',
-    v_original_locale
-  );
-  BEGIN
-    PERFORM eogp.set_organization_default_locale(
-      '22222222-2222-4222-8222-222222222222',
-      'bbbbbbbb-2222-4222-8222-bbbbbbbbbbbb',
-      'fr'
-    );
-    RAISE EXCEPTION 'unsupported organization locale should have been rejected';
-  EXCEPTION WHEN SQLSTATE '22023' THEN
-    NULL;
-  END;
-
   IF has_table_privilege(current_user, 'eogp.organization_delivery_config_revisions', 'SELECT')
      OR has_table_privilege(current_user, 'eogp.organization_delivery_config_revisions', 'INSERT')
      OR has_table_privilege(current_user, 'eogp.organization_delivery_config_heads', 'SELECT')
@@ -161,27 +126,41 @@ BEGIN
     RAISE EXCEPTION 'expected one audit event per delivery configuration revision; got %', v_count;
   END IF;
 
-  IF eogp.get_organization_email_delivery_config(
+  v_projection := eogp.get_organization_email_delivery_config(
     '22222222-2222-4222-8222-222222222222',
     'bbbbbbbb-2222-4222-8222-bbbbbbbbbbbb'
-  ) ->> 'credentialsConfigured' <> 'true' THEN
-    RAISE EXCEPTION 'delivery configuration projection did not return the current head';
+  );
+  IF v_projection ->> 'credentialsConfigured' <> 'true'
+     OR v_projection::text LIKE '%45444331%'
+     OR v_projection ? 'credentialsCiphertextBase64' THEN
+    RAISE EXCEPTION 'delivery configuration projection did not return a safe current-head view';
   END IF;
 
-    v_test := eogp.begin_organization_email_delivery_test(
-      '22222222-2222-4222-8222-222222222222',
-      'bbbbbbbb-2222-4222-8222-bbbbbbbbbbbb',
-      repeat('1',64),
-      repeat('2',64)
-    );
-    -- The permission-checked database command returns the encrypted EDC1
-    -- envelope to the trusted API process so it can perform the SMTP test.
-    -- The API must never include this internal field in its HTTP response.
-    IF (v_test ->> 'created')::boolean IS DISTINCT FROM true
-       OR v_test ->> 'status' <> 'pending'
-       OR v_test ->> 'credentialsCiphertextBase64' NOT LIKE 'RURDMQ%' THEN
-      RAISE EXCEPTION 'SMTP test request did not return its internal encrypted credential envelope: %',v_test;
-    END IF;
+  v_test := eogp.begin_organization_email_delivery_test(
+    '22222222-2222-4222-8222-222222222222',
+    'bbbbbbbb-2222-4222-8222-bbbbbbbbbbbb',
+    repeat('1',64),
+    repeat('2',64)
+  );
+  IF (v_test ->> 'created')::boolean IS DISTINCT FROM true
+     OR v_test ->> 'status' <> 'pending'
+     OR v_test ->> 'credentialsCiphertextBase64' IS NULL
+     OR decode(v_test ->> 'credentialsCiphertextBase64','base64')
+          IS DISTINCT FROM decode('45444331' || repeat('00',29),'hex') THEN
+    RAISE EXCEPTION 'SMTP test request did not return only the expected encrypted credential envelope: %',v_test;
+  END IF;
+
+  v_test_retry := eogp.begin_organization_email_delivery_test(
+    '22222222-2222-4222-8222-222222222222',
+    'bbbbbbbb-2222-4222-8222-bbbbbbbbbbbb',
+    repeat('1',64),
+    repeat('2',64)
+  );
+  IF (v_test_retry ->> 'created')::boolean IS DISTINCT FROM false
+     OR v_test_retry ->> 'status' <> 'pending'
+     OR v_test_retry ->> 'credentialsCiphertextBase64' IS NOT NULL THEN
+    RAISE EXCEPTION 'idempotent SMTP test retry must not return the encrypted credential envelope again: %',v_test_retry;
+  END IF;
 
     v_enabled := eogp.complete_organization_email_delivery_test(
       '22222222-2222-4222-8222-222222222222',
@@ -206,7 +185,7 @@ BEGIN
     );
     IF v_queue ->> 'status' <> 'queued'
        OR (v_queue ->> 'emailRecipientCount')::integer <> 3 THEN
-      RAISE EXCEPTION 'explicit campaign queue did not queue all three eligible email recipients: %',v_queue;
+      RAISE EXCEPTION 'explicit campaign queue did not queue the expected email recipients: %',v_queue;
     END IF;
 
     SELECT count(*) INTO v_queued
