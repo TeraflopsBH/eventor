@@ -36,3 +36,6 @@ The next extraction after presentation helpers moves booking-inquiry state and c
 
 
 The next extraction moves booking-inquiry state and command orchestration into `src/features/booking-inquiries/useBookingInquiries.ts`. The composable receives shared application dependencies explicitly and exposes state/actions to the root composition layer. The existing inquiry template remains in `App.vue`; a dedicated feature view is a later step. Server-side authorization remains authoritative, with capability checks retained in the client for presentation and interaction gating.
+
+
+The next extraction isolates the booking-inquiry workspace presentation in `src/features/booking-inquiries/BookingInquiryView.vue`. The view receives the feature composable's state and actions through an explicit workspace prop and emits the action that opens the booking draft. The inquiry inbox/detail/review/annotation/history UI is feature-owned. Booking-draft editing and commercial offer/approval/confirmation markup remain in the root composition layer and are supplied through named slots, avoiding an accidental expansion of this view extraction into the separate commercial workflow. The root retains shared session lifecycle, booking-draft state and offer orchestration.
