@@ -20,6 +20,7 @@ DECLARE
   v_draft_revision_id uuid := gen_random_uuid();
   v_venue_id uuid := gen_random_uuid();
   v_space_id uuid := gen_random_uuid();
+  v_confirmation_space_id uuid := gen_random_uuid();
   v_alternative_space_id uuid := gen_random_uuid();
   v_held_alternative_space_id uuid := gen_random_uuid();
   v_expired_alternative_space_id uuid := gen_random_uuid();
@@ -112,7 +113,7 @@ BEGIN
   INSERT INTO eogp.venue_spaces(id,organization_id,venue_id,code,name,space_kind,capacity,status)
   VALUES
     (v_space_id,v_org,v_venue_id,'CI-ROOM','CI E2E Room','room',50,'active'),
-    (v_alternative_space_id,v_org,v_venue_id,'CI-ROOM-2','CI E2E Room 2','room',30,'active');
+    (v_confirmation_space_id,v_org,v_venue_id,'CI-ROOM-2','CI E2E Room 2','room',30,'active');
 
   INSERT INTO eogp.booking_drafts(
     id,organization_id,created_by_membership_id,status,current_revision_number
@@ -126,7 +127,7 @@ BEGIN
     organization_id,draft_revision_id,venue_space_id,block_kind,starts_at,ends_at,requested_capacity
   ) VALUES
     (v_org,v_draft_revision_id,v_space_id,'event_use',v_space_starts_at,v_space_ends_at,20),
-    (v_org,v_draft_revision_id,v_alternative_space_id,'event_use',v_space_starts_at,v_space_ends_at,10);
+    (v_org,v_draft_revision_id,v_confirmation_space_id,'event_use',v_space_starts_at,v_space_ends_at,10);
 
   -- One resource type is represented by both pooled inventory and a tracked
   -- discrete unit. The requested pooled quantity is intentionally split over
@@ -414,7 +415,7 @@ BEGIN
     organization_id,venue_space_id,booking_draft_revision_id,reservation_kind,status,
     starts_at,ends_at,expires_at,idempotency_key,actor_membership_id
   ) VALUES(
-    v_org,v_alternative_space_id,v_draft_revision_id,'draft_hold','held',
+    v_org,v_confirmation_space_id,v_draft_revision_id,'draft_hold','held',
     v_space_starts_at,v_space_ends_at,clock_timestamp()+interval '1 day',
     'ci-e2e-live-alternative-space-hold',v_creator
   );
@@ -568,7 +569,7 @@ BEGIN
   IF (
     SELECT count(*) FROM eogp.venue_space_time_blocks block
      WHERE block.organization_id=v_org
-       AND block.venue_space_id IN (v_space_id,v_alternative_space_id)
+       AND block.venue_space_id IN (v_space_id,v_confirmation_space_id)
        AND block.booking_id=v_booking_id AND block.booking_draft_revision_id IS NULL
        AND block.reservation_kind='booking' AND block.status='confirmed'
        AND block.starts_at=v_space_starts_at AND block.ends_at=v_space_ends_at
