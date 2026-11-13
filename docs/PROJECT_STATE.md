@@ -356,3 +356,13 @@ Draft PR #76 extends the read-only booking-draft availability preview with confl
 Resource results now include a per-active-pool capacity breakdown for the overall booking interval, accounting for pooled and individually tracked reservations and expiring holds. The breakdown is informational: the current booking resource-line model identifies a resource type and quantity, not a specific pool, so the UI does not pretend to assign or reserve a pool. A future allocation-model change would be needed before staff can pin a pool explicitly.
 
 The API request carries optional requested space capacity into alternative matching. English and Bosnian staff copy, route tests, OpenAPI and API/staff documentation were updated. Static source review only; tests, typecheck, production build, migration execution and browser validation were not run. GitHub Actions was not triggered because the monthly allowance remains exhausted. PR #76 is stacked on PR #75; no PRs were merged.
+
+## Integration stabilization follow-up (2026-11-13)
+
+GitHub Actions is running again on the public repository, so the full accumulated PR #72–76 stack has now been validated on the descendant integration branch rather than relying on static review. The CI workflow includes the staff-web regression suite, OpenAPI 3.1 validation/lint, API type-check/tests, and PostgreSQL 18.6 migration, RLS, tenant-isolation, concurrency, booking and notification checks.
+
+Both Node projects now commit npm-generated lockfiles (apps/api/package-lock.json and apps/staff-web/package-lock.json). CI installs from those files using npm ci, so transitive dependency resolution is repeatable and a lockfile/package mismatch fails the build. Dependabot continues to monitor dependency updates.
+
+A composable-level race was found while adding tests for the allocation availability preview: an earlier request could complete after the inputs changed or after a newer preview and overwrite the newer state. The composable now sequences preview requests, invalidates pending responses on input changes/editor reset, and only lets the latest request update result/error/busy state. Two regression tests cover input invalidation and out-of-order overlapping responses.
+
+The current PR #76 head (6da5aecd9bf3bccb8144871e383d73f914b728d9) passed push CI, PR CI and the full-history Gitleaks scan. Staff-web tests pass 42/42, followed by type-check and production build. The complete PostgreSQL and OpenAPI jobs also pass. PR #72–76 remain open and draft; no integration merges have been made. GitHub branch protection/rulesets have not been configured, so required-check enforcement is not yet active.
