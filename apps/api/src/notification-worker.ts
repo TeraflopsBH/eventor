@@ -545,7 +545,24 @@ export async function runEventNotificationWorker(
   }
 
   let stopping = false;
-  const stop = () => { stopping = true; };
+  let wakePollWait: (() => void) | undefined;
+  const stop = () => {
+    stopping = true;
+    wakePollWait?.();
+  };
+  const waitBeforeNextPoll = (milliseconds: number): Promise<void> =>
+    new Promise((resolve) => {
+      const timer = setTimeout(() => {
+        wakePollWait = undefined;
+        resolve();
+      }, milliseconds);
+      wakePollWait = () => {
+        clearTimeout(timer);
+        wakePollWait = undefined;
+        resolve();
+      };
+      if (stopping) wakePollWait();
+    });
   process.once("SIGINT", stop);
   process.once("SIGTERM", stop);
 
@@ -585,10 +602,10 @@ export async function runEventNotificationWorker(
           bookingOfferEmailRetriesScheduled: offerEmails.bookingOfferEmailRetriesScheduled,
         };
         if (totals.processed > 0 || totals.emailAttempts > 0 || totals.bookingOffersExpired > 0 || totals.bookingOfferEmailAttempts > 0) options.onBatch?.(totals);
-        if (totals.processed === 0 && totals.emailAttempts === 0 && totals.bookingOffersExpired === 0 && totals.bookingOfferEmailAttempts === 0) await sleep(idlePollMs);
+        if (totals.processed === 0 && totals.emailAttempts === 0 && totals.bookingOffersExpired === 0 && totals.bookingOfferEmailAttempts === 0) await waitBeforeNextPoll(idlePollMs);
       } catch (error) {
         options.onError?.(error);
-        await sleep(errorPollMs);
+        await waitBeforeNextPoll(errorPollMs);
       }
     }
   } finally {
