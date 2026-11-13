@@ -62,6 +62,7 @@ DECLARE
   v_snapshot eogp.booking_confirmed_snapshots%ROWTYPE;
   v_expected_snapshot_sha256 text;
   v_approval_error_message text;
+  v_hold_error_message text;
   v_tax_codes_v1 jsonb := '[{"taxCode":"STANDARD","label":"Standard rate","treatment":"percentage","rate":20}]'::jsonb;
   v_tax_codes_v2 jsonb := '[{"taxCode":"STANDARD","label":"Standard rate","treatment":"percentage","rate":30}]'::jsonb;
   v_approval_rules_v1 jsonb := '[{"code":"commercial-review","condition":{"kind":"always"},"requiredApprovals":1,"permission":"booking.approve","separationOfDuties":true}]'::jsonb;
@@ -445,33 +446,33 @@ BEGIN
     RAISE EXCEPTION 'failed partial-resource confirmation left a partial booking';
   END IF;
 
-  -- Individually valid holds must not collectively exceed the requested line
-  -- quantity: all live holds are converted, so aggregate over-allocation must
-  -- be rejected before a booking record is created.
-  PERFORM eogp.reserve_pooled_resource(
-    v_org,v_resource_pool_id,v_draft_revision_id,NULL,v_pooled_line_id,
-    v_space_starts_at,v_space_ends_at,2,clock_timestamp()+interval '1 day',
-    'ci-e2e-pooled-hold-over-allocation'
-  );
+  -- The reservation write boundary now rejects aggregate over-allocation
+  -- before an invalid second hold can be persisted. Assert the exact guard
+  -- diagnostic; the later confirmation preflight remains defence in depth
+  -- for rows created by privileged maintenance or legacy paths.
   BEGIN
-    PERFORM eogp.confirm_booking_from_offer(
-      v_org,v_draft_revision_id,v_creator,'Expected excess resource quantity rejection'
+    PERFORM eogp.reserve_pooled_resource(
+      v_org,v_resource_pool_id,v_draft_revision_id,NULL,v_pooled_line_id,
+      v_space_starts_at,v_space_ends_at,2,clock_timestamp()+interval '1 day',
+      'ci-e2e-pooled-hold-over-allocation'
     );
-    RAISE EXCEPTION 'commercial confirmation unexpectedly succeeded with excess pooled quantity';
+    RAISE EXCEPTION 'resource reservation unexpectedly accepted aggregate over-allocation';
   EXCEPTION WHEN SQLSTATE '23P01' THEN
-    NULL;
+    GET STACKED DIAGNOSTICS v_hold_error_message = MESSAGE_TEXT;
+    IF v_hold_error_message IS DISTINCT FROM 'booking resource line quantity exceeded' THEN
+      RAISE;
+    END IF;
   END;
-  IF EXISTS (SELECT 1 FROM eogp.booking_records WHERE organization_id=v_org AND source_offer_revision_id=v_offer_revision_id) THEN
-    RAISE EXCEPTION 'failed excess-resource confirmation left a partial booking';
+  IF EXISTS (
+    SELECT 1 FROM eogp.resource_reservations
+     WHERE organization_id=v_org
+       AND booking_draft_revision_id=v_draft_revision_id
+       AND idempotency_key='ci-e2e-pooled-hold-over-allocation'
+  ) THEN
+    RAISE EXCEPTION 'rejected over-allocation unexpectedly persisted a resource hold';
   END IF;
-  UPDATE eogp.resource_reservations
-     SET status='released'
-   WHERE organization_id=v_org
-     AND booking_draft_revision_id=v_draft_revision_id
-     AND idempotency_key='ci-e2e-pooled-hold-over-allocation'
-     AND status='held';
-  IF NOT FOUND THEN
-    RAISE EXCEPTION 'over-allocation fixture hold could not be released before successful confirmation';
+  IF EXISTS (SELECT 1 FROM eogp.booking_records WHERE organization_id=v_org AND source_offer_revision_id=v_offer_revision_id) THEN
+    RAISE EXCEPTION 'rejected over-allocation unexpectedly created a booking';
   END IF;
 
   -- Complete the pooled quantity with a second hold and reserve the discrete
