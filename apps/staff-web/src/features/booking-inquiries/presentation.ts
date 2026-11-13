@@ -1,4 +1,5 @@
 import type { BookingInquiryAssignee, BookingInquiryDetail } from "../../api";
+import type { SupportedLocale } from "../../i18n";
 
 export function formatInquiryAnswer(
   field: BookingInquiryDetail["fieldSchema"]["fields"][number] | undefined,
@@ -23,17 +24,35 @@ export function resolveInquiryAssigneeName(
   return assignees.find((item) => item.membershipId === membershipId)?.displayName ?? "Assigned member";
 }
 
-export function formatInquiryDate(value: string | null | undefined): string {
-  if (!value) return "Not provided";
+export function formatInquiryDate(
+  value: string | null | undefined,
+  locale: SupportedLocale,
+  timeZone: string,
+  emptyLabel: string,
+): string {
+  if (!value) return emptyLabel;
   const parsed = new Date(value);
-  return Number.isNaN(parsed.getTime()) ? value : parsed.toLocaleString();
+  if (Number.isNaN(parsed.getTime())) return value;
+  return new Intl.DateTimeFormat(locale, {
+    dateStyle: "medium",
+    timeStyle: "short",
+    timeZone,
+  }).format(parsed);
 }
 
-export function formatBookingMoney(value: string | number, currency: string): string {
+export function formatBookingMoney(
+  value: string | number,
+  currency: string,
+  locale: SupportedLocale,
+): string {
   const amount = Number(value);
   if (!Number.isFinite(amount)) return String(value) + " " + currency;
   try {
-    return new Intl.NumberFormat(undefined, { style: "currency", currency, maximumFractionDigits: 4 }).format(amount);
+    return new Intl.NumberFormat(locale, {
+      style: "currency",
+      currency,
+      maximumFractionDigits: 4,
+    }).format(amount);
   } catch {
     return amount.toFixed(2) + " " + currency;
   }

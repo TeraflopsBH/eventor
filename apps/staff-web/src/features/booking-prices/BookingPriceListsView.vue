@@ -1,11 +1,12 @@
 <script setup lang="ts">
 import type { Ref } from "vue";
-import { formatInquiryDate } from "../booking-inquiries/presentation";
+import { useInquiryPresentation } from "../booking-inquiries/useInquiryPresentation";
 import type { useBookingPriceLists } from "./useBookingPriceLists";
 
 type Workspace = ReturnType<typeof useBookingPriceLists> & { busy: Ref<boolean> };
 
 const props = defineProps<{ workspace: Workspace }>();
+const { formatDate } = useInquiryPresentation();
 
 const {
   bookingPriceLists,
@@ -88,8 +89,8 @@ const {
           <div v-if="selectedPriceListLatestRevision" class="policy-revision-meta">
             <span>Revision {{ selectedPriceListLatestRevision.revisionNumber }}</span>
             <span>{{ selectedPriceListLatestRevision.currency }} · {{ selectedPriceListLatestRevision.taxBasis.replaceAll("_", " ") }}</span>
-            <span>Created {{ formatInquiryDate(selectedPriceListLatestRevision.createdAt) }}</span>
-            <span>Published {{ formatInquiryDate(selectedPriceListLatestRevision.publishedAt) }}</span>
+            <span>Created {{ formatDate(selectedPriceListLatestRevision.createdAt) }}</span>
+            <span>Published {{ formatDate(selectedPriceListLatestRevision.publishedAt) }}</span>
             <span class="mono">{{ selectedPriceListLatestRevision.revisionId }}</span>
           </div>
           <div class="field-grid">
@@ -142,7 +143,7 @@ const {
               <li v-for="revision in selectedPriceList.revisions" :key="revision.revisionId">
                 <strong>Revision {{ revision.revisionNumber }} · {{ revision.state }} · {{ revision.items.length }} item(s)</strong>
                 <span>{{ revision.currency }} · {{ revision.taxBasis.replaceAll("_", " ") }}</span>
-                <small>Created {{ formatInquiryDate(revision.createdAt) }} · Published {{ formatInquiryDate(revision.publishedAt) }}</small>
+                <small>Created {{ formatDate(revision.createdAt) }} · Published {{ formatDate(revision.publishedAt) }}</small>
               </li>
             </ol>
           </div>

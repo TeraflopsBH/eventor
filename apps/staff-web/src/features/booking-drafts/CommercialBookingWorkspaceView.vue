@@ -2,7 +2,7 @@
 import type { Ref } from "vue";
 import type { useBookingDraft } from "./useBookingDraft";
 import type { useBookingOffers } from "../booking-offers/useBookingOffers";
-import { formatBookingMoney, formatInquiryDate } from "../booking-inquiries/presentation";
+import { useInquiryPresentation } from "../booking-inquiries/useInquiryPresentation";
 
 type Workspace = ReturnType<typeof useBookingDraft> & ReturnType<typeof useBookingOffers> & {
   busy: Ref<boolean>;
@@ -12,6 +12,7 @@ const props = defineProps<{
   section: "draft-editor" | "offer-workspace";
   workspace: Workspace;
 }>();
+const { formatDate, formatMoney } = useInquiryPresentation();
 
 const {
   detail: bookingDraftDetail,
@@ -62,7 +63,7 @@ const { busy } = props.workspace;
                   <li v-for="history in bookingDraftDetail.revisionHistory" :key="history.revisionId">
                     <strong>Revision {{ history.revisionNumber }}</strong>
                     <span>{{ history.changeReason ?? "No change reason recorded" }}</span>
-                    <small>{{ history.createdByDisplayName }} · {{ formatInquiryDate(history.createdAt) }}</small>
+                    <small>{{ history.createdByDisplayName }} · {{ formatDate(history.createdAt) }}</small>
                   </li>
                 </ol>
               </div>
@@ -185,17 +186,17 @@ const { busy } = props.workspace;
                 <div class="offer-summary-grid">
                   <div class="metric"><span>Offer status</span><strong>{{ bookingOffer.status }}</strong><small>Offer {{ bookingOffer.offerId }}</small></div>
                   <div class="metric"><span>Offer revision</span><strong>{{ bookingOffer.currentRevision.revisionNumber }}</strong><small>{{ bookingOffer.currentRevision.state }}</small></div>
-                  <div class="metric"><span>Subtotal</span><strong>{{ formatBookingMoney(bookingOffer.currentRevision.subtotal, bookingOffer.currentRevision.currency) }}</strong></div>
-                  <div class="metric"><span>Total</span><strong>{{ formatBookingMoney(bookingOffer.currentRevision.totalAmount, bookingOffer.currentRevision.currency) }}</strong><small>Tax {{ formatBookingMoney(bookingOffer.currentRevision.taxAmount, bookingOffer.currentRevision.currency) }}</small></div>
+                  <div class="metric"><span>Subtotal</span><strong>{{ formatMoney(bookingOffer.currentRevision.subtotal, bookingOffer.currentRevision.currency) }}</strong></div>
+                  <div class="metric"><span>Total</span><strong>{{ formatMoney(bookingOffer.currentRevision.totalAmount, bookingOffer.currentRevision.currency) }}</strong><small>Tax {{ formatMoney(bookingOffer.currentRevision.taxAmount, bookingOffer.currentRevision.currency) }}</small></div>
                 </div>
                 <dl class="offer-reference-list">
                   <dt>Draft revision</dt><dd class="mono">{{ bookingOffer.currentRevision.draftRevisionId }}</dd>
                   <dt>Price-list revision</dt><dd class="mono">{{ bookingOffer.currentRevision.priceListRevisionId }}</dd>
                   <dt>Cancellation policy</dt><dd class="mono">{{ bookingOffer.currentRevision.cancellationPolicyRevisionId }}</dd>
                   <dt>Approval policy</dt><dd class="mono">{{ bookingOffer.currentRevision.approvalPolicyRevisionId }}</dd>
-                  <dt>Valid until</dt><dd>{{ formatInquiryDate(bookingOffer.currentRevision.validUntil) }}</dd>
-                  <dt>Issued</dt><dd>{{ formatInquiryDate(bookingOffer.currentRevision.issuedAt) }}</dd>
-                  <dt>Customer accepted</dt><dd>{{ formatInquiryDate(bookingOffer.currentRevision.acceptedAt) }}</dd>
+                  <dt>Valid until</dt><dd>{{ formatDate(bookingOffer.currentRevision.validUntil) }}</dd>
+                  <dt>Issued</dt><dd>{{ formatDate(bookingOffer.currentRevision.issuedAt) }}</dd>
+                  <dt>Customer accepted</dt><dd>{{ formatDate(bookingOffer.currentRevision.acceptedAt) }}</dd>
                 </dl>
                 <details class="offer-terms-details">
                   <summary>Inspect immutable customer terms snapshot</summary>
@@ -250,14 +251,14 @@ const { busy } = props.workspace;
                       <div class="delivery-meta">
                         <span>SMTP attempts: {{ delivery.attemptCount }}</span>
                         <span>Manual retries: {{ delivery.manualRetryCount }} / 1</span>
-                        <span>Queued: {{ formatInquiryDate(delivery.createdAt) }}</span>
-                        <span>Last update: {{ formatInquiryDate(delivery.updatedAt) }}</span>
-                        <span v-if="delivery.status === 'queued'">Next attempt: {{ formatInquiryDate(delivery.nextAttemptAt) }}</span>
-                        <span v-if="delivery.sentAt">SMTP accepted: {{ formatInquiryDate(delivery.sentAt) }}</span>
+                        <span>Queued: {{ formatDate(delivery.createdAt) }}</span>
+                        <span>Last update: {{ formatDate(delivery.updatedAt) }}</span>
+                        <span v-if="delivery.status === 'queued'">Next attempt: {{ formatDate(delivery.nextAttemptAt) }}</span>
+                        <span v-if="delivery.sentAt">SMTP accepted: {{ formatDate(delivery.sentAt) }}</span>
                         <span v-if="delivery.lastFailureCode">Failure: {{ delivery.lastFailureCode }}</span>
                         <span v-if="delivery.lastOperatorResolution">Operator resolution: {{ delivery.lastOperatorResolution.replaceAll("_", " ") }}</span>
                         <span v-if="delivery.lastOperatorReason">Audit reason: {{ delivery.lastOperatorReason }}</span>
-                        <span v-if="delivery.lastOperatorAt">Reconciled: {{ formatInquiryDate(delivery.lastOperatorAt) }}</span>
+                        <span v-if="delivery.lastOperatorAt">Reconciled: {{ formatDate(delivery.lastOperatorAt) }}</span>
                       </div>
                       <div v-if="delivery.canReconcile" class="operator-controls">
                         <label>Verified SMTP outcome
@@ -310,7 +311,7 @@ const { busy } = props.workspace;
                       <li v-for="(decision, index) in requirement.decisions" :key="decision.membershipId + '-' + index">
                         <strong>{{ decision.decision.replaceAll("_", " ") }}</strong>
                         <span>{{ decision.reason }}</span>
-                        <small>{{ decision.membershipId }} · {{ formatInquiryDate(decision.decidedAt) }}</small>
+                        <small>{{ decision.membershipId }} · {{ formatDate(decision.decidedAt) }}</small>
                       </li>
                     </ol>
                     <div v-if="canDecideBookingOfferRequirement(requirement)" class="operator-controls offer-approval-controls">
@@ -345,7 +346,7 @@ const { busy } = props.workspace;
                     <li v-for="history in bookingOffer.revisionHistory" :key="history.offerRevisionId">
                       <strong>Offer revision {{ history.revisionNumber }} · {{ history.state }}</strong>
                       <span>Draft revision {{ history.draftRevisionId }}</span>
-                      <small>{{ formatInquiryDate(history.createdAt) }} · issued {{ formatInquiryDate(history.issuedAt) }}</small>
+                      <small>{{ formatDate(history.createdAt) }} · issued {{ formatDate(history.issuedAt) }}</small>
                     </li>
                   </ol>
                 </div>

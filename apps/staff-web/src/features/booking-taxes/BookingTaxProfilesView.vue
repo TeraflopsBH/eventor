@@ -1,11 +1,12 @@
 <script setup lang="ts">
 import type { Ref } from "vue";
-import { formatInquiryDate } from "../booking-inquiries/presentation";
+import { useInquiryPresentation } from "../booking-inquiries/useInquiryPresentation";
 import type { useBookingTaxProfiles } from "./useBookingTaxProfiles";
 
 type Workspace = ReturnType<typeof useBookingTaxProfiles> & { busy: Ref<boolean> };
 
 const props = defineProps<{ workspace: Workspace }>();
+const { formatDate } = useInquiryPresentation();
 
 const {
   bookingTaxProfiles,
@@ -47,7 +48,7 @@ const {
         <template v-if="selectedTaxProfile"><div class="divider"></div>
           <div class="policy-revision-heading"><div><h3>Revision editor · {{ selectedTaxProfile.name }}</h3><p class="fine-print">Published revisions are immutable. Create a successor to change rates or tax treatment; prior price lists and offers remain pinned.</p></div>
             <span class="pill" :class="selectedTaxProfileLatestRevision?.state === 'published' ? 'pill-success' : 'pill-warning'">Latest: {{ selectedTaxProfileLatestRevision?.state ?? "No revision" }}</span></div>
-          <div v-if="selectedTaxProfileLatestRevision" class="policy-revision-meta"><span>Revision {{ selectedTaxProfileLatestRevision.revisionNumber }}</span><span>{{ selectedTaxProfileLatestRevision.currency }} · {{ selectedTaxProfileLatestRevision.taxBasis }}</span><span>Created {{ formatInquiryDate(selectedTaxProfileLatestRevision.createdAt) }}</span><span>Published {{ formatInquiryDate(selectedTaxProfileLatestRevision.publishedAt) }}</span></div>
+          <div v-if="selectedTaxProfileLatestRevision" class="policy-revision-meta"><span>Revision {{ selectedTaxProfileLatestRevision.revisionNumber }}</span><span>{{ selectedTaxProfileLatestRevision.currency }} · {{ selectedTaxProfileLatestRevision.taxBasis }}</span><span>Created {{ formatDate(selectedTaxProfileLatestRevision.createdAt) }}</span><span>Published {{ formatDate(selectedTaxProfileLatestRevision.publishedAt) }}</span></div>
           <div class="field-grid">
             <label>Jurisdiction / authority identifier<input v-model="taxProfileRevisionForm.jurisdictionCode" maxlength="100" /></label>
             <label>Tax registration identifier<input v-model="taxProfileRevisionForm.registrationIdentifier" maxlength="120" /></label>
@@ -65,7 +66,7 @@ const {
           <div class="form-actions"><button v-if="selectedTaxProfileLatestRevision?.state !== 'draft'" class="button button-secondary" type="button" :disabled="busy" @click="createBookingTaxProfileRevision">Create successor draft revision</button>
             <button v-if="selectedTaxProfileLatestRevision?.state === 'draft'" class="button button-secondary" type="button" :disabled="busy" @click="saveBookingTaxProfileDraft">Save draft</button>
             <button v-if="selectedTaxProfileLatestRevision?.state === 'draft'" class="button button-primary" type="button" :disabled="busy" @click="publishBookingTaxProfileRevision">Publish revision</button></div>
-          <div v-if="selectedTaxProfile.revisions.length" class="draft-revision-history"><h5>Revision history</h5><ol class="history-list"><li v-for="revision in selectedTaxProfile.revisions" :key="revision.revisionId"><strong>Revision {{ revision.revisionNumber }} · {{ revision.state }} · {{ revision.taxCodes.length }} tax code(s)</strong><span>{{ revision.currency }} · {{ revision.taxBasis }} · {{ revision.roundingMethod }}</span><small>Published {{ formatInquiryDate(revision.publishedAt) }} · {{ revision.revisionId }}</small></li></ol></div>
+          <div v-if="selectedTaxProfile.revisions.length" class="draft-revision-history"><h5>Revision history</h5><ol class="history-list"><li v-for="revision in selectedTaxProfile.revisions" :key="revision.revisionId"><strong>Revision {{ revision.revisionNumber }} · {{ revision.state }} · {{ revision.taxCodes.length }} tax code(s)</strong><span>{{ revision.currency }} · {{ revision.taxBasis }} · {{ revision.roundingMethod }}</span><small>Published {{ formatDate(revision.publishedAt) }} · {{ revision.revisionId }}</small></li></ol></div>
         </template>
         <p v-else class="inquiry-detail-empty"><span class="brand-mark">E</span><strong>Select or create a tax profile</strong><span class="muted">Requires organization-level booking.manage permission.</span></p>
       </section>

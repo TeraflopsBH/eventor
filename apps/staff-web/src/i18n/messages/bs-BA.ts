@@ -1,4 +1,7 @@
 export default {
+  common: {
+    notProvided: "Nije navedeno",
+  },
   app: {
     staffWorkspace: "RADNI PROSTOR OSOBLJA",
     authenticatedSession: "Prijavljena sesija osoblja",
