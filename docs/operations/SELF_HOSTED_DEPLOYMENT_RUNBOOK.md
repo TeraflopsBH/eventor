@@ -24,7 +24,7 @@ Do not treat this draft runbook as evidence that a target host, firewall, proxy,
 Recommended initial topology:
 
 - Reverse proxy: public HTTPS entry point; route the staff-web application and `/api/*` to the API after removing the `/api` prefix.
-- API: Fastify process listening on the private interface/port (default `0.0.0.0:8080`); not directly exposed to the public internet.
+- API: Fastify process listening on the configured `HOST`/`PORT` (defaults to `0.0.0.0:8080`, which binds all interfaces). Set `HOST` to a private interface address (or loopback when the proxy is local) where practical, and enforce firewall rules so the API port is never directly reachable from the public internet.
 - Notification worker: separate process using only `EVENTOR_WORKER_DATABASE_URL`.
 - PostgreSQL: private network only. The API uses separate runtime and auth pools; the worker uses its own worker role.
 - Staff web: build the static application and serve its generated assets through the reverse proxy. The Vite development server and `vite preview` are not production servers.
