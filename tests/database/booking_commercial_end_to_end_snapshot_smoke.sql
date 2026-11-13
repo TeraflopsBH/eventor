@@ -20,6 +20,11 @@ DECLARE
   v_draft_revision_id uuid := gen_random_uuid();
   v_venue_id uuid := gen_random_uuid();
   v_space_id uuid := gen_random_uuid();
+  v_resource_type_id uuid := gen_random_uuid();
+  v_resource_pool_id uuid := gen_random_uuid();
+  v_resource_unit_id uuid := gen_random_uuid();
+  v_pooled_line_id uuid := gen_random_uuid();
+  v_discrete_line_id uuid := gen_random_uuid();
   v_space_starts_at timestamptz := clock_timestamp()+interval '10 days';
   v_space_ends_at timestamptz := clock_timestamp()+interval '10 days 8 hours';
   v_tax_profile_id uuid;
@@ -105,6 +110,25 @@ BEGIN
   INSERT INTO eogp.booking_draft_space_lines(
     organization_id,draft_revision_id,venue_space_id,block_kind,starts_at,ends_at,requested_capacity
   ) VALUES(v_org,v_draft_revision_id,v_space_id,'event_use',v_space_starts_at,v_space_ends_at,20);
+
+  -- One resource type is represented by both pooled inventory and a tracked
+  -- discrete unit. The requested pooled quantity is intentionally split over
+  -- two reservations to exercise partial-quantity aggregation.
+  INSERT INTO eogp.resource_types(id,organization_id,code,name,unit_label,reservable)
+  VALUES(v_resource_type_id,v_org,'CI-CHAIR','CI E2E Chair','chair',true);
+  INSERT INTO eogp.resource_pools(
+    id,organization_id,venue_id,resource_type_id,code,name,capacity,status
+  ) VALUES(v_resource_pool_id,v_org,v_venue_id,'CI-CHAIR-POOL','CI Chairs','CI E2E Chairs',10,'active');
+  INSERT INTO eogp.resource_units(id,organization_id,resource_pool_id,unit_code,status)
+  VALUES(v_resource_unit_id,v_org,v_resource_pool_id,'CI-CHAIR-UNIT-01','available');
+  INSERT INTO eogp.booking_resource_lines(
+    id,organization_id,draft_revision_id,resource_type_id,line_code,label_snapshot,
+    requested_quantity,value_snapshot
+  ) VALUES
+    (v_pooled_line_id,v_org,v_draft_revision_id,v_resource_type_id,'CHAIRS-POOL',
+     'Pooled chairs',3,'{"fixture":"pooled-resource"}'::jsonb),
+    (v_discrete_line_id,v_org,v_draft_revision_id,v_resource_type_id,'CHAIR-UNIT',
+     'Tracked chair',1,'{"fixture":"discrete-resource"}'::jsonb);
 
   -- Publish tax profile revision 1 at 20%.
   v_result:=eogp.create_booking_tax_profile(v_org,v_creator,
@@ -329,6 +353,80 @@ BEGIN
     'ci-e2e-live-space-hold',v_creator
   );
 
+  -- With the space hold now valid, missing resource holds must independently
+  -- block confirmation and must not leave a partially created booking.
+  BEGIN
+    PERFORM eogp.confirm_booking_from_offer(
+      v_org,v_draft_revision_id,v_creator,'Expected missing resource hold rejection'
+    );
+    RAISE EXCEPTION 'commercial confirmation unexpectedly succeeded without resource holds';
+  EXCEPTION WHEN SQLSTATE '23P01' THEN
+    NULL;
+  END;
+  IF EXISTS (SELECT 1 FROM eogp.booking_records WHERE organization_id=v_org AND source_offer_revision_id=v_offer_revision_id) THEN
+    RAISE EXCEPTION 'failed missing-resource-hold confirmation left a partial booking';
+  END IF;
+
+  -- Stale pooled and discrete holds must not satisfy the requested quantities.
+  INSERT INTO eogp.resource_reservations(
+    organization_id,resource_pool_id,booking_draft_revision_id,booking_resource_line_id,
+    quantity,starts_at,ends_at,status,expires_at,idempotency_key
+  ) VALUES(
+    v_org,v_resource_pool_id,v_draft_revision_id,v_pooled_line_id,3,
+    v_space_starts_at,v_space_ends_at,'expired',clock_timestamp()-interval '1 minute',
+    'ci-e2e-expired-pooled-hold'
+  );
+  INSERT INTO eogp.resource_reservations(
+    organization_id,resource_unit_id,booking_draft_revision_id,booking_resource_line_id,
+    quantity,starts_at,ends_at,status,expires_at,idempotency_key
+  ) VALUES(
+    v_org,v_resource_unit_id,v_draft_revision_id,v_discrete_line_id,1,
+    v_space_starts_at,v_space_ends_at,'expired',clock_timestamp()-interval '1 minute',
+    'ci-e2e-expired-unit-hold'
+  );
+  BEGIN
+    PERFORM eogp.confirm_booking_from_offer(
+      v_org,v_draft_revision_id,v_creator,'Expected expired resource hold rejection'
+    );
+    RAISE EXCEPTION 'commercial confirmation unexpectedly succeeded with expired resource holds';
+  EXCEPTION WHEN SQLSTATE '23P01' THEN
+    NULL;
+  END;
+  IF EXISTS (SELECT 1 FROM eogp.booking_records WHERE organization_id=v_org AND source_offer_revision_id=v_offer_revision_id) THEN
+    RAISE EXCEPTION 'failed expired-resource-hold confirmation left a partial booking';
+  END IF;
+
+  -- A live partial pooled quantity is still insufficient (2 of 3 chairs).
+  PERFORM eogp.reserve_pooled_resource(
+    v_org,v_resource_pool_id,v_draft_revision_id,NULL,v_pooled_line_id,
+    v_space_starts_at,v_space_ends_at,2,clock_timestamp()+interval '1 day',
+    'ci-e2e-pooled-hold-part-1'
+  );
+  BEGIN
+    PERFORM eogp.confirm_booking_from_offer(
+      v_org,v_draft_revision_id,v_creator,'Expected partial resource quantity rejection'
+    );
+    RAISE EXCEPTION 'commercial confirmation unexpectedly succeeded with only part of the pooled quantity';
+  EXCEPTION WHEN SQLSTATE '23P01' THEN
+    NULL;
+  END;
+  IF EXISTS (SELECT 1 FROM eogp.booking_records WHERE organization_id=v_org AND source_offer_revision_id=v_offer_revision_id) THEN
+    RAISE EXCEPTION 'failed partial-resource confirmation left a partial booking';
+  END IF;
+
+  -- Complete the pooled quantity with a second hold and reserve the discrete
+  -- unit separately. Both must convert against their matching booking lines.
+  PERFORM eogp.reserve_pooled_resource(
+    v_org,v_resource_pool_id,v_draft_revision_id,NULL,v_pooled_line_id,
+    v_space_starts_at,v_space_ends_at,1,clock_timestamp()+interval '1 day',
+    'ci-e2e-pooled-hold-part-2'
+  );
+  PERFORM eogp.reserve_resource_unit(
+    v_org,v_resource_unit_id,v_draft_revision_id,NULL,NULL,v_discrete_line_id,
+    v_space_starts_at,v_space_ends_at,clock_timestamp()+interval '1 day',
+    'ci-e2e-discrete-unit-hold'
+  );
+
   -- Confirmation uses the accepted revision and pinned one-approval rule,
   -- even though policy revision 2 now asks for two approvals.
   v_confirmation:=eogp.confirm_booking_from_offer(
@@ -337,7 +435,8 @@ BEGIN
   v_booking_id:=(v_confirmation->>'bookingId')::uuid;
   IF v_confirmation->>'status'<>'confirmed'
      OR coalesce((v_confirmation->>'replayed')::boolean,true)
-     OR (v_confirmation->>'spaceReservationsConfirmed')::integer<>1 THEN
+     OR (v_confirmation->>'spaceReservationsConfirmed')::integer<>1
+     OR (v_confirmation->>'resourceReservationsConfirmed')::integer<>3 THEN
     RAISE EXCEPTION 'accepted offer did not produce a new confirmed booking: %',v_confirmation;
   END IF;
 
@@ -355,6 +454,29 @@ BEGIN
        WHERE block.organization_id=v_org AND block.booking_draft_revision_id=v_draft_revision_id
          AND block.status='held')<>0 THEN
     RAISE EXCEPTION 'draft space hold remained active after booking confirmation';
+  END IF;
+
+  IF (SELECT count(*) FROM eogp.resource_reservations reservation
+       WHERE reservation.organization_id=v_org AND reservation.booking_id=v_booking_id
+         AND reservation.booking_draft_revision_id IS NULL
+         AND reservation.status='confirmed' AND reservation.expires_at IS NULL
+         AND reservation.starts_at=v_space_starts_at AND reservation.ends_at=v_space_ends_at)<>3 THEN
+    RAISE EXCEPTION 'pooled and discrete resource holds were not all converted to confirmed reservations';
+  END IF;
+  IF (SELECT count(*) FROM eogp.resource_reservations reservation
+       WHERE reservation.organization_id=v_org AND reservation.booking_draft_revision_id=v_draft_revision_id
+         AND reservation.status='held')<>0 THEN
+    RAISE EXCEPTION 'draft resource holds remained active after booking confirmation';
+  END IF;
+  IF (SELECT count(*) FROM eogp.resource_reservations reservation
+       JOIN eogp.booking_resource_lines line
+         ON line.organization_id=reservation.organization_id
+        AND line.id=reservation.booking_resource_line_id
+       WHERE reservation.organization_id=v_org AND reservation.booking_id=v_booking_id
+         AND reservation.status='confirmed'
+         AND ((reservation.resource_pool_id IS NOT NULL AND line.line_code='CHAIRS-POOL')
+           OR (reservation.resource_unit_id IS NOT NULL AND line.line_code='CHAIR-UNIT')))<>3 THEN
+    RAISE EXCEPTION 'confirmed resource reservations were not mapped to the correct booking resource lines';
   END IF;
 
   SELECT * INTO v_snapshot
