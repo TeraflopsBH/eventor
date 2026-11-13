@@ -366,3 +366,11 @@ Both Node projects now commit npm-generated lockfiles (apps/api/package-lock.jso
 A composable-level race was found while adding tests for the allocation availability preview: an earlier request could complete after the inputs changed or after a newer preview and overwrite the newer state. The composable now sequences preview requests, invalidates pending responses on input changes/editor reset, and only lets the latest request update result/error/busy state. Two regression tests cover input invalidation and out-of-order overlapping responses.
 
 The current PR #76 head (6da5aecd9bf3bccb8144871e383d73f914b728d9) passed push CI, PR CI and the full-history Gitleaks scan. Staff-web tests pass 42/42, followed by type-check and production build. The complete PostgreSQL and OpenAPI jobs also pass. PR #72–76 remain open and draft; no integration merges have been made. GitHub branch protection/rulesets have not been configured, so required-check enforcement is not yet active.
+
+## Dependency audit remediation (2026-11-13)
+
+A high-severity npm audit gate was added to CI for both Node projects. The first run exposed seven high-severity staff-web findings in Vue I18n, Vue and Vite, plus a high-severity Nodemailer advisory in the API. The affected direct dependencies were upgraded to Vue 3.5.45, Vue I18n 11.4.19, Vite 7.3.8 and Nodemailer 10.5.0; both committed lockfiles were regenerated from npm's resolver.
+
+The refreshed API and staff-web dependency trees each report zero vulnerabilities at the configured high-severity threshold. The API test/build suite and staff-web 42-test regression suite, type-check and production build all passed during the lockfile refresh workflow. The Nodemailer 10 upgrade also required treating the accepted-recipient result as optional in the transport adapter; an empty accepted list remains a rejected test delivery.
+
+The temporary one-shot lockfile-refresh workflow removed itself after committing the refreshed lockfiles. The normal integration CI must still pass on the final updated branch head before any merge consideration.
