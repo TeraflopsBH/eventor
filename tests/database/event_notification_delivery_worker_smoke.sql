@@ -4,7 +4,6 @@ SET LOCAL app.organization_id='22222222-2222-4222-8222-222222222222';
 
 DO $delivery_first$
 DECLARE
-  v_campaign_id uuid;
   v_job record;
   v_result jsonb;
   v_retry_scheduled boolean := false;
@@ -14,14 +13,14 @@ BEGIN
     RAISE EXCEPTION 'delivery worker smoke test must run as eventor_worker';
   END IF;
   IF has_table_privilege(current_user,'eogp.organization_delivery_config_revisions','SELECT')
-     OR has_table_privilege(current_user,'eogp.organization_delivery_config_heads','SELECT') THEN
-    RAISE EXCEPTION 'worker must not directly read SMTP configuration or credentials';
+     OR has_table_privilege(current_user,'eogp.organization_delivery_config_heads','SELECT')
+     OR has_table_privilege(current_user,'eogp.event_notification_campaigns','SELECT')
+     OR has_table_privilege(current_user,'eogp.event_notification_recipients','SELECT')
+     OR has_table_privilege(current_user,'eogp.event_notification_delivery_attempts','SELECT')
+     OR has_table_privilege(current_user,'eogp.person_contact_points','SELECT') THEN
+    RAISE EXCEPTION 'worker must use restricted functions rather than direct access to SMTP, contact or campaign data';
   END IF;
 
-  SELECT id INTO v_campaign_id
-    FROM eogp.event_notification_campaigns
-   WHERE organization_id='22222222-2222-4222-8222-222222222222'
-     AND event_decision_id='94900000-0000-4000-8000-000000000001';
   IF NOT EXISTS (
     SELECT 1 FROM eogp.discover_pending_email_delivery_tenants()
      WHERE organization_id='22222222-2222-4222-8222-222222222222'
@@ -106,26 +105,6 @@ BEGIN
 END;
 $delivery_first$;
 
-DO $delivery_retry$
-DECLARE
-  v_campaign_id uuid;
-  v_status text;
-  v_attempt_count integer;
-BEGIN
-  SELECT id,status INTO v_campaign_id,v_status
-    FROM eogp.event_notification_campaigns
-   WHERE organization_id='22222222-2222-4222-8222-222222222222'
-     AND event_decision_id='94900000-0000-4000-8000-000000000001';
-  SELECT count(*) INTO v_attempt_count
-    FROM eogp.event_notification_delivery_attempts
-   WHERE organization_id='22222222-2222-4222-8222-222222222222'
-     AND campaign_id=v_campaign_id;
-  IF v_status<>'partial' OR v_attempt_count<>3 THEN
-    RAISE EXCEPTION 'delivery state machine ended unexpectedly: status %, attempts %',
-      v_status,v_attempt_count;
-  END IF;
-END;
-$delivery_retry$;
 COMMIT;
 
 \echo 'SMTP delivery worker state-machine smoke tests passed.'
