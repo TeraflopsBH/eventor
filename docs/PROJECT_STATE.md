@@ -397,3 +397,12 @@ The matrix was reconciled against the actual PostgreSQL test files and the CI wo
 - A second overlapping reservation for the same individually tracked resource unit is rejected, while the original hold remains intact. The direct regression is in `tests/database/review_regressions.sql`, executed by the PostgreSQL workflow's PR review remediation regression step.
 
 The second regression was added in commit `2e2587f6dd2f31d0b9d2dc868b6844c341369ebc`; the matrix updates are documentation-only. Exact-head integration and full-history secret scanning passed on `8ad9eba52263b5757b7413a5ebbfc2b9b48375d0`. No other unchecked scenario was marked complete merely because related behavior or a nearby test exists.
+
+
+### Multi-space booking confirmation regression — 2026-11-13
+
+Expanded `tests/database/booking_commercial_end_to_end_snapshot_smoke.sql` to use two distinct venue spaces at the same requested time. The fixture now asserts that confirmation with only one of the two required live holds is rejected without creating a booking or changing the valid hold; after the second exact hold is supplied, the accepted offer confirms and both space reservations are converted to confirmed booking occupancy. This is a test-only change; no production SQL or application behavior changed.
+
+The regression passed in the exact-head PostgreSQL 18.6 integration workflow [#43529841040](https://github.com/TeraflopsBH/eventor/actions/runs/43529841040). OpenAPI/API and staff-web jobs also passed. Full-history Gitleaks passed in [#43529840899](https://github.com/TeraflopsBH/eventor/actions/runs/43529840899). The schema constraint matrix now records **78 verified assertions and 27 unchecked scenarios**. The expiry-worker/confirmation race and explicit independent-connection proof of hold-to-booking serialization remain unchecked; code review indicates row-level updates and the final conversion-count check make a concurrent expiry cause the confirmation transaction to roll back rather than commit a partial booking, but that reasoning is not a substitute for a dedicated concurrency regression.
+
+Current PR #76 head after the test and matrix updates is `53ae9c1edee3d0940b02a242975a0d941070fa6f`; its documentation update still requires its own exact-head CI run. PR #76 remains open and draft. No PRs have been merged.
