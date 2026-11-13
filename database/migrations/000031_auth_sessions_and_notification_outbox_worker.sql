@@ -85,7 +85,10 @@ CREATE POLICY worker_event_notification_outbox_discovery
     AND dead_lettered_at IS NULL
   );
 
-GRANT SELECT ON
+-- The worker reads source contacts and writes campaign snapshots only inside
+-- the tenant-bound SECURITY DEFINER processor. It must not be able to inspect
+-- preview recipients or source contact data directly.
+REVOKE ALL ON
   eogp.events,
   eogp.event_schedule_revisions,
   eogp.event_change_requests,
@@ -95,14 +98,12 @@ GRANT SELECT ON
   eogp.person_contact_points,
   eogp.invitations,
   eogp.rsvp_responses,
-  eogp.notification_templates
-TO eventor_worker;
-
-GRANT SELECT, INSERT, UPDATE ON eogp.event_notification_campaigns TO eventor_worker;
-GRANT SELECT, INSERT ON
+  eogp.notification_templates,
+  eogp.event_notification_campaigns,
   eogp.event_notification_recipients,
-  eogp.event_notification_exclusions
-TO eventor_worker;
+  eogp.event_notification_exclusions,
+  eogp.event_notification_delivery_attempts
+FROM eventor_worker;
 
 DO $preflight$
 BEGIN
