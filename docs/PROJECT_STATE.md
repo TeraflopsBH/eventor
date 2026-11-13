@@ -198,3 +198,6 @@ The first implementation slice is intentionally architectural: no locale columns
 ## Staff frontend structure
 
 The i18n foundation is organized under `apps/staff-web/src/i18n/`: language catalogues are separate from runtime setup and locale-aware formatting helpers. The root application currently consumes the runtime and translates the shared authentication/workspace shell. The legacy workflow implementation remains in `App.vue`; future work must extract feature views, composables and shared components incrementally under ADR 0008 rather than adding more unrelated workflow logic to the root component.
+
+
+The first legacy workflow extraction is now represented by `apps/staff-web/src/features/booking-inquiries/presentation.ts`. Inquiry answer display, assignee-name resolution, inquiry date display and booking-money display helpers have been moved out of `App.vue` into a feature-owned presentation module, with the existing behavior retained. This is an intentionally small first boundary; inquiry state/API orchestration and the large workflow template remain in the root component for subsequent composable/view extraction. The extracted money/date helpers currently preserve the prior default-locale behavior and should be aligned with the explicit i18n formatting context as those workflows are migrated.

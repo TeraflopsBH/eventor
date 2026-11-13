@@ -25,3 +25,8 @@ The staff application currently places most application state, API orchestration
 - `App.vue` remains temporarily large until existing workflows are extracted; this ADR does not claim that the legacy monolith has already been decomposed.
 - The i18n foundation is a first modular boundary: locale catalogues, runtime setup and formatting utilities live outside the root component.
 - Subsequent extraction should prioritize feature views and API/state composables, preserving behavior and authorization checks.
+
+
+## Incremental extraction record
+
+The first extraction moves booking-inquiry presentation logic into `src/features/booking-inquiries/presentation.ts`: answer-value formatting, assignee display-name resolution, inquiry date display and booking-money display. The module depends only on the API's inquiry data types and explicit inputs; it does not own network calls or authorization decisions. Existing behavior is preserved while the root component delegates to the feature module. Next extraction should move inquiry state and API orchestration into a focused composable, then isolate the inquiry view, rather than attempting a wholesale rewrite.
