@@ -4,6 +4,7 @@ import { useI18n } from "vue-i18n";
 import type { SupportedLocale } from "./i18n";
 import PublicBookingOfferPage from "./features/public-booking-offers/PublicBookingOfferPage.vue";
 import StaffApplicationShell from "./features/application-shell/StaffApplicationShell.vue";
+import OrganizationLocaleView from "./features/application-shell/OrganizationLocaleView.vue";
 import { useStaffSession } from "./features/application-shell/useStaffSession";
 import { useBookingInquiries } from "./features/booking-inquiries/useBookingInquiries";
 import { useBookingDraft } from "./features/booking-drafts/useBookingDraft";
@@ -33,7 +34,7 @@ const localeOptions: Array<{ value: SupportedLocale; label: string }> = [
 ];
 
 const isPublicOfferPage = /^\/offers\/[0-9a-fA-F-]{36}\/?$/.test(window.location.pathname);
-const activeTab = ref<"delivery" | "campaign" | "inquiries" | "approvals" | "prices" | "cancellations" | "taxes">("delivery");
+const activeTab = ref<"delivery" | "campaign" | "inquiries" | "approvals" | "prices" | "cancellations" | "taxes" | "settings">("delivery");
 const busy = ref(false);
 const pageError = ref("");
 const pageNotice = ref("");
@@ -45,8 +46,14 @@ const staffSessionState = useStaffSession({
   loadConfiguration: () => loadEmailConfiguration(),
   resetWorkspace: () => resetWorkspace(),
   translate,
+  applyLocale: (value) => { locale.value = value as SupportedLocale; },
 });
 const { principal, showError, refreshSession } = staffSessionState;
+
+function applyOrganizationDefaultLocale(value: SupportedLocale): void {
+  if (principal.value?.userLocale === null) locale.value = value;
+}
+
 
 const canReadBookingDraft = computed(() =>
   inquiryCapabilities.value.canReadDraft && Boolean(inquiryDetail.value?.bookingDraft),
@@ -207,6 +214,8 @@ onMounted(() => {
       <BookingTaxProfilesView v-else-if="activeTab === 'taxes'" :workspace="{ ...bookingTaxProfileState, busy }" />
 
       <BookingCancellationPoliciesView v-else-if="activeTab === 'cancellations'" :workspace="{ ...bookingCancellationPolicyState, busy }" />
+
+      <OrganizationLocaleView v-else-if="activeTab === 'settings'" :busy="busy" :page-notice="pageNotice" :show-error="showError" :translate="translate" :on-default-locale-changed="applyOrganizationDefaultLocale" />
 
       <CampaignWorkspaceView v-else :workspace="campaignWorkspace" />
     

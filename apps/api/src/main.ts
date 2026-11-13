@@ -85,6 +85,7 @@ const app = buildApi({
   createStaffSession: (request, body) => auth.createStaffSession(request, body),
   revokeStaffSession: (principal) => auth.revokeStaffSession(principal),
   getCurrentPrincipal: (principal) => auth.getCurrentPrincipal(principal),
+  updateUserLocale: (principal, locale) => auth.updateUserLocale(principal, locale),
   privateFieldEncryptionKey,
   contactEncryptionKey,
   publicInquiryFingerprintKey,

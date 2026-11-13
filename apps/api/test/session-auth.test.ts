@@ -70,6 +70,12 @@ function makePool(passwordHash: string, blocked = false) {
       if (normalized.startsWith("SELECT csrf_token_sha256")) {
         return { rows: [{ csrf_token_sha256: csrfHash }], rowCount: 1 };
       }
+      if (normalized.startsWith("SELECT locale_preference FROM eogp.users")) {
+        return { rows: [{ locale_preference: null }], rowCount: 1 };
+      }
+      if (normalized.startsWith("UPDATE eogp.users")) {
+        return { rows: [], rowCount: 1 };
+      }
       if (normalized.startsWith("SELECT membership.id AS membership_id")) {
         return {
           rows: [{
@@ -77,6 +83,7 @@ function makePool(passwordHash: string, blocked = false) {
             organization_id: organizationId,
             organization_slug: "event-owner",
             organization_name: "Event Owner",
+            default_locale: "bs-BA",
           }],
           rowCount: 1,
         };
@@ -142,6 +149,8 @@ test("staff login stores only hashed opaque session/CSRF tokens and authenticate
   assert.equal(mismatchedMutation, false);
 
   const principal = await auth.getCurrentPrincipal(created.principal);
+  assert.equal(principal.userLocale, null);
+  assert.equal(principal.organizationDefaultLocale, "bs-BA");
   assert.deepEqual(principal.memberships, [{
     membershipId,
     organizationId,
@@ -149,6 +158,11 @@ test("staff login stores only hashed opaque session/CSRF tokens and authenticate
     organizationName: "Event Owner",
     selected: true,
   }]);
+
+  await auth.updateUserLocale(created.principal, "en");
+  assert.ok(mock.calls.some((call) => call.sql.startsWith("UPDATE eogp.users") && call.values[1] === "en"));
+  await auth.updateUserLocale(created.principal, null);
+  assert.ok(mock.calls.some((call) => call.sql.startsWith("UPDATE eogp.users") && call.values[1] === null));
 
   await auth.revokeStaffSession(created.principal);
   assert.ok(mock.calls.some((call) => call.sql.startsWith("UPDATE eogp.user_sessions")));
