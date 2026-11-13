@@ -142,7 +142,6 @@ BEGIN
     (v_discrete_line_id,v_org,v_draft_revision_id,v_resource_type_id,'CHAIR-UNIT',
      'Tracked chair',1,'{"fixture":"discrete-resource"}'::jsonb);
 
-  -- A draft hold without a requested resource-line owner must never be
   -- Unassigned holds remain permissible during draft allocation; they
   -- are rejected only if confirmation would convert them to booking stock.
   INSERT INTO eogp.resource_reservations(
