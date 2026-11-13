@@ -261,6 +261,22 @@ BEGIN
       USING ERRCODE = '23P01';
   END IF;
 
+  -- Unassigned holds are valid while a draft is being allocated, but they
+  -- must never be converted into confirmed booking occupancy. Every live hold
+  -- must be attributable to one of the commercial resource lines.
+  IF EXISTS (
+    SELECT 1
+      FROM eogp.resource_reservations reservation
+     WHERE reservation.organization_id=p_organization_id
+       AND reservation.booking_draft_revision_id=p_draft_revision_id
+       AND reservation.booking_resource_line_id IS NULL
+       AND reservation.status='held'
+       AND reservation.expires_at>clock_timestamp()
+  ) THEN
+    RAISE EXCEPTION 'an active resource hold is not represented by a booking resource line'
+      USING ERRCODE = '23P01';
+  END IF;
+
   -- Every requested resource line needs live holds at every represented
   -- interval. Split pooled/discrete holds may satisfy the same interval together.
   SELECT count(*) INTO v_expected_resource_holds
