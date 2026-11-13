@@ -91,7 +91,7 @@ const { busy } = props.workspace;
                 <ol class="history-list">
                   <li v-for="history in bookingDraftDetail.revisionHistory" :key="history.revisionId">
                     <strong>{{ t("commercialBooking.revisionNumber", { number: history.revisionNumber }) }}</strong>
-                    <span>{{ history.changeReason ?? "No change reason recorded" }}</span>
+                    <span>{{ history.changeReason ?? t("commercialBooking.noChangeReasonRecorded") }}</span>
                     <small>{{ history.createdByDisplayName }} · {{ formatDate(history.createdAt) }}</small>
                   </li>
                 </ol>
@@ -245,7 +245,7 @@ const { busy } = props.workspace;
                   <div class="delivery-toolbar">
                     <label>{{$t('commercialBooking.filterEmail')}}<select v-model="bookingOfferEmailStatusFilter" @change="bookingOfferEmailOffset = 0; refreshBookingOfferEmailData()">
                         <option value="">{{$t('commercialBooking.allStatuses')}}</option>
-                        <option v-for="status in ['queued','sending','sent','failed','uncertain']" :key="status" :value="status">{{ status }}</option>
+                        <option v-for="status in ['queued','sending','sent','failed','uncertain']" :key="status" :value="status">{{ commercialStatusLabel(status) }}</option>
                       </select>
                     </label>
                   </div>
