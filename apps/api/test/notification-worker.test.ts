@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 import type { Pool, PoolClient, QueryResultRow } from "pg";
-import { processPendingEmailDeliveries, processPendingEventChangeNotifications } from "../src/notification-worker.js";
+import { processExpiredBookingOffers, processPendingBookingOfferEmailDeliveries, processPendingEmailDeliveries, processPendingEventChangeNotifications } from "../src/notification-worker.js";
 import { encryptContactValue } from "../src/contact-crypto.js";
 import { encryptDeliveryCredentials } from "../src/delivery-credentials-crypto.js";
 import type { SmtpTransportFactory } from "../src/smtp-transport.js";
@@ -25,6 +25,9 @@ function fakePool(tenants: string[]) {
           const normalized = sql.replace(/\s+/g, " ").trim();
           calls.push({ sql: normalized, values });
           transactions.push(normalized);
+          if (normalized.startsWith("SELECT eogp.expire_due_booking_offers")) {
+            return { rows: [{ expired_count: 3 }], rowCount: 1 };
+          }
           if (normalized.startsWith("SELECT eogp.process_event_notification_outbox")) {
             return {
               rows: [{
@@ -71,6 +74,12 @@ test("notification worker sets tenant context and commits one batch per tenant",
     emailFailed: 0,
     emailUncertain: 0,
     emailRetriesScheduled: 0,
+    bookingOffersExpired: 0,
+    bookingOfferEmailAttempts: 0,
+    bookingOfferEmailSent: 0,
+    bookingOfferEmailFailed: 0,
+    bookingOfferEmailUncertain: 0,
+    bookingOfferEmailRetriesScheduled: 0,
   });
   assert.equal(mock.released.length, 2);
   assert.equal(
@@ -83,6 +92,136 @@ test("notification worker sets tenant context and commits one batch per tenant",
   );
   assert.equal(mock.transactions.filter((sql) => sql === "BEGIN").length, 2);
   assert.equal(mock.transactions.filter((sql) => sql === "COMMIT").length, 2);
+});
+
+test("booking offer expiry worker discovers due tenants and expires within tenant context", async () => {
+  const tenantA = "11111111-1111-4111-8111-111111111111";
+  const tenantB = "22222222-2222-4222-8222-222222222222";
+  const mock = fakePool([tenantA, tenantB]);
+
+  const result = await processExpiredBookingOffers(mock.pool, 25, 50);
+
+  assert.deepEqual(result, { tenantsVisited: 2, expired: 6 });
+  assert.equal(
+    mock.calls.filter((call) => call.sql.includes("discover_due_booking_offer_expiry_tenants")).length,
+    1,
+  );
+  const expiryCalls = mock.calls.filter((call) => call.sql.includes("expire_due_booking_offers"));
+  assert.equal(expiryCalls.length, 2);
+  assert.deepEqual(expiryCalls[0]?.values, [tenantA, 25]);
+  assert.deepEqual(expiryCalls[1]?.values, [tenantB, 25]);
+  assert.equal(mock.released.length, 2);
+  assert.equal(mock.transactions.filter((sql) => sql === "BEGIN").length, 2);
+  assert.equal(mock.transactions.filter((sql) => sql === "COMMIT").length, 2);
+});
+
+test("booking offer expiry worker rejects unsafe limits before discovery", async () => {
+  const mock = fakePool([]);
+  await assert.rejects(processExpiredBookingOffers(mock.pool, 501, 10), RangeError);
+  assert.equal(mock.calls.length, 0);
+});
+
+test("booking offer email worker decrypts the queued capability and sends through the configured SMTP transport", async () => {
+  const organizationId = "11111111-1111-4111-8111-111111111111";
+  const offerId = "22222222-2222-4222-8222-222222222222";
+  const offerRevisionId = "33333333-3333-4333-8333-333333333333";
+  const deliveryId = "44444444-4444-4444-8444-444444444444";
+  const contactKey = Buffer.alloc(32, 21);
+  const deliveryKey = Buffer.alloc(32, 22);
+  const capability = "A".repeat(43);
+  const recipientCiphertext = encryptContactValue(
+    "customer@example.test", contactKey,
+    { organizationId, contactKind: "email" },
+  );
+  const capabilityCiphertext = encryptContactValue(
+    capability, contactKey,
+    { organizationId, contactKind: "other" },
+  );
+  const calls: string[] = [];
+  const sentMessages: Array<{ to: string; subject: string; text: string }> = [];
+  let closed = false;
+  const job = {
+    delivery_id: deliveryId,
+    offer_id: offerId,
+    offer_revision_id: offerRevisionId,
+    capability_ciphertext: capabilityCiphertext,
+    recipient_ciphertext: recipientCiphertext,
+    credentials_ciphertext: null,
+    smtp_settings: {
+      host: "smtp.example.test",
+      port: 587,
+      transportSecurity: "starttls" as const,
+      authMode: "none" as const,
+      senderEmail: "offers@example.test",
+      senderName: "Example Venue",
+      replyTo: null,
+      connectionTimeoutMs: 15000,
+    },
+    sender_email: "offers@example.test",
+    sender_name: "Example Venue",
+    reply_to: null,
+    valid_until: new Date("2027-01-01T12:00:00.000Z"),
+    currency: "BAM",
+    total_amount: "125.00",
+  };
+  const client = {
+    async query(sql: string, values: unknown[] = []) {
+      const normalized = sql.replace(/\s+/g, " ").trim();
+      calls.push(normalized);
+      if (normalized.startsWith("SELECT * FROM eogp.claim_booking_offer_email_delivery")) {
+        return { rows: [job], rowCount: 1 };
+      }
+      if (normalized.startsWith("SELECT eogp.complete_booking_offer_email_delivery")) {
+        assert.deepEqual(values, [organizationId, deliveryId, "sent", null, "smtp-message-id"]);
+        return { rows: [{ result: { retryScheduled: false } }], rowCount: 1 };
+      }
+      return { rows: [], rowCount: 1 };
+    },
+    release() {},
+  };
+  const pool = {
+    async query(sql: string) {
+      calls.push(sql);
+      return { rows: [{ organization_id: organizationId }], rowCount: 1 };
+    },
+    async connect() { return client; },
+  } as unknown as Pool;
+  const factory: SmtpTransportFactory = () => ({
+    async verify() { return true; },
+    async sendMail(message) {
+      sentMessages.push(message);
+      return { messageId: "smtp-message-id", accepted: [message.to] };
+    },
+    close() { closed = true; },
+  });
+
+  const result = await processPendingBookingOfferEmailDeliveries(
+    pool, contactKey, deliveryKey, "https://eventor.example.test", 10, 10, factory,
+  );
+  assert.equal(result.bookingOfferEmailAttempts, 1);
+  assert.equal(result.bookingOfferEmailSent, 1);
+  assert.equal(result.bookingOfferEmailFailed, 0);
+  assert.equal(result.bookingOfferEmailUncertain, 0);
+  assert.equal(closed, true);
+  assert.equal(sentMessages.length, 1);
+  const sentMessage = sentMessages[0]!;
+  assert.equal(sentMessage.to, "customer@example.test");
+  assert.match(sentMessage.text, new RegExp(
+    `https://eventor\\.example\\.test/offers/${offerId}#token=${capability}`,
+  ));
+  assert.ok(calls.some((sql) => sql === "BEGIN"));
+  assert.ok(calls.some((sql) => sql === "COMMIT"));
+});
+
+test("booking offer email worker rejects a non-HTTPS public application URL before discovery", async () => {
+  const mock = fakePool([]);
+  await assert.rejects(
+    processPendingBookingOfferEmailDeliveries(
+      mock.pool, Buffer.alloc(32), Buffer.alloc(32), "http://eventor.example.test",
+    ),
+    /must be HTTPS/,
+  );
+  assert.equal(mock.calls.length, 0);
 });
 
 test("notification worker rejects unsafe batch sizes before querying", async () => {

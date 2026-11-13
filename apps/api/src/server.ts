@@ -27,6 +27,33 @@ type EventChangeDecisionBody = JsonRequestBody<"/event-change-requests/{requestI
 type EventChangeExecutionBody = JsonRequestBody<"/event-change-requests/{requestId}/execute", "post">;
 type EmailDeliveryConfigBody = JsonRequestBody<"/organization/delivery/email/configuration", "post">;
 type EmailDeliveryTestBody = JsonRequestBody<"/organization/delivery/email/test", "post">;
+type BookingOfferCreateBody = {
+  priceListRevisionId: string;
+  cancellationPolicyRevisionId: string;
+  approvalPolicyRevisionId: string;
+  currency: string;
+  taxBasis: "inclusive" | "exclusive" | "not_applicable" | "to_be_confirmed";
+  validUntil: string;
+  lineItems: Array<{ itemCode: string; quantity: number }>;
+  adjustments?: Array<{ code: string; label: string; kind: "fee" | "discount" | "credit"; amount: number }>;
+  taxAmount: number;
+  internalReason?: string;
+};
+type BookingOfferSuccessorBody = BookingOfferCreateBody & { draftRevisionId: string; supersedeCurrentOffer?: boolean };
+type BookingOfferAcceptanceBody = {
+  acceptanceName?: string;
+  acceptanceNote?: string;
+};
+type BookingOfferEmailBody = { acceptanceToken: string };
+type BookingOfferRejectionBody = {
+  reasonCode: string;
+  reason: string;
+  note?: string;
+};
+type BookingConfirmationBody = {
+  expectedDraftRevisionId: string;
+  confirmationReason: string;
+};
 
 export type StaffAuthenticator = (request: FastifyRequest) => Promise<StaffPrincipal | null>;
 export type MutationOriginVerifier = (request: FastifyRequest, principal: StaffPrincipal) => Promise<boolean>;
@@ -43,6 +70,7 @@ export interface ApiDependencies {
   readonly getCurrentPrincipal?: (principal: StaffPrincipal) => Promise<Record<string, unknown>>;
   readonly privateFieldEncryptionKey?: Buffer;
   readonly contactEncryptionKey?: Buffer;
+  readonly bookingCapabilityKey?: Buffer;
   readonly publicInquiryFingerprintKey?: Buffer;
   readonly deliveryCredentialsEncryptionKey?: Buffer;
   readonly publicApiBaseUrl?: string;
@@ -199,6 +227,225 @@ const inquiryParams = {
   type: "object",
   required: ["inquiryId"],
   properties: { inquiryId: { type: "string", pattern: uuidPattern } },
+  additionalProperties: false,
+} as const;
+const bookingOfferParams = {
+  type: "object", required: ["offerId"],
+  properties: { offerId: { type: "string", pattern: uuidPattern } },
+  additionalProperties: false,
+} as const;
+const bookingOfferRevisionParams = {
+  type: "object", required: ["revisionId"],
+  properties: { revisionId: { type: "string", pattern: uuidPattern } },
+  additionalProperties: false,
+} as const;
+const bookingApprovalPolicyParams = {
+  type: "object", required: ["policyId"],
+  properties: { policyId: { type: "string", pattern: uuidPattern } },
+  additionalProperties: false,
+} as const;
+const bookingApprovalPolicyRevisionParams = {
+  type: "object", required: ["policyId", "revisionId"],
+  properties: {
+    policyId: { type: "string", pattern: uuidPattern },
+    revisionId: { type: "string", pattern: uuidPattern },
+  },
+  additionalProperties: false,
+} as const;
+const bookingApprovalPolicyCreateBody = {
+  type: "object",
+  required: ["code", "name"],
+  properties: {
+    code: { type: "string", minLength: 2, maxLength: 80 },
+    name: { type: "string", minLength: 1, maxLength: 250 },
+  },
+  additionalProperties: false,
+} as const;
+const bookingApprovalPolicyRevisionBody = {
+  type: "object",
+  required: ["rules"],
+  properties: {
+    rules: {
+      type: "array",
+      maxItems: 50,
+      items: {
+        type: "object",
+        required: ["code", "condition", "requiredApprovals", "permission", "separationOfDuties"],
+        properties: {
+          code: { type: "string", minLength: 1, maxLength: 100 },
+          condition: {
+            type: "object",
+            required: ["kind"],
+            properties: {
+              kind: { type: "string", enum: ["always", "total_at_least", "discount_at_least", "adjustment_present"] },
+              amount: { type: "number", exclusiveMinimum: 0 },
+              currency: { type: "string", pattern: "^[A-Z]{3}$" },
+              adjustmentKind: { type: "string", enum: ["fee", "discount", "credit"] },
+            },
+            additionalProperties: false,
+          },
+          requiredApprovals: { type: "integer", minimum: 1, maximum: 10 },
+          permission: { type: "string", const: "booking.approve" },
+          separationOfDuties: { type: "boolean" },
+        },
+        additionalProperties: false,
+      },
+    },
+  },
+  additionalProperties: false,
+} as const;
+const bookingOfferCreateBody = {
+  type: "object",
+  required: ["priceListRevisionId", "cancellationPolicyRevisionId", "approvalPolicyRevisionId", "currency", "taxBasis", "validUntil", "lineItems", "taxAmount"],
+  properties: {
+    priceListRevisionId: { type: "string", pattern: uuidPattern },
+    cancellationPolicyRevisionId: { type: "string", pattern: uuidPattern },
+    approvalPolicyRevisionId: { type: "string", pattern: uuidPattern },
+    currency: { type: "string", pattern: "^[A-Z]{3}$" },
+    taxBasis: { type: "string", enum: ["inclusive", "exclusive", "not_applicable", "to_be_confirmed"] },
+    validUntil: { type: "string", format: "date-time" },
+    lineItems: { type: "array", maxItems: 100, items: {
+      type: "object", required: ["itemCode", "quantity"],
+      properties: { itemCode: { type: "string", minLength: 1, maxLength: 100 }, quantity: { type: "number", exclusiveMinimum: 0, maximum: 999999999.999 } },
+      additionalProperties: false,
+    } },
+    adjustments: { type: "array", maxItems: 50, items: {
+      type: "object", required: ["code", "label", "kind", "amount"],
+      properties: {
+        code: { type: "string", minLength: 1, maxLength: 80 },
+        label: { type: "string", minLength: 1, maxLength: 250 },
+        kind: { type: "string", enum: ["fee", "discount", "credit"] },
+        amount: { type: "number", exclusiveMinimum: 0, maximum: 999999999999.99 },
+      },
+      additionalProperties: false,
+    } },
+    taxAmount: { type: "number", minimum: 0, maximum: 999999999999.99 },
+    internalReason: { type: "string", minLength: 3, maxLength: 2000 },
+  },
+  additionalProperties: false,
+} as const;
+const bookingOfferSuccessorBody = {
+  type: "object",
+  required: ["draftRevisionId", "priceListRevisionId", "cancellationPolicyRevisionId", "approvalPolicyRevisionId", "currency", "taxBasis", "validUntil", "lineItems", "taxAmount"],
+  properties: {
+    draftRevisionId: { type: "string", pattern: uuidPattern },
+    priceListRevisionId: { type: "string", pattern: uuidPattern },
+    cancellationPolicyRevisionId: { type: "string", pattern: uuidPattern },
+    approvalPolicyRevisionId: { type: "string", pattern: uuidPattern },
+    currency: { type: "string", pattern: "^[A-Z]{3}$" },
+    taxBasis: { type: "string", enum: ["inclusive", "exclusive", "not_applicable", "to_be_confirmed"] },
+    validUntil: { type: "string", format: "date-time" },
+    lineItems: { type: "array", maxItems: 100, items: {
+      type: "object", required: ["itemCode", "quantity"],
+      properties: { itemCode: { type: "string", minLength: 1, maxLength: 100 }, quantity: { type: "number", exclusiveMinimum: 0, maximum: 999999999.999 } },
+      additionalProperties: false,
+    } },
+    adjustments: { type: "array", maxItems: 50, items: {
+      type: "object", required: ["code", "label", "kind", "amount"],
+      properties: { code: { type: "string", minLength: 1, maxLength: 80 }, label: { type: "string", minLength: 1, maxLength: 250 }, kind: { type: "string", enum: ["fee", "discount", "credit"] }, amount: { type: "number", exclusiveMinimum: 0, maximum: 999999999999.99 } },
+      additionalProperties: false,
+    } },
+    taxAmount: { type: "number", minimum: 0, maximum: 999999999999.99 },
+    internalReason: { type: "string", minLength: 3, maxLength: 2000 },
+    supersedeCurrentOffer: { type: "boolean", default: false },
+  },
+  additionalProperties: false,
+} as const;
+const bookingOfferIssueBody = { type: "object", properties: {}, additionalProperties: false } as const;
+const bookingOfferEmailBody = {
+  type: "object",
+  required: ["acceptanceToken"],
+  properties: { acceptanceToken: { type: "string", pattern: "^[A-Za-z0-9_-]{43}$" } },
+  additionalProperties: false,
+} as const;
+const bookingOfferEmailDeliveryQuery = {
+  type: "object",
+  properties: {
+    status: { type: "string", enum: ["queued","sending","sent","failed","uncertain"] },
+    limit: { type: "integer", minimum: 1, maximum: 100, default: 25 },
+    offset: { type: "integer", minimum: 0, maximum: 10000, default: 0 },
+  },
+  additionalProperties: false,
+} as const;
+const bookingOfferEmailReconciliationBody = {
+  type: "object",
+  required: ["resolution","reason"],
+  properties: {
+    resolution: { type: "string", enum: ["confirmed_sent","confirmed_not_sent"] },
+    reason: { type: "string", minLength: 3, maxLength: 1000 },
+    providerMessageReference: { type: "string", maxLength: 998 },
+  },
+  additionalProperties: false,
+} as const;
+const bookingOfferEmailRetryBody = {
+  type: "object",
+  required: ["reason"],
+  properties: { reason: { type: "string", minLength: 3, maxLength: 1000 } },
+  additionalProperties: false,
+} as const;
+const bookingConfirmationBody = {
+  type: "object",
+  required: ["expectedDraftRevisionId", "confirmationReason"],
+  properties: {
+    expectedDraftRevisionId: { type: "string", pattern: uuidPattern },
+    confirmationReason: { type: "string", minLength: 3, maxLength: 2000 },
+  },
+  additionalProperties: false,
+} as const;
+const bookingOfferApprovalBody = {
+  type: "object",
+  required: ["offerRevisionId", "ruleCode", "decision", "reason"],
+  properties: {
+    offerRevisionId: { type: "string", pattern: uuidPattern },
+    ruleCode: { type: "string", minLength: 1, maxLength: 100 },
+    decision: { type: "string", enum: ["approved", "rejected", "returned_for_changes"] },
+    reason: { type: "string", minLength: 3, maxLength: 2000 },
+  },
+  additionalProperties: false,
+} as const;
+
+const publicOfferViewParams = {
+  type: "object", required: ["offerId"],
+  properties: { offerId: { type: "string", pattern: uuidPattern } },
+  additionalProperties: false,
+} as const;
+const publicOfferCapabilityHeaders = {
+  type: "object",
+  required: ["x-external-booking-token"],
+  properties: {
+    "x-external-booking-token": { type: "string", pattern: "^[A-Za-z0-9_-]{43}$" },
+  },
+  additionalProperties: true,
+} as const;
+const publicOfferDecisionParams = {
+  type: "object", required: ["offerId"],
+  properties: { offerId: { type: "string", pattern: uuidPattern } },
+  additionalProperties: false,
+} as const;
+const publicOfferDecisionHeaders = {
+  type: "object", required: ["idempotency-key", "x-external-booking-token"],
+  properties: {
+    "idempotency-key": { type: "string", minLength: 8, maxLength: 200 },
+    "x-external-booking-token": { type: "string", pattern: "^[A-Za-z0-9_-]{43}$" },
+  },
+  additionalProperties: true,
+} as const;
+const bookingOfferAcceptanceBody = {
+  type: "object",
+  properties: {
+    acceptanceName: { type: "string", minLength: 1, maxLength: 250 },
+    acceptanceNote: { type: "string", maxLength: 1000 },
+  },
+  additionalProperties: false,
+} as const;
+const bookingOfferRejectionBody = {
+  type: "object",
+  required: ["reasonCode", "reason"],
+  properties: {
+    reasonCode: { type: "string", minLength: 2, maxLength: 100 },
+    reason: { type: "string", minLength: 3, maxLength: 2000 },
+    note: { type: "string", maxLength: 1000 },
+  },
   additionalProperties: false,
 } as const;
 const bookingDraftParams = {
@@ -637,6 +884,7 @@ async function runIdempotentCommand(
     await client.query("BEGIN");
     // The tenant comes only from the trusted session principal, never request data.
     await client.query("SELECT set_config('app.organization_id',$1,true)", [principal.organizationId]);
+    await client.query("SELECT set_config('app.actor_membership_id',$1,true)", [principal.membershipId]);
     await client.query(
       "DELETE FROM eogp.idempotency_records WHERE organization_id=$1 AND principal_kind='membership' AND principal_id=$2 AND operation_id=$3 AND idempotency_key=$4 AND expires_at<=clock_timestamp()",
       [principal.organizationId, principal.membershipId, operationId, idempotencyKey],
@@ -702,7 +950,7 @@ function principalIsValid(principal: StaffPrincipal | null): principal is StaffP
 
 export function buildApi(dependencies: ApiDependencies): FastifyInstance {
   const server = Fastify({
-    logger: true,
+    logger: { redact: ["req.headers.x-external-booking-token"] },
     bodyLimit: 64 * 1024,
     trustProxy: dependencies.trustedProxyAddresses?.length
       ? [...dependencies.trustedProxyAddresses]
@@ -730,8 +978,12 @@ export function buildApi(dependencies: ApiDependencies): FastifyInstance {
       /^\/public\/organizations\/[^/]+\/booking-forms\/[^/]+$/.test(pathname);
     const publicBookingInquiryWrite = request.method === "POST" &&
       /^\/public\/organizations\/[^/]+\/booking-inquiries$/.test(pathname);
-    if (publicBookingFormRead || publicBookingInquiryWrite) {
-      // These two public intake operations are the only anonymous application routes.
+    const publicOfferDecision = request.method === "POST" &&
+      /^\/booking-offers\/[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}\/(accept|reject)$/.test(pathname);
+    const publicOfferView = request.method === "GET" &&
+      /^\/public\/booking-offers\/[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}$/.test(pathname);
+    if (publicBookingFormRead || publicBookingInquiryWrite || publicOfferDecision || publicOfferView) {
+      // Public intake and purpose-bound offer decisions authenticate through their own capability.
       request.staffPrincipal = null;
       return;
     }
@@ -1289,6 +1541,653 @@ export function buildApi(dependencies: ApiDependencies): FastifyInstance {
               JSON.stringify(request.body.spaceLines),
               JSON.stringify(request.body.resourceLines),
               request.body.changeReason,
+            ],
+          );
+          return result.rows[0]?.result as Record<string, unknown>;
+        },
+      );
+    },
+  );
+
+
+
+  server.get(
+    "/organization/booking-approval-policies",
+    async (request, reply) => {
+      const principal = request.staffPrincipal!;
+      const client = await dependencies.pool.connect();
+      try {
+        await client.query("BEGIN");
+        await client.query("SELECT set_config('app.organization_id',$1,true)", [principal.organizationId]);
+        const result = await client.query<ResultRow>(
+          "SELECT eogp.get_booking_approval_policies($1::uuid,$2::uuid) AS result",
+          [principal.organizationId, principal.membershipId],
+        );
+        await client.query("COMMIT");
+        return reply.code(200).send({ data: result.rows[0]?.result ?? [] });
+      } catch (error) {
+        try { await client.query("ROLLBACK"); } catch { /* preserve the read error */ }
+        throw databaseError(error);
+      } finally {
+        client.release();
+      }
+    },
+  );
+
+  server.post<{ Body: { code: string; name: string } }>(
+    "/organization/booking-approval-policies",
+    {
+      schema: {
+        headers: idempotencyHeaders,
+        body: bookingApprovalPolicyCreateBody,
+      },
+    },
+    async (request, reply) => {
+      const principal = request.staffPrincipal!;
+      return withCommand(
+        request, reply, "createBookingApprovalPolicy",
+        request.body,
+        async (client) => {
+          const result = await client.query<ResultRow>(
+            "SELECT eogp.create_booking_approval_policy($1::uuid,$2::uuid,$3::text,$4::text) AS result",
+            [principal.organizationId, principal.membershipId, request.body.code, request.body.name],
+          );
+          return result.rows[0]?.result as Record<string, unknown>;
+        },
+      );
+    },
+  );
+
+  server.post<{
+    Params: { policyId: string };
+    Body: { rules: Array<Record<string, unknown>> };
+  }>(
+    "/booking-approval-policies/:policyId/revisions",
+    {
+      schema: {
+        params: bookingApprovalPolicyParams,
+        headers: idempotencyHeaders,
+        body: bookingApprovalPolicyRevisionBody,
+      },
+    },
+    async (request, reply) => {
+      const principal = request.staffPrincipal!;
+      return withCommand(
+        request, reply, "createBookingApprovalPolicyRevision",
+        { policyId: request.params.policyId, rules: request.body.rules },
+        async (client) => {
+          const result = await client.query<ResultRow>(
+            "SELECT eogp.create_booking_approval_policy_revision($1::uuid,$2::uuid,$3::uuid,$4::jsonb) AS result",
+            [principal.organizationId, request.params.policyId, principal.membershipId, JSON.stringify(request.body.rules)],
+          );
+          return result.rows[0]?.result as Record<string, unknown>;
+        },
+      );
+    },
+  );
+
+  server.put<{
+    Params: { policyId: string; revisionId: string };
+    Body: { rules: Array<Record<string, unknown>> };
+  }>(
+    "/booking-approval-policies/:policyId/revisions/:revisionId",
+    {
+      schema: {
+        params: bookingApprovalPolicyRevisionParams,
+        headers: idempotencyHeaders,
+        body: bookingApprovalPolicyRevisionBody,
+      },
+    },
+    async (request, reply) => {
+      const principal = request.staffPrincipal!;
+      return withCommand(
+        request, reply, "updateBookingApprovalPolicyDraftRevision",
+        {
+          policyId: request.params.policyId,
+          revisionId: request.params.revisionId,
+          rules: request.body.rules,
+        },
+        async (client) => {
+          const result = await client.query<ResultRow>(
+            "SELECT eogp.update_booking_approval_policy_draft_revision($1::uuid,$2::uuid,$3::uuid,$4::uuid,$5::jsonb) AS result",
+            [
+              principal.organizationId,
+              request.params.policyId,
+              request.params.revisionId,
+              principal.membershipId,
+              JSON.stringify(request.body.rules),
+            ],
+          );
+          return result.rows[0]?.result as Record<string, unknown>;
+        },
+      );
+    },
+  );
+
+  server.post<{ Params: { policyId: string; revisionId: string } }>(
+    "/booking-approval-policies/:policyId/revisions/:revisionId/publish",
+    {
+      schema: {
+        params: bookingApprovalPolicyRevisionParams,
+        headers: idempotencyHeaders,
+      },
+    },
+    async (request, reply) => {
+      const principal = request.staffPrincipal!;
+      return withCommand(
+        request, reply, "publishBookingApprovalPolicyRevision",
+        { policyId: request.params.policyId, revisionId: request.params.revisionId },
+        async (client) => {
+          const result = await client.query<ResultRow>(
+            "SELECT eogp.publish_booking_approval_policy_revision($1::uuid,$2::uuid,$3::uuid,$4::uuid) AS result",
+            [principal.organizationId, request.params.policyId, request.params.revisionId, principal.membershipId],
+          );
+          return result.rows[0]?.result as Record<string, unknown>;
+        },
+      );
+    },
+  );
+
+  server.post<{ Params: { revisionId: string }; Body: BookingConfirmationBody }>(
+    "/booking-draft-revisions/:revisionId/confirm",
+    {
+      schema: {
+        params: bookingOfferRevisionParams,
+        headers: idempotencyHeaders,
+        body: bookingConfirmationBody,
+      },
+    },
+    async (request, reply) => {
+      if (request.body.expectedDraftRevisionId !== request.params.revisionId) {
+        throw new ApiError(409, "DRAFT_REVISION_MISMATCH", "The expected draft revision must match the revision in the request path.");
+      }
+      const principal = request.staffPrincipal!;
+      return withCommand(
+        request, reply, "confirmBooking",
+        { revisionId: request.params.revisionId, ...request.body },
+        async (client) => {
+          const result = await client.query<ResultRow>(
+            "SELECT eogp.confirm_booking_from_offer($1::uuid,$2::uuid,$3::uuid,$4::text) AS result",
+            [
+              principal.organizationId, request.params.revisionId,
+              principal.membershipId, request.body.confirmationReason,
+            ],
+          );
+          return result.rows[0]?.result as Record<string, unknown>;
+        },
+      );
+    },
+  );
+
+  server.get<{ Params: { offerId: string } }>(
+    "/booking-offers/:offerId/approvals",
+    { schema: { params: bookingOfferParams } },
+    async (request, reply) => {
+      const principal = request.staffPrincipal!;
+      const client = await dependencies.pool.connect();
+      try {
+        await client.query("BEGIN");
+        await client.query("SELECT set_config('app.organization_id',$1,true)", [principal.organizationId]);
+        const result = await client.query<ResultRow>(
+          "SELECT eogp.get_booking_offer_approval_status($1::uuid,$2::uuid,$3::uuid) AS result",
+          [principal.organizationId, request.params.offerId, principal.membershipId],
+        );
+        await client.query("COMMIT");
+        return reply.code(200).send({ data: result.rows[0]?.result ?? null });
+      } catch (error) {
+        try { await client.query("ROLLBACK"); } catch { /* preserve the read error */ }
+        throw databaseError(error);
+      } finally {
+        client.release();
+      }
+    },
+  );
+
+  server.post<{
+    Params: { offerId: string };
+    Body: { offerRevisionId: string; ruleCode: string; decision: "approved" | "rejected" | "returned_for_changes"; reason: string };
+  }>(
+    "/booking-offers/:offerId/approvals",
+    {
+      schema: {
+        params: bookingOfferParams,
+        headers: idempotencyHeaders,
+        body: bookingOfferApprovalBody,
+      },
+    },
+    async (request, reply) => {
+      const principal = request.staffPrincipal!;
+      return withCommand(
+        request, reply, "decideBookingOfferApproval",
+        { offerId: request.params.offerId, ...request.body },
+        async (client) => {
+          const result = await client.query<ResultRow>(
+            "SELECT eogp.decide_booking_offer_approval($1::uuid,$2::uuid,$3::uuid,$4::uuid,$5::text,$6::text,$7::text) AS result",
+            [
+              principal.organizationId, request.params.offerId, request.body.offerRevisionId,
+              principal.membershipId, request.body.ruleCode, request.body.decision, request.body.reason,
+            ],
+          );
+          return result.rows[0]?.result as Record<string, unknown>;
+        },
+      );
+    },
+  );
+
+  server.get<{ Params: { offerId: string } }>(
+    "/public/booking-offers/:offerId",
+    {
+      schema: {
+        params: publicOfferViewParams,
+        headers: publicOfferCapabilityHeaders,
+      },
+    },
+    async (request, reply) => {
+      const token = request.headers["x-external-booking-token"];
+      if (typeof token !== "string" || !/^[A-Za-z0-9_-]{43}$/.test(token)) {
+        throw new ApiError(401, "BOOKING_ACTION_CAPABILITY_REQUIRED", "A valid offer review capability is required.");
+      }
+      const tokenHash = createHash("sha256").update(token, "utf8").digest("hex");
+      const client = await dependencies.pool.connect();
+      try {
+        await client.query("BEGIN");
+        const result = await client.query<ResultRow>(
+          "SELECT eogp.get_public_booking_offer_with_capability($1::uuid,$2::text) AS result",
+          [request.params.offerId, tokenHash],
+        );
+        await client.query("COMMIT");
+        const data = result.rows[0]?.result as Record<string, unknown> | undefined;
+        if (!data) throw new ApiError(404, "OFFER_NOT_FOUND", "The customer offer was not found.");
+        reply.header("Cache-Control", "no-store, private");
+        reply.header("Referrer-Policy", "no-referrer");
+        reply.header("X-Robots-Tag", "noindex, nofollow, noarchive");
+        return reply.code(200).send({ data });
+      } catch (error) {
+        try { await client.query("ROLLBACK"); } catch { /* preserve the view error */ }
+        throw databaseError(error);
+      } finally {
+        client.release();
+      }
+    },
+  );
+
+  const submitPublicOfferDecision = async (
+    request: FastifyRequest,
+    reply: FastifyReply,
+    decision: "accepted" | "rejected",
+    body: BookingOfferAcceptanceBody | BookingOfferRejectionBody,
+  ) => {
+    const offerId = (request.params as { offerId?: string }).offerId;
+    const token = request.headers["x-external-booking-token"];
+    const idempotencyKey = request.headers["idempotency-key"];
+    if (!offerId || !new RegExp(uuidPattern).test(offerId)) {
+      throw new ApiError(400, "INVALID_OFFER_ID", "A valid offer identifier is required.");
+    }
+    if (typeof token !== "string" || !/^[A-Za-z0-9_-]{43}$/.test(token)) {
+      throw new ApiError(401, "BOOKING_ACTION_CAPABILITY_REQUIRED", "A valid offer decision capability is required.");
+    }
+    if (typeof idempotencyKey !== "string" || idempotencyKey.length < 8 || idempotencyKey.length > 200) {
+      throw new ApiError(400, "IDEMPOTENCY_KEY_REQUIRED", "A valid Idempotency-Key header is required.");
+    }
+
+    const encryptionKey = dependencies.contactEncryptionKey;
+    if (!encryptionKey || encryptionKey.length !== 32) {
+      throw new ApiError(503, "BOOKING_OFFER_DECISION_ENCRYPTION_UNAVAILABLE", "Customer decision encryption is not configured.");
+    }
+    const tokenHash = createHash("sha256").update(token, "utf8").digest("hex");
+    const idempotencyHash = createHash("sha256").update(idempotencyKey, "utf8").digest("hex");
+    const payloadHash = requestHash({ offerId, decision, body }, encryptionKey);
+    const client = await dependencies.pool.connect();
+    try {
+      await client.query("BEGIN");
+      const contextResult = await client.query<ResultRow>(
+        "SELECT eogp.resolve_booking_offer_capability($1::uuid,$2::text) AS result",
+        [offerId, tokenHash],
+      );
+      const context = contextResult.rows[0]?.result as Record<string, unknown> | undefined;
+      const organizationId = context?.organizationId;
+      if (typeof organizationId !== "string" || !new RegExp(uuidPattern).test(organizationId)) {
+        throw new ApiError(401, "BOOKING_ACTION_CAPABILITY_INVALID", "The offer decision capability is invalid.");
+      }
+
+      let acceptanceNameCiphertext: Buffer | null = null;
+      let customerNoteCiphertext: Buffer | null = null;
+      let reasonCode: string | null = null;
+      let reasonCiphertext: Buffer | null = null;
+      if (decision === "accepted") {
+        const acceptance = body as BookingOfferAcceptanceBody;
+        if (acceptance.acceptanceName?.trim()) {
+          acceptanceNameCiphertext = encryptContactValue(
+            acceptance.acceptanceName.trim(), encryptionKey,
+            { organizationId, contactKind: "other" },
+          );
+        }
+        if (acceptance.acceptanceNote?.trim()) {
+          customerNoteCiphertext = encryptContactValue(
+            acceptance.acceptanceNote.trim(), encryptionKey,
+            { organizationId, contactKind: "other" },
+          );
+        }
+      } else {
+        const rejection = body as BookingOfferRejectionBody;
+        reasonCode = rejection.reasonCode.trim();
+        reasonCiphertext = encryptContactValue(
+          JSON.stringify({ reason: rejection.reason.trim() }), encryptionKey,
+          { organizationId, contactKind: "other" },
+        );
+        if (rejection.note?.trim()) {
+          customerNoteCiphertext = encryptContactValue(
+            rejection.note.trim(), encryptionKey,
+            { organizationId, contactKind: "other" },
+          );
+        }
+      }
+
+      const result = await client.query<ResultRow>(
+        "SELECT eogp.decide_booking_offer_with_capability($1::uuid,$2::text,$3::text,$4::text,$5::text,$6::bytea,$7::bytea,$8::text,$9::bytea) AS result",
+        [
+          offerId, tokenHash, decision, idempotencyHash, payloadHash,
+          acceptanceNameCiphertext, customerNoteCiphertext, reasonCode, reasonCiphertext,
+        ],
+      );
+      await client.query("COMMIT");
+      const data = result.rows[0]?.result as Record<string, unknown> | undefined;
+      if (!data) throw new ApiError(500, "OFFER_DECISION_RESULT_MISSING", "The offer decision did not return a result.");
+      reply.header("Cache-Control", "no-store, private");
+      reply.header("Referrer-Policy", "no-referrer");
+      reply.header("X-Robots-Tag", "noindex, nofollow, noarchive");
+      return reply.code(data.decision === "expired" ? 410 : 201).send({ data });
+    } catch (error) {
+      try { await client.query("ROLLBACK"); } catch { /* preserve the decision error */ }
+      throw databaseError(error);
+    } finally {
+      client.release();
+    }
+  };
+
+  server.post<{ Params: { offerId: string }; Body: BookingOfferAcceptanceBody }>(
+    "/booking-offers/:offerId/accept",
+    {
+      schema: {
+        params: publicOfferDecisionParams,
+        headers: publicOfferDecisionHeaders,
+        body: bookingOfferAcceptanceBody,
+      },
+    },
+    async (request, reply) => submitPublicOfferDecision(request, reply, "accepted", request.body),
+  );
+
+  server.post<{ Params: { offerId: string }; Body: BookingOfferRejectionBody }>(
+    "/booking-offers/:offerId/reject",
+    {
+      schema: {
+        params: publicOfferDecisionParams,
+        headers: publicOfferDecisionHeaders,
+        body: bookingOfferRejectionBody,
+      },
+    },
+    async (request, reply) => submitPublicOfferDecision(request, reply, "rejected", request.body),
+  );
+
+  server.post<{ Params: { revisionId: string }; Body: BookingOfferCreateBody }>(
+    "/booking-draft-revisions/:revisionId/offers",
+    {
+      schema: {
+        params: bookingOfferRevisionParams,
+        headers: idempotencyHeaders,
+        body: bookingOfferCreateBody,
+      },
+    },
+    async (request, reply) => {
+      const principal = request.staffPrincipal!;
+      const body = request.body;
+      return withCommand(
+        request, reply, "createBookingOffer",
+        { revisionId: request.params.revisionId, body },
+        async (client) => {
+          const result = await client.query<ResultRow>(
+            "SELECT eogp.save_booking_offer_revision($1::uuid,$2::uuid,$3::uuid,NULL::uuid,$4::uuid,$5::uuid,$6::uuid,$7::text,$8::text,$9::timestamptz,$10::jsonb,$11::jsonb,$12::numeric,$13::text,false) AS result",
+            [
+              principal.organizationId, request.params.revisionId, principal.membershipId,
+              body.priceListRevisionId, body.cancellationPolicyRevisionId, body.approvalPolicyRevisionId,
+              body.currency, body.taxBasis, body.validUntil, JSON.stringify(body.lineItems),
+              JSON.stringify(body.adjustments ?? []), body.taxAmount, body.internalReason ?? null,
+            ],
+          );
+          return result.rows[0]?.result as Record<string, unknown>;
+        },
+      );
+    },
+  );
+
+  server.post<{ Params: { offerId: string }; Body: BookingOfferSuccessorBody }>(
+    "/booking-offers/:offerId/revisions",
+    {
+      schema: {
+        params: bookingOfferParams,
+        headers: idempotencyHeaders,
+        body: bookingOfferSuccessorBody,
+      },
+    },
+    async (request, reply) => {
+      const principal = request.staffPrincipal!;
+      const body = request.body;
+      return withCommand(
+        request, reply, "createBookingOfferSuccessorRevision",
+        { offerId: request.params.offerId, body },
+        async (client) => {
+          const result = await client.query<ResultRow>(
+            "SELECT eogp.save_booking_offer_revision($1::uuid,$2::uuid,$3::uuid,$4::uuid,$5::uuid,$6::uuid,$7::uuid,$8::text,$9::text,$10::timestamptz,$11::jsonb,$12::jsonb,$13::numeric,$14::text,$15::boolean) AS result",
+            [
+              principal.organizationId, body.draftRevisionId, principal.membershipId, request.params.offerId,
+              body.priceListRevisionId, body.cancellationPolicyRevisionId, body.approvalPolicyRevisionId,
+              body.currency, body.taxBasis, body.validUntil, JSON.stringify(body.lineItems),
+              JSON.stringify(body.adjustments ?? []), body.taxAmount, body.internalReason ?? null,
+              body.supersedeCurrentOffer ?? false,
+            ],
+          );
+          return result.rows[0]?.result as Record<string, unknown>;
+        },
+      );
+    },
+  );
+
+  server.get<{ Params: { offerId: string } }>(
+    "/booking-offers/:offerId",
+    { schema: { params: bookingOfferParams } },
+    async (request, reply) => {
+      const principal = request.staffPrincipal!;
+      const client = await dependencies.pool.connect();
+      try {
+        await client.query("BEGIN");
+        await client.query("SELECT set_config('app.organization_id',$1,true)", [principal.organizationId]);
+        const result = await client.query<ResultRow>(
+          "SELECT eogp.get_booking_offer($1::uuid,$2::uuid,$3::uuid) AS result",
+          [principal.organizationId, request.params.offerId, principal.membershipId],
+        );
+        await client.query("COMMIT");
+        return reply.code(200).send({ data: result.rows[0]?.result ?? null });
+      } catch (error) {
+        try { await client.query("ROLLBACK"); } catch { /* preserve the read error */ }
+        throw databaseError(error);
+      } finally {
+        client.release();
+      }
+    },
+  );
+
+  server.get<{
+    Params: { offerId: string };
+    Querystring: { status?: string; limit?: number; offset?: number };
+  }>(
+    "/booking-offers/:offerId/email-deliveries",
+    { schema: { params: bookingOfferParams, querystring: bookingOfferEmailDeliveryQuery } },
+    async (request, reply) => {
+      const principal = request.staffPrincipal!;
+      const limit = request.query.limit ?? 25;
+      const offset = request.query.offset ?? 0;
+      const client = await dependencies.pool.connect();
+      try {
+        await client.query("BEGIN");
+        await client.query("SELECT set_config('app.organization_id',$1,true)", [principal.organizationId]);
+        const result = await client.query<ResultRow>(
+          "SELECT eogp.list_booking_offer_email_deliveries($1::uuid,$2::uuid,$3::uuid,$4::text,$5::integer,$6::integer) AS result",
+          [principal.organizationId,request.params.offerId,principal.membershipId,request.query.status ?? null,limit,offset],
+        );
+        await client.query("COMMIT");
+        const projection = result.rows[0]?.result as {
+          items?: unknown[];
+          page?: { total?: number };
+          counts?: Record<string,number>;
+        } | undefined;
+        return reply.code(200).send({
+          data: projection?.items ?? [],
+          meta: { limit,offset,totalCount: projection?.page?.total ?? 0,counts: projection?.counts ?? {} },
+        });
+      } catch (error) {
+        try { await client.query("ROLLBACK"); } catch { /* preserve the read error */ }
+        throw databaseError(error);
+      } finally {
+        client.release();
+      }
+    },
+  );
+
+  server.post<{
+    Params: { deliveryId: string };
+    Body: { resolution: string; reason: string; providerMessageReference?: string };
+  }>(
+    "/booking-offer-email-deliveries/:deliveryId/reconcile",
+    {
+      schema: {
+        params: { type: "object", required: ["deliveryId"], properties: { deliveryId: { type: "string", pattern: uuidPattern } }, additionalProperties: false },
+        headers: idempotencyHeaders,
+        body: bookingOfferEmailReconciliationBody,
+      },
+    },
+    async (request, reply) => {
+      const principal = request.staffPrincipal!;
+      return withCommand(request,reply,"reconcileBookingOfferEmailDelivery",
+        { deliveryId:request.params.deliveryId,resolution:request.body.resolution,reason:request.body.reason,
+          providerMessageReference:request.body.providerMessageReference ?? null },
+        async (client) => {
+          const result = await client.query<ResultRow>(
+            "SELECT eogp.reconcile_booking_offer_email_delivery($1::uuid,$2::uuid,$3::uuid,$4::text,$5::text,$6::text) AS result",
+            [principal.organizationId,request.params.deliveryId,principal.membershipId,
+              request.body.resolution,request.body.reason,request.body.providerMessageReference ?? null],
+          );
+          return result.rows[0]?.result as Record<string,unknown>;
+        });
+    },
+  );
+
+  server.post<{
+    Params: { deliveryId: string };
+    Body: { reason: string };
+  }>(
+    "/booking-offer-email-deliveries/:deliveryId/retry",
+    {
+      schema: {
+        params: { type: "object", required: ["deliveryId"], properties: { deliveryId: { type: "string", pattern: uuidPattern } }, additionalProperties: false },
+        headers: idempotencyHeaders,
+        body: bookingOfferEmailRetryBody,
+      },
+    },
+    async (request, reply) => {
+      const principal = request.staffPrincipal!;
+      return withCommand(request,reply,"retryBookingOfferEmailDelivery",
+        { deliveryId:request.params.deliveryId,reason:request.body.reason },
+        async (client) => {
+          const result = await client.query<ResultRow>(
+            "SELECT eogp.retry_booking_offer_email_delivery($1::uuid,$2::uuid,$3::uuid,$4::text) AS result",
+            [principal.organizationId,request.params.deliveryId,principal.membershipId,request.body.reason],
+          );
+          return result.rows[0]?.result as Record<string,unknown>;
+        });
+    },
+  );
+
+  server.post<{ Params: { offerId: string }; Body: Record<string, never> }>(
+    "/booking-offers/:offerId/issue",
+    {
+      schema: {
+        params: bookingOfferParams,
+        headers: idempotencyHeaders,
+        body: bookingOfferIssueBody,
+      },
+    },
+    async (request, reply) => {
+      const principal = request.staffPrincipal!;
+      const capabilityKey = dependencies.bookingCapabilityKey;
+      if (!capabilityKey || capabilityKey.length !== 32) {
+        throw new ApiError(503, "BOOKING_CAPABILITY_KEY_UNAVAILABLE", "Customer offer capability issuance is not configured.");
+      }
+      const idempotencyKey = request.headers["idempotency-key"];
+      if (typeof idempotencyKey !== "string") {
+        throw new ApiError(400, "IDEMPOTENCY_KEY_REQUIRED", "A valid Idempotency-Key header is required.");
+      }
+      // Deterministic, domain-separated derivation means retries can return the
+      // same raw capability without persisting it in the idempotency response.
+      const acceptanceToken = createHmac("sha256", capabilityKey)
+        .update(JSON.stringify({
+          purpose: "eventor:booking-offer-capability:v1",
+          organizationId: principal.organizationId,
+          membershipId: principal.membershipId,
+          offerId: request.params.offerId,
+          idempotencyKey,
+        }), "utf8")
+        .digest("base64url");
+      const tokenHash = createHash("sha256").update(acceptanceToken, "utf8").digest("hex");
+      const command = await runIdempotentCommand(
+        dependencies, principal, "issueBookingOffer", idempotencyKey,
+        { offerId: request.params.offerId },
+        async (client) => {
+          const result = await client.query<ResultRow>(
+            "SELECT eogp.issue_booking_offer($1::uuid,$2::uuid,$3::uuid,$4::text) AS result",
+            [principal.organizationId, request.params.offerId, principal.membershipId, tokenHash],
+          );
+          return result.rows[0]?.result as Record<string, unknown>;
+        },
+      );
+      const data = command.body.data as Record<string, unknown>;
+      return reply.code(command.status).send({ data: { ...data, acceptanceToken } });
+    },
+  );
+
+  server.post<{ Params: { offerId: string }; Body: BookingOfferEmailBody }>(
+    "/booking-offers/:offerId/email",
+    {
+      schema: {
+        params: bookingOfferParams,
+        headers: idempotencyHeaders,
+        body: bookingOfferEmailBody,
+      },
+    },
+    async (request, reply) => {
+      const encryptionKey = dependencies.contactEncryptionKey;
+      if (!encryptionKey || encryptionKey.length !== 32) {
+        throw new ApiError(503, "BOOKING_OFFER_DECISION_ENCRYPTION_UNAVAILABLE", "Customer capability encryption is not configured.");
+      }
+      const token = request.body.acceptanceToken;
+      if (!/^[A-Za-z0-9_-]{43}$/.test(token)) {
+        throw new ApiError(422, "BOOKING_ACTION_CAPABILITY_INVALID", "A valid customer offer capability is required.");
+      }
+      const tokenHash = createHash("sha256").update(token, "utf8").digest("hex");
+      const encryptedToken = encryptContactValue(token, encryptionKey, {
+        organizationId: request.staffPrincipal!.organizationId,
+        contactKind: "other",
+      });
+      const principal = request.staffPrincipal!;
+      return withCommand(
+        request, reply, "queueBookingOfferEmailDelivery",
+        { offerId: request.params.offerId, capabilityTokenSha256: tokenHash },
+        async (client) => {
+          const result = await client.query<ResultRow>(
+            "SELECT eogp.queue_booking_offer_email_delivery($1::uuid,$2::uuid,$3::uuid,$4::text,$5::text,$6::bytea) AS result",
+            [
+              principal.organizationId, request.params.offerId, principal.membershipId,
+              createHash("sha256").update(String(request.headers["idempotency-key"]), "utf8").digest("hex"),
+              tokenHash, encryptedToken,
             ],
           );
           return result.rows[0]?.result as Record<string, unknown>;

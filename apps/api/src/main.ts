@@ -48,6 +48,7 @@ const publicInquiryFingerprintKey = requiredKey("EVENTOR_PUBLIC_INQUIRY_FINGERPR
 const privateFieldEncryptionKey = requiredKey("EVENTOR_FIELD_ENCRYPTION_KEY");
 const contactEncryptionKey = requiredKey("EVENTOR_CONTACT_ENCRYPTION_KEY");
 const deliveryCredentialsEncryptionKey = requiredKey("EVENTOR_DELIVERY_CREDENTIALS_KEY");
+const bookingCapabilityKey = requiredKey("EVENTOR_BOOKING_CAPABILITY_KEY");
 function optionalPublicApiBaseUrl(): string | undefined {
   const raw = process.env.EVENTOR_PUBLIC_API_BASE_URL?.trim();
   if (!raw) return undefined;
@@ -88,6 +89,7 @@ const app = buildApi({
   contactEncryptionKey,
   publicInquiryFingerprintKey,
   deliveryCredentialsEncryptionKey,
+  bookingCapabilityKey,
   ...(publicApiBaseUrl ? { publicApiBaseUrl } : {}),
   trustedProxyAddresses,
 });

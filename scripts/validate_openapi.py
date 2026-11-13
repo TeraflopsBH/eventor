@@ -174,9 +174,11 @@ def main() -> int:
                 schemes.update(requirement.keys())
 
             # Public intake and explicit capability routes must not inherit staff login.
-            if route.startswith("/public/") or (route == "/auth/session" and method.lower() == "post"):
+            if (route.startswith("/public/") and route != "/public/booking-offers/{offerId}") or (route == "/auth/session" and method.lower() == "post"):
                 if operation.get("security") != []:
-                    fail(f"{method.upper()} {route}: public route must explicitly declare security: []")
+                    fail(f"{method.upper()} {route}: anonymous public route must explicitly declare security: []")
+            if route == "/public/booking-offers/{offerId}" and schemes != {"BookingActionCapability"}:
+                fail(f"{method.upper()} {route}: public offer review must require only BookingActionCapability")
 
             if route.startswith("/external/booking-actions/"):
                 expected = (

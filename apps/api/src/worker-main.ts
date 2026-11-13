@@ -27,6 +27,21 @@ function positiveInteger(name: string, fallback: number, max: number): number {
 
 const contactEncryptionKey = requiredKey("EVENTOR_CONTACT_ENCRYPTION_KEY");
 const deliveryCredentialsEncryptionKey = requiredKey("EVENTOR_DELIVERY_CREDENTIALS_KEY");
+function optionalPublicAppBaseUrl(): string | undefined {
+  const raw = process.env.EVENTOR_PUBLIC_APP_BASE_URL?.trim();
+  if (!raw) return undefined;
+  let parsed: URL;
+  try {
+    parsed = new URL(raw);
+  } catch {
+    throw new Error("EVENTOR_PUBLIC_APP_BASE_URL must be a valid absolute HTTPS URL.");
+  }
+  if (parsed.protocol !== "https:" || parsed.username || parsed.password || parsed.search || parsed.hash) {
+    throw new Error("EVENTOR_PUBLIC_APP_BASE_URL must use HTTPS and must not contain credentials, query parameters or a fragment.");
+  }
+  return parsed.toString().replace(/\\/+$/, "");
+}
+const publicAppBaseUrl = optionalPublicAppBaseUrl();
 
 const pool = new Pool({
   connectionString: required("EVENTOR_WORKER_DATABASE_URL"),
@@ -58,6 +73,7 @@ try {
     errorPollMs: positiveInteger("EVENTOR_WORKER_ERROR_POLL_MS", 5000, 60000),
     contactEncryptionKey,
     deliveryCredentialsEncryptionKey,
+    ...(publicAppBaseUrl ? { publicAppBaseUrl } : {}),
     onBatch: (totals) => {
       process.stdout.write(JSON.stringify({
         level: "info",

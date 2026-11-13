@@ -41,28 +41,33 @@ function idempotencyKey(): string {
 async function request<T>(
   path: string,
   options: {
-    method?: "GET" | "POST" | "DELETE";
+    method?: "GET" | "POST" | "PUT" | "DELETE";
     body?: unknown;
     idempotent?: boolean;
+    idempotencyKey?: string;
+    extraHeaders?: Record<string, string>;
+    credentials?: RequestCredentials;
+    skipCsrf?: boolean;
   } = {},
 ): Promise<T> {
   const method = options.method ?? "GET";
   const headers = new Headers({ Accept: "application/json" });
   if (options.body !== undefined) headers.set("Content-Type", "application/json");
 
+  for (const [name, value] of Object.entries(options.extraHeaders ?? {})) headers.set(name, value);
   if (method !== "GET") {
     const csrf = readCookie(csrfCookieName);
-    if (path !== "/auth/session" && !csrf) {
+    if (path !== "/auth/session" && !options.skipCsrf && !csrf) {
       throw new Error("The CSRF cookie is missing. Sign in again before continuing.");
     }
-    if (csrf) headers.set("X-CSRF-Token", csrf);
-    if (options.idempotent) headers.set("Idempotency-Key", idempotencyKey());
+    if (csrf && !options.skipCsrf) headers.set("X-CSRF-Token", csrf);
+    if (options.idempotent) headers.set("Idempotency-Key", options.idempotencyKey ?? idempotencyKey());
   }
 
   const response = await fetch(`${apiBase}${path}`, {
     method,
     headers,
-    credentials: "include",
+    credentials: options.credentials ?? "include",
     cache: "no-store",
     body: options.body === undefined ? undefined : JSON.stringify(options.body),
   });
@@ -369,6 +374,208 @@ export interface BookingInquiryAssignee {
   displayName: string;
 }
 
+export interface BookingOfferLineItemInput {
+  itemCode: string;
+  quantity: number;
+}
+
+export interface BookingOfferAdjustmentInput {
+  code: string;
+  label: string;
+  kind: "fee" | "discount" | "credit";
+  amount: number;
+}
+
+export interface BookingOfferWriteRequest {
+  priceListRevisionId: string;
+  cancellationPolicyRevisionId: string;
+  approvalPolicyRevisionId: string;
+  currency: string;
+  taxBasis: "inclusive" | "exclusive" | "not_applicable" | "to_be_confirmed";
+  validUntil: string;
+  lineItems: BookingOfferLineItemInput[];
+  adjustments?: BookingOfferAdjustmentInput[];
+  taxAmount: number;
+  internalReason?: string;
+}
+
+export interface BookingOfferRevision {
+  offerRevisionId: string;
+  revisionNumber: number;
+  draftRevisionId: string;
+  priceListRevisionId: string;
+  cancellationPolicyRevisionId: string;
+  approvalPolicyRevisionId: string;
+  approvalRequirements: Array<Record<string, unknown>>;
+  currency: string;
+  subtotal: string | number;
+  taxAmount: string | number;
+  totalAmount: string | number;
+  validUntil: string;
+  state: string;
+  issuedAt: string | null;
+  acceptedAt: string | null;
+  terms: Record<string, unknown>;
+}
+
+export interface BookingOfferRecord {
+  offerId: string;
+  draftId: string;
+  status: string;
+  createdAt: string;
+  currentRevision: BookingOfferRevision;
+  revisionHistory: Array<{
+    offerRevisionId: string;
+    revisionNumber: number;
+    draftRevisionId: string;
+    state: string;
+    createdAt: string;
+    issuedAt: string | null;
+    acceptedAt: string | null;
+  }>;
+  decisionHistory: Array<{
+    decision: string;
+    actorKind: string;
+    actorMembershipId: string | null;
+    reasonCode: string | null;
+    occurredAt: string;
+  }>;
+}
+
+export interface BookingOfferApprovalRequirement {
+  ruleCode: string;
+  condition: unknown;
+  requiredApprovals: number;
+  separationOfDuties: boolean;
+  approvedCount: number;
+  blocked: boolean;
+  decisions: Array<{
+    membershipId: string;
+    decision: "approved" | "rejected" | "returned_for_changes";
+    reason: string;
+    decidedAt: string;
+  }>;
+}
+
+export interface BookingOfferApprovalStatus {
+  offerId: string;
+  offerRevisionId: string;
+  requirements: BookingOfferApprovalRequirement[];
+}
+
+export interface BookingOfferCreateResult {
+  offerId: string;
+  offerRevisionId: string;
+  draftRevisionId: string;
+  revisionNumber: number;
+  state: string;
+  currency: string;
+  taxBasis: string;
+  subtotal: string | number;
+  taxAmount: string | number;
+  totalAmount: string | number;
+  validUntil: string;
+}
+
+export interface BookingOfferIssueResult extends Record<string, unknown> {
+  acceptanceToken: string;
+  offerId: string;
+  offerRevisionId: string;
+}
+export interface BookingOfferEmailDelivery {
+  deliveryId: string;
+  offerRevisionId: string;
+  status: "queued" | "sending" | "sent" | "failed" | "uncertain";
+  attemptCount: number;
+  manualRetryCount: number;
+  nextAttemptAt: string;
+  createdAt: string;
+  updatedAt: string;
+  sentAt: string | null;
+  lastFailureCode: string | null;
+  lastOperatorResolution: "confirmed_sent" | "confirmed_not_sent" | null;
+  lastOperatorReason: string | null;
+  lastOperatorAt: string | null;
+  canReconcile: boolean;
+  canRetry: boolean;
+}
+export interface BookingOfferEmailDeliveryPage {
+  readonly data: BookingOfferEmailDelivery[];
+  readonly meta: PageMeta & { counts: Record<string, number> };
+}
+
+export interface BookingConfirmationResult {
+  bookingId: string;
+  bookingCode: string;
+  status: "confirmed";
+  offerId: string;
+  offerRevisionId: string;
+  draftRevisionId: string;
+  confirmedAt?: string;
+  replayed: boolean;
+}
+
+export interface BookingApprovalRule {
+  code: string;
+  condition:
+    | { kind: "always" }
+    | { kind: "total_at_least"; amount: number; currency: string }
+    | { kind: "discount_at_least"; amount: number }
+    | { kind: "adjustment_present"; adjustmentKind?: "fee" | "discount" | "credit" };
+  requiredApprovals: number;
+  permission: "booking.approve";
+  separationOfDuties: boolean;
+}
+
+export interface BookingApprovalPolicyRevision {
+  revisionId: string;
+  revisionNumber: number;
+  state: "draft" | "published" | "retired";
+  rules: BookingApprovalRule[];
+  publishedAt: string | null;
+  createdAt: string;
+}
+
+export interface BookingApprovalPolicy {
+  policyId: string;
+  code: string;
+  name: string;
+  status: "active" | "retired";
+  createdAt: string;
+  latestRevisionId: string | null;
+  revisions: BookingApprovalPolicyRevision[];
+}
+
+export interface BookingApprovalPolicyMutationResult {
+  policyId: string;
+  revisionId?: string;
+  revisionNumber?: number;
+  state: "draft" | "published" | "active";
+  publishedAt?: string;
+}
+
+
+export interface PublicBookingOffer {
+  offerId: string;
+  status: "issued" | "expired";
+  revisionNumber: number;
+  currency: string;
+  subtotal: number;
+  taxAmount: number;
+  totalAmount: number;
+  validUntil: string;
+  terms: {
+    requestedStart: string | null;
+    requestedEnd: string | null;
+    timezone: string | null;
+    taxBasis: string;
+    lineItems: Array<{ label: string; unit: string; quantity: number; unitAmount: number; lineTotal: number }>;
+    adjustments: Array<{ label: string; kind: string; amount: number }>;
+    spaces: Array<{ code: string; name: string; blockKind: string; startsAt: string; endsAt: string; requestedCapacity: number | null }>;
+    resources: Array<{ label: string; requestedQuantity: number }>;
+    cancellationTerms: string | null;
+  };
+}
 export interface PageMeta {
   limit: number;
   offset: number;
@@ -377,6 +584,41 @@ export interface PageMeta {
 }
 
 export const api = {
+  getPublicBookingOffer: (offerId: string, token: string) =>
+    request<Envelope<PublicBookingOffer>>(
+      `/public/booking-offers/${encodeURIComponent(offerId)}`,
+      { credentials: "omit", extraHeaders: { "X-External-Booking-Token": token } },
+    ),
+  acceptPublicBookingOffer: (
+    offerId: string,
+    token: string,
+    body: { acceptanceName: string; acceptanceNote?: string },
+    requestKey: string,
+  ) =>
+    request<Envelope<Record<string, unknown>>>(
+      `/booking-offers/${encodeURIComponent(offerId)}/accept`,
+      {
+        method: "POST", body, idempotent: true, idempotencyKey: requestKey,
+        credentials: "omit",
+        skipCsrf: true,
+        extraHeaders: { "X-External-Booking-Token": token },
+      },
+    ),
+  rejectPublicBookingOffer: (
+    offerId: string,
+    token: string,
+    body: { reasonCode: string; reason: string; note?: string },
+    requestKey: string,
+  ) =>
+    request<Envelope<Record<string, unknown>>>(
+      `/booking-offers/${encodeURIComponent(offerId)}/reject`,
+      {
+        method: "POST", body, idempotent: true, idempotencyKey: requestKey,
+        credentials: "omit",
+        skipCsrf: true,
+        extraHeaders: { "X-External-Booking-Token": token },
+      },
+    ),
   login: (body: { email: string; password: string; organizationSlug: string }) =>
     request<Envelope<{ csrfToken: string; expiresAt: string }>>("/auth/session", { method: "POST", body }),
   me: () => request<Envelope<Principal>>("/me"),
@@ -406,6 +648,104 @@ export const api = {
     request<Envelope<BookingInquiryDetail>>(`/booking-inquiries/${encodeURIComponent(inquiryId)}`),
   getBookingDraft: (draftId: string) =>
     request<Envelope<BookingDraftDetail>>(`/booking-drafts/${encodeURIComponent(draftId)}`),
+  createBookingOffer: (draftRevisionId: string, body: BookingOfferWriteRequest) =>
+    request<Envelope<BookingOfferCreateResult>>(
+      `/booking-draft-revisions/${encodeURIComponent(draftRevisionId)}/offers`,
+      { method: "POST", body, idempotent: true },
+    ),
+  createBookingOfferSuccessor: (
+    offerId: string,
+    body: BookingOfferWriteRequest & { draftRevisionId: string; supersedeCurrentOffer?: boolean },
+  ) =>
+    request<Envelope<BookingOfferCreateResult>>(
+      `/booking-offers/${encodeURIComponent(offerId)}/revisions`,
+      { method: "POST", body, idempotent: true },
+    ),
+  getBookingOffer: (offerId: string) =>
+    request<Envelope<BookingOfferRecord>>(`/booking-offers/${encodeURIComponent(offerId)}`),
+  issueBookingOffer: (offerId: string, requestKey?: string) =>
+    request<Envelope<BookingOfferIssueResult>>(
+      `/booking-offers/${encodeURIComponent(offerId)}/issue`,
+      { method: "POST", body: {}, idempotent: true, idempotencyKey: requestKey },
+    ),
+  queueBookingOfferEmail: (offerId: string, acceptanceToken: string, requestKey?: string) =>
+    request<Envelope<{ deliveryId: string; status: string; created: boolean }>>(
+      `/booking-offers/${encodeURIComponent(offerId)}/email`,
+      { method: "POST", body: { acceptanceToken }, idempotent: true, idempotencyKey: requestKey },
+    ),
+  getBookingOfferEmailDeliveries: (offerId: string, options: { status?: string; limit?: number; offset?: number } = {}) => {
+    const query = new URLSearchParams();
+    if (options.status) query.set("status", options.status);
+    if (options.limit !== undefined) query.set("limit", String(options.limit));
+    if (options.offset !== undefined) query.set("offset", String(options.offset));
+    return request<BookingOfferEmailDeliveryPage>(
+      `/booking-offers/${encodeURIComponent(offerId)}/email-deliveries${query.size ? `?${query.toString()}` : ""}`,
+    );
+  },
+  reconcileBookingOfferEmailDelivery: (
+    deliveryId: string,
+    body: { resolution: "confirmed_sent" | "confirmed_not_sent"; reason: string; providerMessageReference?: string },
+    requestKey?: string,
+  ) => request<Envelope<{ deliveryId: string; status: string; canRetry: boolean }>>(
+    `/booking-offer-email-deliveries/${encodeURIComponent(deliveryId)}/reconcile`,
+    { method: "POST", body, idempotent: true, idempotencyKey: requestKey },
+  ),
+  retryBookingOfferEmailDelivery: (deliveryId: string, reason: string, requestKey?: string) =>
+    request<Envelope<{ deliveryId: string; status: string; manualRetryCount: number }>>(
+      `/booking-offer-email-deliveries/${encodeURIComponent(deliveryId)}/retry`,
+      { method: "POST", body: { reason }, idempotent: true, idempotencyKey: requestKey },
+    ),
+  getBookingApprovalPolicies: () =>
+    request<Envelope<BookingApprovalPolicy[]>>("/organization/booking-approval-policies"),
+  createBookingApprovalPolicy: (body: { code: string; name: string }) =>
+    request<Envelope<BookingApprovalPolicyMutationResult>>(
+      "/organization/booking-approval-policies",
+      { method: "POST", body, idempotent: true },
+    ),
+  createBookingApprovalPolicyRevision: (policyId: string, rules: BookingApprovalRule[]) =>
+    request<Envelope<BookingApprovalPolicyMutationResult>>(
+      `/booking-approval-policies/${encodeURIComponent(policyId)}/revisions`,
+      { method: "POST", body: { rules }, idempotent: true },
+    ),
+  updateBookingApprovalPolicyDraftRevision: (
+    policyId: string,
+    revisionId: string,
+    rules: BookingApprovalRule[],
+  ) =>
+    request<Envelope<BookingApprovalPolicyMutationResult>>(
+      `/booking-approval-policies/${encodeURIComponent(policyId)}/revisions/${encodeURIComponent(revisionId)}`,
+      { method: "PUT", body: { rules }, idempotent: true },
+    ),
+  publishBookingApprovalPolicyRevision: (policyId: string, revisionId: string) =>
+    request<Envelope<BookingApprovalPolicyMutationResult>>(
+      `/booking-approval-policies/${encodeURIComponent(policyId)}/revisions/${encodeURIComponent(revisionId)}/publish`,
+      { method: "POST", body: {}, idempotent: true },
+    ),
+  getBookingOfferApprovals: (offerId: string) =>
+    request<Envelope<BookingOfferApprovalStatus>>(
+      `/booking-offers/${encodeURIComponent(offerId)}/approvals`,
+    ),
+  decideBookingOfferApproval: (
+    offerId: string,
+    body: {
+      offerRevisionId: string;
+      ruleCode: string;
+      decision: "approved" | "rejected" | "returned_for_changes";
+      reason: string;
+    },
+  ) =>
+    request<Envelope<Record<string, unknown>>>(
+      `/booking-offers/${encodeURIComponent(offerId)}/approvals`,
+      { method: "POST", body, idempotent: true },
+    ),
+  confirmBookingFromOffer: (
+    draftRevisionId: string,
+    body: { expectedDraftRevisionId: string; confirmationReason: string },
+  ) =>
+    request<Envelope<BookingConfirmationResult>>(
+      `/booking-draft-revisions/${encodeURIComponent(draftRevisionId)}/confirm`,
+      { method: "POST", body, idempotent: true },
+    ),
   createBookingDraftRevision: (
     draftId: string,
     body: {
