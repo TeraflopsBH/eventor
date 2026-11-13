@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import type { Ref } from "vue";
+import { useI18n } from "vue-i18n";
 import { useInquiryPresentation } from "../booking-inquiries/useInquiryPresentation";
 import type { useBookingPriceLists } from "./useBookingPriceLists";
 
@@ -7,6 +8,9 @@ type Workspace = ReturnType<typeof useBookingPriceLists> & { busy: Ref<boolean> 
 
 const props = defineProps<{ workspace: Workspace }>();
 const { formatDate } = useInquiryPresentation();
+const { t } = useI18n();
+const statusLabel = (value: string) => { const key = `commercialConfiguration.viewValues.${value}`; const translated = t(key as never) as string; return translated === key ? value : translated; };
+const enumLabel = (value: string) => statusLabel(value);
 
 const {
   bookingPriceLists,
@@ -32,45 +36,45 @@ const {
 <section class="panel inquiry-panel approval-policy-workspace">
         <div class="section-heading">
           <div>
-            <p class="eyebrow">ORGANIZATION COMMERCIAL CONFIGURATION</p>
-            <h2>Price lists</h2>
-            <p class="muted">Manage versioned prices for bookable services. Drafts can be edited; published revisions are immutable and remain pinned to offers that use them.</p>
+            <p class="eyebrow">{{ t("commercialConfiguration.priceView.organization_commercial_configuration") }}</p>
+            <h2>{{ t("commercialConfiguration.priceView.price_lists") }}</h2>
+            <p class="muted">{{ t("commercialConfiguration.priceView.manage_versioned_prices_for_bookable_services_drafts_ca") }}</p>
           </div>
-          <button class="button button-secondary" type="button" :disabled="busy" @click="loadBookingPriceLists">Refresh price lists</button>
+          <button class="button button-secondary" type="button" :disabled="busy" @click="loadBookingPriceLists">{{ t("commercialConfiguration.priceView.refresh_price_lists") }}</button>
         </div>
         <div class="inquiry-detail-grid">
           <section class="inquiry-card">
-            <h4>Create organization price list</h4>
+            <h4>{{ t("commercialConfiguration.priceView.create_organization_price_list") }}</h4>
             <form class="draft-revision-form" @submit.prevent="createBookingPriceList">
-              <label>Code<input v-model="priceListCreateForm.code" type="text" required minlength="2" maxlength="80" placeholder="venue_services" /></label>
-              <label>Name<input v-model="priceListCreateForm.name" type="text" required maxlength="250" placeholder="Venue services" /></label>
-              <label>Currency<input v-model="priceListCreateForm.currency" type="text" required minlength="3" maxlength="3" pattern="[A-Z]{3}" /></label>
-              <label>Tax basis
+              <label>{{ t("commercialConfiguration.priceView.code") }}<input v-model="priceListCreateForm.code" type="text" required minlength="2" maxlength="80"  :placeholder="t('commercialConfiguration.priceView.price_placeholder_code')" /></label>
+              <label>{{ t("commercialConfiguration.priceView.name") }}<input v-model="priceListCreateForm.name" type="text" required maxlength="250"  :placeholder="t('commercialConfiguration.priceView.price_placeholder_name')" /></label>
+              <label>{{ t("commercialConfiguration.priceView.currency") }}<input v-model="priceListCreateForm.currency" type="text" required minlength="3" maxlength="3" pattern="[A-Z]{3}" /></label>
+              <label>{{ t("commercialConfiguration.priceView.tax_basis") }}
                 <select v-model="priceListCreateForm.taxBasis">
-                  <option value="to_be_confirmed">To be confirmed</option>
-                  <option value="inclusive">Tax inclusive</option>
-                  <option value="exclusive">Tax exclusive</option>
-                  <option value="not_applicable">Not applicable</option>
+                  <option value="to_be_confirmed">{{ t("commercialConfiguration.priceView.to_be_confirmed") }}</option>
+                  <option value="inclusive">{{ t("commercialConfiguration.priceView.tax_inclusive") }}</option>
+                  <option value="exclusive">{{ t("commercialConfiguration.priceView.tax_exclusive") }}</option>
+                  <option value="not_applicable">{{ t("commercialConfiguration.priceView.not_applicable") }}</option>
                 </select>
               </label>
-              <button class="button button-primary" type="submit" :disabled="busy || priceListCreateForm.code.trim().length < 2 || !priceListCreateForm.name.trim()">Create price list</button>
-              <p class="fine-print">Currency and tax basis are explicit organization inputs. Eventor does not assume GHB prices or tax treatment.</p>
+              <button class="button button-primary" type="submit" :disabled="busy || priceListCreateForm.code.trim().length < 2 || !priceListCreateForm.name.trim()">{{ t("commercialConfiguration.priceView.create_price_list") }}</button>
+              <p class="fine-print">{{ t("commercialConfiguration.priceView.currency_and_tax_basis_are_explicit_organization_inputs") }}</p>
             </form>
           </section>
           <section class="inquiry-card">
-            <h4>Existing price lists</h4>
-            <label>Select price list
+            <h4>{{ t("commercialConfiguration.priceView.existing_price_lists") }}</h4>
+            <label>{{ t("commercialConfiguration.priceView.select_price_list") }}
               <select v-model="selectedPriceListId" @change="selectBookingPriceList(selectedPriceListId)">
-                <option value="">Choose a price list…</option>
+                <option value="">{{ t("commercialConfiguration.priceView.choose_a_price_list") }}</option>
                 <option v-for="priceList in bookingPriceLists" :key="priceList.priceListId" :value="priceList.priceListId">
-                  {{ priceList.code }} · {{ priceList.name }} ({{ priceList.status }})
+                  {{ priceList.code }} · {{ priceList.name }} ({{ statusLabel(priceList.status) }})
                 </option>
               </select>
             </label>
-            <p v-if="!bookingPriceLists.length" class="muted">No price lists are configured for this organization.</p>
+            <p v-if="!bookingPriceLists.length" class="muted">{{ t("commercialConfiguration.priceView.no_price_lists_are_configured_for_this_organization") }}</p>
             <div v-if="selectedPriceList" class="policy-summary">
               <strong>{{ selectedPriceList.name }}</strong>
-              <span>{{ selectedPriceList.code }} · {{ selectedPriceList.scopeKind }} · {{ selectedPriceList.status }}</span>
+              <span>{{ selectedPriceList.code }} · {{ enumLabel(selectedPriceList.scopeKind) }} · {{ statusLabel(selectedPriceList.status) }}</span>
               <small class="mono">{{ selectedPriceList.priceListId }}</small>
             </div>
           </section>
@@ -79,46 +83,46 @@ const {
           <div class="divider"></div>
           <div class="policy-revision-heading">
             <div>
-              <h3>Revision editor · {{ selectedPriceList.name }}</h3>
-              <p class="fine-print">Edit the latest draft, or create a successor draft after publication. Save replaces the full draft item set. Publication is a separate, irreversible action.</p>
+              <h3>{{ t("commercialConfiguration.priceView.revision_editor") }} · {{ selectedPriceList.name }}</h3>
+              <p class="fine-print">{{ t("commercialConfiguration.priceView.edit_the_latest_draft_or_create_a_successor_draft_after") }}</p>
             </div>
             <span class="pill" :class="selectedPriceListLatestRevision?.state === 'published' ? 'pill-success' : 'pill-warning'">
-              Latest: {{ selectedPriceListLatestRevision?.state ?? "No revision" }}
+              {{ t("commercialConfiguration.priceView.latest") }} {{ statusLabel(selectedPriceListLatestRevision?.state ?? 'noRevision') }}
             </span>
           </div>
           <div v-if="selectedPriceListLatestRevision" class="policy-revision-meta">
-            <span>Revision {{ selectedPriceListLatestRevision.revisionNumber }}</span>
-            <span>{{ selectedPriceListLatestRevision.currency }} · {{ selectedPriceListLatestRevision.taxBasis.replaceAll("_", " ") }}</span>
-            <span>Created {{ formatDate(selectedPriceListLatestRevision.createdAt) }}</span>
-            <span>Published {{ formatDate(selectedPriceListLatestRevision.publishedAt) }}</span>
+            <span>{{ t("commercialConfiguration.priceView.revision") }} {{ selectedPriceListLatestRevision.revisionNumber }}</span>
+            <span>{{ selectedPriceListLatestRevision.currency }} · {{ enumLabel(selectedPriceListLatestRevision.taxBasis) }}</span>
+            <span>{{ t("commercialConfiguration.priceView.created") }} {{ formatDate(selectedPriceListLatestRevision.createdAt) }}</span>
+            <span>{{ t("commercialConfiguration.priceView.published") }} {{ formatDate(selectedPriceListLatestRevision.publishedAt) }}</span>
             <span class="mono">{{ selectedPriceListLatestRevision.revisionId }}</span>
           </div>
           <div class="field-grid">
-            <label>Currency<input v-model="priceListRevisionForm.currency" type="text" required minlength="3" maxlength="3" pattern="[A-Z]{3}" /></label>
-            <label>Tax basis
+            <label>{{ t("commercialConfiguration.priceView.currency") }}<input v-model="priceListRevisionForm.currency" type="text" required minlength="3" maxlength="3" pattern="[A-Z]{3}" /></label>
+            <label>{{ t("commercialConfiguration.priceView.tax_basis") }}
               <select v-model="priceListRevisionForm.taxBasis">
-                <option value="to_be_confirmed">To be confirmed</option>
-                <option value="inclusive">Tax inclusive</option>
-                <option value="exclusive">Tax exclusive</option>
-                <option value="not_applicable">Not applicable</option>
+                <option value="to_be_confirmed">{{ t("commercialConfiguration.priceView.to_be_confirmed") }}</option>
+                <option value="inclusive">{{ t("commercialConfiguration.priceView.tax_inclusive") }}</option>
+                <option value="exclusive">{{ t("commercialConfiguration.priceView.tax_exclusive") }}</option>
+                <option value="not_applicable">{{ t("commercialConfiguration.priceView.not_applicable") }}</option>
               </select>
             </label>
-            <label>Effective from<input v-model="priceListRevisionForm.effectiveFrom" type="datetime-local" /></label>
-            <label>Effective until<input v-model="priceListRevisionForm.effectiveUntil" type="datetime-local" /></label>
+            <label>{{ t("commercialConfiguration.priceView.effective_from") }}<input v-model="priceListRevisionForm.effectiveFrom" type="datetime-local" /></label>
+            <label>{{ t("commercialConfiguration.priceView.effective_until") }}<input v-model="priceListRevisionForm.effectiveUntil" type="datetime-local" /></label>
           </div>
-          <label>Published tax-profile revision
+          <label>{{ t("commercialConfiguration.priceView.published_tax_profile_revision") }}
             <select v-model="priceListTaxProfileRevisionId" :disabled="selectedPriceListLatestRevision?.state !== 'draft'">
-              <option value="">No tax profile selected</option>
-              <option v-for="taxRevision in compatibleTaxProfileRevisions" :key="taxRevision.revisionId" :value="taxRevision.revisionId">{{ taxRevision.profileCode }} · {{ taxRevision.profileName }} · rev {{ taxRevision.revisionNumber }}</option>
+              <option value="">{{ t("commercialConfiguration.priceView.no_tax_profile_selected") }}</option>
+              <option v-for="taxRevision in compatibleTaxProfileRevisions" :key="taxRevision.revisionId" :value="taxRevision.revisionId">{{ taxRevision.profileCode }} · {{ taxRevision.profileName }} · ver. {{ taxRevision.revisionNumber }}</option>
             </select>
           </label>
-          <p class="fine-print">A selected tax profile must match the price-list currency and tax basis. Every price item must use a taxCode from its catalogue; not-applicable profiles require null taxCode values. The selected revision is copied into each offer's immutable terms snapshot.</p>
-          <label>Price items (JSON array)
+          <p class="fine-print">{{ t("commercialConfiguration.priceView.a_selected_tax_profile_must_match_the_price_list_curren") }}</p>
+          <label>{{ t("commercialConfiguration.priceView.price_items_json_array") }}
             <textarea v-model="priceListItemsJson" rows="16" spellcheck="false" :disabled="selectedPriceListLatestRevision?.state !== 'draft'"></textarea>
           </label>
           <div class="policy-rule-reference">
-            <strong>Item format</strong>
-            <p class="fine-print">Each item has a stable itemCode, customer-facing label, unit, unitAmount, optional taxCode, quantityMin (default 1) and quantityMax (optional). Amounts are non-negative decimal values.</p>
+            <strong>{{ t("commercialConfiguration.priceView.item_format") }}</strong>
+            <p class="fine-print">{{ t("commercialConfiguration.priceView.each_item_has_a_stable_itemcode_customer_facing_label_u") }}</p>
             <pre>[
   {
     "itemCode": "MAIN_HALL_DAY",
@@ -130,28 +134,28 @@ const {
     "quantityMax": 1
   }
 ]</pre>
-            <p class="fine-print">The zero amount above is a format example only, not a suggested or seeded price.</p>
+            <p class="fine-print">{{ t("commercialConfiguration.priceView.the_zero_amount_above_is_a_format_example_only_not_a_su") }}</p>
           </div>
           <div class="form-actions">
-            <button v-if="selectedPriceListLatestRevision?.state !== 'draft'" class="button button-secondary" type="button" :disabled="busy" @click="createBookingPriceListRevision">Create successor draft revision</button>
-            <button v-if="selectedPriceListLatestRevision?.state === 'draft'" class="button button-secondary" type="button" :disabled="busy" @click="saveBookingPriceListDraft">Save draft</button>
-            <button v-if="selectedPriceListLatestRevision?.state === 'draft'" class="button button-primary" type="button" :disabled="busy || !selectedPriceListLatestRevision?.items.length" @click="publishBookingPriceListRevision">Publish revision</button>
+            <button v-if="selectedPriceListLatestRevision?.state !== 'draft'" class="button button-secondary" type="button" :disabled="busy" @click="createBookingPriceListRevision">{{ t("commercialConfiguration.priceView.create_successor_draft_revision") }}</button>
+            <button v-if="selectedPriceListLatestRevision?.state === 'draft'" class="button button-secondary" type="button" :disabled="busy" @click="saveBookingPriceListDraft">{{ t("commercialConfiguration.priceView.save_draft") }}</button>
+            <button v-if="selectedPriceListLatestRevision?.state === 'draft'" class="button button-primary" type="button" :disabled="busy || !selectedPriceListLatestRevision?.items.length" @click="publishBookingPriceListRevision">{{ t("commercialConfiguration.priceView.publish_revision") }}</button>
           </div>
           <div v-if="selectedPriceList.revisions.length" class="draft-revision-history">
-            <h5>Revision history</h5>
+            <h5>{{ t("commercialConfiguration.priceView.revision_history") }}</h5>
             <ol class="history-list">
               <li v-for="revision in selectedPriceList.revisions" :key="revision.revisionId">
-                <strong>Revision {{ revision.revisionNumber }} · {{ revision.state }} · {{ revision.items.length }} item(s)</strong>
-                <span>{{ revision.currency }} · {{ revision.taxBasis.replaceAll("_", " ") }}</span>
-                <small>Created {{ formatDate(revision.createdAt) }} · Published {{ formatDate(revision.publishedAt) }}</small>
+                <strong>{{ t("commercialConfiguration.priceView.revision") }} {{ revision.revisionNumber }} · {{ statusLabel(revision.state) }} · {{ revision.items.length }} {{ t("commercialConfiguration.priceView.item_s") }}</strong>
+                <span>{{ revision.currency }} · {{ enumLabel(revision.taxBasis) }}</span>
+                <small>{{ t("commercialConfiguration.priceView.created") }} {{ formatDate(revision.createdAt) }} · {{ t("commercialConfiguration.priceView.published") }} {{ formatDate(revision.publishedAt) }}</small>
               </li>
             </ol>
           </div>
         </template>
         <p v-else class="inquiry-detail-empty">
           <span class="brand-mark">E</span>
-          <strong>Select or create a price list</strong>
-          <span class="muted">Price-list management requires the organization-level booking.manage permission.</span>
+          <strong>{{ t("commercialConfiguration.priceView.select_or_create_a_price_list") }}</strong>
+          <span class="muted">{{ t("commercialConfiguration.priceView.price_list_management_requires_the_organization_level_b") }}</span>
         </p>
       </section>
 </template>
