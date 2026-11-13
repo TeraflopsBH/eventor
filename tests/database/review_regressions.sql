@@ -216,6 +216,54 @@ BEGIN
 END;
 $test$;
 
+-- A single individually tracked unit must not be reserved twice for an
+-- overlapping interval, even when both requests are unassigned draft holds.
+DO $test$
+DECLARE
+  v_first_id uuid;
+  v_active_count integer;
+BEGIN
+  v_first_id := eogp.reserve_resource_unit(
+    '11111111-1111-4111-8111-111111111111',
+    '42000000-0000-4000-8000-000000000009',
+    '51000000-0000-4000-8000-000000000001',
+    NULL,NULL,NULL,
+    '2027-01-08 10:00+00','2027-01-08 11:00+00',
+    clock_timestamp() + interval '1 day',
+    'ci-same-unit-overlap-01'
+  );
+
+  BEGIN
+    PERFORM eogp.reserve_resource_unit(
+      '11111111-1111-4111-8111-111111111111',
+      '42000000-0000-4000-8000-000000000009',
+      '51000000-0000-4000-8000-000000000001',
+      NULL,NULL,NULL,
+      '2027-01-08 10:30+00','2027-01-08 11:30+00',
+      clock_timestamp() + interval '1 day',
+      'ci-same-unit-overlap-02'
+    );
+    RAISE EXCEPTION 'same discrete unit accepted an overlapping reservation';
+  EXCEPTION WHEN exclusion_violation THEN
+    NULL;
+  END;
+
+  SELECT count(*) INTO v_active_count
+    FROM eogp.resource_reservations
+   WHERE organization_id='11111111-1111-4111-8111-111111111111'
+     AND resource_unit_id='42000000-0000-4000-8000-000000000009'
+     AND status='held'
+     AND starts_at < '2027-01-08 11:30+00'
+     AND ends_at > '2027-01-08 10:30+00';
+  IF v_active_count<>1 OR NOT EXISTS (
+    SELECT 1 FROM eogp.resource_reservations
+     WHERE id=v_first_id AND status='held'
+  ) THEN
+    RAISE EXCEPTION 'overlap rejection changed or duplicated the original unit reservation';
+  END IF;
+END;
+$test$;
+
 -- The worker expiry path must include discrete-unit rows, whose resource_pool_id
 -- column is NULL. Expired pooled holds must also release their pool capacity.
 INSERT INTO eogp.resource_pools
