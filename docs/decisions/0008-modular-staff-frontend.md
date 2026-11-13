@@ -52,3 +52,6 @@ The four commercial-configuration workspace templates are extracted into feature
 
 
 Campaign review and delivery reporting follow the same boundary: `features/campaigns/useCampaigns.ts` owns campaign and delivery state/commands, while `CampaignWorkspaceView.vue` renders the workspace from an explicit typed contract. Shared session messages, busy state and SMTP readiness remain application-level dependencies passed into the feature. The root no longer owns campaign lookup, delivery reconciliation/retry, or campaign lifecycle command implementations.
+
+
+The organization email-delivery workspace is extracted into `src/features/email-delivery/useEmailDelivery.ts` and `EmailDeliveryView.vue`. The composable owns SMTP configuration state, write-only credentials, explicit credential clearing, revision save/test behavior and the optional Resend callback lifecycle. The view owns the existing readiness/configuration UI and receives a typed workspace contract. `App.vue` retains session-level composition and shares the email configuration readiness with campaign operations. This does not make Resend a required sending provider: organization-owned SMTP remains the generic delivery interface, while Resend callbacks are conditionally available for the Resend SMTP host.
