@@ -68,8 +68,9 @@ GRANT SELECT, INSERT, UPDATE ON eogp.user_sessions, eogp.auth_login_attempts
   TO eventor_auth;
 
 -- A worker may discover only the tenant IDs of pending organizer event-change
--- messages. It still has to set that tenant's transaction-local context before
--- reading or changing any event, recipient, template or campaign rows.
+-- messages. It must set that tenant's transaction-local context before calling
+-- the restricted processor; the processor performs all event/recipient/template
+-- reads and campaign writes under the owner role with forced tenant RLS.
 ALTER TABLE eogp.outbox_events
   ADD COLUMN dead_lettered_at timestamptz;
 DROP INDEX eogp.outbox_ready_idx;
@@ -85,7 +86,10 @@ CREATE POLICY worker_event_notification_outbox_discovery
     AND dead_lettered_at IS NULL
   );
 
-GRANT SELECT ON
+-- The worker reads source contacts and writes campaign snapshots only inside
+-- the tenant-bound SECURITY DEFINER processor. It must not be able to inspect
+-- preview recipients or source contact data directly.
+REVOKE ALL ON
   eogp.events,
   eogp.event_schedule_revisions,
   eogp.event_change_requests,
@@ -95,14 +99,12 @@ GRANT SELECT ON
   eogp.person_contact_points,
   eogp.invitations,
   eogp.rsvp_responses,
-  eogp.notification_templates
-TO eventor_worker;
-
-GRANT SELECT, INSERT, UPDATE ON eogp.event_notification_campaigns TO eventor_worker;
-GRANT SELECT, INSERT ON
+  eogp.notification_templates,
+  eogp.event_notification_campaigns,
   eogp.event_notification_recipients,
-  eogp.event_notification_exclusions
-TO eventor_worker;
+  eogp.event_notification_exclusions,
+  eogp.event_notification_delivery_attempts
+FROM eventor_worker;
 
 DO $preflight$
 BEGIN
@@ -127,6 +129,7 @@ CREATE FUNCTION eogp.process_event_notification_outbox(
   p_batch_size integer DEFAULT 20
 ) RETURNS jsonb
 LANGUAGE plpgsql
+SECURITY DEFINER
 SET search_path = pg_catalog, eogp
 AS $function$
 DECLARE
@@ -145,7 +148,7 @@ DECLARE
   v_processed integer := 0;
   v_inserted_count integer;
 BEGIN
-  IF current_user <> 'eventor_worker' THEN
+  IF session_user <> 'eventor_worker' THEN
     RAISE EXCEPTION 'notification outbox processing requires eventor_worker'
       USING ERRCODE = '42501';
   END IF;
@@ -548,6 +551,13 @@ BEGIN
   );
 END;
 $function$;
+
+-- The worker discovers pending tenants using only queue metadata columns.
+-- Payload, aggregate and idempotency fields are available only inside the
+-- SECURITY DEFINER processor after the caller sets and the function validates tenant context.
+REVOKE ALL ON eogp.outbox_events FROM eventor_worker;
+GRANT SELECT (id, organization_id, topic, available_at, published_at, dead_lettered_at)
+  ON eogp.outbox_events TO eventor_worker;
 
 REVOKE ALL ON FUNCTION eogp.process_event_notification_outbox(integer) FROM PUBLIC;
 GRANT EXECUTE ON FUNCTION eogp.process_event_notification_outbox(integer) TO eventor_worker;
