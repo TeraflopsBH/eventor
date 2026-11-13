@@ -57,14 +57,6 @@ pool.on("error", (error) => {
   }) + "\n");
 });
 
-async function shutdown(signal: string): Promise<void> {
-  process.stdout.write(JSON.stringify({ level: "info", event: "worker_shutdown", signal }) + "\n");
-  await pool.end();
-  process.exit(0);
-}
-process.once("SIGINT", () => { void shutdown("SIGINT"); });
-process.once("SIGTERM", () => { void shutdown("SIGTERM"); });
-
 try {
   await runEventNotificationWorker(pool, {
     batchSize: positiveInteger("EVENTOR_WORKER_BATCH_SIZE", 20, 100),
@@ -89,6 +81,9 @@ try {
       }) + "\n");
     },
   });
+  // runEventNotificationWorker owns signal handling and exits its loop only
+  // after the current processing cycle completes. Close the pool afterwards.
+  await pool.end();
 } catch (error) {
   process.stderr.write(JSON.stringify({
     level: "fatal",
