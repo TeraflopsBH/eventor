@@ -33,7 +33,7 @@ BEGIN
     JOIN pg_namespace AS namespace ON namespace.oid = procedure.pronamespace
    WHERE namespace.nspname = 'eogp'
      AND procedure.proname = 'process_event_notification_outbox'
-     AND pg_get_function_identity_arguments(procedure.oid) = 'p_batch_size integer';
+     AND pg_get_function_identity_arguments(procedure.oid) = 'integer';
 
   IF v_security_definer IS DISTINCT FROM true
      OR NOT (coalesce(v_search_path, ARRAY[]::text[]) @> ARRAY['search_path=pg_catalog, eogp']) THEN
