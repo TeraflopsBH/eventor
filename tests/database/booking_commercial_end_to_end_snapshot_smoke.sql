@@ -24,6 +24,7 @@ DECLARE
   v_held_alternative_space_id uuid := gen_random_uuid();
   v_expired_alternative_space_id uuid := gen_random_uuid();
   v_small_alternative_space_id uuid := gen_random_uuid();
+  v_proposed_alternative_space_id uuid := gen_random_uuid();
   v_second_resource_pool_id uuid := gen_random_uuid();
   v_preview jsonb;
   v_before_reservation_count integer;
@@ -579,7 +580,8 @@ BEGIN
     (v_alternative_space_id,v_org,v_venue_id,'CI-ALT-FREE','CI Alternative Free','room',40,'active'),
     (v_held_alternative_space_id,v_org,v_venue_id,'CI-ALT-HELD','CI Alternative Held','room',40,'active'),
     (v_expired_alternative_space_id,v_org,v_venue_id,'CI-ALT-EXPIRED','CI Alternative Expired Hold','room',40,'active'),
-    (v_small_alternative_space_id,v_org,v_venue_id,'CI-ALT-SMALL','CI Alternative Too Small','room',10,'active');
+    (v_small_alternative_space_id,v_org,v_venue_id,'CI-ALT-SMALL','CI Alternative Too Small','room',10,'active'),
+    (v_proposed_alternative_space_id,v_org,v_venue_id,'CI-ALT-PROPOSED','CI Alternative Already Proposed','room',40,'active');
 
   INSERT INTO eogp.venue_space_time_blocks(
     organization_id,venue_space_id,booking_draft_revision_id,reservation_kind,status,
@@ -621,6 +623,11 @@ BEGIN
       'startsAt',v_space_starts_at,
       'endsAt',v_space_ends_at,
       'requestedCapacity',20
+    ),jsonb_build_object(
+      'venueSpaceId',v_proposed_alternative_space_id,
+      'startsAt',v_space_starts_at,
+      'endsAt',v_space_ends_at,
+      'requestedCapacity',20
     )),
     jsonb_build_array(jsonb_build_object(
       'resourceTypeId',v_resource_type_id,
@@ -649,7 +656,8 @@ BEGIN
        SELECT 1
          FROM jsonb_array_elements(v_preview->'spaceAlternatives'->0->'alternatives') alternative
         WHERE alternative->>'venueSpaceId' IN (
-          v_held_alternative_space_id::text,v_small_alternative_space_id::text
+          v_held_alternative_space_id::text,v_small_alternative_space_id::text,
+          v_proposed_alternative_space_id::text
         )
      ) THEN
     RAISE EXCEPTION 'space alternatives did not respect live holds, expired holds and requested capacity: %',v_preview->'spaceAlternatives';
