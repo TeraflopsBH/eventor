@@ -1,5 +1,6 @@
 import { computed, reactive, ref, type Ref } from "vue";
 import type { BookingForm, BookingFormField, BookingFormSchema, BookingFormTranslation } from "../../api";
+import { moveBookingFormField, validateBookingFormDraft } from "./validateBookingFormDraft";
 
 type Locale = "bs-BA" | "en";
 type Translate = (key: string, params?: Record<string, string | number>) => string;
@@ -28,11 +29,54 @@ export function useBookingForms({ api, busy, pageError, pageNotice, clearMessage
   const latestRevision = computed(() => selectedForm.value?.revisions[0] ?? null);
   const editable = computed(() => latestRevision.value?.state === "draft");
   const selectedField = computed(() => schema.value.fields.find(field => field.code === selectedFieldCode.value) ?? null);
-  const translation = (locale: Locale): BookingFormTranslation => {
+  const translation = (locale: Locale): BookingFormTranslation =>
+    schema.value.contentTranslations?.[locale] ?? { formName: "", fields: {} };
+  function ensureTranslation(locale: Locale): BookingFormTranslation {
     schema.value.contentTranslations ??= {};
     schema.value.contentTranslations[locale] ??= { formName: "", fields: {} };
     return schema.value.contentTranslations[locale]!;
-  };
+  }
+  function setFormTranslationName(locale: Locale, value: string): void {
+    schema.value.contentTranslations ??= {};
+    schema.value.contentTranslations[locale] ??= { formName: "", fields: {} };
+    schema.value.contentTranslations[locale]!.formName = value;
+    markDirty();
+  }
+  function updateFieldCode(field: BookingFormField, nextCode: string): void {
+    const previous = field.code;
+    if (previous === nextCode || !/^[a-z][a-z0-9_]{0,79}$/.test(nextCode) ||
+        schema.value.fields.some(item => item !== field && item.code === nextCode)) return;
+    field.code = nextCode;
+    if (selectedFieldCode.value === previous) selectedFieldCode.value = nextCode;
+    for (const locale of ["bs-BA", "en"] as Locale[]) {
+      const translatedFields = schema.value.contentTranslations?.[locale]?.fields;
+      if (translatedFields?.[previous]) {
+        translatedFields[nextCode] = translatedFields[previous]!;
+        delete translatedFields[previous];
+      }
+    }
+    markDirty();
+  }
+  function updateOptionValue(field: BookingFormField, previous: string, next: string): void {
+    if (!field.options || !next.trim() || next.length > 200 ||
+        field.options.some(option => option.value === next && option.value !== previous)) return;
+    const option = field.options.find(item => item.value === previous);
+    if (!option) return;
+    option.value = next;
+    for (const locale of ["bs-BA", "en"] as Locale[]) {
+      const translatedOptions = schema.value.contentTranslations?.[locale]?.fields[field.code]?.options;
+      if (translatedOptions?.[previous] !== undefined) {
+        translatedOptions[next] = translatedOptions[previous]!;
+        delete translatedOptions[previous];
+      }
+    }
+    markDirty();
+  }
+  function moveField(index: number, offset: -1 | 1): void {
+    if (!editable.value) return;
+    moveBookingFormField(schema.value.fields, index, offset);
+    markDirty();
+  }
   function markDirty(): void { dirty.value = true; }
   function syncRevision(): void {
     const revision = latestRevision.value;
@@ -97,27 +141,42 @@ export function useBookingForms({ api, busy, pageError, pageNotice, clearMessage
   }
   function fieldText(locale: Locale, field: BookingFormField, key: "label" | "description" | "helpText" | "placeholder"): string {
     const translated = translation(locale).fields[field.code]?.[key];
-    return translated ?? (field[key] ?? "");
+    const base = field[key] ?? "";
+    if (locale === baseLocale.value) return base;
+    return translated ?? base;
   }
   function setFieldText(locale: Locale, field: BookingFormField, key: "label" | "description" | "helpText" | "placeholder", value: string): void {
-    const content = translation(locale);
+    if (locale === baseLocale.value) {
+      field[key] = value;
+      markDirty();
+      return;
+    }
+    const content = ensureTranslation(locale);
     content.fields[field.code] ??= {};
     content.fields[field.code]![key] = value;
     markDirty();
   }
   function optionText(locale: Locale, field: BookingFormField, value: string, fallback: string): string {
-    return translation(locale).fields[field.code]?.options?.[value] ?? fallback;
+    return (locale === baseLocale.value ? fallback : translation(locale).fields[field.code]?.options?.[value]) ?? fallback;
   }
   function setOptionText(locale: Locale, field: BookingFormField, value: string, label: string): void {
-    const content = translation(locale);
+    if (locale === baseLocale.value) {
+      const option = field.options?.find(item => item.value === value);
+      if (option) option.label = label;
+      markDirty();
+      return;
+    }
+    const content = ensureTranslation(locale);
     content.fields[field.code] ??= {};
     content.fields[field.code]!.options ??= {};
     content.fields[field.code]!.options![value] = label; markDirty();
   }
   function completeness(locale: Locale): { complete: number; total: number } {
     const content = schema.value.contentTranslations?.[locale];
-    const required: string[] = ["formName"];
+    const required: string[] = [];
+    if (locale !== baseLocale.value) required.push("formName");
     for (const field of schema.value.fields) {
+      if (locale === baseLocale.value) continue;
       for (const key of ["label", "description", "helpText", "placeholder"] as const) if (field[key]) required.push(`${field.code}.${key}`);
       for (const option of field.options ?? []) required.push(`${field.code}.options.${option.value}`);
     }
@@ -139,16 +198,10 @@ export function useBookingForms({ api, busy, pageError, pageNotice, clearMessage
   async function save(): Promise<void> {
     const form = selectedForm.value, revision = latestRevision.value;
     if (!form || !revision || !editable.value) return;
-    for (const locale of ["bs-BA", "en"] as Locale[]) {
-      const content = schema.value.contentTranslations?.[locale];
-      if (!content) continue;
-      if (!content.formName.trim() && Object.keys(content.fields).length > 0) {
-        pageError.value = translate("bookingForms.translationNameRequired");
-        return;
-      }
-      if (!content.formName.trim() && Object.keys(content.fields).length === 0) {
-        delete schema.value.contentTranslations?.[locale];
-      }
+    const issues = validateBookingFormDraft(schema.value);
+    if (issues.length) {
+      pageError.value = translate(issues[0]!.messageKey);
+      return;
     }
     clearMessages(); busy.value = true;
     try {
@@ -159,7 +212,8 @@ export function useBookingForms({ api, busy, pageError, pageNotice, clearMessage
   async function publish(): Promise<void> {
     const form = selectedForm.value, revision = latestRevision.value;
     if (!form || !revision || !editable.value) return;
-    if (!schema.value.fields.length) { pageError.value = translate("bookingForms.publishNeedsField"); return; }
+    const issues = validateBookingFormDraft(schema.value);
+    if (issues.length) { pageError.value = translate(issues[0]!.messageKey); return; }
     if (dirty.value) { pageError.value = translate("bookingForms.saveBeforePublish"); return; }
     if (!window.confirm(translate("bookingForms.publishConfirm"))) return;
     clearMessages(); busy.value = true;
@@ -168,5 +222,5 @@ export function useBookingForms({ api, busy, pageError, pageNotice, clearMessage
       await load(); pageNotice.value = translate("bookingForms.published");
     } catch (error) { showError(error); } finally { busy.value = false; }
   }
-  return { forms, selectedFormId, createForm, schema, baseLocale, previewLocale, selectedForm, latestRevision, editable, selectedFieldCode, selectedField, dirty, translation, completeness, fieldText, setFieldText, optionText, setOptionText, previewFieldLabel, previewOptionLabel, load, open, selectForm, create, createRevision, addField, removeField, addOption, markDirty, save, publish };
+  return { forms, selectedFormId, createForm, schema, baseLocale, previewLocale, selectedForm, latestRevision, editable, selectedFieldCode, selectedField, dirty, translation, setFormTranslationName, updateFieldCode, updateOptionValue, moveField, completeness, fieldText, setFieldText, optionText, setOptionText, previewFieldLabel, previewOptionLabel, load, open, selectForm, create, createRevision, addField, removeField, addOption, markDirty, save, publish };
 }

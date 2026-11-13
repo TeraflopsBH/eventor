@@ -437,3 +437,9 @@ textarea:focus { border-color: var(--accent); box-shadow: 0 0 0 3px #f5863420; }
 .preview-field { display: grid; gap: .35rem; margin: 1rem 0; }
 .preview-field input, .preview-field textarea, .preview-field select { width: 100%; }
 @media (max-width: 850px) { .booking-form-layout { grid-template-columns: 1fr; } .booking-form-actions { justify-content: flex-start; } }
+
+
+.booking-form-reorder { display: flex; gap: .5rem; margin: .75rem 0; }
+.booking-form-field-chip { min-width: 120px; }
+.booking-form-preview .preview-field > p { margin: 0; }
+.booking-form-preview input:disabled, .booking-form-preview textarea:disabled, .booking-form-preview select:disabled { opacity: .85; }
