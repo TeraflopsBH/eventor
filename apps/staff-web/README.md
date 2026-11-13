@@ -8,7 +8,7 @@ Use Node.js 22.16.0 or a compatible Node 22 release.
 
 ```sh
 cd apps/staff-web
-npm install
+npm ci
 npm run dev
 ```
 
@@ -25,7 +25,7 @@ cd apps/staff-web
 npm test
 ```
 
-The focused suites cover booking-form schema validation, field ordering, translation-key migration, canonical/base-language editing, translation read purity, completeness counts, save/publication validation gates, and the public booking workflow: translated content with per-field fallback, translation completeness warnings, multi-select initialization/toggling/bounds, number normalization, requester cleanup, and submission pinned to the exact loaded published revision. Schema-aware draft coverage verifies required fields, text lengths, numeric bounds/integer constraints, checkbox acceptance, select/multi-select option membership, multi-select bounds, numeric normalization and retention of unknown legacy answer keys. Conversion coverage verifies that decrypted draft values are presented with labels and select-option text from the exact source form revision, including visibility of unknown legacy answer keys. They import feature modules directly, so they do not require a browser or running API. API-side answer validation, stale-revision rejection and encrypted inquiry persistence are covered separately by the API test suite.
+The focused suites cover booking-form schema validation, field ordering, translation-key migration, canonical/base-language editing, translation read purity, completeness counts, save/publication validation gates, and the public booking workflow: translated content with per-field fallback, translation completeness warnings, multi-select initialization/toggling/bounds, number normalization, requester cleanup, and submission pinned to the exact loaded published revision. Schema-aware draft coverage verifies required fields, text lengths, numeric bounds/integer constraints, checkbox acceptance, select/multi-select option membership, multi-select bounds, numeric normalization and retention of unknown legacy answer keys. Conversion coverage verifies that decrypted draft values are presented with labels and select-option text from the exact source form revision, including visibility of unknown legacy answer keys. Allocation-preview composable tests verify that input changes invalidate in-flight responses and older overlapping requests cannot overwrite the newest result. They import feature modules directly, so they do not require a browser or running API. API-side answer validation, stale-revision rejection and encrypted inquiry persistence are covered separately by the API test suite.
 
 ## Implemented UI
 
