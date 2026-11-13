@@ -337,6 +337,40 @@ export interface BookingDraftAllocationOptions {
   resources: BookingDraftAllocationResourceOption[];
 }
 
+export interface BookingDraftAllocationSpaceConflict {
+  kind: "maintenance" | "confirmed_booking" | "active_hold";
+  status: "held" | "confirmed" | "blocked";
+  startsAt: string;
+  endsAt: string;
+}
+
+export interface BookingDraftSpaceAvailabilityResult {
+  index: number;
+  venueSpaceId: string;
+  available: boolean;
+  reason: "space_unavailable" | "space_conflict" | null;
+  conflicts: BookingDraftAllocationSpaceConflict[];
+}
+
+export interface BookingDraftResourceAvailabilityResult {
+  index: number;
+  resourceTypeId: string;
+  requestedQuantity: number;
+  totalRequestedQuantity: number;
+  availableQuantity: number | null;
+  checked: boolean;
+  available: boolean | null;
+  reason: "resource_interval_missing" | "resource_interval_invalid" | "resource_unavailable" | "no_active_resource_pools" | "resource_capacity_conflict" | null;
+}
+
+export interface BookingDraftAllocationAvailabilityPreview {
+  spaces: BookingDraftSpaceAvailabilityResult[];
+  resources: BookingDraftResourceAvailabilityResult[];
+  resourceIntervalChecked: boolean;
+  advisoryOnly: true;
+  checkedAt: string;
+}
+
 export interface BookingDraftRevisionHistoryItem {
   revisionId: string;
   revisionNumber: number;
@@ -920,6 +954,23 @@ export const api = {
     request<Envelope<BookingDraftAllocationOptions>>(
       `/booking-drafts/${encodeURIComponent(draftId)}/allocation-options`,
     ),
+  previewBookingDraftAllocationAvailability: (
+    draftId: string,
+    body: {
+      spaceLines: Array<{
+        venueSpaceId: string;
+        startsAt: string;
+        endsAt: string;
+        blockKind: "setup" | "rehearsal" | "event_use" | "teardown" | "buffer";
+      }>;
+      resourceLines: Array<{ resourceTypeId: string; requestedQuantity: number }>;
+      resourceStartsAt: string | null;
+      resourceEndsAt: string | null;
+    },
+  ) => request<Envelope<BookingDraftAllocationAvailabilityPreview>>(
+    `/booking-drafts/${encodeURIComponent(draftId)}/allocation-availability-preview`,
+    { method: "POST", body },
+  ),
   createBookingOffer: (draftRevisionId: string, body: BookingOfferWriteRequest) =>
     request<Envelope<BookingOfferCreateResult>>(
       `/booking-draft-revisions/${encodeURIComponent(draftRevisionId)}/offers`,

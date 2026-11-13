@@ -688,6 +688,42 @@ const inquiryAnnotationBody = {
   properties: { annotation: { type: "string", minLength: 1, maxLength: 4000 } },
   additionalProperties: false,
 } as const;
+const bookingDraftAllocationAvailabilityPreviewBody = {
+  type: "object",
+  required: ["spaceLines", "resourceLines", "resourceStartsAt", "resourceEndsAt"],
+  properties: {
+    spaceLines: {
+      type: "array", maxItems: 50,
+      items: {
+        type: "object",
+        required: ["venueSpaceId", "startsAt", "endsAt", "blockKind"],
+        properties: {
+          venueSpaceId: { type: "string", pattern: uuidPattern },
+          startsAt: { type: "string", format: "date-time" },
+          endsAt: { type: "string", format: "date-time" },
+          blockKind: { type: "string", enum: ["setup", "rehearsal", "event_use", "teardown", "buffer"] },
+        },
+        additionalProperties: true,
+      },
+    },
+    resourceLines: {
+      type: "array", maxItems: 100,
+      items: {
+        type: "object",
+        required: ["resourceTypeId", "requestedQuantity"],
+        properties: {
+          resourceTypeId: { type: "string", pattern: uuidPattern },
+          requestedQuantity: { type: "number", exclusiveMinimum: 0, maximum: 999999999.999 },
+        },
+        additionalProperties: true,
+      },
+    },
+    resourceStartsAt: { type: ["string", "null"], format: "date-time" },
+    resourceEndsAt: { type: ["string", "null"], format: "date-time" },
+  },
+  additionalProperties: false,
+} as const;
+
 const bookingDraftRevisionBody = {
   type: "object",
   required: [
@@ -1712,6 +1748,58 @@ export function buildApi(dependencies: ApiDependencies): FastifyInstance {
         return reply.code(200).send({ data: result.rows[0]?.result ?? { spaces: [], resources: [] } });
       } catch (error) {
         try { await client.query("ROLLBACK"); } catch { /* preserve the original read error */ }
+        throw databaseError(error);
+      } finally {
+        client.release();
+      }
+    },
+  );
+
+  server.post<{
+    Params: { draftId: string };
+    Body: {
+      spaceLines: Array<Record<string, unknown>>;
+      resourceLines: Array<Record<string, unknown>>;
+      resourceStartsAt: string | null;
+      resourceEndsAt: string | null;
+    };
+  }>(
+    "/booking-drafts/:draftId/allocation-availability-preview",
+    {
+      schema: {
+        params: bookingDraftParams,
+        body: bookingDraftAllocationAvailabilityPreviewBody,
+      },
+    },
+    async (request, reply) => {
+      const principal = request.staffPrincipal!;
+      const client = await dependencies.pool.connect();
+      try {
+        await client.query("BEGIN");
+        await client.query("SELECT set_config('app.organization_id',$1,true)", [principal.organizationId]);
+        const result = await client.query<ResultRow>(
+          "SELECT eogp.preview_booking_draft_allocation_availability($1::uuid,$2::uuid,$3::uuid,$4::jsonb,$5::jsonb,$6::timestamptz,$7::timestamptz) AS result",
+          [
+            principal.organizationId,
+            request.params.draftId,
+            principal.membershipId,
+            JSON.stringify(request.body.spaceLines),
+            JSON.stringify(request.body.resourceLines),
+            request.body.resourceStartsAt,
+            request.body.resourceEndsAt,
+          ],
+        );
+        await client.query("COMMIT");
+        return reply.code(200).send({
+          data: result.rows[0]?.result ?? {
+            spaces: [],
+            resources: [],
+            resourceIntervalChecked: false,
+            advisoryOnly: true,
+          },
+        });
+      } catch (error) {
+        try { await client.query("ROLLBACK"); } catch { /* preserve the original preview error */ }
         throw databaseError(error);
       } finally {
         client.release();

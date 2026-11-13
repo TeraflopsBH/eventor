@@ -83,6 +83,7 @@ function makePool() {
   let bookingInquiryAnnotationCalls = 0;
   let bookingInquiryConversionCalls = 0;
   let bookingDraftGetCalls = 0;
+  let bookingDraftAllocationPreviewCalls = 0;
   let bookingDraftRevisionCalls = 0;
   let bookingOfferPrepareCalls = 0;
   let bookingOfferSuccessorCalls = 0;
@@ -163,6 +164,37 @@ function makePool() {
         return { rows: [{ result: {
           canAssign: true, canManage: true, canAnnotate: true, canConvert: true,
           canReadDraft: true, canManageDraft: true,
+        } }], rowCount: 1 };
+      }
+      if (normalized.includes("eogp.preview_booking_draft_allocation_availability(")) {
+        bookingDraftAllocationPreviewCalls += 1;
+        commandCalls.push({ sql: normalized, values });
+        return { rows: [{ result: {
+          spaces: [{
+            index: 1,
+            venueSpaceId: "44444444-4444-4444-8444-444444444444",
+            available: false,
+            reason: "space_conflict",
+            conflicts: [{
+              kind: "confirmed_booking",
+              status: "confirmed",
+              startsAt: "2027-01-18T10:00:00.000Z",
+              endsAt: "2027-01-18T11:00:00.000Z",
+            }],
+          }],
+          resources: [{
+            index: 1,
+            resourceTypeId: "55555555-5555-4555-8555-555555555555",
+            requestedQuantity: 10,
+            totalRequestedQuantity: 10,
+            availableQuantity: 4,
+            checked: true,
+            available: false,
+            reason: "resource_capacity_conflict",
+          }],
+          resourceIntervalChecked: true,
+          advisoryOnly: true,
+          checkedAt: "2026-11-12T12:00:00.000Z",
         } }], rowCount: 1 };
       }
       if (normalized.includes("eogp.get_booking_draft(")) {
@@ -884,6 +916,7 @@ function makePool() {
     get bookingInquiryAnnotationCalls() { return bookingInquiryAnnotationCalls; },
     get bookingInquiryConversionCalls() { return bookingInquiryConversionCalls; },
     get bookingDraftGetCalls() { return bookingDraftGetCalls; },
+    get bookingDraftAllocationPreviewCalls() { return bookingDraftAllocationPreviewCalls; },
     get bookingDraftRevisionCalls() { return bookingDraftRevisionCalls; },
     get bookingOfferPrepareCalls() { return bookingOfferPrepareCalls; },
     get bookingOfferSuccessorCalls() { return bookingOfferSuccessorCalls; },
@@ -1409,6 +1442,48 @@ test("staff inquiry inbox decrypts authorized projections and routes assignment,
   assert.deepEqual(draftData.currentRevision.values, bookingDraftValues);
   assert.equal("valuesSnapshot" in (draftData.currentRevision as unknown as Record<string, unknown>), false);
   assert.equal(mock.bookingDraftGetCalls, 1);
+
+  const allocationPreview = await app.inject({
+    method: "POST",
+    url: `/booking-drafts/${draftId}/allocation-availability-preview`,
+    payload: {
+      spaceLines: [{
+        venueSpaceId: "44444444-4444-4444-8444-444444444444",
+        startsAt: "2027-01-18T09:00:00.000Z",
+        endsAt: "2027-01-18T13:00:00.000Z",
+        blockKind: "event_use",
+      }],
+      resourceLines: [{
+        resourceTypeId: "55555555-5555-4555-8555-555555555555",
+        requestedQuantity: 10,
+      }],
+      resourceStartsAt: "2027-01-18T09:00:00.000Z",
+      resourceEndsAt: "2027-01-18T13:00:00.000Z",
+    },
+  });
+  assert.equal(allocationPreview.statusCode, 200);
+  const previewData = allocationPreview.json<{
+    data: {
+      spaces: Array<{ available: boolean; conflicts: Array<{ kind: string }> }>;
+      resources: Array<{ available: boolean; availableQuantity: number }>;
+      advisoryOnly: boolean;
+    };
+  }>().data;
+  assert.equal(previewData.advisoryOnly, true);
+  assert.equal(previewData.spaces[0]?.available, false);
+  assert.equal(previewData.spaces[0]?.conflicts[0]?.kind, "confirmed_booking");
+  assert.equal(previewData.resources[0]?.available, false);
+  assert.equal(previewData.resources[0]?.availableQuantity, 4);
+  assert.equal(mock.bookingDraftAllocationPreviewCalls, 1);
+  const previewCall = mock.commandCalls.find((call) => call.sql.includes("preview_booking_draft_allocation_availability"));
+  assert.ok(previewCall);
+  assert.equal(previewCall.values[0], principal.organizationId);
+  assert.equal(previewCall.values[1], draftId);
+  assert.equal(previewCall.values[2], principal.membershipId);
+  assert.equal(JSON.parse(String(previewCall.values[3])).length, 1);
+  assert.equal(JSON.parse(String(previewCall.values[4])).length, 1);
+  assert.equal(previewCall.values[5], "2027-01-18T09:00:00.000Z");
+  assert.equal(previewCall.values[6], "2027-01-18T13:00:00.000Z");
 
   const revisionBody = {
     expectedRevisionNumber: 1,

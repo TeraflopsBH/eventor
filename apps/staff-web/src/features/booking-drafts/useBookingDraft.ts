@@ -1,5 +1,5 @@
-import { computed, ref, type ComputedRef, type Ref } from "vue";
-import { ApiError, api, type BookingDraftAllocationOptions, type BookingDraftDetail, type BookingDraftSpaceLine, type PublicBookingFormField } from "../../api";
+import { computed, ref, watch, type ComputedRef, type Ref } from "vue";
+import { ApiError, api, type BookingDraftAllocationAvailabilityPreview, type BookingDraftAllocationOptions, type BookingDraftDetail, type BookingDraftSpaceLine, type PublicBookingFormField } from "../../api";
 import { initializePublicBookingAnswers, mergePublicBookingAnswers, validatePublicBookingAnswers } from "../public-booking-forms/publicBookingForm";
 import { formatBookingAnswerItems } from "../booking-inquiries/presentation";
 import {
@@ -49,6 +49,24 @@ export function useBookingDraft(dependencies: BookingDraftDependencies) {
   const requestedEnd = ref("");
   const timezone = ref("Europe/Sarajevo");
   const changeReason = ref("");
+  const allocationAvailabilityPreview = ref<BookingDraftAllocationAvailabilityPreview | null>(null);
+  const allocationAvailabilityPreviewKey = ref("");
+  const allocationAvailabilityPreviewBusy = ref(false);
+  const allocationPreviewInputKey = computed(() => JSON.stringify({
+    draftId: detail.value?.draftId ?? null,
+    revisionNumber: detail.value?.currentRevisionNumber ?? null,
+    requestedStart: requestedStart.value,
+    requestedEnd: requestedEnd.value,
+    spaceLines: spaceLines.value,
+    resourceLines: resourceLines.value,
+  }));
+  const allocationAvailabilityPreviewIsCurrent = computed(() =>
+    allocationAvailabilityPreview.value !== null
+    && allocationAvailabilityPreviewKey.value === allocationPreviewInputKey.value
+  );
+  watch(allocationPreviewInputKey, () => {
+    allocationAvailabilityPreviewKey.value = "";
+  }, { flush: "sync" });
 
   const sourceAnswerItems = computed(() => {
     const revision = detail.value?.currentRevision;
@@ -62,6 +80,8 @@ export function useBookingDraft(dependencies: BookingDraftDependencies) {
   );
 
   function populateEditor(draft: BookingDraftDetail): void {
+    allocationAvailabilityPreview.value = null;
+    allocationAvailabilityPreviewKey.value = "";
     const revision = draft.currentRevision;
     valuesJson.value = JSON.stringify(revision?.values ?? {}, null, 2);
     const storedAnswers = revision?.values?.answers;
@@ -85,6 +105,9 @@ export function useBookingDraft(dependencies: BookingDraftDependencies) {
     valuesJson.value = "{}";
     draftAnswers.value = {};
     allocationOptions.value = { spaces: [], resources: [] };
+    allocationAvailabilityPreview.value = null;
+    allocationAvailabilityPreviewKey.value = "";
+    allocationAvailabilityPreviewBusy.value = false;
     spaceLines.value = [];
     resourceLines.value = [];
     requestedStart.value = "";
@@ -123,6 +146,45 @@ export function useBookingDraft(dependencies: BookingDraftDependencies) {
     detail.value = result.data;
     allocationOptions.value = options.data;
     populateEditor(result.data);
+  }
+
+  async function previewAvailability(): Promise<void> {
+    const draft = detail.value;
+    if (!draft) return;
+    const issue = validateBookingDraftAllocations(
+      spaceLines.value,
+      resourceLines.value,
+      allocationOptions.value,
+    );
+    if (issue) {
+      pageError.value = t("commercialBooking.allocationValidation." + issue.kind, {
+        index: "index" in issue ? issue.index + 1 : 0,
+        capacity: "capacity" in issue ? issue.capacity : 0,
+      });
+      return;
+    }
+
+    clearMessages();
+    allocationAvailabilityPreviewBusy.value = true;
+    const requestedKey = allocationPreviewInputKey.value;
+    try {
+      const result = await bookingApi.previewBookingDraftAllocationAvailability(draft.draftId, {
+        spaceLines: spaceLines.value.map(({ venueSpaceId, startsAt, endsAt, blockKind }) => ({
+          venueSpaceId, startsAt, endsAt, blockKind,
+        })),
+        resourceLines: resourceLines.value.map(({ resourceTypeId, requestedQuantity }) => ({
+          resourceTypeId, requestedQuantity,
+        })),
+        resourceStartsAt: requestedStart.value.trim() || null,
+        resourceEndsAt: requestedEnd.value.trim() || null,
+      });
+      allocationAvailabilityPreview.value = result.data;
+      allocationAvailabilityPreviewKey.value = requestedKey;
+    } catch (error) {
+      showError(error);
+    } finally {
+      allocationAvailabilityPreviewBusy.value = false;
+    }
   }
 
   async function saveRevision(): Promise<void> {
@@ -224,6 +286,10 @@ export function useBookingDraft(dependencies: BookingDraftDependencies) {
     draftAnswers,
     sourceFormFields,
     allocationOptions,
+    allocationAvailabilityPreview,
+    allocationAvailabilityPreviewIsCurrent,
+    allocationAvailabilityPreviewBusy,
+    previewAvailability,
     spaceLines,
     resourceLines,
     addSpaceLine: () => spaceLines.value.push({

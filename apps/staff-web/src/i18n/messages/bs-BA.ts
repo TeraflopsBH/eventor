@@ -473,6 +473,30 @@ export default {
     "chooseResource": "Odaberite resurs",
     "requestedQuantity": "Tražena količina",
     "resourceCapacityHelp": "Prikazano ograničenje predstavlja zbirni kapacitet aktivnih fondova. Stvarna dostupnost provjerava se pri konačnoj rezervaciji.",
+    "availabilityPreview": "Pregled dostupnosti",
+    "availabilityPreviewHelp": "Provjerite predložene termine prostora i kapacitet resursa prema postojećim rezervacijama i blokadama održavanja.",
+    "checkAvailability": "Provjeri dostupnost",
+    "checkingAvailability": "Provjera…",
+    "availabilityPreviewStale": "Rasporedi ili datumi su promijenjeni nakon provjere. Ponovite pregled.",
+    "availabilityCheckedAt": "Provjereno: {value}",
+    "availabilityAvailable": "Dostupno u trenutku provjere",
+    "availabilityConflict": "Uočen konflikt",
+    "resourceIntervalNotChecked": "Nije provjereno — unesite oba datuma događaja",
+    "resourceAvailabilityQuantity": "Traženo: {requested}; dostupno u aktivnim fondovima: {available}",
+    "availabilityPreviewAdvisory": "Rezultat je informativan. Dostupnost se može odmah promijeniti; spremanje i konačna potvrda izvršavaju obavezne serverske provjere.",
+    "conflictKind": {
+      "maintenance": "Blokada održavanja",
+      "confirmed_booking": "Potvrđena rezervacija",
+      "active_hold": "Aktivna privremena rezervacija"
+    },
+    "availabilityReason": {
+      "space_unavailable": "Ovaj prostor više nije aktivan ili dostupan u katalogu prostora.",
+      "resource_interval_missing": "Unesite početni i završni datum događaja za provjeru kapaciteta resursa.",
+      "resource_interval_invalid": "Završni datum događaja mora biti nakon početnog.",
+      "resource_unavailable": "Ova vrsta resursa više nije dostupna za rezervaciju.",
+      "no_active_resource_pools": "Nema aktivnih fondova resursa.",
+      "resource_capacity_conflict": "Tražena količina prelazi raspoloživi kapacitet za ovaj termin."
+    },
     "allocationValidation": {
       "spaceUnavailable": "Stavka prostora {index} odnosi se na prostor koji nije u aktivnom katalogu.",
       "spaceIntervalInvalid": "Stavka prostora {index} zahtijeva ispravno vrijeme početka i završetka s UTC pomakom; završetak mora biti nakon početka.",
