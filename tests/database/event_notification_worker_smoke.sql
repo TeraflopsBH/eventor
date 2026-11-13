@@ -2,6 +2,53 @@
 BEGIN;
 SET LOCAL app.organization_id = '22222222-2222-4222-8222-222222222222';
 
+DO $outbox_boundary$
+DECLARE
+  v_security_definer boolean;
+  v_search_path text[];
+BEGIN
+  IF session_user <> 'eventor_worker' THEN
+    RAISE EXCEPTION 'outbox preparation smoke test must connect as eventor_worker';
+  END IF;
+
+  IF has_table_privilege(current_user,'eogp.outbox_events','SELECT')
+     OR has_table_privilege(current_user,'eogp.outbox_events','UPDATE')
+     OR has_column_privilege(current_user,'eogp.outbox_events','payload','SELECT')
+     OR has_column_privilege(current_user,'eogp.outbox_events','aggregate_id','SELECT')
+     OR has_column_privilege(current_user,'eogp.outbox_events','idempotency_key','SELECT') THEN
+    RAISE EXCEPTION 'worker must not directly read full outbox rows or update them';
+  END IF;
+
+  IF NOT has_column_privilege(current_user,'eogp.outbox_events','organization_id','SELECT')
+     OR NOT has_column_privilege(current_user,'eogp.outbox_events','topic','SELECT')
+     OR NOT has_column_privilege(current_user,'eogp.outbox_events','available_at','SELECT')
+     OR NOT has_column_privilege(current_user,'eogp.outbox_events','published_at','SELECT')
+     OR NOT has_column_privilege(current_user,'eogp.outbox_events','dead_lettered_at','SELECT') THEN
+    RAISE EXCEPTION 'worker lacks the minimal outbox discovery metadata privileges';
+  END IF;
+
+  SELECT procedure.prosecdef, procedure.proconfig
+    INTO v_security_definer, v_search_path
+    FROM pg_proc AS procedure
+    JOIN pg_namespace AS namespace ON namespace.oid = procedure.pronamespace
+   WHERE namespace.nspname = 'eogp'
+     AND procedure.proname = 'process_event_notification_outbox'
+     AND pg_get_function_identity_arguments(procedure.oid) = 'p_batch_size integer';
+
+  IF v_security_definer IS DISTINCT FROM true
+     OR NOT (coalesce(v_search_path, ARRAY[]::text[]) @> ARRAY['search_path=pg_catalog, eogp']) THEN
+    RAISE EXCEPTION 'outbox processor must be SECURITY DEFINER with a fixed search_path';
+  END IF;
+
+  IF has_function_privilege('eventor_runtime',
+       'eogp.process_event_notification_outbox(integer)','EXECUTE')
+     OR NOT has_function_privilege('eventor_worker',
+       'eogp.process_event_notification_outbox(integer)','EXECUTE') THEN
+    RAISE EXCEPTION 'outbox processor execution must be restricted to eventor_worker';
+  END IF;
+END;
+$outbox_boundary$;
+
 SELECT eogp.process_event_notification_outbox(10);
 
 DO $test$
