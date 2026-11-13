@@ -77,7 +77,7 @@ This matrix tracks executable PostgreSQL integration coverage and remaining gaps
 - [ ] Expiry worker and reservation command serialize on the same space lock; no stale held row can block indefinitely.
 
 ## Equipment/personnel
-- [ ] Same discrete unit cannot be reserved for overlapping time.
+- [x] Same discrete unit cannot be reserved for overlapping time.
 - [ ] Different units in a pool can be reserved concurrently when capacity allows.
 - [x] Pooled capacity is never exceeded under concurrent requests.
 - [x] A booking resource line’s peak simultaneous quantity cannot be exceeded across separate pools.
