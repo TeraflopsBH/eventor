@@ -715,6 +715,33 @@ export interface PublicBookingOffer {
     cancellationTerms: string | null;
   };
 }
+export type BookingFormFieldType = PublicBookingFormField["type"];
+export interface BookingFormField extends Omit<PublicBookingFormField, "type"> { type: BookingFormFieldType; }
+export interface BookingFormTranslation {
+  formName: string;
+  fields: Record<string, {
+    label?: string; description?: string; helpText?: string; placeholder?: string;
+    options?: Record<string, string>;
+  }>;
+}
+export interface BookingFormSchema {
+  schemaVersion?: 1;
+  fields: BookingFormField[];
+  contentTranslations?: Partial<Record<"bs-BA" | "en", BookingFormTranslation>>;
+}
+export interface BookingFormRevision {
+  revisionId: string; revisionNumber: number; locale: "bs-BA" | "en";
+  fieldSchema: BookingFormSchema; state: "draft" | "published"; publishedAt: string | null; createdAt: string;
+}
+export interface BookingForm {
+  formId: string; formCode: string; name: string; scopeKind: string;
+  scopeVenueId: string | null; scopeSpaceId: string | null; status: string;
+  revisions: BookingFormRevision[];
+}
+export interface BookingFormMutationResult {
+  formId: string; revisionId: string; revisionNumber: number; state: "draft" | "published"; publishedAt?: string;
+}
+
 export interface PublicBookingFormField {
   code: string;
   type: "text" | "textarea" | "email" | "phone" | "number" | "date" | "datetime" | "time" | "select" | "multiselect" | "checkbox";
@@ -783,6 +810,16 @@ export interface PageMeta {
 }
 
 export const api = {
+  getBookingForms: () => request<Envelope<BookingForm[]>>("/organization/booking-forms"),
+  createBookingForm: (body: { code: string; name: string; locale: "bs-BA" | "en"; fieldSchema: BookingFormSchema }) =>
+    request<Envelope<BookingFormMutationResult>>("/organization/booking-forms", { method: "POST", body, idempotent: true }),
+  createBookingFormRevision: (formId: string) =>
+    request<Envelope<BookingFormMutationResult>>(`/booking-forms/${encodeURIComponent(formId)}/revisions`, { method: "POST", body: {}, idempotent: true }),
+  updateBookingFormDraftRevision: (formId: string, revisionId: string, body: { locale: "bs-BA" | "en"; fieldSchema: BookingFormSchema }) =>
+    request<Envelope<BookingFormMutationResult>>(`/booking-forms/${encodeURIComponent(formId)}/revisions/${encodeURIComponent(revisionId)}`, { method: "PUT", body, idempotent: true }),
+  publishBookingFormRevision: (formId: string, revisionId: string) =>
+    request<Envelope<BookingFormMutationResult>>(`/booking-forms/${encodeURIComponent(formId)}/revisions/${encodeURIComponent(revisionId)}/publish`, { method: "POST", body: {}, idempotent: true }),
+
   getPublicBookingForm: (organizationSlug: string, formCode: string) =>
     request<Envelope<PublicBookingForm>>(
       `/public/organizations/${encodeURIComponent(organizationSlug)}/booking-forms/${encodeURIComponent(formCode)}`,

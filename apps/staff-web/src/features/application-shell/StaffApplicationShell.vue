@@ -7,7 +7,7 @@ type Workspace = ReturnType<typeof useStaffSession> & {
   busy: Ref<boolean>;
   pageError: Ref<string>;
   pageNotice: Ref<string>;
-  activeTab: Ref<"delivery" | "campaign" | "inquiries" | "approvals" | "prices" | "cancellations" | "taxes" | "settings">;
+  activeTab: Ref<"delivery" | "campaign" | "inquiries" | "approvals" | "prices" | "cancellations" | "taxes" | "forms" | "settings">;
   locale: WritableComputedRef<string>;
   localeOptions: Array<{ value: SupportedLocale; label: string }>;
   openInquiryWorkspace: () => Promise<void>;
@@ -15,6 +15,7 @@ type Workspace = ReturnType<typeof useStaffSession> & {
   openBookingPriceLists: () => Promise<void>;
   openBookingCancellationPolicies: () => Promise<void>;
   openBookingTaxProfiles: () => Promise<void>;
+  openBookingForms: () => Promise<void>;
 };
 
 const props = defineProps<{ workspace: Workspace }>();
@@ -22,7 +23,7 @@ const {
   principal, loadingSession, loginForm, selectedOrganization, signIn, signOut,
   busy, pageError, pageNotice, activeTab, locale, localeOptions,
   openInquiryWorkspace, openBookingApprovalPolicies, openBookingPriceLists,
-  openBookingCancellationPolicies, openBookingTaxProfiles,
+  openBookingCancellationPolicies, openBookingTaxProfiles, openBookingForms,
 } = props.workspace;
 const selectedLocale = computed({
   get: () => locale.value as SupportedLocale,
@@ -90,6 +91,7 @@ const selectedLocale = computed({
         <button :class="{ active: activeTab === 'campaign' }" @click="activeTab = 'campaign'">{{ $t("navigation.campaigns") }}</button>
         <button :class="{ active: activeTab === 'inquiries' }" @click="openInquiryWorkspace">{{ $t("navigation.inquiries") }}</button>
         <button :class="{ active: activeTab === 'approvals' }" @click="openBookingApprovalPolicies">{{ $t("navigation.approvals") }}</button>
+        <button :class="{ active: activeTab === 'forms' }" @click="openBookingForms">{{ $t("navigation.bookingForms") }}</button>
         <button :class="{ active: activeTab === 'prices' }" @click="openBookingPriceLists">{{ $t("navigation.prices") }}</button>
         <button :class="{ active: activeTab === 'cancellations' }" @click="openBookingCancellationPolicies">{{ $t("navigation.cancellations") }}</button>
         <button :class="{ active: activeTab === 'taxes' }" @click="openBookingTaxProfiles">{{ $t("navigation.taxes") }}</button>
