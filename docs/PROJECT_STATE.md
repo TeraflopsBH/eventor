@@ -380,3 +380,10 @@ A high-severity npm audit gate was added to CI for both Node projects. The first
 The refreshed API and staff-web dependency trees each report zero vulnerabilities at the configured high-severity threshold. The API test/build suite and staff-web 42-test regression suite, type-check and production build all passed during the lockfile refresh workflow. The Nodemailer 10 upgrade also required treating the accepted-recipient result as optional in the transport adapter; an empty accepted list remains a rejected test delivery.
 
 The temporary one-shot lockfile-refresh workflow removed itself after committing the refreshed lockfiles. The normal integration CI must still pass on the final updated branch head before any merge consideration.
+
+
+## Booking-offer email lifecycle acceptance gap — 2026-11-13
+
+A focused review of migrations 000058, 000059 and 000065, the API notification worker/SMTP transport, and current database smoke coverage found no confirmed delivery state-machine defect. The implementation's lease, retry, uncertain-outcome and manual-reconciliation behavior is exercised by API tests with fake SMTP outcomes, but the PostgreSQL suite does not yet execute the full booking-offer delivery lifecycle through a real worker database login.
+
+This is now tracked explicitly in [Issue #78](https://github.com/TeraflopsBH/eventor/issues/78). The critical test boundary is `session_user = eventor_worker`: using `SET ROLE eventor_worker` from a migrator connection does not prove the worker-login guard. Issue #78 defines deterministic database-backed acceptance for worker claims, lease expiry/concurrency, uncertain outcomes, staff reconciliation, bounded transient retries, permanent failures, one-time manual retry, idempotency, audit, tenant isolation, secret redaction and fixture cleanup. It is a test-coverage gap, not a confirmed production defect; external SMTP provider-sandbox acceptance remains separate and outstanding.
