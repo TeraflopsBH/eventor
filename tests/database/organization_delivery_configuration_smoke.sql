@@ -184,7 +184,7 @@ BEGIN
       'bbbbbbbb-2222-4222-8222-bbbbbbbbbbbb'
     );
     IF v_queue ->> 'status' <> 'queued'
-       OR (v_queue ->> 'emailRecipientCount')::integer <> 2 THEN
+       OR (v_queue ->> 'emailRecipientCount')::integer <> 3 THEN
       RAISE EXCEPTION 'explicit campaign queue did not queue the expected email recipients: %',v_queue;
     END IF;
 
@@ -192,8 +192,8 @@ BEGIN
       FROM eogp.event_notification_delivery_attempts
      WHERE organization_id='22222222-2222-4222-8222-222222222222'
        AND campaign_id=v_campaign_id AND status='queued';
-    IF v_queued <> 2 THEN
-      RAISE EXCEPTION 'expected two queued SMTP attempts, got %',v_queued;
+    IF v_queued <> 3 THEN
+      RAISE EXCEPTION 'expected three queued SMTP attempts, got %',v_queued;
     END IF;
 
 END;
