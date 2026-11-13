@@ -23,6 +23,19 @@ BEGIN
     RAISE EXCEPTION 'authentication role must not have BYPASSRLS';
   END IF;
 
+  IF EXISTS (
+    SELECT 1
+      FROM pg_roles
+     WHERE rolname IN ('eventor_owner','eventor_migrator','eventor_runtime','eventor_worker','eventor_auth')
+       AND (
+         rolsuper OR rolcreatedb OR rolcreaterole OR rolreplication OR rolbypassrls
+         OR (rolname = 'eventor_owner' AND rolcanlogin)
+         OR (rolname <> 'eventor_owner' AND (NOT rolcanlogin OR rolinherit))
+       )
+  ) THEN
+    RAISE EXCEPTION 'Eventor database roles do not match the least-privilege bootstrap contract';
+  END IF;
+
   IF has_table_privilege(current_user, 'eogp.venues', 'SELECT')
      OR has_table_privilege(current_user, 'eogp.organization_memberships', 'UPDATE')
      OR has_table_privilege(current_user, 'eogp.users', 'DELETE') THEN
