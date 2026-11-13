@@ -110,7 +110,9 @@ BEGIN
   INSERT INTO eogp.venues(id,organization_id,code,name,timezone_name)
   VALUES(v_venue_id,v_org,'CI-E2E-'||substr(gen_random_uuid()::text,1,8),'CI E2E Venue','Europe/Sarajevo');
   INSERT INTO eogp.venue_spaces(id,organization_id,venue_id,code,name,space_kind,capacity,status)
-  VALUES(v_space_id,v_org,v_venue_id,'CI-ROOM','CI E2E Room','room',50,'active');
+  VALUES
+    (v_space_id,v_org,v_venue_id,'CI-ROOM','CI E2E Room','room',50,'active'),
+    (v_alternative_space_id,v_org,v_venue_id,'CI-ROOM-2','CI E2E Room 2','room',30,'active');
 
   INSERT INTO eogp.booking_drafts(
     id,organization_id,created_by_membership_id,status,current_revision_number
@@ -122,7 +124,9 @@ BEGIN
     'Europe/Sarajevo','End-to-end commercial snapshot fixture',v_creator);
   INSERT INTO eogp.booking_draft_space_lines(
     organization_id,draft_revision_id,venue_space_id,block_kind,starts_at,ends_at,requested_capacity
-  ) VALUES(v_org,v_draft_revision_id,v_space_id,'event_use',v_space_starts_at,v_space_ends_at,20);
+  ) VALUES
+    (v_org,v_draft_revision_id,v_space_id,'event_use',v_space_starts_at,v_space_ends_at,20),
+    (v_org,v_draft_revision_id,v_alternative_space_id,'event_use',v_space_starts_at,v_space_ends_at,10);
 
   -- One resource type is represented by both pooled inventory and a tracked
   -- discrete unit. The requested pooled quantity is intentionally split over
@@ -385,7 +389,37 @@ BEGIN
     'ci-e2e-live-space-hold',v_creator
   );
 
-  -- With the space hold now valid, missing resource holds must independently
+  -- One live hold is not enough for a two-space draft. The first hold must
+  -- remain held and no booking may be created when the second is missing.
+  BEGIN
+    PERFORM eogp.confirm_booking_from_offer(
+      v_org,v_draft_revision_id,v_creator,'Expected incomplete multi-space hold rejection'
+    );
+    RAISE EXCEPTION 'commercial confirmation unexpectedly succeeded with only one of two space holds';
+  EXCEPTION WHEN SQLSTATE '23P01' THEN
+    NULL;
+  END;
+  IF EXISTS (
+    SELECT 1 FROM eogp.booking_records
+     WHERE organization_id=v_org AND source_offer_revision_id=v_offer_revision_id
+  ) OR (
+    SELECT count(*) FROM eogp.venue_space_time_blocks
+     WHERE organization_id=v_org AND booking_draft_revision_id=v_draft_revision_id
+       AND reservation_kind='draft_hold' AND status='held'
+  ) <> 1 THEN
+    RAISE EXCEPTION 'incomplete multi-space confirmation left a partial booking or changed the valid hold';
+  END IF;
+
+  INSERT INTO eogp.venue_space_time_blocks(
+    organization_id,venue_space_id,booking_draft_revision_id,reservation_kind,status,
+    starts_at,ends_at,expires_at,idempotency_key,actor_membership_id
+  ) VALUES(
+    v_org,v_alternative_space_id,v_draft_revision_id,'draft_hold','held',
+    v_space_starts_at,v_space_ends_at,clock_timestamp()+interval '1 day',
+    'ci-e2e-live-alternative-space-hold',v_creator
+  );
+
+  -- With both space holds now valid, missing resource holds must independently
   -- block confirmation and must not leave a partially created booking.
   BEGIN
     PERFORM eogp.confirm_booking_from_offer(
@@ -526,20 +560,21 @@ BEGIN
   v_booking_id:=(v_confirmation->>'bookingId')::uuid;
   IF v_confirmation->>'status'<>'confirmed'
      OR coalesce((v_confirmation->>'replayed')::boolean,true)
-     OR (v_confirmation->>'spaceReservationsConfirmed')::integer<>1
+     OR (v_confirmation->>'spaceReservationsConfirmed')::integer<>2
      OR (v_confirmation->>'resourceReservationsConfirmed')::integer<>3 THEN
     RAISE EXCEPTION 'accepted offer did not produce a new confirmed booking: %',v_confirmation;
   END IF;
 
-  IF NOT EXISTS (
-    SELECT 1 FROM eogp.venue_space_time_blocks block
-     WHERE block.organization_id=v_org AND block.venue_space_id=v_space_id
+  IF (
+    SELECT count(*) FROM eogp.venue_space_time_blocks block
+     WHERE block.organization_id=v_org
+       AND block.venue_space_id IN (v_space_id,v_alternative_space_id)
        AND block.booking_id=v_booking_id AND block.booking_draft_revision_id IS NULL
        AND block.reservation_kind='booking' AND block.status='confirmed'
        AND block.starts_at=v_space_starts_at AND block.ends_at=v_space_ends_at
        AND block.expires_at IS NULL
-  ) THEN
-    RAISE EXCEPTION 'the exact live space hold was not converted to confirmed booking occupancy';
+  ) <> 2 THEN
+    RAISE EXCEPTION 'both exact live space holds were not converted to confirmed booking occupancy';
   END IF;
   IF (SELECT count(*) FROM eogp.venue_space_time_blocks block
        WHERE block.organization_id=v_org AND block.booking_draft_revision_id=v_draft_revision_id
