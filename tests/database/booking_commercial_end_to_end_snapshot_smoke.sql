@@ -61,6 +61,7 @@ DECLARE
   v_confirmation jsonb;
   v_snapshot eogp.booking_confirmed_snapshots%ROWTYPE;
   v_expected_snapshot_sha256 text;
+  v_approval_error_message text;
   v_tax_codes_v1 jsonb := '[{"taxCode":"STANDARD","label":"Standard rate","treatment":"percentage","rate":20}]'::jsonb;
   v_tax_codes_v2 jsonb := '[{"taxCode":"STANDARD","label":"Standard rate","treatment":"percentage","rate":30}]'::jsonb;
   v_approval_rules_v1 jsonb := '[{"code":"commercial-review","condition":{"kind":"always"},"requiredApprovals":1,"permission":"booking.approve","separationOfDuties":true}]'::jsonb;
@@ -321,7 +322,11 @@ BEGIN
     );
     RAISE EXCEPTION 'offer creator unexpectedly approved their own offer';
   EXCEPTION WHEN insufficient_privilege THEN
-    NULL;
+    GET STACKED DIAGNOSTICS v_approval_error_message = MESSAGE_TEXT;
+    IF v_approval_error_message IS DISTINCT FROM
+       'offer creator cannot approve this offer under its separation-of-duties rule' THEN
+      RAISE;
+    END IF;
   END;
 
   -- Only the independent approver may satisfy the pinned one-approval rule.
