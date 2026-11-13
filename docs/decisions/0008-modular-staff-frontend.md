@@ -30,3 +30,9 @@ The staff application currently places most application state, API orchestration
 ## Incremental extraction record
 
 The first extraction moves booking-inquiry presentation logic into `src/features/booking-inquiries/presentation.ts`: answer-value formatting, assignee display-name resolution, inquiry date display and booking-money display. The module depends only on the API's inquiry data types and explicit inputs; it does not own network calls or authorization decisions. Existing behavior is preserved while the root component delegates to the feature module. Next extraction should move inquiry state and API orchestration into a focused composable, then isolate the inquiry view, rather than attempting a wholesale rewrite.
+
+
+The next extraction after presentation helpers moves booking-inquiry state and command orchestration into `src/features/booking-inquiries/useBookingInquiries.ts`. The composable receives shared application dependencies explicitly and exposes state/actions to the root composition layer. The existing inquiry template remains in `App.vue` at this stage; a dedicated feature view is a later step. Server-side authorization remains authoritative, with capability checks retained in the client for presentation and interaction gating.
+
+
+The next extraction moves booking-inquiry state and command orchestration into `src/features/booking-inquiries/useBookingInquiries.ts`. The composable receives shared application dependencies explicitly and exposes state/actions to the root composition layer. The existing inquiry template remains in `App.vue`; a dedicated feature view is a later step. Server-side authorization remains authoritative, with capability checks retained in the client for presentation and interaction gating.

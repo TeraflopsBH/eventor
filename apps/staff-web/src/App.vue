@@ -2,8 +2,9 @@
 import { computed, onMounted, reactive, ref, watch } from "vue";
 import { useI18n } from "vue-i18n";
 import type { SupportedLocale } from "./i18n";
-import { formatBookingMoney, formatInquiryAnswer, formatInquiryDate, resolveInquiryAssigneeName } from "./features/booking-inquiries/presentation";
-import { api, ApiError, type CampaignReview, type CampaignProgress, type CampaignListItem, type DeliveryAttempt, type PageMeta, type EmailConfiguration, type ResendWebhookConfiguration, type Principal, type BookingInquiryListItem, type BookingInquiryDetail, type BookingInquiryAssignee, type BookingInquiryCapabilities, type BookingOfferRecord, type BookingOfferEmailDelivery, type BookingOfferApprovalStatus, type BookingOfferApprovalRequirement, type BookingOfferWriteRequest, type BookingApprovalPolicy, type BookingApprovalRule, type BookingPriceList, type BookingPriceListItem, type BookingTaxProfile, type BookingTaxProfileRevisionInput, type BookingTaxCode, type BookingCancellationPolicy, type BookingCancellationPolicyRevisionInput, type PublicBookingOffer } from "./api";
+import { useBookingInquiries } from "./features/booking-inquiries/useBookingInquiries";
+import { formatBookingMoney, formatInquiryDate, resolveInquiryAssigneeName } from "./features/booking-inquiries/presentation";
+import { api, ApiError, type CampaignReview, type CampaignProgress, type CampaignListItem, type DeliveryAttempt, type PageMeta, type EmailConfiguration, type ResendWebhookConfiguration, type Principal, type BookingOfferRecord, type BookingOfferEmailDelivery, type BookingOfferApprovalStatus, type BookingOfferApprovalRequirement, type BookingOfferWriteRequest, type BookingApprovalPolicy, type BookingApprovalRule, type BookingPriceList, type BookingPriceListItem, type BookingTaxProfile, type BookingTaxProfileRevisionInput, type BookingTaxCode, type BookingCancellationPolicy, type BookingCancellationPolicyRevisionInput, type PublicBookingOffer } from "./api";
 
 const { locale } = useI18n();
 watch(locale, (value) => { document.documentElement.lang = value; }, { immediate: true });
@@ -68,26 +69,6 @@ const campaignListOffset = ref(0);
 const operatorResolution = reactive<Record<string, string>>({});
 const operatorReason = reactive<Record<string, string>>({});
 
-const inquiryRows = ref<BookingInquiryListItem[]>([]);
-const inquiryMeta = ref<PageMeta | null>(null);
-const inquiryOffset = ref(0);
-const inquiryFilters = reactive({ status: "", assignedToMembershipId: "" });
-const inquiryDetail = ref<BookingInquiryDetail | null>(null);
-const inquiryAssignees = ref<BookingInquiryAssignee[]>([]);
-const inquiryCapabilities = ref<BookingInquiryCapabilities>({
-  canAssign: false,
-  canManage: false,
-  canAnnotate: false,
-  canConvert: false,
-  canReadDraft: false,
-  canManageDraft: false,
-});
-const selectedInquiryId = ref("");
-const inquiryAssignmentChoice = ref("unassigned");
-type InquiryStatusCommand = "received" | "under_review" | "declined" | "spam";
-const inquiryStatusChoice = ref<InquiryStatusCommand | "">("");
-const inquiryStatusReason = ref("");
-const inquiryAnnotationText = ref("");
 const bookingDraftDetail = ref<import("./api").BookingDraftDetail | null>(null);
 const bookingDraftEditorOpen = ref(false);
 const bookingDraftValuesJson = ref("{}");
@@ -210,14 +191,6 @@ const selectedOrganization = computed(() =>
 const canQueue = computed(() => campaign.value?.status === "confirmed");
 const canConfirm = computed(() => campaign.value?.status === "previewed");
 const canCancel = computed(() => campaign.value?.status === "queued");
-const canEditInquiryAssignment = computed(() =>
-  inquiryCapabilities.value.canAssign &&
-  (inquiryDetail.value?.status === "received" || inquiryDetail.value?.status === "under_review"),
-);
-const canConvertInquiry = computed(() =>
-  inquiryCapabilities.value.canConvert &&
-  (inquiryDetail.value?.status === "received" || inquiryDetail.value?.status === "under_review"),
-);
 const canReadBookingDraft = computed(() =>
   inquiryCapabilities.value.canReadDraft && Boolean(inquiryDetail.value?.bookingDraft),
 );
@@ -246,29 +219,6 @@ const canConfirmBookingOffer = computed(() => {
     bookingOfferApprovalsSatisfied.value,
   );
 });
-const inquiryStatusTargets = computed<InquiryStatusCommand[]>(() => {
-  if (inquiryDetail.value?.status === "received") return ["under_review", "declined", "spam"];
-  if (inquiryDetail.value?.status === "under_review") return ["received", "declined", "spam"];
-  return [];
-});
-const inquiryAnswerItems = computed(() => {
-  const detail = inquiryDetail.value;
-  if (!detail) return [];
-  const fields = new Map(detail.fieldSchema.fields.map((field) => [field.code, field]));
-  return Object.entries(detail.submittedValues?.answers ?? {}).map(([code, value]) => {
-    const field = fields.get(code);
-    const displayValue = Array.isArray(value)
-      ? value.map((item) => formatInquiryAnswer(field, item)).join(", ")
-      : formatInquiryAnswer(field, value);
-    return {
-      code,
-      label: field?.label?.trim() || code.replaceAll("_", " "),
-      type: field?.type ?? "unknown",
-      value: displayValue,
-    };
-  });
-});
-
 function clearMessages(): void {
   pageError.value = "";
   pageNotice.value = "";
@@ -305,6 +255,19 @@ function clearBookingDraftState(): void {
   for (const key of Object.keys(bookingOfferApprovalReasons)) delete bookingOfferApprovalReasons[key];
 }
 
+const {
+  inquiryRows, inquiryMeta, inquiryOffset, inquiryFilters, inquiryDetail, inquiryAssignees,
+  inquiryCapabilities, selectedInquiryId, inquiryAssignmentChoice, inquiryStatusChoice,
+  inquiryStatusReason, inquiryAnnotationText, inquiryStatusTargets, inquiryAnswerItems,
+  canEditInquiryAssignment, canConvertInquiry, refreshInquiryDetailData,
+  loadInquiryList, openInquiryWorkspace, openInquiry, refreshInquiryDetail,
+  saveInquiryAssignment, saveInquiryStatus, saveInquiryConversion, saveInquiryAnnotation,
+  reset: resetBookingInquiries,
+} = useBookingInquiries({
+  principal, busy, activeTab, pageError, pageNotice, api,
+  clearMessages, showError, clearBookingDraftState,
+});
+
 function showError(error: unknown): void {
   if (error instanceof ApiError) {
     if (error.status === 401) {
@@ -312,15 +275,7 @@ function showError(error: unknown): void {
       configuration.value = null;
       resendWebhook.value = null;
       campaign.value = null;
-      inquiryRows.value = [];
-      inquiryDetail.value = null;
-      inquiryAssignees.value = [];
-      selectedInquiryId.value = "";
-      clearBookingDraftState();
-      inquiryCapabilities.value = {
-        canAssign: false, canManage: false, canAnnotate: false, canConvert: false,
-        canReadDraft: false, canManageDraft: false,
-      };
+      resetBookingInquiries();
       pageError.value = "Your session has expired. Please sign in again.";
       return;
     }
@@ -399,15 +354,7 @@ async function signOut(): Promise<void> {
     configuration.value = null;
     resendWebhook.value = null;
     campaign.value = null;
-    inquiryRows.value = [];
-    inquiryDetail.value = null;
-    inquiryAssignees.value = [];
-    selectedInquiryId.value = "";
-    clearBookingDraftState();
-    inquiryCapabilities.value = {
-      canAssign: false, canManage: false, canAnnotate: false, canConvert: false,
-      canReadDraft: false, canManageDraft: false,
-    };
+    resetBookingInquiries();
     pageNotice.value = "You have been signed out.";
   } catch (error) {
     showError(error);
@@ -668,158 +615,6 @@ async function runCampaignAction(action: "confirm" | "queue" | "cancel"): Promis
     } catch {
       // Keep the original command error visible.
     }
-  } finally {
-    busy.value = false;
-  }
-}
-
-async function refreshInquiryListData(offset = inquiryOffset.value): Promise<void> {
-  if (!principal.value) return;
-  const organizationId = principal.value.organizationId;
-  const [list, capabilities] = await Promise.all([
-    api.getBookingInquiries(organizationId, {
-      status: inquiryFilters.status || undefined,
-      assignedToMembershipId: inquiryFilters.assignedToMembershipId || undefined,
-      limit: 25,
-      offset,
-    }),
-    api.getBookingInquiryCapabilities(organizationId),
-  ]);
-  inquiryRows.value = list.data;
-  inquiryMeta.value = list.meta;
-  inquiryOffset.value = offset;
-  inquiryCapabilities.value = capabilities.data;
-  if (!capabilities.data.canReadDraft) clearBookingDraftState();
-  inquiryAssignees.value = capabilities.data.canAssign
-    ? (await api.getBookingInquiryAssignees(organizationId)).data
-    : [];
-}
-
-async function refreshInquiryDetailData(): Promise<void> {
-  if (!selectedInquiryId.value) return;
-  const result = await api.getBookingInquiry(selectedInquiryId.value);
-  inquiryDetail.value = result.data;
-  if (!result.data.bookingDraft) clearBookingDraftState();
-  inquiryAssignmentChoice.value = result.data.assignedToMembershipId ?? "unassigned";
-  inquiryStatusChoice.value = "";
-}
-
-async function loadInquiryList(offset = 0): Promise<void> {
-  clearMessages();
-  busy.value = true;
-  try {
-    await refreshInquiryListData(offset);
-  } catch (error) {
-    showError(error);
-  } finally {
-    busy.value = false;
-  }
-}
-
-async function openInquiryWorkspace(): Promise<void> {
-  activeTab.value = "inquiries";
-  await loadInquiryList(0);
-}
-
-async function openInquiry(item: BookingInquiryListItem): Promise<void> {
-  clearMessages();
-  selectedInquiryId.value = item.inquiryId;
-  inquiryStatusReason.value = "";
-  inquiryAnnotationText.value = "";
-  clearBookingDraftState();
-  busy.value = true;
-  try {
-    await refreshInquiryDetailData();
-  } catch (error) {
-    showError(error);
-  } finally {
-    busy.value = false;
-  }
-}
-
-async function refreshInquiryDetail(): Promise<void> {
-  if (!selectedInquiryId.value) return;
-  busy.value = true;
-  try {
-    await Promise.all([refreshInquiryDetailData(), refreshInquiryListData()]);
-  } catch (error) {
-    showError(error);
-  } finally {
-    busy.value = false;
-  }
-}
-
-async function saveInquiryAssignment(): Promise<void> {
-  const detail = inquiryDetail.value;
-  if (!detail || !inquiryCapabilities.value.canAssign) return;
-  const assignedToMembershipId = inquiryAssignmentChoice.value === "unassigned"
-    ? null
-    : inquiryAssignmentChoice.value;
-  if (assignedToMembershipId === detail.assignedToMembershipId) {
-    pageNotice.value = "The assignment has not changed.";
-    return;
-  }
-  const nextName = resolveInquiryAssigneeName(assignedToMembershipId, principal.value?.membershipId, inquiryAssignees.value);
-  if (!window.confirm(`Assign ${detail.publicReference} to ${nextName}?`)) return;
-  clearMessages();
-  busy.value = true;
-  try {
-    await api.assignBookingInquiry(detail.inquiryId, assignedToMembershipId);
-    await Promise.all([refreshInquiryDetailData(), refreshInquiryListData()]);
-    pageNotice.value = "Inquiry assignment saved.";
-  } catch (error) {
-    showError(error);
-    inquiryAssignmentChoice.value = detail.assignedToMembershipId ?? "unassigned";
-  } finally {
-    busy.value = false;
-  }
-}
-
-async function saveInquiryStatus(): Promise<void> {
-  const detail = inquiryDetail.value;
-  const status = inquiryStatusChoice.value;
-  const reason = inquiryStatusReason.value.trim();
-  if (!detail || !inquiryCapabilities.value.canManage || !status) return;
-  if (reason.length < 3) {
-    pageError.value = "Enter an audit reason of at least 3 characters.";
-    return;
-  }
-  if (!window.confirm(
-    status === "declined" || status === "spam"
-      ? `Move ${detail.publicReference} to ${status}? This is a terminal status and cannot be reopened.`
-      : `Change ${detail.publicReference} to ${status.replaceAll("_", " ")}?`,
-  )) return;
-  clearMessages();
-  busy.value = true;
-  try {
-    await api.changeBookingInquiryStatus(detail.inquiryId, { status, reason });
-    inquiryStatusReason.value = "";
-    await Promise.all([refreshInquiryDetailData(), refreshInquiryListData()]);
-    pageNotice.value = `Inquiry status changed to ${status.replaceAll("_", " ")}.`;
-  } catch (error) {
-    showError(error);
-  } finally {
-    busy.value = false;
-  }
-}
-
-async function saveInquiryConversion(): Promise<void> {
-  const detail = inquiryDetail.value;
-  if (!detail || !canConvertInquiry.value) return;
-  if (!window.confirm(
-    `Convert ${detail.publicReference} into a separate booking draft? The original inquiry will be preserved, but its status will become converted. This does not issue an offer, reserve resources or confirm a booking.`,
-  )) return;
-
-  clearMessages();
-  busy.value = true;
-  try {
-    const result = await api.convertBookingInquiryToDraft(detail.inquiryId);
-    await Promise.all([refreshInquiryDetailData(), refreshInquiryListData()]);
-    pageNotice.value = result.data.changed
-      ? `Booking draft created (revision ${result.data.revisionNumber}). Draft ID: ${result.data.draftId}. No offer or reservation has been created.`
-      : `This inquiry was already converted. Existing draft ID: ${result.data.draftId}.`;
-  } catch (error) {
-    showError(error);
   } finally {
     busy.value = false;
   }
@@ -1674,28 +1469,6 @@ async function publishBookingApprovalPolicyRevision(): Promise<void> {
     await api.publishBookingApprovalPolicyRevision(policy.policyId, revision.revisionId);
     await loadBookingApprovalPolicies();
     pageNotice.value = "Approval policy revision published. New offer revisions may now pin this policy revision.";
-  } catch (error) {
-    showError(error);
-  } finally {
-    busy.value = false;
-  }
-}
-
-async function saveInquiryAnnotation(): Promise<void> {
-  const detail = inquiryDetail.value;
-  const annotation = inquiryAnnotationText.value.trim();
-  if (!detail || !inquiryCapabilities.value.canAnnotate) return;
-  if (annotation.length < 1 || annotation.length > 4000) {
-    pageError.value = "Enter an internal note between 1 and 4,000 characters.";
-    return;
-  }
-  clearMessages();
-  busy.value = true;
-  try {
-    await api.addBookingInquiryAnnotation(detail.inquiryId, annotation);
-    inquiryAnnotationText.value = "";
-    await refreshInquiryDetailData();
-    pageNotice.value = "Internal note added. It is visible only to authorized staff.";
   } catch (error) {
     showError(error);
   } finally {
