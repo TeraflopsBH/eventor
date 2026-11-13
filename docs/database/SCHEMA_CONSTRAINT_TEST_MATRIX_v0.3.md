@@ -68,7 +68,7 @@ This matrix tracks executable PostgreSQL integration coverage and remaining gaps
 - [ ] Overlap is rejected even when one claim originated as a temporary hold and the other as a booking reservation.
 - [ ] Released/cancelled/expired interval no longer blocks a new reservation.
 - [ ] Hold extension that creates a conflict is rejected atomically.
-- [ ] Booking with multiple spaces/times commits all or none.
+- [x] Booking with multiple spaces/times commits all or none (the commercial end-to-end fixture verifies incomplete two-space confirmation leaves the existing hold untouched, then confirms both space/time reservations together).
 - [ ] Concurrent overlapping transactions using separate database connections result in at most one active reservation.
 - [ ] Reschedule conflict leaves the prior confirmed schedule unchanged.
 
