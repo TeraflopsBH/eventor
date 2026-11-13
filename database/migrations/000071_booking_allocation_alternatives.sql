@@ -71,6 +71,14 @@ BEGIN
        AND venue.status = 'active'
      WHERE NOT EXISTS (
        SELECT 1
+         FROM proposed other
+        WHERE other.line_number <> proposed.line_number
+          AND (other.line->>'venueSpaceId')::uuid = candidate.id
+          AND (other.line->>'startsAt')::timestamptz < (proposed.line->>'endsAt')::timestamptz
+          AND (other.line->>'endsAt')::timestamptz > (proposed.line->>'startsAt')::timestamptz
+     )
+       AND NOT EXISTS (
+       SELECT 1
          FROM eogp.venue_space_time_blocks block
         WHERE block.organization_id = p_organization_id
           AND block.venue_space_id = candidate.id
