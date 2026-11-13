@@ -36,6 +36,29 @@ BEGIN
     RAISE EXCEPTION 'Eventor database roles do not match the least-privilege bootstrap contract';
   END IF;
 
+  IF EXISTS (
+    SELECT 1
+      FROM pg_auth_members AS role_membership
+      JOIN pg_roles AS granted_role ON granted_role.oid = role_membership.roleid
+      JOIN pg_roles AS member_role ON member_role.oid = role_membership.member
+     WHERE member_role.rolname IN (
+       'eventor_owner','eventor_migrator','eventor_runtime','eventor_worker','eventor_auth'
+     )
+       AND NOT (
+         granted_role.rolname = 'eventor_owner'
+         AND member_role.rolname = 'eventor_migrator'
+       )
+  ) OR NOT EXISTS (
+    SELECT 1
+      FROM pg_auth_members AS role_membership
+      JOIN pg_roles AS granted_role ON granted_role.oid = role_membership.roleid
+      JOIN pg_roles AS member_role ON member_role.oid = role_membership.member
+     WHERE granted_role.rolname = 'eventor_owner'
+       AND member_role.rolname = 'eventor_migrator'
+  ) THEN
+    RAISE EXCEPTION 'Eventor database roles have unexpected memberships or lack the migrator-to-owner membership';
+  END IF;
+
   IF has_table_privilege(current_user, 'eogp.venues', 'SELECT')
      OR has_table_privilege(current_user, 'eogp.organization_memberships', 'UPDATE')
      OR has_table_privilege(current_user, 'eogp.users', 'DELETE') THEN
