@@ -6,6 +6,7 @@ on:
       - feat/booking-allocation-alternatives
     paths:
       - apps/api/package.json
+      - apps/api/src/smtp-transport.ts
       - apps/staff-web/package.json
       - .github/workflows/refresh-dependency-lockfiles.yml
 
