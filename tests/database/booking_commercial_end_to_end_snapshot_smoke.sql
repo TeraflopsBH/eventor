@@ -440,6 +440,35 @@ BEGIN
     RAISE EXCEPTION 'failed partial-resource confirmation left a partial booking';
   END IF;
 
+  -- Individually valid holds must not collectively exceed the requested line
+  -- quantity: all live holds are converted, so aggregate over-allocation must
+  -- be rejected before a booking record is created.
+  PERFORM eogp.reserve_pooled_resource(
+    v_org,v_resource_pool_id,v_draft_revision_id,NULL,v_pooled_line_id,
+    v_space_starts_at,v_space_ends_at,2,clock_timestamp()+interval '1 day',
+    'ci-e2e-pooled-hold-over-allocation'
+  );
+  BEGIN
+    PERFORM eogp.confirm_booking_from_offer(
+      v_org,v_draft_revision_id,v_creator,'Expected excess resource quantity rejection'
+    );
+    RAISE EXCEPTION 'commercial confirmation unexpectedly succeeded with excess pooled quantity';
+  EXCEPTION WHEN SQLSTATE '23P01' THEN
+    NULL;
+  END;
+  IF EXISTS (SELECT 1 FROM eogp.booking_records WHERE organization_id=v_org AND source_offer_revision_id=v_offer_revision_id) THEN
+    RAISE EXCEPTION 'failed excess-resource confirmation left a partial booking';
+  END IF;
+  UPDATE eogp.resource_reservations
+     SET status='released'
+   WHERE organization_id=v_org
+     AND booking_draft_revision_id=v_draft_revision_id
+     AND idempotency_key='ci-e2e-pooled-hold-over-allocation'
+     AND status='held';
+  IF NOT FOUND THEN
+    RAISE EXCEPTION 'over-allocation fixture hold could not be released before successful confirmation';
+  END IF;
+
   -- Complete the pooled quantity with a second hold and reserve the discrete
   -- unit separately. Both must convert against their matching booking lines.
   PERFORM eogp.reserve_pooled_resource(
