@@ -378,3 +378,7 @@ textarea:focus { border-color: var(--accent); box-shadow: 0 0 0 3px #f5863420; }
   .public-offer-line > strong, .public-offer-line > span:last-child { text-align: left; }
   .public-offer-actions .button { width: 100%; }
 }
+
+/* Locale control: keep language selection visible without dominating the staff header. */
+.locale-picker { display: flex; align-items: center; gap: 7px; color: var(--muted); font-size: 11px; }
+.locale-picker select { max-width: 116px; padding: 7px 9px; color: var(--text); background: #101010; border: 1px solid var(--border); border-radius: 7px; font: inherit; }

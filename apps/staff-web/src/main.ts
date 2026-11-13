@@ -1,5 +1,7 @@
 import { createApp } from "vue";
 import App from "./App.vue";
+import { i18n, setLocale } from "./i18n";
 import "./style.css";
 
-createApp(App).mount("#app");
+setLocale(i18n.global.locale.value);
+createApp(App).use(i18n).mount("#app");
