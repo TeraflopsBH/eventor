@@ -180,16 +180,16 @@ onMounted(() => { void loadPublicBookingOffer(); });
         <div class="public-offer-list">
           <div v-for="(line, index) in publicOffer.terms.lineItems" :key="index" class="public-offer-line">
             <div><strong>{{ line.label }}</strong><span>{{ line.quantity }} {{ line.unit }} × {{ line.unitAmount.toLocaleString(locale, { minimumFractionDigits: 2, maximumFractionDigits: 4 }) }} {{ publicOffer.currency }}</span></div>
-            <strong>{{ line.lineTotal.toLocaleString(locale, { minimumFractionDigits: 2, maximumFractionDigits: 2 }) }} {{ publicOffer.currency }}</strong>
+            <strong>{{ line.lineTotal.toLocaleString(locale, { minimumFractionDigits: 2, maximumFractionDigits: 4 }) }} {{ publicOffer.currency }}</strong>
           </div>
           <div v-for="(adjustment, index) in publicOffer.terms.adjustments" :key="'adjustment-' + index" class="public-offer-line">
-            <span>{{ adjustment.label }} ({{ adjustment.kind }})</span><strong>{{ adjustment.amount.toLocaleString(locale, { minimumFractionDigits: 2, maximumFractionDigits: 2 }) }} {{ publicOffer.currency }}</strong>
+            <span>{{ adjustment.label }} ({{ adjustment.kind }})</span><strong>{{ adjustment.amount.toLocaleString(locale, { minimumFractionDigits: 2, maximumFractionDigits: 4 }) }} {{ publicOffer.currency }}</strong>
           </div>
-          <div class="public-offer-total"><span>{{$t('publicOffer.total')}}</span><strong>{{ publicOffer.totalAmount.toLocaleString(locale, { minimumFractionDigits: 2, maximumFractionDigits: 2 }) }} {{ publicOffer.currency }}</strong></div>
+          <div class="public-offer-total"><span>{{$t('publicOffer.total')}}</span><strong>{{ publicOffer.totalAmount.toLocaleString(locale, { minimumFractionDigits: 2, maximumFractionDigits: 4 }) }} {{ publicOffer.currency }}</strong></div>
         </div>
         <h2>{{$t('publicOffer.cancellationTerms')}}</h2>
         <p class="public-cancellation-terms">{{ publicOffer.terms.cancellationTerms || t("publicOffer.noCancellationTerms") }}</p>
-        <p class="fine-print">{{ t("publicOffer.taxBasis") }}: {{ publicOffer.terms.taxBasis }} · {{ t("publicOffer.taxAmount") }}: {{ publicOffer.taxAmount.toLocaleString(locale, { minimumFractionDigits: 2, maximumFractionDigits: 2 }) }} {{ publicOffer.currency }}</p>
+        <p class="fine-print">{{ t("publicOffer.taxBasis") }}: {{ publicOffer.terms.taxBasis }} · {{ t("publicOffer.taxAmount") }}: {{ publicOffer.taxAmount.toLocaleString(locale, { minimumFractionDigits: 2, maximumFractionDigits: 4 }) }} {{ publicOffer.currency }}</p>
       </section>
       <section v-if="publicOffer.status === 'issued' && !publicOfferDecision" class="public-offer-panel public-offer-actions">
         <div><p class="eyebrow">{{$t('publicOffer.yourDecision')}}</p><h2>{{$t('publicOffer.acceptThisOffer')}}</h2></div>
