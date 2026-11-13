@@ -1,5 +1,6 @@
 import { computed, reactive, ref, type Ref } from "vue";
 import { ApiError, type Principal } from "../../api";
+import { formatApiError } from "../../i18n/api-errors";
 
 interface StaffSessionDependencies {
   api: typeof import("../../api").api;
@@ -26,17 +27,13 @@ export function useStaffSession({
 
   function showError(error: unknown): void {
     if (error instanceof ApiError) {
-      if (error.status === 401) {
+      if (error.code === "UNAUTHENTICATED") {
         principal.value = null;
         resetWorkspace();
         pageError.value = translate("auth.sessionExpired");
         return;
       }
-      if (error.status === 403) {
-        pageError.value = translate("auth.permissionDenied", { message: error.message });
-        return;
-      }
-      pageError.value = `${error.message} [${error.code}]`;
+      pageError.value = formatApiError(error, translate);
       return;
     }
     pageError.value = error instanceof Error ? error.message : translate("common.unexpectedError");

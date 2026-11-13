@@ -2,9 +2,18 @@
 import { onMounted, ref } from "vue";
 import { useI18n } from "vue-i18n";
 import { setLocale } from "../../i18n";
+import { formatApiError } from "../../i18n/api-errors";
 import { api, ApiError, type PublicBookingOffer } from "../../api";
 
 const { t, locale } = useI18n();
+
+function formatPublicOfferError(error: unknown, fallbackKey: string): string {
+  if (error instanceof ApiError) {
+    if (error.status === 410) return t("publicOffer.expired");
+    return formatApiError(error, (key) => t(key as never));
+  }
+  return error instanceof Error ? error.message : t(fallbackKey as never);
+}
 
 function changePublicLocale(event: Event): void {
   const value = (event.target as HTMLSelectElement).value;
@@ -47,9 +56,7 @@ async function loadPublicBookingOffer(): Promise<void> {
     const result = await api.getPublicBookingOffer(publicOfferId, publicOfferToken.value);
     publicOffer.value = result.data;
   } catch (error) {
-    publicOfferError.value = error instanceof ApiError && error.status === 410
-      ? t("publicOffer.expired")
-      : error instanceof Error ? error.message : t("publicOffer.couldNotLoad");
+    publicOfferError.value = formatPublicOfferError(error, "publicOffer.couldNotLoad");
   } finally {
     publicOfferLoading.value = false;
   }
@@ -77,7 +84,7 @@ async function submitPublicOfferAcceptance(): Promise<void> {
     );
     publicOfferDecision.value = "accepted";
   } catch (error) {
-    publicOfferError.value = error instanceof Error ? error.message : t("publicOffer.acceptanceNotRecorded");
+    publicOfferError.value = formatPublicOfferError(error, "publicOffer.acceptanceNotRecorded");
   } finally {
     publicDecisionBusy.value = false;
   }
@@ -105,7 +112,7 @@ async function submitPublicOfferRejection(): Promise<void> {
     );
     publicOfferDecision.value = "rejected";
   } catch (error) {
-    publicOfferError.value = error instanceof Error ? error.message : t("publicOffer.rejectionNotRecorded");
+    publicOfferError.value = formatPublicOfferError(error, "publicOffer.rejectionNotRecorded");
   } finally {
     publicDecisionBusy.value = false;
   }
