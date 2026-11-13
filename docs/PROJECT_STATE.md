@@ -166,12 +166,26 @@ The separate v0.2 booking SQL addendum duplicates all 22 booking/configuration t
 
 ## Immediate next steps
 
-1. Obtain a successful three-job CI run on the current PR #27 head. The last green run predates migrations 000039–000046; the latest PR run failed before runner assignment (`runner_id: 0`, empty steps/logs) and produced no code-validation result.
-2. Complete focused review of migrations 000022–000046, RLS and command boundaries, actor attribution, organization-scope inquiry permissions, cross-organization assignment isolation, public form/submission projections, inquiry history and append-only notes, rate-limit/idempotency controls, SMTP credential handling, worker claim/lease behavior and signed callback correlation. Retain generic organization-configured SMTP as the default; Resend remains an optional adapter.
-3. Add migration-upgrade and backup/restore validation. Current PostgreSQL CI proves fresh-database installation on the earlier green head, not forward upgrade, restore or disaster recovery.
-4. Continue the venue-booking slice from the implemented inquiry conversion and draft revision workflow: add offer revisions, customer acceptance/rejection, approval policy and explicit booking confirmation with final resource rechecks. Keep booking-only workflows independent of operational events, guest records and RSVP.
-5. Add health/readiness and operational endpoints, then expand staff web workflows for venue and booking operations as the corresponding API routes become available.
-6. Confirm GHB-specific inventory, capacities, pricing, cancellation terms, approval thresholds and operating policies before production configuration or seed data.
+1. Propagate the newly validated PR #27 base fixes through the stacked PR #38–#76 branches without merging any PR, then rerun integration CI on the latest descendant head.
+2. Run full-history Gitleaks against the updated PR #27/descendant history and retain the existing fingerprint-only exceptions. GitHub secret-scanning alert state is not available through the current repository connector and must not be described as verified clean.
+3. Continue the focused database review. The 2026-11-13 pass covered migrations 000031–000034, the later campaign-guard overrides in 000037/000039, role/bootstrap boundaries, worker access and SMTP credential handoff. Review the remaining migration ranges and cross-check their RLS/permission tests before any merge decision.
+4. Add migration-upgrade and backup/restore validation. Current PostgreSQL CI proves fresh-database installation and runtime behavior; it does not prove forward upgrade, restore or disaster recovery.
+5. Continue the venue-booking slice from the implemented inquiry conversion and draft revision workflow: add offer revisions, customer acceptance/rejection, approval policy and explicit booking confirmation with final resource rechecks. Keep booking-only workflows independent of operational events, guest records and RSVP.
+6. Add health/readiness and operational endpoints, then expand staff web workflows for venue and booking operations as the corresponding API routes become available.
+7. Confirm GHB-specific inventory, capacities, pricing, cancellation terms, approval thresholds and operating policies before production configuration or seed data.
+
+## Stabilization update — 2026-11-13
+
+PR #27 is still open, draft and unmerged. Current head is `d2573d11b7ce6c4800637295072c6976f03507ac`.
+
+- [Push CI #43339842706](https://github.com/TeraflopsBH/eventor/actions/runs/43339842706) and [PR CI #43339851187](https://github.com/TeraflopsBH/eventor/actions/runs/43339851187) both passed all three jobs: PostgreSQL 18.6 migrations/RLS/concurrency, OpenAPI 3.1/API contract and route checks, and staff-web type-check/production build.
+- The OpenAPI schema duplication/malformed fragment was repaired.
+- Database bootstrap now reconciles existing role attributes and unexpected memberships; only `eventor_migrator` may `SET ROLE eventor_owner`.
+- The broad RLS fixture suite executes as the non-login owner while FORCE RLS remains active and explicitly checks runtime-role privileges.
+- Notification workers now discover tenants through metadata-only outbox columns and use restricted SECURITY DEFINER processing. Direct worker access to source contact, campaign, recipient, exclusion and delivery-attempt tables is revoked; worker execution and owner-side result inspection are tested separately.
+- SMTP configuration projections remain secret-free. The SMTP test command returns only the encrypted credential envelope once for a newly created idempotent request; replay returns no envelope. The queue fixture now matches the three eligible email recipients.
+
+This is fresh-database CI validation, not a production upgrade/restore exercise. No PR has been merged, and no production-readiness claim is made.
 
 ## Open questions / validation gates
 
