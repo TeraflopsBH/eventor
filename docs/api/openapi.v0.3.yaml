@@ -676,6 +676,149 @@ paths:
         '422': { $ref: '#/components/responses/UnprocessableEntity' }
         '429': { $ref: '#/components/responses/TooManyRequests' }
         '500': { $ref: '#/components/responses/InternalServerError' }
+  "/organization/booking-price-lists":
+    get:
+      tags: ["Booking Administration"]
+      operationId: getOrganizationBookingPriceLists
+      summary: "List organization price lists and their revisions"
+      description: "Requires booking.manage. Returns organization-owned price lists, draft and published revision history, and item details. Published revisions are immutable."
+      security: [{ StaffSession: [] }]
+      responses:
+        '200':
+          description: "Organization price-list collection."
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/DataEnvelope' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '500': { $ref: '#/components/responses/InternalServerError' }
+    post:
+      tags: ["Booking Administration"]
+      operationId: createOrganizationBookingPriceList
+      summary: "Create a price list and its first draft revision"
+      description: "Requires booking.manage. Creates an organization-owned price list and revision 1 in draft state. No prices, tax rates or currency are seeded."
+      security: [{ StaffSession: [], StaffCsrf: [] }]
+      parameters:
+        - $ref: '#/components/parameters/IdempotencyKey'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/BookingPriceListCreateRequest' }
+      responses:
+        '201':
+          description: "Price list created."
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/DataEnvelope' }
+        '400': { $ref: '#/components/responses/BadRequest' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '409': { $ref: '#/components/responses/Conflict' }
+        '422': { $ref: '#/components/responses/UnprocessableEntity' }
+        '500': { $ref: '#/components/responses/InternalServerError' }
+  "/booking-price-lists/{priceListId}/revisions":
+    post:
+      tags: ["Booking Administration"]
+      operationId: createBookingPriceListRevision
+      summary: "Create a successor draft price-list revision"
+      description: "Requires booking.manage. A successor may be created only when the previous revision is no longer a draft. Published revisions remain immutable."
+      security: [{ StaffSession: [], StaffCsrf: [] }]
+      parameters:
+        - name: priceListId
+          in: path
+          required: true
+          schema: { type: string, format: uuid }
+        - $ref: '#/components/parameters/IdempotencyKey'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/BookingPriceListRevisionRequest' }
+      responses:
+        '201':
+          description: "Draft revision created."
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/DataEnvelope' }
+        '400': { $ref: '#/components/responses/BadRequest' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '404': { $ref: '#/components/responses/NotFound' }
+        '409': { $ref: '#/components/responses/Conflict' }
+        '422': { $ref: '#/components/responses/UnprocessableEntity' }
+        '500': { $ref: '#/components/responses/InternalServerError' }
+  "/booking-price-lists/{priceListId}/revisions/{revisionId}":
+    put:
+      tags: ["Booking Administration"]
+      operationId: updateBookingPriceListDraftRevision
+      summary: "Replace draft price-list settings and items"
+      description: "Requires booking.manage. Replaces the complete item set on the latest draft revision. Item codes must be unique; a published revision cannot be edited."
+      security: [{ StaffSession: [], StaffCsrf: [] }]
+      parameters:
+        - name: priceListId
+          in: path
+          required: true
+          schema: { type: string, format: uuid }
+        - name: revisionId
+          in: path
+          required: true
+          schema: { type: string, format: uuid }
+        - $ref: '#/components/parameters/IdempotencyKey'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/BookingPriceListDraftRequest' }
+      responses:
+        '201':
+          description: "Draft revision updated."
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/DataEnvelope' }
+        '400': { $ref: '#/components/responses/BadRequest' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '404': { $ref: '#/components/responses/NotFound' }
+        '409': { $ref: '#/components/responses/Conflict' }
+        '412': { $ref: '#/components/responses/PreconditionFailed' }
+        '422': { $ref: '#/components/responses/UnprocessableEntity' }
+        '500': { $ref: '#/components/responses/InternalServerError' }
+  "/booking-price-lists/{priceListId}/revisions/{revisionId}/publish":
+    post:
+      tags: ["Booking Administration"]
+      operationId: publishBookingPriceListRevision
+      summary: "Publish a complete price-list revision"
+      description: "Requires booking.manage. The latest draft must contain at least one valid item. Effective bounds are eligibility metadata; offers pin the exact selected published revision."
+      security: [{ StaffSession: [], StaffCsrf: [] }]
+      parameters:
+        - name: priceListId
+          in: path
+          required: true
+          schema: { type: string, format: uuid }
+        - name: revisionId
+          in: path
+          required: true
+          schema: { type: string, format: uuid }
+        - $ref: '#/components/parameters/IdempotencyKey'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { type: object, properties: {}, additionalProperties: false }
+      responses:
+        '201':
+          description: "Price-list revision published."
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/DataEnvelope' }
+        '400': { $ref: '#/components/responses/BadRequest' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '404': { $ref: '#/components/responses/NotFound' }
+        '409': { $ref: '#/components/responses/Conflict' }
+        '422': { $ref: '#/components/responses/UnprocessableEntity' }
+        '500': { $ref: '#/components/responses/InternalServerError' }
   "/organization/booking-approval-policies":
     get:
       tags: ["Booking Administration"]
@@ -5064,6 +5207,51 @@ components:
         ruleCode: { type: string, minLength: 1, maxLength: 100 }
         decision: { type: string, enum: [approved, rejected, returned_for_changes] }
         reason: { type: string, minLength: 3, maxLength: 2000 }
+      additionalProperties: false
+    BookingPriceListCreateRequest:
+      type: object
+      required: [code, name, currency, taxBasis]
+      properties:
+        code: { type: string, minLength: 2, maxLength: 80, pattern: '^[A-Za-z0-9][A-Za-z0-9._-]*$' }
+        name: { type: string, minLength: 1, maxLength: 250 }
+        scopeKind: { type: string, enum: [organization, venue, space], default: organization }
+        scopeVenueId: { type: [string, 'null'], format: uuid }
+        scopeSpaceId: { type: [string, 'null'], format: uuid }
+        currency: { type: string, pattern: '^[A-Z]{3}$' }
+        taxBasis: { type: string, enum: [inclusive, exclusive, not_applicable, to_be_confirmed] }
+      additionalProperties: false
+    BookingPriceListRevisionRequest:
+      type: object
+      required: [currency, taxBasis]
+      properties:
+        currency: { type: string, pattern: '^[A-Z]{3}$' }
+        taxBasis: { type: string, enum: [inclusive, exclusive, not_applicable, to_be_confirmed] }
+        effectiveFrom: { type: [string, 'null'], format: date-time }
+        effectiveUntil: { type: [string, 'null'], format: date-time }
+      additionalProperties: false
+    BookingPriceListDraftRequest:
+      type: object
+      required: [currency, taxBasis, items]
+      properties:
+        currency: { type: string, pattern: '^[A-Z]{3}$' }
+        taxBasis: { type: string, enum: [inclusive, exclusive, not_applicable, to_be_confirmed] }
+        effectiveFrom: { type: [string, 'null'], format: date-time }
+        effectiveUntil: { type: [string, 'null'], format: date-time }
+        items:
+          type: array
+          maxItems: 500
+          items:
+            type: object
+            required: [itemCode, label, unit, unitAmount]
+            properties:
+              itemCode: { type: string, minLength: 1, maxLength: 100, pattern: '^[A-Za-z0-9][A-Za-z0-9._-]*$' }
+              label: { type: string, minLength: 1, maxLength: 250 }
+              unit: { type: string, minLength: 1, maxLength: 40 }
+              unitAmount: { type: number, minimum: 0 }
+              taxCode: { type: [string, 'null'], maxLength: 80 }
+              quantityMin: { type: number, minimum: 0, default: 1 }
+              quantityMax: { type: [number, 'null'], minimum: 0 }
+            additionalProperties: false
       additionalProperties: false
     BookingApprovalPolicyCreateRequest:
       type: object

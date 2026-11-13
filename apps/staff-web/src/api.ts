@@ -515,6 +515,48 @@ export interface BookingConfirmationResult {
   replayed: boolean;
 }
 
+export interface BookingPriceListItem {
+  itemCode: string;
+  label: string;
+  unit: string;
+  unitAmount: number;
+  taxCode: string | null;
+  quantityMin: number;
+  quantityMax: number | null;
+}
+export interface BookingPriceListRevision {
+  revisionId: string;
+  revisionNumber: number;
+  currency: string;
+  taxBasis: "inclusive" | "exclusive" | "not_applicable" | "to_be_confirmed";
+  state: "draft" | "published" | "retired";
+  effectiveFrom: string | null;
+  effectiveUntil: string | null;
+  publishedAt: string | null;
+  createdAt: string;
+  items: BookingPriceListItem[];
+}
+export interface BookingPriceList {
+  priceListId: string;
+  code: string;
+  name: string;
+  scopeKind: "organization" | "venue" | "space";
+  scopeVenueId: string | null;
+  scopeSpaceId: string | null;
+  status: "active" | "retired";
+  createdAt: string;
+  latestRevisionId: string | null;
+  revisions: BookingPriceListRevision[];
+}
+export interface BookingPriceListMutationResult {
+  priceListId: string;
+  revisionId?: string;
+  revisionNumber?: number;
+  state: "draft" | "published";
+  publishedAt?: string;
+  itemCount?: number;
+}
+
 export interface BookingApprovalRule {
   code: string;
   condition:
@@ -694,6 +736,48 @@ export const api = {
     request<Envelope<{ deliveryId: string; status: string; manualRetryCount: number }>>(
       `/booking-offer-email-deliveries/${encodeURIComponent(deliveryId)}/retry`,
       { method: "POST", body: { reason }, idempotent: true, idempotencyKey: requestKey },
+    ),
+  getBookingPriceLists: () =>
+    request<Envelope<BookingPriceList[]>>("/organization/booking-price-lists"),
+  createBookingPriceList: (body: {
+    code: string; name: string; scopeKind?: "organization" | "venue" | "space";
+    scopeVenueId?: string | null; scopeSpaceId?: string | null;
+    currency: string; taxBasis: "inclusive" | "exclusive" | "not_applicable" | "to_be_confirmed";
+  }) =>
+    request<Envelope<BookingPriceListMutationResult>>(
+      "/organization/booking-price-lists", { method: "POST", body, idempotent: true },
+    ),
+  createBookingPriceListRevision: (
+    priceListId: string,
+    body: {
+      currency: string; taxBasis: "inclusive" | "exclusive" | "not_applicable" | "to_be_confirmed";
+      effectiveFrom?: string | null; effectiveUntil?: string | null;
+    },
+  ) =>
+    request<Envelope<BookingPriceListMutationResult>>(
+      `/booking-price-lists/${encodeURIComponent(priceListId)}/revisions`,
+      { method: "POST", body, idempotent: true },
+    ),
+  updateBookingPriceListDraftRevision: (
+    priceListId: string,
+    revisionId: string,
+    body: {
+      currency: string; taxBasis: "inclusive" | "exclusive" | "not_applicable" | "to_be_confirmed";
+      effectiveFrom?: string | null; effectiveUntil?: string | null;
+      items: Array<{
+        itemCode: string; label: string; unit: string; unitAmount: number;
+        taxCode?: string | null; quantityMin?: number; quantityMax?: number | null;
+      }>;
+    },
+  ) =>
+    request<Envelope<BookingPriceListMutationResult>>(
+      `/booking-price-lists/${encodeURIComponent(priceListId)}/revisions/${encodeURIComponent(revisionId)}`,
+      { method: "PUT", body, idempotent: true },
+    ),
+  publishBookingPriceListRevision: (priceListId: string, revisionId: string) =>
+    request<Envelope<BookingPriceListMutationResult>>(
+      `/booking-price-lists/${encodeURIComponent(priceListId)}/revisions/${encodeURIComponent(revisionId)}/publish`,
+      { method: "POST", body: {}, idempotent: true },
     ),
   getBookingApprovalPolicies: () =>
     request<Envelope<BookingApprovalPolicy[]>>("/organization/booking-approval-policies"),

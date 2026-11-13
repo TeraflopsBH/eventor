@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { computed, onMounted, reactive, ref } from "vue";
-import { api, ApiError, type CampaignReview, type CampaignProgress, type CampaignListItem, type DeliveryAttempt, type PageMeta, type EmailConfiguration, type ResendWebhookConfiguration, type Principal, type BookingInquiryListItem, type BookingInquiryDetail, type BookingInquiryAssignee, type BookingInquiryCapabilities, type BookingOfferRecord, type BookingOfferEmailDelivery, type BookingOfferApprovalStatus, type BookingOfferApprovalRequirement, type BookingOfferWriteRequest, type BookingApprovalPolicy, type BookingApprovalRule, type PublicBookingOffer } from "./api";
+import { api, ApiError, type CampaignReview, type CampaignProgress, type CampaignListItem, type DeliveryAttempt, type PageMeta, type EmailConfiguration, type ResendWebhookConfiguration, type Principal, type BookingInquiryListItem, type BookingInquiryDetail, type BookingInquiryAssignee, type BookingInquiryCapabilities, type BookingOfferRecord, type BookingOfferEmailDelivery, type BookingOfferApprovalStatus, type BookingOfferApprovalRequirement, type BookingOfferWriteRequest, type BookingApprovalPolicy, type BookingApprovalRule, type BookingPriceList, type BookingPriceListItem, type PublicBookingOffer } from "./api";
 
 const publicOfferMatch = window.location.pathname.match(/^\/offers\/([0-9a-fA-F-]{36})\/?$/);
 const isPublicOfferPage = Boolean(publicOfferMatch);
@@ -19,7 +19,7 @@ const publicDecisionKey = ref("");
 const publicDecisionKind = ref<"accepted" | "rejected" | null>(null);
 const principal = ref<Principal | null>(null);
 const loadingSession = ref(true);
-const activeTab = ref<"delivery" | "campaign" | "inquiries" | "approvals">("delivery");
+const activeTab = ref<"delivery" | "campaign" | "inquiries" | "approvals" | "prices">("delivery");
 const busy = ref(false);
 const pageError = ref("");
 const pageNotice = ref("");
@@ -119,6 +119,26 @@ const bookingOfferAdjustmentsJson = ref("[]");
 const bookingOfferApprovalDecisions = reactive<Record<string, "approved" | "rejected" | "returned_for_changes">>({});
 const bookingOfferApprovalReasons = reactive<Record<string, string>>({});
 const approvalPolicies = ref<BookingApprovalPolicy[]>([]);
+const bookingPriceLists = ref<BookingPriceList[]>([]);
+const selectedPriceListId = ref("");
+const priceListCreateForm = reactive({ code: "", name: "", currency: "", taxBasis: "to_be_confirmed" as "inclusive" | "exclusive" | "not_applicable" | "to_be_confirmed" });
+const priceListRevisionForm = reactive({
+  currency: "",
+  taxBasis: "to_be_confirmed" as "inclusive" | "exclusive" | "not_applicable" | "to_be_confirmed",
+  effectiveFrom: "",
+  effectiveUntil: "",
+});
+const priceListItemsJson = ref("[]");
+const selectedPriceList = computed(() =>
+  bookingPriceLists.value.find((item) => item.priceListId === selectedPriceListId.value) ?? null,
+);
+const selectedPriceListLatestRevision = computed(() => {
+  const priceList = selectedPriceList.value;
+  return priceList?.revisions.find((revision) => revision.revisionId === priceList.latestRevisionId)
+    ?? priceList?.revisions[0]
+    ?? null;
+});
+
 const selectedApprovalPolicyId = ref("");
 const approvalPolicyCreateForm = reactive({ code: "", name: "" });
 const approvalPolicyRulesJson = ref("[]");
@@ -1227,6 +1247,129 @@ async function confirmBookingFromAcceptedOffer(): Promise<void> {
   }
 }
 
+
+async function loadBookingPriceLists(): Promise<void> {
+  const result = await api.getBookingPriceLists();
+  bookingPriceLists.value = result.data;
+  if (selectedPriceListId.value && !result.data.some((item) => item.priceListId === selectedPriceListId.value)) selectedPriceListId.value = "";
+  if (!selectedPriceListId.value && result.data.length) selectedPriceListId.value = result.data[0]!.priceListId;
+  syncSelectedPriceListDraft();
+}
+
+function syncSelectedPriceListDraft(): void {
+  const revision = selectedPriceListLatestRevision.value;
+  priceListRevisionForm.currency = revision?.currency ?? "";
+  priceListRevisionForm.taxBasis = revision?.taxBasis ?? "to_be_confirmed";
+  priceListRevisionForm.effectiveFrom = revision?.state === "draft" && revision.effectiveFrom ? revision.effectiveFrom.slice(0, 16) : "";
+  priceListRevisionForm.effectiveUntil = revision?.state === "draft" && revision.effectiveUntil ? revision.effectiveUntil.slice(0, 16) : "";
+  priceListItemsJson.value = JSON.stringify(revision?.items ?? [], null, 2);
+}
+
+async function openBookingPriceLists(): Promise<void> {
+  activeTab.value = "prices";
+  clearMessages();
+  busy.value = true;
+  try { await loadBookingPriceLists(); }
+  catch (error) { showError(error); }
+  finally { busy.value = false; }
+}
+
+function selectBookingPriceList(priceListId: string): void {
+  selectedPriceListId.value = priceListId;
+  syncSelectedPriceListDraft();
+}
+
+async function createBookingPriceList(): Promise<void> {
+  const code = priceListCreateForm.code.trim();
+  const name = priceListCreateForm.name.trim();
+  if (code.length < 2 || code.length > 80 || !/^[A-Za-z0-9][A-Za-z0-9._-]*$/.test(code) || !name) {
+    pageError.value = "Enter a valid price-list code and name.";
+    return;
+  }
+  if (!window.confirm("Create this organization price list? It starts as an unpublished draft with no items.")) return;
+  clearMessages(); busy.value = true;
+  try {
+    const result = await api.createBookingPriceList({ code, name, currency: priceListCreateForm.currency, taxBasis: priceListCreateForm.taxBasis });
+    priceListCreateForm.code = ""; priceListCreateForm.name = "";
+    selectedPriceListId.value = result.data.priceListId;
+    await loadBookingPriceLists();
+    pageNotice.value = "Price list created. Add line items and explicitly publish the draft before using it in an offer.";
+  } catch (error) { showError(error); }
+  finally { busy.value = false; }
+}
+
+async function createBookingPriceListRevision(): Promise<void> {
+  const priceList = selectedPriceList.value;
+  const latest = selectedPriceListLatestRevision.value;
+  if (!priceList || priceList.status !== "active" || latest?.state === "draft") return;
+  if (!window.confirm("Create a successor draft revision? Published revisions and offers using them remain unchanged.")) return;
+  clearMessages(); busy.value = true;
+  try {
+    const result = await api.createBookingPriceListRevision(priceList.priceListId, {
+      currency: priceListRevisionForm.currency,
+      taxBasis: priceListRevisionForm.taxBasis,
+      effectiveFrom: priceListRevisionForm.effectiveFrom ? new Date(priceListRevisionForm.effectiveFrom).toISOString() : null,
+      effectiveUntil: priceListRevisionForm.effectiveUntil ? new Date(priceListRevisionForm.effectiveUntil).toISOString() : null,
+    });
+    await loadBookingPriceLists();
+    pageNotice.value = "Draft price-list revision " + result.data.revisionNumber + " created. Add its items before publication.";
+  } catch (error) { showError(error); }
+  finally { busy.value = false; }
+}
+
+async function saveBookingPriceListDraft(): Promise<void> {
+  const priceList = selectedPriceList.value;
+  const revision = selectedPriceListLatestRevision.value;
+  if (!priceList || !revision || revision.state !== "draft") return;
+  let items: unknown;
+  try {
+    items = JSON.parse(priceListItemsJson.value);
+    if (!Array.isArray(items) || items.length > 500) throw new Error("Items must be a JSON array containing no more than 500 entries.");
+    const codes = new Set<string>();
+    for (const item of items) {
+      if (!item || typeof item !== "object" || Array.isArray(item)) throw new Error("Each price item must be an object.");
+      const row = item as Record<string, unknown>;
+      if (typeof row.itemCode !== "string" || typeof row.label !== "string" || typeof row.unit !== "string" ||
+          typeof row.unitAmount !== "number" || !Number.isFinite(row.unitAmount) || row.unitAmount < 0) {
+        throw new Error("Each item needs itemCode, label, unit and a non-negative numeric unitAmount.");
+      }
+      if (codes.has(row.itemCode)) throw new Error("Price item codes must be unique within a revision.");
+      codes.add(row.itemCode);
+    }
+  } catch (error) {
+    pageError.value = error instanceof Error ? error.message : "Price-list items are invalid JSON.";
+    return;
+  }
+  if (!window.confirm("Replace the complete item set on this draft revision? Published revisions are not affected.")) return;
+  clearMessages(); busy.value = true;
+  try {
+    const result = await api.updateBookingPriceListDraftRevision(priceList.priceListId, revision.revisionId, {
+      currency: priceListRevisionForm.currency,
+      taxBasis: priceListRevisionForm.taxBasis,
+      effectiveFrom: priceListRevisionForm.effectiveFrom ? new Date(priceListRevisionForm.effectiveFrom).toISOString() : null,
+      effectiveUntil: priceListRevisionForm.effectiveUntil ? new Date(priceListRevisionForm.effectiveUntil).toISOString() : null,
+      items: items as BookingPriceListItem[],
+    });
+    await loadBookingPriceLists();
+    pageNotice.value = "Draft saved with " + (result.data.itemCount ?? 0) + " price item(s). It remains unpublished.";
+  } catch (error) { showError(error); }
+  finally { busy.value = false; }
+}
+
+async function publishBookingPriceListRevision(): Promise<void> {
+  const priceList = selectedPriceList.value;
+  const revision = selectedPriceListLatestRevision.value;
+  if (!priceList || !revision || revision.state !== "draft") return;
+  if (!window.confirm("Publish this exact price-list revision? It becomes immutable and may be selected for new offers.")) return;
+  clearMessages(); busy.value = true;
+  try {
+    const result = await api.publishBookingPriceListRevision(priceList.priceListId, revision.revisionId);
+    await loadBookingPriceLists();
+    pageNotice.value = "Price-list revision " + result.data.revisionNumber + " published and locked.";
+  } catch (error) { showError(error); }
+  finally { busy.value = false; }
+}
+
 async function loadBookingApprovalPolicies(): Promise<void> {
   const result = await api.getBookingApprovalPolicies();
   approvalPolicies.value = result.data;
@@ -1601,6 +1744,7 @@ onMounted(() => {
         <button :class="{ active: activeTab === 'campaign' }" @click="activeTab = 'campaign'">Campaign review</button>
         <button :class="{ active: activeTab === 'inquiries' }" @click="openInquiryWorkspace">Booking inquiries</button>
         <button :class="{ active: activeTab === 'approvals' }" @click="openBookingApprovalPolicies">Approval policies</button>
+        <button :class="{ active: activeTab === 'prices' }" @click="openBookingPriceLists">Price lists</button>
       </nav>
 
       <section v-if="activeTab === 'delivery'" class="content-grid">
@@ -2251,6 +2395,126 @@ onMounted(() => {
             <p class="muted">Choose a request from the inbox to inspect requester details, submitted answers, history and permitted actions.</p>
           </div>
         </div>
+      </section>
+
+
+      <section v-else-if="activeTab === 'prices'" class="panel inquiry-panel approval-policy-workspace">
+        <div class="section-heading">
+          <div>
+            <p class="eyebrow">ORGANIZATION COMMERCIAL CONFIGURATION</p>
+            <h2>Price lists</h2>
+            <p class="muted">Manage versioned prices for bookable services. Drafts can be edited; published revisions are immutable and remain pinned to offers that use them.</p>
+          </div>
+          <button class="button button-secondary" type="button" :disabled="busy" @click="loadBookingPriceLists">Refresh price lists</button>
+        </div>
+        <div class="inquiry-detail-grid">
+          <section class="inquiry-card">
+            <h4>Create organization price list</h4>
+            <form class="draft-revision-form" @submit.prevent="createBookingPriceList">
+              <label>Code<input v-model="priceListCreateForm.code" type="text" required minlength="2" maxlength="80" placeholder="venue_services" /></label>
+              <label>Name<input v-model="priceListCreateForm.name" type="text" required maxlength="250" placeholder="Venue services" /></label>
+              <label>Currency<input v-model="priceListCreateForm.currency" type="text" required minlength="3" maxlength="3" pattern="[A-Z]{3}" /></label>
+              <label>Tax basis
+                <select v-model="priceListCreateForm.taxBasis">
+                  <option value="to_be_confirmed">To be confirmed</option>
+                  <option value="inclusive">Tax inclusive</option>
+                  <option value="exclusive">Tax exclusive</option>
+                  <option value="not_applicable">Not applicable</option>
+                </select>
+              </label>
+              <button class="button button-primary" type="submit" :disabled="busy || priceListCreateForm.code.trim().length < 2 || !priceListCreateForm.name.trim()">Create price list</button>
+              <p class="fine-print">Currency and tax basis are explicit organization inputs. Eventor does not assume GHB prices or tax treatment.</p>
+            </form>
+          </section>
+          <section class="inquiry-card">
+            <h4>Existing price lists</h4>
+            <label>Select price list
+              <select v-model="selectedPriceListId" @change="selectBookingPriceList(selectedPriceListId)">
+                <option value="">Choose a price list…</option>
+                <option v-for="priceList in bookingPriceLists" :key="priceList.priceListId" :value="priceList.priceListId">
+                  {{ priceList.code }} · {{ priceList.name }} ({{ priceList.status }})
+                </option>
+              </select>
+            </label>
+            <p v-if="!bookingPriceLists.length" class="muted">No price lists are configured for this organization.</p>
+            <div v-if="selectedPriceList" class="policy-summary">
+              <strong>{{ selectedPriceList.name }}</strong>
+              <span>{{ selectedPriceList.code }} · {{ selectedPriceList.scopeKind }} · {{ selectedPriceList.status }}</span>
+              <small class="mono">{{ selectedPriceList.priceListId }}</small>
+            </div>
+          </section>
+        </div>
+        <template v-if="selectedPriceList">
+          <div class="divider"></div>
+          <div class="policy-revision-heading">
+            <div>
+              <h3>Revision editor · {{ selectedPriceList.name }}</h3>
+              <p class="fine-print">Edit the latest draft, or create a successor draft after publication. Save replaces the full draft item set. Publication is a separate, irreversible action.</p>
+            </div>
+            <span class="pill" :class="selectedPriceListLatestRevision?.state === 'published' ? 'pill-success' : 'pill-warning'">
+              Latest: {{ selectedPriceListLatestRevision?.state ?? "No revision" }}
+            </span>
+          </div>
+          <div v-if="selectedPriceListLatestRevision" class="policy-revision-meta">
+            <span>Revision {{ selectedPriceListLatestRevision.revisionNumber }}</span>
+            <span>{{ selectedPriceListLatestRevision.currency }} · {{ selectedPriceListLatestRevision.taxBasis.replaceAll("_", " ") }}</span>
+            <span>Created {{ formatInquiryDate(selectedPriceListLatestRevision.createdAt) }}</span>
+            <span>Published {{ formatInquiryDate(selectedPriceListLatestRevision.publishedAt) }}</span>
+            <span class="mono">{{ selectedPriceListLatestRevision.revisionId }}</span>
+          </div>
+          <div class="field-grid">
+            <label>Currency<input v-model="priceListRevisionForm.currency" type="text" required minlength="3" maxlength="3" pattern="[A-Z]{3}" /></label>
+            <label>Tax basis
+              <select v-model="priceListRevisionForm.taxBasis">
+                <option value="to_be_confirmed">To be confirmed</option>
+                <option value="inclusive">Tax inclusive</option>
+                <option value="exclusive">Tax exclusive</option>
+                <option value="not_applicable">Not applicable</option>
+              </select>
+            </label>
+            <label>Effective from<input v-model="priceListRevisionForm.effectiveFrom" type="datetime-local" /></label>
+            <label>Effective until<input v-model="priceListRevisionForm.effectiveUntil" type="datetime-local" /></label>
+          </div>
+          <label>Price items (JSON array)
+            <textarea v-model="priceListItemsJson" rows="16" spellcheck="false" :disabled="selectedPriceListLatestRevision?.state !== 'draft'"></textarea>
+          </label>
+          <div class="policy-rule-reference">
+            <strong>Item format</strong>
+            <p class="fine-print">Each item has a stable itemCode, customer-facing label, unit, unitAmount, optional taxCode, quantityMin (default 1) and quantityMax (optional). Amounts are non-negative decimal values.</p>
+            <pre>[
+  {
+    "itemCode": "MAIN_HALL_DAY",
+    "label": "Main hall · full day",
+    "unit": "day",
+    "unitAmount": 0,
+    "taxCode": null,
+    "quantityMin": 1,
+    "quantityMax": 1
+  }
+]</pre>
+            <p class="fine-print">The zero amount above is a format example only, not a suggested or seeded price.</p>
+          </div>
+          <div class="form-actions">
+            <button v-if="selectedPriceListLatestRevision?.state !== 'draft'" class="button button-secondary" type="button" :disabled="busy" @click="createBookingPriceListRevision">Create successor draft revision</button>
+            <button v-if="selectedPriceListLatestRevision?.state === 'draft'" class="button button-secondary" type="button" :disabled="busy" @click="saveBookingPriceListDraft">Save draft</button>
+            <button v-if="selectedPriceListLatestRevision?.state === 'draft'" class="button button-primary" type="button" :disabled="busy || !selectedPriceListLatestRevision?.items.length" @click="publishBookingPriceListRevision">Publish revision</button>
+          </div>
+          <div v-if="selectedPriceList.revisions.length" class="draft-revision-history">
+            <h5>Revision history</h5>
+            <ol class="history-list">
+              <li v-for="revision in selectedPriceList.revisions" :key="revision.revisionId">
+                <strong>Revision {{ revision.revisionNumber }} · {{ revision.state }} · {{ revision.items.length }} item(s)</strong>
+                <span>{{ revision.currency }} · {{ revision.taxBasis.replaceAll("_", " ") }}</span>
+                <small>Created {{ formatInquiryDate(revision.createdAt) }} · Published {{ formatInquiryDate(revision.publishedAt) }}</small>
+              </li>
+            </ol>
+          </div>
+        </template>
+        <p v-else class="inquiry-detail-empty">
+          <span class="brand-mark">E</span>
+          <strong>Select or create a price list</strong>
+          <span class="muted">Price-list management requires the organization-level booking.manage permission.</span>
+        </p>
       </section>
 
       <section v-else-if="activeTab === 'approvals'" class="panel inquiry-panel approval-policy-workspace">
