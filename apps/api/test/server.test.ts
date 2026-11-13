@@ -1391,11 +1391,21 @@ test("staff inquiry inbox decrypts authorized projections and routes assignment,
     data: {
       draftId: string;
       currentRevisionNumber: number;
-      currentRevision: { values: Record<string, unknown>; revisionNumber: number };
+      currentRevision: {
+        values: Record<string, unknown>;
+        revisionNumber: number;
+        sourceFormRevisionId: string;
+        fieldSchema: { fields: Array<{ code: string; type: string }> };
+      };
     };
   }>().data;
   assert.equal(draftData.draftId, draftId);
   assert.equal(draftData.currentRevisionNumber, 1);
+  assert.equal(draftData.currentRevision.revisionNumber, 1);
+  assert.equal(draftData.currentRevision.sourceFormRevisionId, form.formRevisionId);
+  assert.deepEqual(draftData.currentRevision.fieldSchema.fields.map((field) => field.code), [
+    "event_date", "event_name", "estimated_guests",
+  ]);
   assert.deepEqual(draftData.currentRevision.values, bookingDraftValues);
   assert.equal("valuesSnapshot" in (draftData.currentRevision as unknown as Record<string, unknown>), false);
   assert.equal(mock.bookingDraftGetCalls, 1);
