@@ -12,6 +12,7 @@ interface BookingDraftDependencies {
   clearMessages: () => void;
   showError: (error: unknown) => void;
   refreshInquiryDetail: () => Promise<void>;
+  translate: (key: string, params?: Record<string, string | number>) => string;
 }
 
 export function useBookingDraft(dependencies: BookingDraftDependencies) {
@@ -24,6 +25,7 @@ export function useBookingDraft(dependencies: BookingDraftDependencies) {
     clearMessages,
     showError,
     refreshInquiryDetail,
+    translate: t,
   } = dependencies;
 
   const detail = ref<BookingDraftDetail | null>(null);
@@ -120,28 +122,26 @@ export function useBookingDraft(dependencies: BookingDraftDependencies) {
       const parsedSpaces: unknown = JSON.parse(spaceLinesJson.value);
       const parsedResources: unknown = JSON.parse(resourceLinesJson.value);
       if (!parsedValues || typeof parsedValues !== "object" || Array.isArray(parsedValues)) {
-        throw new Error("Values must be a JSON object.");
+        throw new Error(t("commercialBooking.jsonObjectRequired"));
       }
       if (!Array.isArray(parsedSpaces) || !Array.isArray(parsedResources)) {
-        throw new Error("Space lines and resource lines must each be JSON arrays.");
+        throw new Error(t("commercialBooking.jsonArraysRequired"));
       }
       values = parsedValues as Record<string, unknown>;
       spaceLines = parsedSpaces as Array<Record<string, unknown>>;
       resourceLines = parsedResources as Array<Record<string, unknown>>;
     } catch (error) {
-      pageError.value = error instanceof Error ? error.message : "The draft JSON is invalid.";
+      pageError.value = error instanceof SyntaxError ? t("commercialBooking.draftJsonInvalid") : error instanceof Error ? error.message : t("commercialBooking.draftJsonInvalid");
       return;
     }
 
     const reason = changeReason.value.trim();
     if (reason.length < 3) {
-      pageError.value = "Enter a change reason of at least 3 characters.";
+      pageError.value = t("commercialBooking.changeReasonMin");
       return;
     }
     const nextRevision = draft.currentRevisionNumber + 1;
-    if (!window.confirm(
-      `Save these changes as immutable draft revision ${nextRevision}? Revision ${draft.currentRevisionNumber} will remain unchanged.`,
-    )) return;
+    if (!window.confirm(t("commercialBooking.confirmSaveDraftRevision", { next: nextRevision, current: draft.currentRevisionNumber }))) return;
 
     clearMessages();
     busy.value = true;
@@ -167,7 +167,7 @@ export function useBookingDraft(dependencies: BookingDraftDependencies) {
         changeReason: reason,
       });
       await Promise.all([refresh(), refreshInquiryDetail()]);
-      pageNotice.value = `Booking draft revision ${result.data.revisionNumber} created. Earlier revisions remain immutable.`;
+      pageNotice.value = t("commercialBooking.draftRevisionCreated", { revision: result.data.revisionNumber });
     } catch (error) {
       showError(error);
       if (error instanceof ApiError && error.status === 412) {

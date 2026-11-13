@@ -24,7 +24,8 @@ import EmailDeliveryView from "./features/email-delivery/EmailDeliveryView.vue";
 import CommercialBookingWorkspaceView from "./features/booking-drafts/CommercialBookingWorkspaceView.vue";
 import { api } from "./api";
 
-const { locale } = useI18n();
+const { locale, t } = useI18n();
+const translate = (key: string, params?: Record<string, string | number>): string => t(key as never, params as never);
 watch(locale, (value) => { document.documentElement.lang = value; }, { immediate: true });
 const localeOptions: Array<{ value: SupportedLocale; label: string }> = [
   { value: "bs-BA", label: "Bosanski" },
@@ -64,7 +65,7 @@ function clearBookingDraftState(): void {
 
 const bookingInquiryState = useBookingInquiries({
   principal, busy, activeTab, pageError, pageNotice, api,
-  clearMessages, showError, clearBookingDraftState,
+  clearMessages, showError, clearBookingDraftState, translate,
 });
 const {
   inquiryDetail, inquiryCapabilities, refreshInquiryDetailData, openInquiryWorkspace,
@@ -80,6 +81,7 @@ const bookingDraftState = useBookingDraft({
   clearMessages,
   showError,
   refreshInquiryDetail: refreshInquiryDetailData,
+  translate,
 });
 resetBookingDraftState = bookingDraftState.reset;
 
@@ -88,7 +90,7 @@ const bookingDraftDetail = bookingDraftState.detail;
 const refreshBookingDraft = bookingDraftState.refresh;
 const bookingOfferState = useBookingOffers({
   api, busy, pageError, pageNotice, principal, bookingDraftDetail,
-  clearMessages, showError, refreshBookingDraft, refreshInquiryDetail: refreshInquiryDetailData,
+  clearMessages, showError, refreshBookingDraft, refreshInquiryDetail: refreshInquiryDetailData, translate,
 });
 const commercialBookingWorkspace = { ...bookingDraftState, ...bookingOfferState, busy };
 

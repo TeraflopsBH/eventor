@@ -5,8 +5,9 @@ interface BookingOffersDependencies {
   principal: Ref<Principal | null>; bookingDraftDetail: Ref<BookingDraftDetail | null>;
   clearMessages: () => void; showError: (error: unknown) => void;
   refreshBookingDraft: () => Promise<void>; refreshInquiryDetail: () => Promise<void>;
+  translate: (key: string, params?: Record<string, string | number>) => string;
 }
-export function useBookingOffers({ api, busy, pageError, pageNotice, principal, bookingDraftDetail, clearMessages, showError, refreshBookingDraft, refreshInquiryDetail }: BookingOffersDependencies) {
+export function useBookingOffers({ api, busy, pageError, pageNotice, principal, bookingDraftDetail, clearMessages, showError, refreshBookingDraft, refreshInquiryDetail, translate: t }: BookingOffersDependencies) {
 const bookingOffer = ref<BookingOfferRecord | null>(null);
 const bookingOfferApprovalStatus = ref<BookingOfferApprovalStatus | null>(null);
 const bookingOfferIdInput = ref("");
@@ -61,33 +62,34 @@ const canConfirmBookingOffer = computed(() => {
 });
 
 function parseOfferJsonArray<T>(value: string, label: string): T[] {
-  const parsed: unknown = JSON.parse(value);
-  if (!Array.isArray(parsed)) throw new Error(label + " must be a JSON array.");
+  let parsed: unknown;
+  try { parsed = JSON.parse(value); } catch { throw new Error(t("commercialBooking.jsonArrayInvalid", { label })); }
+  if (!Array.isArray(parsed)) throw new Error(t("commercialBooking.jsonArrayRequired", { label }));
   return parsed as T[];
 }
 
 function bookingOfferWritePayload(): BookingOfferWriteRequest {
   const currency = bookingOfferCreateForm.currency.trim().toUpperCase();
-  if (!/^[A-Z]{3}$/.test(currency)) throw new Error("Enter a three-letter ISO currency code.");
-  if (!bookingOfferCreateForm.taxBasis) throw new Error("Select the tax treatment before preparing an offer.");
+  if (!/^[A-Z]{3}$/.test(currency)) throw new Error(t("commercialBooking.invalidCurrency"));
+  if (!bookingOfferCreateForm.taxBasis) throw new Error(t("commercialBooking.selectTaxTreatment"));
   const priceListRevisionId = bookingOfferCreateForm.priceListRevisionId.trim();
   const cancellationPolicyRevisionId = bookingOfferCreateForm.cancellationPolicyRevisionId.trim();
   const approvalPolicyRevisionId = bookingOfferCreateForm.approvalPolicyRevisionId.trim();
   const uuid = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
   if (![priceListRevisionId, cancellationPolicyRevisionId, approvalPolicyRevisionId].every((value) => uuid.test(value))) {
-    throw new Error("Price-list, cancellation-policy and approval-policy revision IDs must each be valid UUIDs.");
+    throw new Error(t("commercialBooking.invalidPolicyRevisionIds"));
   }
-  if (!bookingOfferValidUntil.value) throw new Error("Set the offer expiry date and time.");
+  if (!bookingOfferValidUntil.value) throw new Error(t("commercialBooking.offerExpiryRequired"));
   const validUntilDate = new Date(bookingOfferValidUntil.value);
-  if (Number.isNaN(validUntilDate.getTime())) throw new Error("The offer expiry date and time is invalid.");
-  if (bookingOfferTaxAmount.value.trim() === "") throw new Error("Enter a tax amount. Use zero to calculate from the selected tax profile, or when no tax applies.");
+  if (Number.isNaN(validUntilDate.getTime())) throw new Error(t("commercialBooking.offerExpiryInvalid"));
+  if (bookingOfferTaxAmount.value.trim() === "") throw new Error(t("commercialBooking.taxAmountRequired"));
   const taxAmount = Number(bookingOfferTaxAmount.value);
-  if (!Number.isFinite(taxAmount) || taxAmount < 0) throw new Error("Tax amount must be a non-negative number.");
-  const lineItems = parseOfferJsonArray<{ itemCode: string; quantity: number }>(bookingOfferLineItemsJson.value, "Line items");
-  const adjustments = parseOfferJsonArray<{ code: string; label: string; kind: "fee" | "discount" | "credit"; amount: number }>(bookingOfferAdjustmentsJson.value, "Adjustments");
-  if (!lineItems.length) throw new Error("Add at least one price-list item to the offer.");
+  if (!Number.isFinite(taxAmount) || taxAmount < 0) throw new Error(t("commercialBooking.taxAmountInvalid"));
+  const lineItems = parseOfferJsonArray<{ itemCode: string; quantity: number }>(bookingOfferLineItemsJson.value, t("commercialBooking.lineItems"));
+  const adjustments = parseOfferJsonArray<{ code: string; label: string; kind: "fee" | "discount" | "credit"; amount: number }>(bookingOfferAdjustmentsJson.value, t("commercialBooking.adjustments"));
+  if (!lineItems.length) throw new Error(t("commercialBooking.lineItemRequired"));
   const internalReason = bookingOfferInternalReason.value.trim();
-  if (internalReason.length < 3) throw new Error("Enter an internal or tax audit reason of at least 3 characters.");
+  if (internalReason.length < 3) throw new Error(t("commercialBooking.internalAuditReasonMin"));
   return {
     priceListRevisionId,
     cancellationPolicyRevisionId,
@@ -110,7 +112,7 @@ async function refreshBookingOfferData(): Promise<void> {
     api.getBookingOfferApprovals(offerId),
   ]);
   if (bookingDraftDetail.value && offerResult.data.draftId !== bookingDraftDetail.value.draftId) {
-    throw new Error("That offer belongs to a different booking draft.");
+    throw new Error(t("commercialBooking.offerWrongDraft"));
   }
   bookingOffer.value = offerResult.data;
   bookingOfferApprovalStatus.value = approvalResult.data;
@@ -132,7 +134,7 @@ async function refreshBookingOfferEmailData(): Promise<void> {
 async function loadBookingOffer(): Promise<void> {
   const value = bookingOfferIdInput.value.trim();
   if (!/^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(value)) {
-    pageError.value = "Enter a valid booking-offer UUID.";
+    pageError.value = t("commercialBooking.invalidOfferUuid");
     return;
   }
   clearMessages();
@@ -140,7 +142,7 @@ async function loadBookingOffer(): Promise<void> {
   try {
     await refreshBookingOfferData();
     bookingOfferAcceptanceToken.value = "";
-    pageNotice.value = "Offer and approval status loaded. Customer acceptance and staff approval remain separate steps.";
+    pageNotice.value = t("commercialBooking.offerLoaded");
   } catch (error) {
     showError(error);
   } finally {
@@ -156,18 +158,15 @@ async function saveBookingOfferRevision(): Promise<void> {
   try {
     body = bookingOfferWritePayload();
   } catch (error) {
-    pageError.value = error instanceof Error ? error.message : "Offer terms are invalid.";
+    pageError.value = error instanceof Error ? error.message : t("commercialBooking.offerTermsInvalid");
     return;
   }
   if (bookingOffer.value && bookingOffer.value.draftId !== draft.draftId) {
-    pageError.value = "The loaded offer does not belong to this draft.";
+    pageError.value = t("commercialBooking.loadedOfferWrongDraft");
     return;
   }
-  const action = bookingOffer.value ? "Create a successor offer revision" : "Prepare this booking offer";
-  const warning = bookingOffer.value
-    ? " Earlier offer revisions and customer decisions remain immutable. The server will enforce whether superseding the current offer is permitted."
-    : " This creates a draft offer only; it does not send it to the customer or reserve resources.";
-  if (!window.confirm(action + " from draft revision " + draft.currentRevisionNumber + "?" + warning)) return;
+  const confirmation = bookingOffer.value ? t("commercialBooking.confirmPrepareSuccessor", { revision: draft.currentRevisionNumber }) : t("commercialBooking.confirmPrepareOffer", { revision: draft.currentRevisionNumber });
+  if (!window.confirm(confirmation)) return;
   clearMessages();
   busy.value = true;
   try {
@@ -182,7 +181,7 @@ async function saveBookingOfferRevision(): Promise<void> {
     bookingOfferAcceptanceToken.value = "";
     bookingOfferIssueRequestKey.value = "";
     await refreshBookingOfferData();
-    pageNotice.value = "Offer revision " + result.data.revisionNumber + " prepared. It is still a draft and has not been sent or accepted.";
+    pageNotice.value = t("commercialBooking.offerRevisionPrepared", { revision: result.data.revisionNumber });
   } catch (error) {
     showError(error);
   } finally {
@@ -193,18 +192,18 @@ async function saveBookingOfferRevision(): Promise<void> {
 async function issueBookingOffer(): Promise<void> {
   const offer = bookingOffer.value;
   if (!offer || offer.currentRevision.state !== "draft") return;
-  if (!window.confirm("Issue this exact offer revision to the customer? This creates a customer capability. It does not confirm the booking or reserve capacity.")) return;
+  if (!window.confirm(t("commercialBooking.confirmIssueOffer"))) return;
   clearMessages();
   busy.value = true;
   try {
     if (!bookingOfferIssueRequestKey.value) {
-      if (!globalThis.crypto?.randomUUID) throw new Error("This browser cannot create a secure idempotency key.");
+      if (!globalThis.crypto?.randomUUID) throw new Error(t("commercialBooking.secureIdempotencyUnavailable"));
       bookingOfferIssueRequestKey.value = globalThis.crypto.randomUUID();
     }
     const result = await api.issueBookingOffer(offer.offerId, bookingOfferIssueRequestKey.value);
     bookingOfferAcceptanceToken.value = result.data.acceptanceToken;
     await refreshBookingOfferData();
-    pageNotice.value = "Offer issued. You can copy the secure link or explicitly queue it for delivery to the source inquiry email address.";
+    pageNotice.value = t("commercialBooking.offerIssuedNotice");
   } catch (error) {
     showError(error);
   } finally {
@@ -216,12 +215,12 @@ async function emailBookingOffer(): Promise<void> {
   const offer = bookingOffer.value;
   const token = bookingOfferAcceptanceToken.value;
   if (!offer || !token || offer.currentRevision.state !== "issued") return;
-  if (!window.confirm("Queue this issued offer for email delivery to the email address supplied in the source inquiry? It will be sent through this organisation's tested SMTP configuration.")) return;
+  if (!window.confirm(t("commercialBooking.confirmQueueOfferEmail"))) return;
   clearMessages();
   busy.value = true;
   try {
     if (!bookingOfferEmailRequestKey.value) {
-      if (!globalThis.crypto?.randomUUID) throw new Error("This browser cannot create a secure idempotency key.");
+      if (!globalThis.crypto?.randomUUID) throw new Error(t("commercialBooking.secureIdempotencyUnavailable"));
       bookingOfferEmailRequestKey.value = globalThis.crypto.randomUUID();
     }
     const result = await api.queueBookingOfferEmail(offer.offerId, token, bookingOfferEmailRequestKey.value);
@@ -230,8 +229,7 @@ async function emailBookingOffer(): Promise<void> {
     bookingOfferEmailOffset.value = 0;
     await refreshBookingOfferEmailData();
     pageNotice.value = result.data.created
-      ? "Offer email queued. SMTP delivery will be handled by the background worker."
-      : "Offer email request already exists (status: " + result.data.status + ").";
+      ? t("commercialBooking.offerEmailQueued") : t("commercialBooking.offerEmailAlreadyExists", { status: result.data.status });
   } catch (error) {
     showError(error);
   } finally {
@@ -243,15 +241,15 @@ async function reconcileBookingOfferEmail(delivery: BookingOfferEmailDelivery): 
   const resolution = bookingOfferEmailResolution[delivery.deliveryId] ?? "";
   const reason = (bookingOfferEmailReason[delivery.deliveryId] ?? "").trim();
   if (!resolution) {
-    pageError.value = "Choose the verified SMTP outcome before reconciling this delivery.";
+    pageError.value = t("commercialBooking.smtpOutcomeRequired");
     return;
   }
   if (reason.length < 3) {
-    pageError.value = "Enter how the outcome was verified (at least 3 characters).";
+    pageError.value = t("commercialBooking.smtpVerificationReasonMin");
     return;
   }
-  if (resolution === "confirmed_sent" && !window.confirm("Record that this email was accepted by the SMTP server? This does not claim inbox delivery and will not send another email.")) return;
-  if (resolution === "confirmed_not_sent" && !window.confirm("Record that the SMTP server did not accept this email? This does not send anything. A separate, one-time retry can then be authorised.")) return;
+  if (resolution === "confirmed_sent" && !window.confirm(t("commercialBooking.confirmSmtpAccepted"))) return;
+  if (resolution === "confirmed_not_sent" && !window.confirm(t("commercialBooking.confirmSmtpNotAccepted"))) return;
   clearMessages();
   busy.value = true;
   try {
@@ -266,8 +264,7 @@ async function reconcileBookingOfferEmail(delivery: BookingOfferEmailDelivery): 
     bookingOfferEmailOffset.value = 0;
     await refreshBookingOfferEmailData();
     pageNotice.value = resolution === "confirmed_sent"
-      ? "Delivery recorded as SMTP-accepted. No email was sent by reconciliation."
-      : "Delivery recorded as not accepted. A separate one-time retry is now available if the offer remains current.";
+      ? t("commercialBooking.smtpAcceptedRecorded") : t("commercialBooking.smtpNotAcceptedRecorded");
   } catch (error) {
     showError(error);
   } finally {
@@ -278,10 +275,10 @@ async function reconcileBookingOfferEmail(delivery: BookingOfferEmailDelivery): 
 async function retryBookingOfferEmail(delivery: BookingOfferEmailDelivery): Promise<void> {
   const reason = (bookingOfferEmailRetryReason[delivery.deliveryId] ?? "").trim();
   if (reason.length < 3) {
-    pageError.value = "Enter why this one-time retry is safe (at least 3 characters).";
+    pageError.value = t("commercialBooking.retryReasonMin");
     return;
   }
-  if (!window.confirm("Authorise the single manual retry for this offer email? This can send another email. Proceed only after verifying that the previous SMTP submission was not accepted.")) return;
+  if (!window.confirm(t("commercialBooking.confirmManualRetry"))) return;
   clearMessages();
   busy.value = true;
   try {
@@ -289,7 +286,7 @@ async function retryBookingOfferEmail(delivery: BookingOfferEmailDelivery): Prom
     bookingOfferEmailStatusFilter.value = "";
     bookingOfferEmailOffset.value = 0;
     await refreshBookingOfferEmailData();
-    pageNotice.value = "One-time offer email retry queued. Further ambiguous submissions will require manual investigation and cannot be retried again.";
+    pageNotice.value = t("commercialBooking.manualRetryQueued");
   } catch (error) {
     showError(error);
   } finally {
@@ -301,14 +298,14 @@ async function copyBookingOfferCapability(): Promise<void> {
   if (!bookingOfferAcceptanceToken.value) return;
   try {
     const offerId = bookingOffer.value?.offerId;
-    if (!offerId) throw new Error("The issued offer is not available.");
+    if (!offerId) throw new Error(t("commercialBooking.issuedOfferUnavailable"));
     const customerUrl = new URL(`/offers/${encodeURIComponent(offerId)}`, window.location.origin);
     customerUrl.hash = new URLSearchParams({ token: bookingOfferAcceptanceToken.value }).toString();
     await navigator.clipboard.writeText(customerUrl.toString());
-    pageNotice.value = "Customer offer link copied. It contains a private bearer capability; send it only to the intended customer over an approved channel.";
+    pageNotice.value = t("commercialBooking.offerLinkCopied");
     pageError.value = "";
   } catch {
-    pageError.value = "Clipboard access was denied. Copy the customer link manually.";
+    pageError.value = t("commercialBooking.clipboardDenied");
   }
 }
 
@@ -324,10 +321,11 @@ async function decideBookingOfferApproval(requirement: BookingOfferApprovalRequi
   const reason = (bookingOfferApprovalReasons[requirement.ruleCode] ?? "").trim();
   if (!offer) return;
   if (reason.length < 3) {
-    pageError.value = "Enter an approval decision reason of at least 3 characters.";
+    pageError.value = t("commercialBooking.approvalReasonMin");
     return;
   }
-  if (!window.confirm("Record " + decision.replaceAll("_", " ") + " for approval rule " + requirement.ruleCode + "? This decision is immutable.")) return;
+  const decisionLabel = t(`commercialBooking.${({ approved: "stateApproved", rejected: "stateRejected", returned_for_changes: "stateReturnedForChanges" } as Record<string, string>)[decision]}`);
+  if (!window.confirm(t("commercialBooking.confirmApprovalDecision", { decision: decisionLabel, rule: requirement.ruleCode }))) return;
   clearMessages();
   busy.value = true;
   try {
@@ -338,7 +336,7 @@ async function decideBookingOfferApproval(requirement: BookingOfferApprovalRequi
       reason,
     });
     await refreshBookingOfferData();
-    pageNotice.value = "Approval decision recorded for rule " + requirement.ruleCode + ".";
+    pageNotice.value = t("commercialBooking.approvalDecisionRecorded", { rule: requirement.ruleCode });
   } catch (error) {
     showError(error);
   } finally {
@@ -352,10 +350,10 @@ async function confirmBookingFromAcceptedOffer(): Promise<void> {
   const reason = bookingOfferConfirmationReason.value.trim();
   if (!offer || !draftRevisionId || !canConfirmBookingOffer.value) return;
   if (reason.length < 3) {
-    pageError.value = "Enter a booking-confirmation reason of at least 3 characters.";
+    pageError.value = t("commercialBooking.bookingConfirmationReasonMin");
     return;
   }
-  if (!window.confirm("Confirm the booking from this exact accepted offer revision? This finalizes resource reservations and creates the booking record. Availability is checked transactionally by the server.")) return;
+  if (!window.confirm(t("commercialBooking.confirmBookingPrompt"))) return;
   clearMessages();
   busy.value = true;
   try {
@@ -365,7 +363,7 @@ async function confirmBookingFromAcceptedOffer(): Promise<void> {
     });
     await Promise.all([refreshBookingDraft(), refreshInquiryDetail()]);
     await refreshBookingOfferData();
-    pageNotice.value = "Booking " + result.data.bookingCode + " is " + result.data.status + (result.data.replayed ? " (existing confirmation)." : ".");
+    pageNotice.value = result.data.replayed ? t("commercialBooking.bookingConfirmationExisting", { code: result.data.bookingCode }) : t("commercialBooking.bookingConfirmationCreated", { code: result.data.bookingCode });
   } catch (error) {
     showError(error);
   } finally {
