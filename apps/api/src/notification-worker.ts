@@ -102,9 +102,6 @@ export interface NotificationWorkerOptions {
   readonly onError?: (error: unknown) => void;
 }
 
-const sleep = (milliseconds: number): Promise<void> =>
-  new Promise((resolve) => setTimeout(resolve, milliseconds));
-
 function emptyTotals(): NotificationWorkerTotals {
   return {
     tenantsVisited: 0,
