@@ -266,7 +266,7 @@ LANGUAGE plpgsql
 SET search_path=pg_catalog
 AS $function$
 BEGIN
-  IF current_user='eventor_worker'
+  IF session_user='eventor_worker'
      AND OLD.status='previewed' AND NEW.status='previewed'
      AND (to_jsonb(NEW)-'recipient_count')=(to_jsonb(OLD)-'recipient_count') THEN
     RETURN NEW;
