@@ -1,6 +1,15 @@
 <script setup lang="ts">
 import { onMounted, ref } from "vue";
+import { useI18n } from "vue-i18n";
+import { setLocale } from "../../i18n";
 import { api, ApiError, type PublicBookingOffer } from "../../api";
+
+const { t, locale } = useI18n();
+
+function changePublicLocale(event: Event): void {
+  const value = (event.target as HTMLSelectElement).value;
+  setLocale(value);
+}
 
 const publicOfferMatch = window.location.pathname.match(/^\/offers\/([0-9a-fA-F-]{36})\/?$/);
 const publicOfferId = publicOfferMatch?.[1] ?? "";
@@ -25,12 +34,12 @@ async function loadPublicBookingOffer(): Promise<void> {
   publicOfferLoading.value = true;
   publicOfferError.value = "";
   if (!publicOfferId || !/^[0-9a-fA-F-]{36}$/.test(publicOfferId)) {
-    publicOfferError.value = "This offer link is invalid.";
+    publicOfferError.value = t("publicOffer.invalidLink");
     publicOfferLoading.value = false;
     return;
   }
   if (!/^[A-Za-z0-9_-]{43}$/.test(publicOfferToken.value)) {
-    publicOfferError.value = "This offer link is incomplete. Open the original link supplied by the organization.";
+    publicOfferError.value = t("publicOffer.incompleteLink");
     publicOfferLoading.value = false;
     return;
   }
@@ -39,8 +48,8 @@ async function loadPublicBookingOffer(): Promise<void> {
     publicOffer.value = result.data;
   } catch (error) {
     publicOfferError.value = error instanceof ApiError && error.status === 410
-      ? "This offer has expired."
-      : error instanceof Error ? error.message : "The offer could not be loaded.";
+      ? t("publicOffer.expired")
+      : error instanceof Error ? error.message : t("publicOffer.couldNotLoad");
   } finally {
     publicOfferLoading.value = false;
   }
@@ -49,7 +58,7 @@ async function loadPublicBookingOffer(): Promise<void> {
 async function submitPublicOfferAcceptance(): Promise<void> {
   const name = publicAcceptanceName.value.trim();
   if (!name) {
-    publicOfferError.value = "Enter your name to record acceptance.";
+    publicOfferError.value = t("publicOffer.enterName");
     return;
   }
   if (!publicOfferId || !publicOfferToken.value || !publicOffer || publicOffer.value.status !== "issued") return;
@@ -68,7 +77,7 @@ async function submitPublicOfferAcceptance(): Promise<void> {
     );
     publicOfferDecision.value = "accepted";
   } catch (error) {
-    publicOfferError.value = error instanceof Error ? error.message : "Acceptance could not be recorded.";
+    publicOfferError.value = error instanceof Error ? error.message : t("publicOffer.acceptanceNotRecorded");
   } finally {
     publicDecisionBusy.value = false;
   }
@@ -77,7 +86,7 @@ async function submitPublicOfferAcceptance(): Promise<void> {
 async function submitPublicOfferRejection(): Promise<void> {
   const reason = publicRejectionReason.value.trim();
   if (reason.length < 3) {
-    publicOfferError.value = "Please provide a reason of at least 3 characters.";
+    publicOfferError.value = t("publicOffer.rejectionReasonMin");
     return;
   }
   if (!publicOfferId || !publicOfferToken.value || !publicOffer || publicOffer.value.status !== "issued") return;
@@ -96,23 +105,23 @@ async function submitPublicOfferRejection(): Promise<void> {
     );
     publicOfferDecision.value = "rejected";
   } catch (error) {
-    publicOfferError.value = error instanceof Error ? error.message : "Rejection could not be recorded.";
+    publicOfferError.value = error instanceof Error ? error.message : t("publicOffer.rejectionNotRecorded");
   } finally {
     publicDecisionBusy.value = false;
   }
 }
 
 function formatPublicDate(value: string | null | undefined, timezone?: string | null): string {
-  if (!value) return "Not specified";
+  if (!value) return t("publicOffer.notSpecified");
   const date = new Date(value);
   if (Number.isNaN(date.getTime())) return value;
   try {
-    return new Intl.DateTimeFormat(undefined, {
+    return new Intl.DateTimeFormat(locale.value, {
       dateStyle: "medium", timeStyle: "short",
       ...(timezone ? { timeZone: timezone } : {}),
     }).format(date);
   } catch {
-    return new Intl.DateTimeFormat(undefined, { dateStyle: "medium", timeStyle: "short" }).format(date);
+    return new Intl.DateTimeFormat(locale.value, { dateStyle: "medium", timeStyle: "short" }).format(date);
   }
 }
 
@@ -123,78 +132,79 @@ onMounted(() => { void loadPublicBookingOffer(); });
 <template>
 <main class="public-offer-shell">
     <header class="public-offer-header">
-      <a class="brand" href="/" aria-label="Eventor"><span class="brand-mark">E</span><span>EVENTOR <small>BOOKING OFFER</small></span></a>
-      <span class="public-security-note">Secure customer link</span>
+      <a class="brand" href="/" aria-label="Eventor"><span class="brand-mark">E</span><span>EVENTOR <small>{{$t('publicOffer.bookingOffer')}}</small></span></a>
+      <label class="public-language-choice">{{ t("publicOffer.language") }} <select :value="locale" @change="changePublicLocale"><option value="en">{{ t("publicOffer.english") }}</option><option value="bs-BA">{{ t("publicOffer.bosnian") }}</option></select></label>
+      <span class="public-security-note">{{$t('publicOffer.secureLink')}}</span>
     </header>
     <section v-if="publicOfferLoading" class="public-offer-panel" aria-live="polite">
-      <span class="spinner"></span><p>Loading your offer…</p>
+      <span class="spinner"></span><p>{{$t('publicOffer.loading')}}</p>
     </section>
     <section v-else-if="publicOfferError && !publicOffer" class="public-offer-panel">
-      <p class="eyebrow">BOOKING OFFER</p><h1>Offer unavailable</h1><p class="muted">{{ publicOfferError }}</p>
+      <p class="eyebrow">{{$t('publicOffer.bookingOffer')}}</p><h1>{{$t('publicOffer.unavailable')}}</h1><p class="muted">{{ publicOfferError }}</p>
     </section>
     <template v-else-if="publicOffer">
       <section class="public-offer-hero">
-        <p class="eyebrow">BOOKING OFFER · REVISION {{ publicOffer.revisionNumber }}</p>
-        <h1>Review your booking offer</h1>
-        <p class="muted">Please review the requested arrangements, pricing and cancellation terms before recording your decision.</p>
-        <span class="pill" :class="publicOffer.status === 'expired' ? 'pill-warning' : 'pill-success'">{{ publicOffer.status === "expired" ? "Expired" : "Awaiting your decision" }}</span>
+        <p class="eyebrow">{{ t("publicOffer.bookingOffer") }} · {{ t("publicOffer.revision") }} {{ publicOffer.revisionNumber }}</p>
+        <h1>{{$t('publicOffer.reviewTitle')}}</h1>
+        <p class="muted">{{$t('publicOffer.reviewInstructions')}}</p>
+        <span class="pill" :class="publicOffer.status === 'expired' ? 'pill-warning' : 'pill-success'">{{ publicOffer.status === "expired" ? t("publicOffer.expired") : t("publicOffer.awaitingDecision") }}</span>
       </section>
       <section class="public-offer-panel">
         <div class="public-offer-summary">
-          <div><span>Offer valid until</span><strong>{{ formatPublicDate(publicOffer.validUntil) }}</strong></div>
-          <div><span>Requested start</span><strong>{{ formatPublicDate(publicOffer.terms.requestedStart, publicOffer.terms.timezone) }}</strong></div>
-          <div><span>Requested end</span><strong>{{ formatPublicDate(publicOffer.terms.requestedEnd, publicOffer.terms.timezone) }}</strong></div>
+          <div><span>{{$t('publicOffer.validUntil')}}</span><strong>{{ formatPublicDate(publicOffer.validUntil) }}</strong></div>
+          <div><span>{{$t('publicOffer.requestedStart')}}</span><strong>{{ formatPublicDate(publicOffer.terms.requestedStart, publicOffer.terms.timezone) }}</strong></div>
+          <div><span>{{$t('publicOffer.requestedEnd')}}</span><strong>{{ formatPublicDate(publicOffer.terms.requestedEnd, publicOffer.terms.timezone) }}</strong></div>
         </div>
-        <h2>Venue and resources</h2>
+        <h2>{{$t('publicOffer.venueResources')}}</h2>
         <div v-if="publicOffer.terms.spaces.length" class="public-offer-list">
           <div v-for="(space, index) in publicOffer.terms.spaces" :key="index" class="public-offer-line">
             <div><strong>{{ space.name }}</strong><span>{{ space.blockKind.replaceAll("_", " ") }} · {{ formatPublicDate(space.startsAt, publicOffer.terms.timezone) }} – {{ formatPublicDate(space.endsAt, publicOffer.terms.timezone) }}</span></div>
-            <span v-if="space.requestedCapacity">Capacity {{ space.requestedCapacity }}</span>
+            <span v-if="space.requestedCapacity">{{ t("publicOffer.capacity") }} {{ space.requestedCapacity }}</span>
           </div>
         </div>
-        <p v-else class="muted">No venue-space line items.</p>
+        <p v-else class="muted">{{$t('publicOffer.noVenueItems')}}</p>
         <div v-if="publicOffer.terms.resources.length" class="public-offer-list">
           <div v-for="(resource, index) in publicOffer.terms.resources" :key="index" class="public-offer-line">
-            <strong>{{ resource.label }}</strong><span>Quantity {{ resource.requestedQuantity }}</span>
+            <strong>{{ resource.label }}</strong><span>{{ t("publicOffer.quantity") }} {{ resource.requestedQuantity }}</span>
           </div>
         </div>
-        <h2>Price breakdown</h2>
+        <h2>{{$t('publicOffer.priceBreakdown')}}</h2>
         <div class="public-offer-list">
           <div v-for="(line, index) in publicOffer.terms.lineItems" :key="index" class="public-offer-line">
-            <div><strong>{{ line.label }}</strong><span>{{ line.quantity }} {{ line.unit }} × {{ line.unitAmount.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 4 }) }} {{ publicOffer.currency }}</span></div>
-            <strong>{{ line.lineTotal.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 }) }} {{ publicOffer.currency }}</strong>
+            <div><strong>{{ line.label }}</strong><span>{{ line.quantity }} {{ line.unit }} × {{ line.unitAmount.toLocaleString(locale, { minimumFractionDigits: 2, maximumFractionDigits: 4 }) }} {{ publicOffer.currency }}</span></div>
+            <strong>{{ line.lineTotal.toLocaleString(locale, { minimumFractionDigits: 2, maximumFractionDigits: 2 }) }} {{ publicOffer.currency }}</strong>
           </div>
           <div v-for="(adjustment, index) in publicOffer.terms.adjustments" :key="'adjustment-' + index" class="public-offer-line">
-            <span>{{ adjustment.label }} ({{ adjustment.kind }})</span><strong>{{ adjustment.amount.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 }) }} {{ publicOffer.currency }}</strong>
+            <span>{{ adjustment.label }} ({{ adjustment.kind }})</span><strong>{{ adjustment.amount.toLocaleString(locale, { minimumFractionDigits: 2, maximumFractionDigits: 2 }) }} {{ publicOffer.currency }}</strong>
           </div>
-          <div class="public-offer-total"><span>Total</span><strong>{{ publicOffer.totalAmount.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 }) }} {{ publicOffer.currency }}</strong></div>
+          <div class="public-offer-total"><span>{{$t('publicOffer.total')}}</span><strong>{{ publicOffer.totalAmount.toLocaleString(locale, { minimumFractionDigits: 2, maximumFractionDigits: 2 }) }} {{ publicOffer.currency }}</strong></div>
         </div>
-        <h2>Cancellation terms</h2>
-        <p class="public-cancellation-terms">{{ publicOffer.terms.cancellationTerms || "No cancellation terms were supplied." }}</p>
-        <p class="fine-print">Tax basis: {{ publicOffer.terms.taxBasis }} · Tax amount: {{ publicOffer.taxAmount.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 }) }} {{ publicOffer.currency }}</p>
+        <h2>{{$t('publicOffer.cancellationTerms')}}</h2>
+        <p class="public-cancellation-terms">{{ publicOffer.terms.cancellationTerms || t("publicOffer.noCancellationTerms") }}</p>
+        <p class="fine-print">{{ t("publicOffer.taxBasis") }}: {{ publicOffer.terms.taxBasis }} · {{ t("publicOffer.taxAmount") }}: {{ publicOffer.taxAmount.toLocaleString(locale, { minimumFractionDigits: 2, maximumFractionDigits: 2 }) }} {{ publicOffer.currency }}</p>
       </section>
       <section v-if="publicOffer.status === 'issued' && !publicOfferDecision" class="public-offer-panel public-offer-actions">
-        <div><p class="eyebrow">YOUR DECISION</p><h2>Accept this offer</h2></div>
+        <div><p class="eyebrow">{{$t('publicOffer.yourDecision')}}</p><h2>{{$t('publicOffer.acceptThisOffer')}}</h2></div>
         <form @submit.prevent="submitPublicOfferAcceptance">
-          <label>Your full name<input v-model="publicAcceptanceName" required maxlength="250" autocomplete="name" /></label>
-          <label>Optional note<textarea v-model="publicAcceptanceNote" maxlength="1000" rows="3"></textarea></label>
-          <button class="button button-primary" type="submit" :disabled="publicDecisionBusy">{{ publicDecisionBusy ? "Recording…" : "Accept offer" }}</button>
+          <label>{{$t('publicOffer.fullName')}}<input v-model="publicAcceptanceName" required maxlength="250" autocomplete="name" /></label>
+          <label>{{$t('publicOffer.optionalNote')}}<textarea v-model="publicAcceptanceNote" maxlength="1000" rows="3"></textarea></label>
+          <button class="button button-primary" type="submit" :disabled="publicDecisionBusy">{{ publicDecisionBusy ? t("publicOffer.recording") : t("publicOffer.acceptOffer") }}</button>
         </form>
         <div class="public-reject">
-          <h3>Decline this offer</h3>
+          <h3>{{$t('publicOffer.declineThisOffer')}}</h3>
           <form @submit.prevent="submitPublicOfferRejection">
-            <label>Reason<textarea v-model="publicRejectionReason" required minlength="3" maxlength="2000" rows="3"></textarea></label>
-            <label>Optional note<textarea v-model="publicRejectionNote" maxlength="1000" rows="2"></textarea></label>
-            <button class="button button-quiet" type="submit" :disabled="publicDecisionBusy">{{ publicDecisionBusy ? "Recording…" : "Decline offer" }}</button>
+            <label>{{$t('publicOffer.reason')}}<textarea v-model="publicRejectionReason" required minlength="3" maxlength="2000" rows="3"></textarea></label>
+            <label>{{$t('publicOffer.optionalNote')}}<textarea v-model="publicRejectionNote" maxlength="1000" rows="2"></textarea></label>
+            <button class="button button-quiet" type="submit" :disabled="publicDecisionBusy">{{ publicDecisionBusy ? t("publicOffer.recording") : t("publicOffer.declineOffer") }}</button>
           </form>
         </div>
       </section>
       <section v-else-if="publicOfferDecision" class="public-offer-panel">
-        <h2>{{ publicOfferDecision === "accepted" ? "Acceptance recorded" : "Your response was recorded" }}</h2>
-        <p class="muted">{{ publicOfferDecision === "accepted" ? "Thank you. Your acceptance has been securely recorded. The organization will complete its internal approval and booking-confirmation steps separately." : "Your decision to decline this offer has been securely recorded." }}</p>
+        <h2>{{ publicOfferDecision === "accepted" ? t("publicOffer.acceptanceRecorded") : t("publicOffer.responseRecorded") }}</h2>
+        <p class="muted">{{ publicOfferDecision === "accepted" ? t("publicOffer.thanksAcceptance") : t("publicOffer.thanksRejection") }}</p>
       </section>
       <p v-if="publicOfferError" class="public-offer-error" role="alert">{{ publicOfferError }}</p>
-      <footer class="public-offer-footer">This customer link is private. Anyone who has it may be able to act on this offer. Do not forward it.</footer>
+      <footer class="public-offer-footer">{{$t('publicOffer.privateLinkFooter')}}</footer>
     </template>
 </main>
 </template>
