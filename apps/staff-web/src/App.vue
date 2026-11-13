@@ -289,7 +289,7 @@ function formatBookingMoney(value: string | number, currency: string): string {
   const amount = Number(value);
   if (!Number.isFinite(amount)) return String(value) + " " + currency;
   try {
-    return new Intl.NumberFormat(undefined, { style: "currency", currency }).format(amount);
+    return new Intl.NumberFormat(undefined, { style: "currency", currency, maximumFractionDigits: 4 }).format(amount);
   } catch {
     return amount.toFixed(2) + " " + currency;
   }
@@ -995,7 +995,7 @@ function bookingOfferWritePayload(): BookingOfferWriteRequest {
   if (!bookingOfferValidUntil.value) throw new Error("Set the offer expiry date and time.");
   const validUntilDate = new Date(bookingOfferValidUntil.value);
   if (Number.isNaN(validUntilDate.getTime())) throw new Error("The offer expiry date and time is invalid.");
-  if (bookingOfferTaxAmount.value.trim() === "") throw new Error("Enter the tax amount. Use zero only when the approved tax treatment calls for zero.");
+  if (bookingOfferTaxAmount.value.trim() === "") throw new Error("Enter a tax amount. Use zero to calculate from the selected tax profile, or when no tax applies.");
   const taxAmount = Number(bookingOfferTaxAmount.value);
   if (!Number.isFinite(taxAmount) || taxAmount < 0) throw new Error("Tax amount must be a non-negative number.");
   const lineItems = parseOfferJsonArray<{ itemCode: string; quantity: number }>(bookingOfferLineItemsJson.value, "Line items");
@@ -1875,7 +1875,7 @@ onMounted(() => {
         <h2>Price breakdown</h2>
         <div class="public-offer-list">
           <div v-for="(line, index) in publicOffer.terms.lineItems" :key="index" class="public-offer-line">
-            <div><strong>{{ line.label }}</strong><span>{{ line.quantity }} {{ line.unit }} × {{ line.unitAmount.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 }) }} {{ publicOffer.currency }}</span></div>
+            <div><strong>{{ line.label }}</strong><span>{{ line.quantity }} {{ line.unit }} × {{ line.unitAmount.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 4 }) }} {{ publicOffer.currency }}</span></div>
             <strong>{{ line.lineTotal.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 }) }} {{ publicOffer.currency }}</strong>
           </div>
           <div v-for="(adjustment, index) in publicOffer.terms.adjustments" :key="'adjustment-' + index" class="public-offer-line">
@@ -2367,8 +2367,8 @@ onMounted(() => {
                     <label>Offer valid until (your local time)
                       <input v-model="bookingOfferValidUntil" type="datetime-local" required />
                     </label>
-                    <label>Tax amount
-                      <input v-model="bookingOfferTaxAmount" type="number" min="0" step="0.01" required />
+                    <label>Tax amount (zero = calculate from selected tax profile; positive = manual override)
+                      <input v-model="bookingOfferTaxAmount" type="number" min="0" step="0.0001" required />
                     </label>
                   </div>
                   <label>Price-list line items (JSON array)

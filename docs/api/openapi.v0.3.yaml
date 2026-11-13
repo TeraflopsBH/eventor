@@ -6723,7 +6723,7 @@ components:
               kind: { type: string, enum: [fee, discount, credit] }
               amount: { type: number, exclusiveMinimum: 0, maximum: 99999999999999.99 }
             additionalProperties: false
-        taxAmount: { type: number, minimum: 0, maximum: 99999999999999.99 }
+        taxAmount: { type: number, minimum: 0, maximum: 99999999999999.99, description: "Use zero to calculate from the selected published tax profile; a positive value is an audited invoice-level override requiring a reason and booking.approve." }
         internalReason: { type: string, minLength: 3, maxLength: 2000 }
       additionalProperties: false
     BookingOfferSuccessorRequest:
@@ -9025,7 +9025,7 @@ components:
               kind: { type: string, enum: [fee, discount, credit] }
               amount: { type: number, exclusiveMinimum: 0, maximum: 99999999999999.99 }
             additionalProperties: false
-        taxAmount: { type: number, minimum: 0, maximum: 99999999999999.99 }
+        taxAmount: { type: number, minimum: 0, maximum: 99999999999999.99, description: "Use zero to calculate from the selected published tax profile; a positive value is an audited invoice-level override requiring a reason and booking.approve." }
         internalReason: { type: string, minLength: 3, maxLength: 2000 }
       additionalProperties: false
     BookingOfferSuccessorRequest:
@@ -15463,7 +15463,7 @@ components:
               kind: { type: string, enum: [fee, discount, credit] }
               amount: { type: number, exclusiveMinimum: 0, maximum: 99999999999999.99 }
             additionalProperties: false
-        taxAmount: { type: number, minimum: 0, maximum: 99999999999999.99 }
+        taxAmount: { type: number, minimum: 0, maximum: 99999999999999.99, description: "Use zero to calculate from the selected published tax profile; a positive value is an audited invoice-level override requiring a reason and booking.approve." }
         internalReason: { type: string, minLength: 3, maxLength: 2000 }
       additionalProperties: false
     BookingOfferSuccessorRequest:
@@ -17765,7 +17765,7 @@ components:
               kind: { type: string, enum: [fee, discount, credit] }
               amount: { type: number, exclusiveMinimum: 0, maximum: 99999999999999.99 }
             additionalProperties: false
-        taxAmount: { type: number, minimum: 0, maximum: 99999999999999.99 }
+        taxAmount: { type: number, minimum: 0, maximum: 99999999999999.99, description: "Use zero to calculate from the selected published tax profile; a positive value is an audited invoice-level override requiring a reason and booking.approve." }
         internalReason: { type: string, minLength: 3, maxLength: 2000 }
       additionalProperties: false
     BookingOfferSuccessorRequest:

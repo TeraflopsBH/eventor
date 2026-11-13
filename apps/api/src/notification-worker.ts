@@ -432,7 +432,7 @@ export async function processPendingBookingOfferEmailDeliveries(
         const validity = Number.isNaN(validUntil.getTime()) ? "the stated validity deadline" : validUntil.toISOString();
         const sender = job.sender_name.trim() || job.sender_email;
         const total = new Intl.NumberFormat("en", {
-          style: "currency", currency: job.currency,
+          style: "currency", currency: job.currency, maximumFractionDigits: 4,
         }).format(Number(job.total_amount));
         const subject = "Booking offer";
         const text = [
