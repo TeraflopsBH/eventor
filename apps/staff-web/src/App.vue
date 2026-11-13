@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { computed, onMounted, reactive, ref } from "vue";
-import { api, ApiError, type CampaignReview, type CampaignProgress, type CampaignListItem, type DeliveryAttempt, type PageMeta, type EmailConfiguration, type ResendWebhookConfiguration, type Principal, type BookingInquiryListItem, type BookingInquiryDetail, type BookingInquiryAssignee, type BookingInquiryCapabilities, type BookingOfferRecord, type BookingOfferEmailDelivery, type BookingOfferApprovalStatus, type BookingOfferApprovalRequirement, type BookingOfferWriteRequest, type BookingApprovalPolicy, type BookingApprovalRule, type BookingPriceList, type BookingPriceListItem, type PublicBookingOffer } from "./api";
+import { api, ApiError, type CampaignReview, type CampaignProgress, type CampaignListItem, type DeliveryAttempt, type PageMeta, type EmailConfiguration, type ResendWebhookConfiguration, type Principal, type BookingInquiryListItem, type BookingInquiryDetail, type BookingInquiryAssignee, type BookingInquiryCapabilities, type BookingOfferRecord, type BookingOfferEmailDelivery, type BookingOfferApprovalStatus, type BookingOfferApprovalRequirement, type BookingOfferWriteRequest, type BookingApprovalPolicy, type BookingApprovalRule, type BookingPriceList, type BookingPriceListItem, type BookingCancellationPolicy, type BookingCancellationPolicyRevisionInput, type PublicBookingOffer } from "./api";
 
 const publicOfferMatch = window.location.pathname.match(/^\/offers\/([0-9a-fA-F-]{36})\/?$/);
 const isPublicOfferPage = Boolean(publicOfferMatch);
@@ -19,7 +19,7 @@ const publicDecisionKey = ref("");
 const publicDecisionKind = ref<"accepted" | "rejected" | null>(null);
 const principal = ref<Principal | null>(null);
 const loadingSession = ref(true);
-const activeTab = ref<"delivery" | "campaign" | "inquiries" | "approvals" | "prices">("delivery");
+const activeTab = ref<"delivery" | "campaign" | "inquiries" | "approvals" | "prices" | "cancellations">("delivery");
 const busy = ref(false);
 const pageError = ref("");
 const pageNotice = ref("");
@@ -152,6 +152,19 @@ const selectedApprovalPolicyLatestRevision = computed(() => {
     ?? null;
 });
 
+const cancellationPolicies = ref<BookingCancellationPolicy[]>([]);
+const selectedCancellationPolicyId = ref("");
+const cancellationPolicyCreateForm = reactive({ code: "", name: "" });
+const cancellationPolicyCustomerMode = ref<"request_only" | "approval_required" | "self_service">("request_only");
+const cancellationPolicyPublicTerms = ref("");
+const cancellationPolicyApprovalRulesJson = ref("{}");
+const cancellationPolicyCommercialRulesJson = ref("{}");
+const cancellationPolicyNoticeRulesJson = ref("{}");
+const selectedCancellationPolicy = computed(() => cancellationPolicies.value.find((policy) => policy.policyId === selectedCancellationPolicyId.value) ?? null);
+const selectedCancellationPolicyLatestRevision = computed(() => {
+  const policy = selectedCancellationPolicy.value;
+  return policy?.revisions.find((revision) => revision.revisionId === policy.latestRevisionId) ?? policy?.revisions[0] ?? null;
+});
 const selectedOrganization = computed(() =>
   principal.value?.memberships?.find((membership) => membership.selected)?.organizationName
   ?? principal.value?.organizationId
@@ -1370,6 +1383,69 @@ async function publishBookingPriceListRevision(): Promise<void> {
   finally { busy.value = false; }
 }
 
+function loadCancellationPolicyEditor(): void {
+  const revision = selectedCancellationPolicyLatestRevision.value;
+  cancellationPolicyCustomerMode.value = revision?.customerMode ?? "request_only";
+  cancellationPolicyPublicTerms.value = revision?.publicTerms ?? "";
+  cancellationPolicyApprovalRulesJson.value = JSON.stringify(revision?.approvalRules ?? {}, null, 2);
+  cancellationPolicyCommercialRulesJson.value = JSON.stringify(revision?.commercialRules ?? {}, null, 2);
+  cancellationPolicyNoticeRulesJson.value = JSON.stringify(revision?.noticeRules ?? {}, null, 2);
+}
+async function loadBookingCancellationPolicies(): Promise<void> {
+  const result = await api.getBookingCancellationPolicies();
+  cancellationPolicies.value = result.data;
+  if (selectedCancellationPolicyId.value && !result.data.some((policy) => policy.policyId === selectedCancellationPolicyId.value)) selectedCancellationPolicyId.value = "";
+  if (!selectedCancellationPolicyId.value && result.data.length) selectedCancellationPolicyId.value = result.data[0]!.policyId;
+  loadCancellationPolicyEditor();
+}
+async function openBookingCancellationPolicies(): Promise<void> {
+  activeTab.value = "cancellations"; clearMessages(); busy.value = true;
+  try { await loadBookingCancellationPolicies(); } catch (error) { showError(error); } finally { busy.value = false; }
+}
+function selectBookingCancellationPolicy(policyId: string): void { selectedCancellationPolicyId.value = policyId; loadCancellationPolicyEditor(); }
+async function createBookingCancellationPolicy(): Promise<void> {
+  const code = cancellationPolicyCreateForm.code.trim(), name = cancellationPolicyCreateForm.name.trim();
+  if (code.length < 2 || code.length > 80 || !name || name.length > 250) { pageError.value = "Enter a valid policy code and name."; return; }
+  if (!window.confirm("Create an organization cancellation policy? It cannot be used for offers until its first revision is published.")) return;
+  clearMessages(); busy.value = true;
+  try {
+    const result = await api.createBookingCancellationPolicy({ code, name });
+    cancellationPolicyCreateForm.code = ""; cancellationPolicyCreateForm.name = "";
+    selectedCancellationPolicyId.value = result.data.policyId;
+    await loadBookingCancellationPolicies(); pageNotice.value = "Cancellation policy created. Publish its first revision before using it for offers.";
+  } catch (error) { showError(error); } finally { busy.value = false; }
+}
+async function saveBookingCancellationPolicyRevision(): Promise<void> {
+  const policy = selectedCancellationPolicy.value; if (!policy || policy.status !== "active") return;
+  let body: BookingCancellationPolicyRevisionInput;
+  try {
+    const parseObject = (value: string, label: string): Record<string, unknown> => {
+      const parsed: unknown = JSON.parse(value);
+      if (!parsed || typeof parsed !== "object" || Array.isArray(parsed)) throw new Error(label + " must be a JSON object.");
+      return parsed as Record<string, unknown>;
+    };
+    body = { customerMode: cancellationPolicyCustomerMode.value, publicTerms: cancellationPolicyPublicTerms.value.trim(),
+      approvalRules: parseObject(cancellationPolicyApprovalRulesJson.value, "Approval rules"),
+      commercialRules: parseObject(cancellationPolicyCommercialRulesJson.value, "Commercial rules"),
+      noticeRules: parseObject(cancellationPolicyNoticeRulesJson.value, "Notice rules") };
+    if (!body.publicTerms || body.publicTerms.length > 10000) throw new Error("Customer-facing terms must contain 1–10,000 characters.");
+  } catch (error) { pageError.value = error instanceof Error ? error.message : "Invalid cancellation policy revision."; return; }
+  const latest = selectedCancellationPolicyLatestRevision.value;
+  if (!window.confirm(latest?.state === "draft" ? "Save this draft revision?" : "Create a successor draft? Existing offers and bookings retain their pinned policy revision.")) return;
+  clearMessages(); busy.value = true;
+  try {
+    const result = latest?.state === "draft" ? await api.updateBookingCancellationPolicyDraftRevision(policy.policyId, latest.revisionId, body) : await api.createBookingCancellationPolicyRevision(policy.policyId, body);
+    await loadBookingCancellationPolicies(); pageNotice.value = "Cancellation policy revision " + result.data.revisionNumber + " saved as a draft.";
+  } catch (error) { showError(error); } finally { busy.value = false; }
+}
+async function publishBookingCancellationPolicyRevision(): Promise<void> {
+  const policy = selectedCancellationPolicy.value, revision = selectedCancellationPolicyLatestRevision.value;
+  if (!policy || !revision || revision.state !== "draft") return;
+  if (!window.confirm("Publish this exact revision? It becomes immutable; existing offers and confirmed bookings remain unchanged.")) return;
+  clearMessages(); busy.value = true;
+  try { const result = await api.publishBookingCancellationPolicyRevision(policy.policyId, revision.revisionId); await loadBookingCancellationPolicies(); pageNotice.value = "Cancellation policy revision " + result.data.revisionNumber + " published."; }
+  catch (error) { showError(error); } finally { busy.value = false; }
+}
 async function loadBookingApprovalPolicies(): Promise<void> {
   const result = await api.getBookingApprovalPolicies();
   approvalPolicies.value = result.data;
@@ -1745,6 +1821,7 @@ onMounted(() => {
         <button :class="{ active: activeTab === 'inquiries' }" @click="openInquiryWorkspace">Booking inquiries</button>
         <button :class="{ active: activeTab === 'approvals' }" @click="openBookingApprovalPolicies">Approval policies</button>
         <button :class="{ active: activeTab === 'prices' }" @click="openBookingPriceLists">Price lists</button>
+        <button :class="{ active: activeTab === 'cancellations' }" @click="openBookingCancellationPolicies">Cancellation policies</button>
       </nav>
 
       <section v-if="activeTab === 'delivery'" class="content-grid">
@@ -2630,6 +2707,39 @@ onMounted(() => {
         </p>
       </section>
 
+      <section v-else-if="activeTab === 'cancellations'" class="panel inquiry-panel approval-policy-workspace">
+        <div class="section-heading"><div><p class="eyebrow">ORGANIZATION COMMERCIAL CONTROLS</p><h2>Booking cancellation policies</h2>
+          <p class="muted">Configure customer-facing terms and rules. Offers and confirmed bookings retain the exact policy revision they were issued with.</p></div>
+          <button class="button button-secondary" type="button" :disabled="busy" @click="loadBookingCancellationPolicies">Refresh policies</button></div>
+        <div class="inquiry-detail-grid">
+          <section class="inquiry-card"><h4>Create cancellation policy</h4><form class="draft-revision-form" @submit.prevent="createBookingCancellationPolicy">
+            <label>Policy code<input v-model="cancellationPolicyCreateForm.code" required minlength="2" maxlength="80" /></label>
+            <label>Policy name<input v-model="cancellationPolicyCreateForm.name" required maxlength="250" /></label>
+            <button class="button button-primary" type="submit" :disabled="busy">Create policy</button></form></section>
+          <section class="inquiry-card"><h4>Existing policies</h4><label>Select policy<select v-model="selectedCancellationPolicyId" @change="selectBookingCancellationPolicy(selectedCancellationPolicyId)">
+            <option value="">Choose a policy…</option><option v-for="policy in cancellationPolicies" :key="policy.policyId" :value="policy.policyId">{{ policy.code }} · {{ policy.name }} ({{ policy.status }})</option>
+          </select></label><p v-if="!cancellationPolicies.length" class="muted">No cancellation policies are configured.</p>
+          <div v-if="selectedCancellationPolicy" class="policy-summary"><strong>{{ selectedCancellationPolicy.name }}</strong><span>{{ selectedCancellationPolicy.code }} · {{ selectedCancellationPolicy.status }}</span></div></section>
+        </div>
+        <template v-if="selectedCancellationPolicy"><div class="divider"></div>
+          <div class="policy-revision-heading"><div><h3>Revision editor · {{ selectedCancellationPolicy.name }}</h3><p class="fine-print">Edit the latest draft or create a successor after publication. Published revisions are immutable.</p></div>
+            <span class="pill" :class="selectedCancellationPolicyLatestRevision?.state === 'published' ? 'pill-success' : 'pill-warning'">Latest: {{ selectedCancellationPolicyLatestRevision?.state ?? 'No revision' }}</span></div>
+          <div v-if="selectedCancellationPolicyLatestRevision" class="policy-revision-meta"><span>Revision {{ selectedCancellationPolicyLatestRevision.revisionNumber }}</span>
+            <span>Created {{ formatInquiryDate(selectedCancellationPolicyLatestRevision.createdAt) }}</span><span>Published {{ formatInquiryDate(selectedCancellationPolicyLatestRevision.publishedAt) }}</span></div>
+          <label>Customer cancellation mode<select v-model="cancellationPolicyCustomerMode"><option value="request_only">Request only</option><option value="approval_required">Approval required</option><option value="self_service">Self-service</option></select></label>
+          <label>Customer-facing terms<textarea v-model="cancellationPolicyPublicTerms" rows="6" maxlength="10000" placeholder="Enter the exact terms shown to customers."></textarea></label>
+          <div class="field-grid"><label>Approval rules (JSON object)<textarea v-model="cancellationPolicyApprovalRulesJson" rows="7" spellcheck="false"></textarea></label>
+            <label>Commercial consequences (JSON object)<textarea v-model="cancellationPolicyCommercialRulesJson" rows="7" spellcheck="false"></textarea></label></div>
+          <label>Notice rules (JSON object)<textarea v-model="cancellationPolicyNoticeRulesJson" rows="7" spellcheck="false"></textarea></label>
+          <p class="fine-print">Rule objects are organization-defined. No notice periods, refund percentages, fees, deposits or legal terms are assumed or prefilled.</p>
+          <div class="form-actions"><button class="button button-secondary" type="button" :disabled="busy || selectedCancellationPolicy.status !== 'active'" @click="saveBookingCancellationPolicyRevision">
+            {{ selectedCancellationPolicyLatestRevision?.state === 'draft' ? 'Save draft revision' : selectedCancellationPolicy.revisions.length ? 'Create successor draft revision' : 'Create first draft revision' }}</button>
+            <button v-if="selectedCancellationPolicyLatestRevision?.state === 'draft'" class="button button-primary" type="button" :disabled="busy" @click="publishBookingCancellationPolicyRevision">Publish latest revision</button></div>
+          <div v-if="selectedCancellationPolicy.revisions.length" class="draft-revision-history"><h5>Revision history</h5><ol class="history-list">
+            <li v-for="revision in selectedCancellationPolicy.revisions" :key="revision.revisionId"><strong>Revision {{ revision.revisionNumber }} · {{ revision.state }} · {{ revision.customerMode.replaceAll('_', ' ') }}</strong>
+              <span>Created {{ formatInquiryDate(revision.createdAt) }}</span><small>Published {{ formatInquiryDate(revision.publishedAt) }} · {{ revision.revisionId }}</small></li></ol></div>
+        </template><p v-else class="inquiry-detail-empty"><span class="brand-mark">E</span><strong>Select or create a cancellation policy</strong><span class="muted">Requires organization-level booking.manage permission.</span></p>
+      </section>
       <section v-else class="panel campaign-panel">
         <div class="section-heading">
           <div><p class="eyebrow">EVENT NOTIFICATIONS</p><h2>Campaign review and authorization</h2></div>
