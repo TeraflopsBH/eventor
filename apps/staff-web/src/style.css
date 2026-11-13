@@ -443,3 +443,8 @@ textarea:focus { border-color: var(--accent); box-shadow: 0 0 0 3px #f5863420; }
 .booking-form-field-chip { min-width: 120px; }
 .booking-form-preview .preview-field > p { margin: 0; }
 .booking-form-preview input:disabled, .booking-form-preview textarea:disabled, .booking-form-preview select:disabled { opacity: .85; }
+
+.draft-answer-editor { display: grid; gap: 14px; }
+.draft-answer-editor .public-choice, .draft-answer-editor .public-checkbox { display: flex; align-items: center; gap: 10px; font-weight: 500; }
+.draft-answer-editor .public-choice input, .draft-answer-editor .public-checkbox input { width: 16px; min-width: 16px; height: 16px; margin: 0; accent-color: var(--accent); }
+.draft-answer-editor .public-choice-group { margin: 0; }

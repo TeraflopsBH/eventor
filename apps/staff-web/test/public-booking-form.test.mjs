@@ -10,6 +10,9 @@ import {
   selectedPublicBookingValues,
   togglePublicBookingOption,
   validatePublicBookingChoices,
+  validatePublicBookingAnswers,
+  normalizePublicBookingAnswers,
+  mergePublicBookingAnswers,
 } from "../src/features/public-booking-forms/publicBookingForm.ts";
 
 function makeForm(overrides = {}) {
@@ -195,4 +198,113 @@ test("omits blank optional requester contact details without changing the reques
     {},
   );
   assert.deepEqual(payload.requester, { displayName: "Nedim" });
+});
+
+
+test("validates required fields, lengths, numeric bounds and checkbox acceptance for staff draft edits", () => {
+  const fields = makeForm().fieldSchema.fields;
+  assert.deepEqual(validatePublicBookingAnswers(fields, {
+    event_name: "",
+    equipment: ["projector"],
+    estimated_guests: 12,
+    accept_terms: true,
+  }), { code: "event_name", kind: "required" });
+
+  assert.deepEqual(validatePublicBookingAnswers(fields, {
+    event_name: "A".repeat(121),
+    equipment: ["projector"],
+    estimated_guests: 12,
+    accept_terms: true,
+  }), { code: "event_name", kind: "maxLength", limit: 120 });
+
+  assert.deepEqual(validatePublicBookingAnswers(fields, {
+    event_name: "Event",
+    equipment: ["projector"],
+    estimated_guests: 0,
+    accept_terms: true,
+  }), { code: "estimated_guests", kind: "minimum", limit: 1 });
+
+  assert.deepEqual(validatePublicBookingAnswers(fields, {
+    event_name: "Event",
+    equipment: ["projector"],
+    estimated_guests: 12,
+    accept_terms: false,
+  }), { code: "accept_terms", kind: "required" });
+});
+
+test("validates multi-select bounds and rejects values outside the pinned option set", () => {
+  const fields = makeForm().fieldSchema.fields;
+  assert.deepEqual(validatePublicBookingAnswers(fields, {
+    event_name: "Event",
+    equipment: [],
+    estimated_guests: 12,
+    accept_terms: true,
+  }), { code: "equipment", kind: "minimum", limit: 1 });
+
+  assert.deepEqual(validatePublicBookingAnswers(fields, {
+    event_name: "Event",
+    equipment: ["projector", "microphone", "speaker"],
+    estimated_guests: 12,
+    accept_terms: true,
+  }), { code: "equipment", kind: "maximum", limit: 2 });
+
+  assert.deepEqual(validatePublicBookingAnswers(fields, {
+    event_name: "Event",
+    equipment: ["retired-option"],
+    estimated_guests: 12,
+    accept_terms: true,
+  }), { code: "equipment", kind: "invalidOption" });
+});
+
+test("normalizes numeric draft answers while leaving nonnumeric answers intact", () => {
+  const fields = makeForm().fieldSchema.fields;
+  assert.deepEqual(normalizePublicBookingAnswers(fields, {
+    event_name: "Event",
+    equipment: ["projector"],
+    estimated_guests: "42",
+    accept_terms: true,
+  }), {
+    event_name: "Event",
+    equipment: ["projector"],
+    estimated_guests: 42,
+    accept_terms: true,
+  });
+});
+
+
+test("merges normalized schema answers without discarding unknown legacy keys", () => {
+  const fields = makeForm().fieldSchema.fields;
+  assert.deepEqual(mergePublicBookingAnswers(fields, {
+    event_name: "Event",
+    equipment: ["projector"],
+    estimated_guests: "42",
+    accept_terms: true,
+    legacy_field: { retained: true },
+  }), {
+    event_name: "Event",
+    equipment: ["projector"],
+    estimated_guests: 42,
+    accept_terms: true,
+    legacy_field: { retained: true },
+  });
+});
+
+
+test("rejects fractional and non-finite numeric answers and invalid single-select values", () => {
+  const fields = [
+    { code: "guest_count", type: "number", integer: true, min: 1 },
+    { code: "room", type: "select", options: [{ value: "main", label: "Main room" }] },
+  ];
+  assert.deepEqual(validatePublicBookingAnswers(fields, {
+    guest_count: 2.5,
+    room: "main",
+  }), { code: "guest_count", kind: "integer" });
+  assert.deepEqual(validatePublicBookingAnswers(fields, {
+    guest_count: "not-a-number",
+    room: "main",
+  }), { code: "guest_count", kind: "invalidNumber" });
+  assert.deepEqual(validatePublicBookingAnswers(fields, {
+    guest_count: 2,
+    room: "retired-room",
+  }), { code: "room", kind: "invalidOption" });
 });

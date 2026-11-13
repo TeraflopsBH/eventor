@@ -321,3 +321,11 @@ The inquiry detail and converted-draft workspace now share one answer-presentati
 The API integration test now asserts that the decrypted draft projection includes the exact source form revision ID, its original field codes/schema, and the decrypted submitted values. The database smoke test also asserts that the permission-checked initial draft projection joins and returns the original revision schema alongside the encrypted ECP1 snapshot. Existing conversion idempotency, source-inquiry immutability, and successor-revision lineage remain unchanged.
 
 These changes are in draft PR #72, stacked on PR #71. Static source review only; frontend/API/database tests, typecheck, production build and browser validation were not executed in this repository-connector session. GitHub Actions was not triggered because the monthly allowance is exhausted.
+
+## Schema-aware booking draft answer editor
+
+Converted booking drafts now use the full field definitions from their pinned source form revision to render structured staff editing controls for text, textarea, email, phone, number, date, time, select, multi-select and checkbox answers. The original submitted answers remain visible as a read-only reference above the editor. Drafts without a source form schema retain the existing JSON editor fallback.
+
+Before creating a successor revision, the staff-web composable validates required answers, text length limits, numeric bounds/integer constraints, checkbox acceptance, select option membership and multi-select bounds against the pinned schema. Numeric strings are normalized to numbers. Unknown historical answer keys are retained when known fields are normalized; the immutable source form revision ID/schema are not changed. The API remains authoritative and revision creation still uses the existing optimistic expected-revision check.
+
+English and Bosnian validation messages were added. Focused tests cover schema validation and legacy-key preservation. These changes are in draft PR #73, stacked on PR #72. Static source review only; tests, typecheck, production build and browser validation were not executed in this repository-connector session. GitHub Actions was not triggered because the monthly allowance is exhausted.
