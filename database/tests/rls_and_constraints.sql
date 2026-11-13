@@ -1,6 +1,7 @@
 \set ON_ERROR_STOP on
 
--- PostgreSQL integration smoke tests. Run as eventor_runtime after all migrations.
+-- PostgreSQL integration smoke tests. Run as eventor_owner via eventor_migrator SET ROLE.
+-- FORCE ROW LEVEL SECURITY remains active; runtime privilege checks target eventor_runtime.
 -- The test uses isolated synthetic tenants and deterministic IDs only.
 
 BEGIN;
@@ -293,6 +294,37 @@ INSERT INTO eogp.booking_records (id, organization_id, booking_code, source_offe
 VALUES ('f0000000-0000-0000-0000-00000000000a','10000000-0000-0000-0000-00000000000a',
         'CI-EXTERNAL-CANCEL','e0000000-0000-0000-0000-00000000000a');
 
+-- The confirmed booking snapshot is the immutable source of the cancellation
+-- policy that governs later cancellation effects (NULL means no policy applied).
+INSERT INTO eogp.booking_confirmed_snapshots
+ (organization_id, booking_id, offer_revision_id, cancellation_policy_revision_id,
+  customer_terms_snapshot, price_snapshot, confirmed_by_membership_id, snapshot_sha256)
+VALUES
+ ('10000000-0000-0000-0000-00000000000a',
+  'f0000000-0000-0000-0000-00000000000a',
+  'e0000000-0000-0000-0000-00000000000a',
+  NULL,
+  '{}'::jsonb, '{}'::jsonb,
+  '30000000-0000-0000-0000-00000000000a',
+  repeat('f',64));
+
+-- A different policy revision exists in the same tenant but is not pinned to
+-- this booking. Cancellation effects must not silently substitute it.
+INSERT INTO eogp.cancellation_policies (id, organization_id, code, name)
+VALUES
+ ('a4000000-0000-0000-0000-00000000000a',
+  '10000000-0000-0000-0000-00000000000a','CI-OTHER-POLICY','CI Other Policy');
+
+INSERT INTO eogp.cancellation_policy_revisions
+ (id, organization_id, cancellation_policy_id, revision_number, customer_mode,
+  approval_rules, commercial_rules, notice_rules, public_terms, state, published_at)
+VALUES
+ ('a5000000-0000-0000-0000-00000000000a',
+  '10000000-0000-0000-0000-00000000000a',
+  'a4000000-0000-0000-0000-00000000000a',
+  1,'approval_required','{}'::jsonb,'{}'::jsonb,'{}'::jsonb,
+  'CI policy terms','published',clock_timestamp());
+
 INSERT INTO eogp.booking_party_contacts
  (id, organization_id, booking_id, party_role, display_name_ciphertext, email_hash, email_ciphertext, authorized_actions)
 VALUES
@@ -330,6 +362,27 @@ VALUES
  ('10000000-0000-0000-0000-00000000000a','f0000000-0000-0000-0000-00000000000a',
   'a3000000-0000-0000-0000-00000000000a','{}'::jsonb,
   NULL,'a2000000-0000-0000-0000-00000000000a','external_capability');
+
+DO $test$
+BEGIN
+  BEGIN
+    INSERT INTO eogp.booking_cancellation_effects
+      (organization_id, booking_id, cancellation_request_id, policy_revision_id,
+       commercial_consequence_snapshot, executed_by_membership_id,
+       executed_by_external_capability_id, executed_by_kind)
+    VALUES
+      ('10000000-0000-0000-0000-00000000000a',
+       'f0000000-0000-0000-0000-00000000000a',
+       'a3000000-0000-0000-0000-00000000000a',
+       'a5000000-0000-0000-0000-00000000000a',
+       '{}'::jsonb, NULL,
+       'a2000000-0000-0000-0000-00000000000a','external_capability');
+    RAISE EXCEPTION 'cancellation effect accepted an unpinned policy revision';
+  EXCEPTION WHEN SQLSTATE '23514' THEN
+    NULL;
+  END;
+END;
+$test$;
 
 INSERT INTO eogp.booking_status_history
  (organization_id, booking_id, previous_status, new_status, actor_membership_id,
@@ -438,9 +491,9 @@ BEGIN
   IF visible_orgs <> 1 OR visible_venues <> 1 OR visible_profiles <> 1 THEN
     RAISE EXCEPTION 'tenant RLS/profile view failed: orgs %, venues %, profiles %', visible_orgs, visible_venues, visible_profiles;
   END IF;
-  IF has_table_privilege(current_user, 'eogp.users', 'SELECT')
-     OR has_column_privilege(current_user, 'eogp.users', 'password_hash', 'SELECT')
-     OR has_table_privilege(current_user, 'eogp.users', 'INSERT') THEN
+  IF has_table_privilege('eventor_runtime', 'eogp.users', 'SELECT')
+     OR has_column_privilege('eventor_runtime', 'eogp.users', 'password_hash', 'SELECT')
+     OR has_table_privilege('eventor_runtime', 'eogp.users', 'INSERT') THEN
     RAISE EXCEPTION 'general runtime role has direct access to global user identities';
   END IF;
   BEGIN
@@ -585,6 +638,34 @@ END;
 $test$;
 COMMIT;
 
+-- A distinct read-only venue grant must allow source SELECT without permitting
+-- the event owner to bind/copy the provider's plan into an event snapshot.
+BEGIN;
+SELECT set_config('app.organization_id', '10000000-0000-0000-0000-00000000000a', true);
+SELECT eogp.propose_collaboration_grant(
+  '61000000-0000-4000-8000-00000000000c',
+  '10000000-0000-0000-0000-00000000000b',
+  'venue',
+  '40000000-0000-0000-0000-00000000000a',
+  NULL,
+  NULL,
+  'CI read-only venue snapshot grant',
+  '{"venueSummary":true}'::jsonb,
+  ARRAY['venue.snapshot.read']::text[],
+  clock_timestamp() - interval '1 minute',
+  clock_timestamp() + interval '1 day',
+  '30000000-0000-0000-0000-00000000000a'
+);
+COMMIT;
+
+BEGIN;
+SELECT set_config('app.organization_id', '10000000-0000-0000-0000-00000000000b', true);
+SELECT eogp.accept_collaboration_grant(
+  '61000000-0000-4000-8000-00000000000c',
+  '30000000-0000-0000-0000-00000000000b'
+);
+COMMIT;
+
 -- A separate booking-scoped grant may link only the exact booking in its scope.
 BEGIN;
 SELECT set_config('app.organization_id', '10000000-0000-0000-0000-00000000000a', true);
@@ -661,6 +742,22 @@ VALUES
   '10000000-0000-0000-0000-00000000000a',
   '64100000-0000-4000-8000-00000000000b',
   'zone','CI-PRIVATE-ZONE','{"x":50,"y":0,"width":10,"height":10}'::jsonb);
+
+INSERT INTO eogp.spatial_layers
+ (id, organization_id, venue_space_revision_id, code, label, layer_kind)
+VALUES
+ ('64100000-0000-0000-0000-00000000000c',
+  '10000000-0000-0000-0000-00000000000a',
+  '64000000-0000-4000-8000-00000000000a',
+  'CI-ZONES-SECOND','CI Second Zones','zones');
+
+INSERT INTO eogp.spatial_objects
+ (id, organization_id, layer_id, object_kind, stable_code, geometry)
+VALUES
+ ('64200000-0000-4000-8000-00000000000c',
+  '10000000-0000-0000-0000-00000000000a',
+  '64100000-0000-0000-0000-00000000000c',
+  'zone','CI-ZONE-SECOND','{"x":20,"y":0,"width":10,"height":10}'::jsonb);
 
 INSERT INTO eogp.floor_plan_assets
  (id, organization_id, venue_space_revision_id, storage_key, media_type, content_sha256, byte_length)
@@ -771,9 +868,34 @@ VALUES
   '10000000-0000-0000-0000-00000000000b',
   '62000000-0000-4000-8000-00000000000a',
   '61000000-0000-4000-8000-00000000000a',
-  '["64100000-0000-4000-8000-00000000000a"]'::jsonb,
+  '["64100000-0000-4000-8000-00000000000a","64100000-0000-0000-0000-00000000000c"]'::jsonb,
   '["a0000000-0000-0000-0000-00000000000a"]'::jsonb,
   repeat('d',64),
+  clock_timestamp() + interval '23 hours',
+  '30000000-0000-0000-0000-00000000000a');
+INSERT INTO eogp.venue_space_revisions
+ (id, organization_id, venue_space_id, revision_number, geometry, semantic_snapshot,
+  content_sha256, published_at, created_by_membership_id)
+VALUES
+ ('64000000-0000-4000-8000-00000000000b',
+  '10000000-0000-0000-0000-00000000000a',
+  '70000000-0000-0000-0000-00000000000a',
+  2, '{}'::jsonb, '{"label":"CI read-only revision"}'::jsonb,
+  repeat('e',64), clock_timestamp(),
+  '30000000-0000-0000-0000-00000000000a');
+
+INSERT INTO eogp.venue_snapshot_shares
+ (id, organization_id, venue_space_revision_id, event_owner_organization_id,
+  event_id, collaboration_grant_id, approved_layers, approved_resources,
+  source_content_sha256, expires_at, approved_by_membership_id)
+VALUES
+ ('63000000-0000-4000-8000-00000000000d',
+  '10000000-0000-0000-0000-00000000000a',
+  '64000000-0000-4000-8000-00000000000b',
+  '10000000-0000-0000-0000-00000000000b',
+  '62000000-0000-4000-8000-00000000000a',
+  '61000000-0000-4000-8000-00000000000c',
+  '[]'::jsonb, '[]'::jsonb, repeat('e',64),
   clock_timestamp() + interval '23 hours',
   '30000000-0000-0000-0000-00000000000a');
 COMMIT;
@@ -809,12 +931,46 @@ BEGIN
     FROM eogp.resource_pools
    WHERE organization_id = '10000000-0000-0000-0000-00000000000a';
 
-  IF source_revisions <> 1 OR source_spaces <> 1
-     OR source_layers <> 1 OR source_objects <> 1 OR source_pools <> 1 THEN
+  IF source_revisions <> 2 OR source_spaces <> 1
+     OR source_layers <> 2 OR source_objects <> 2 OR source_pools <> 1 THEN
     RAISE EXCEPTION
       'recipient source projection is too broad or incomplete: revisions %, spaces %, layers %, objects %, pools %',
       source_revisions, source_spaces, source_layers, source_objects, source_pools;
   END IF;
+END;
+$test$;
+
+DO $test$
+DECLARE
+  visible_read_only_revision integer;
+BEGIN
+  SELECT count(*) INTO visible_read_only_revision
+    FROM eogp.venue_space_revisions
+   WHERE organization_id = '10000000-0000-0000-0000-00000000000a'
+     AND id = '64000000-0000-4000-8000-00000000000b';
+  IF visible_read_only_revision <> 1 THEN
+    RAISE EXCEPTION 'venue.snapshot.read did not expose its approved source revision';
+  END IF;
+
+  BEGIN
+    INSERT INTO eogp.event_venue_snapshots
+     (id, organization_id, event_id, share_owner_organization_id, snapshot_share_id,
+      source_organization_id, source_space_revision_id, source_content_sha256,
+      snapshot_content, created_by_membership_id)
+    VALUES
+     ('65000000-0000-4000-8000-00000000000b',
+      '10000000-0000-0000-0000-00000000000b',
+      '62000000-0000-4000-8000-00000000000a',
+      '10000000-0000-0000-0000-00000000000a',
+      '63000000-0000-4000-8000-00000000000d',
+      '10000000-0000-0000-0000-00000000000a',
+      '64000000-0000-4000-8000-00000000000b',
+      repeat('e',64), '{"layers":[],"resources":[]}'::jsonb,
+      '30000000-0000-0000-0000-00000000000b');
+    RAISE EXCEPTION 'read-only snapshot grant unexpectedly permitted event snapshot use';
+  EXCEPTION WHEN SQLSTATE '42501' THEN
+    NULL;
+  END;
 END;
 $test$;
 
@@ -928,6 +1084,16 @@ VALUES
   '64100000-0000-4000-8000-00000000000a',
   'CI-LAYER','{"kind":"zones"}'::jsonb);
 
+INSERT INTO eogp.event_venue_snapshot_layers
+ (id, organization_id, event_id, snapshot_id, source_layer_id, layer_code, layer_snapshot)
+VALUES
+ ('65100000-0000-4000-8000-00000000000b',
+  '10000000-0000-0000-0000-00000000000b',
+  '62000000-0000-4000-8000-00000000000a',
+  '65000000-0000-4000-8000-00000000000a',
+  '64100000-0000-0000-0000-00000000000c',
+  'CI-LAYER-SECOND','{"kind":"zones"}'::jsonb);
+
 INSERT INTO eogp.event_venue_snapshot_objects
  (id, organization_id, snapshot_id, snapshot_layer_id, source_object_id, object_kind, object_snapshot)
 VALUES
@@ -947,6 +1113,25 @@ VALUES
   '65000000-0000-4000-8000-00000000000a',
   'a0000000-0000-0000-0000-00000000000a',
   '{"kind":"pool","label":"CI Resource"}'::jsonb);
+
+DO $test$
+BEGIN
+  BEGIN
+    INSERT INTO eogp.event_venue_snapshot_objects
+     (id, organization_id, snapshot_id, snapshot_layer_id, source_object_id, object_kind, object_snapshot)
+    VALUES
+     ('65200000-0000-4000-8000-00000000000c',
+      '10000000-0000-0000-0000-00000000000b',
+      '65000000-0000-4000-8000-00000000000a',
+      '65100000-0000-4000-8000-00000000000b',
+      '64200000-0000-0000-0000-00000000000a',
+      'zone','{"code":"WRONG-LAYER-MAPPING"}'::jsonb);
+    RAISE EXCEPTION 'source object was attached to a different copied snapshot layer';
+  EXCEPTION WHEN SQLSTATE '42501' THEN
+    NULL;
+  END;
+END;
+$test$;
 
 DO $test$
 BEGIN
@@ -1074,7 +1259,7 @@ BEGIN
   IF visible_source_layers <> 0 OR visible_source_pools <> 0 THEN
     RAISE EXCEPTION 'revoked grant must hide provider source data from the recipient';
   END IF;
-  IF retained_snapshot_layers <> 1 OR retained_snapshot_objects <> 1
+  IF retained_snapshot_layers <> 2 OR retained_snapshot_objects <> 1
      OR retained_snapshot_resources <> 1 THEN
     RAISE EXCEPTION 'revocation must retain the already-copied event-owned historical snapshot';
   END IF;

@@ -1,6 +1,6 @@
 # Delivery roadmap
 
-This roadmap tracks the accepted Eventor product direction and implementation gates. PR #26 contains the first executable database/API contract draft; it remains unmerged pending review.
+This roadmap tracks the accepted Eventor product direction and implementation gates. PR #26 contains the initial PostgreSQL/OpenAPI baseline; PR #27 is a separate stacked remediation and application-foundation draft. Both remain open, unmerged drafts.
 
 ## Phase 0 — Repository and design baseline
 
@@ -18,26 +18,34 @@ This roadmap tracks the accepted Eventor product direction and implementation ga
 - [x] Produce an initial ordered PostgreSQL 18 migration draft and checksum runner.
 - [x] Produce canonical OpenAPI 3.1.1 v0.3 YAML from the route/security design.
 - [x] Add PostgreSQL integration/concurrency/RLS tests and pinned OpenAPI validation to the unified CI workflow.
-- [x] Pass the unified CI workflow end-to-end on PostgreSQL 18.6 and the canonical OpenAPI contract (latest PR run #42837964380 on head `ce9fd3d7e4889b713f36e1d93d1b40c3e0c609f2`; both jobs succeeded).
+- [x] Pass the unified three-job CI workflow on PostgreSQL 18.6, OpenAPI 3.1 and the initial staff-web build on PR #27 head `8c19c51b37a67f1cb1faf6f158d5db32e8c32d9e` ([run #43027314682](https://github.com/TeraflopsBH/eventor/actions/runs/43027314682)). This successful run predates migrations 000039–000046 and the subsequent Resend/public booking-intake/staff-inquiry changes; it does not validate the current PR #27 head.
 - [ ] Complete deeper schema/permission review, migration-upgrade/backup tests and route-level API contract tests before accepting the DDL.
 - [ ] Close Issues #2, #3, #13 and #17 only after their runtime/CI acceptance criteria pass.
 
 ## Phase 1 — Platform foundation
 
 - [ ] Monorepo workspace and build tooling.
-- [ ] Fastify API skeleton, configuration and health/readiness endpoints.
-- [ ] PostgreSQL migrations, connection management and transaction conventions (21-file migration draft and green PostgreSQL 18.6 CI are in draft PR #26; deployment is not started).
+- [x] Fastify API bootstrap, environment configuration, database pools and staff-session integration are present in PR #27.
+- [ ] Add unauthenticated liveness and dependency-aware readiness endpoints, plus operational health checks.
+- [x] A 46-file PostgreSQL 18 migration chain, least-privilege roles, checksum runner and transactional command conventions are present across PRs #26/#27. Fresh-database validation passed on the earlier PR #27 head; migration-upgrade, backup/restore and current-head CI validation remain open. Migrations 000040–000041 add restricted published-form retrieval and encrypted, idempotent, rate-limited public inquiry submission; migration 000042 adds permissioned staff inquiry projections, assignments, review status, internal annotations and immutable histories; migration 000043 adds exact published-revision projection for validation against the revision the visitor actually submitted; migration 000044 adds a permission-gated active assignee roster and membership capability projection; migration 000045 adds permission-gated, idempotent inquiry-to-draft conversion with an encrypted ECP1 snapshot, immutable revision 1, attributed inquiry history and audit records; migration 000046 adds organization-scope draft-read/manage permissions, protected draft projections, immutable successor revisions, optimistic concurrency, ECP1 value encryption, and active-hold/venue/resource validation.
 - [ ] Shared contracts, validation and error model.
-- [ ] Authentication, sessions, authorization and audit foundation.
-- [ ] Organization, venue and event tenancy model.
+- [ ] Complete review of the implemented database-backed staff sessions, CSRF/origin checks, tenant-scoped authorization and audit boundaries; extend role/permission coverage to the remaining API operations.
+- [x] Organization, venue and event tenancy foundations and RLS migrations are present.
+- [ ] Complete runtime API projections and staff workflows for organization, venue and event administration.
 - [ ] CI checks and synthetic test fixtures.
 
 ## Phase 2 — Configurable venue booking
 
+**Next application vertical slice:** issue and revise customer offers against an explicit immutable draft revision, implement acceptance/rejection and approval policy, then confirm bookings using the existing reservation commands with final resource rechecks. Inquiry conversion, protected draft projections and immutable successor revisions are now implemented; revision writes are blocked while active holds remain on the prior revision. The public API validates answers against the exact immutable published revision using field-schema v1, and the staff UI now supports permission-aware inbox/detail, assignment, status, internal notes and histories. Keep booking-only operation independent of optional event/guest capabilities.
+
 - [ ] Versioned form/catalogue/configuration management.
-- [ ] Public inquiry intake and spam/rate protections.
-- [ ] Staff inquiry review and immutable inquiry history.
-- [ ] Separate editable booking draft and offer/approval flow.
+- [x] Public inquiry intake and spam/rate protections.
+- [x] Permissioned staff inquiry review API, assignment, status, internal notes and immutable history.
+- [x] Staff inquiry inbox/detail UI with permission-aware assignment, status and annotation controls.
+- [x] Versioned field-schema v1 answer validation against the exact published revision.
+- [x] Atomic inquiry-to-draft conversion with an encrypted source-submission snapshot, immutable revision 1, idempotent replay, inquiry history and audit event.
+- [x] Permission-checked booking draft projection and immutable successor revision API/UI with ECP1 encryption, optimistic concurrency and active-hold safeguards.
+- [ ] Offer creation/revisions, customer acceptance/rejection and approval flow.
 - [ ] Explicit booking confirmation and resource reservation.
 - [ ] Resource inventory, pricing and separately scheduled rehearsals.
 - [ ] Notifications and booking audit trail.

@@ -4,9 +4,12 @@ on:
   push:
     branches:
       - feat/postgresql18-migrations-openapi-v0.3
+      - fix/pr26-high-risk-integrity-review
       - main
   pull_request:
-    branches: [main]
+    branches:
+      - main
+      - feat/postgresql18-migrations-openapi-v0.3
 
 permissions:
   contents: read
@@ -41,6 +44,31 @@ jobs:
       - name: Lint OpenAPI with pinned Redocly CLI
         run: npx --yes @redocly/cli@2.77.0 lint --config redocly.yaml docs/api/openapi.v0.3.yaml
 
+      - name: Install API dependencies
+        working-directory: apps/api
+        run: npm install --no-package-lock --no-audit --no-fund
+
+      - name: Generate OpenAPI TypeScript declarations, type-check and test API routes
+        working-directory: apps/api
+        run: npm test
+
+  staff-web:
+    name: Staff web type-check and production build
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: "22.16.0"
+      - name: Install staff web dependencies
+        working-directory: apps/staff-web
+        run: npm install --no-package-lock --no-audit --no-fund
+      - name: Type-check and build staff web
+        working-directory: apps/staff-web
+        run: npm run build
+
   postgres:
     name: PostgreSQL 18.6 migrations, RLS and concurrency
     runs-on: ubuntu-latest
@@ -63,6 +91,7 @@ jobs:
       MIGRATOR_URL: postgresql://eventor_migrator:eventor_ci_migrator_password@127.0.0.1:5432/eventor
       RUNTIME_URL: postgresql://eventor_runtime:eventor_ci_runtime_password@127.0.0.1:5432/eventor
       AUTH_URL: postgresql://eventor_auth:eventor_ci_auth_password@127.0.0.1:5432/eventor
+      WORKER_URL: postgresql://eventor_worker:eventor_ci_worker_password@127.0.0.1:5432/eventor
       DATABASE_URL: postgresql://eventor_migrator:eventor_ci_migrator_password@127.0.0.1:5432/eventor
     steps:
       - name: Check out repository
@@ -106,6 +135,14 @@ jobs:
       - name: Apply checksum-verified migrations
         run: bash scripts/db/migrate.sh
 
+      - name: Verify safe public booking form projection
+        run: psql "$MIGRATOR_URL" -X -v ON_ERROR_STOP=1 -f tests/database/public_booking_form_smoke.sql
+      - name: Verify rate-limited, idempotent public inquiry submission
+        run: psql "$MIGRATOR_URL" -X -v ON_ERROR_STOP=1 -f tests/database/public_booking_inquiry_smoke.sql
+      - name: Verify permissioned staff booking inquiry workflow
+        run: psql "$MIGRATOR_URL" -X -v ON_ERROR_STOP=1 -f tests/database/staff_booking_inquiry_smoke.sql
+
+
       - name: Seed synthetic identities through authentication role
         run: psql "$AUTH_URL" -X -v ON_ERROR_STOP=1 -f tests/database/seed_auth_test_users.sql
 
@@ -126,6 +163,66 @@ jobs:
         env:
           DATABASE_URL_RUNTIME: postgresql://eventor_runtime:eventor_ci_runtime_password@127.0.0.1:5432/eventor
         run: bash scripts/db/test-migrations.sh
+
+      - name: Verify collaboration link/share transition audit
+        run: psql "$MIGRATOR_URL" -X -v ON_ERROR_STOP=1 -f tests/database/collaboration_lifecycle_audit_smoke.sql
+
+      - name: Verify event cancellation and postponement after invitation delivery
+        run: psql "$MIGRATOR_URL" -X -v ON_ERROR_STOP=1 -f tests/database/event_cancellation_postponement_smoke.sql
+
+      - name: Verify event change commands, scoped permissions and replacement schedules
+        run: psql "$MIGRATOR_URL" -X -v ON_ERROR_STOP=1 -f tests/database/event_change_command_runtime_smoke.sql
+
+      - name: Prepare event notification worker fixture
+        run: psql "$MIGRATOR_URL" -X -v ON_ERROR_STOP=1 -f tests/database/event_notification_worker_fixture.sql
+
+      - name: Verify tenant-safe notification campaign preparation as worker
+        run: psql "$WORKER_URL" -X -v ON_ERROR_STOP=1 -f tests/database/event_notification_worker_smoke.sql
+
+      - name: Verify prepared notification snapshot as forced-RLS owner
+        run: psql "$MIGRATOR_URL" -X -v ON_ERROR_STOP=1 -c "SET ROLE eventor_owner" -f tests/database/event_notification_worker_result_smoke.sql
+
+      - name: Verify organizer notification campaign review and confirmation as runtime
+        run: psql "$RUNTIME_URL" -X -v ON_ERROR_STOP=1 -f tests/database/event_notification_campaign_confirmation_smoke.sql
+
+      - name: Verify tenant-scoped SMTP configuration versioning and secret boundaries
+        run: psql "$RUNTIME_URL" -X -v ON_ERROR_STOP=1 -f tests/database/organization_delivery_configuration_smoke.sql
+      - name: Verify SMTP delivery worker claim, retry and terminal states
+        run: psql "$WORKER_URL" -X -v ON_ERROR_STOP=1 -f tests/database/event_notification_delivery_worker_smoke.sql
+
+      - name: Verify delivery result under forced-RLS owner
+        run: psql "$MIGRATOR_URL" -X -v ON_ERROR_STOP=1 -c "SET ROLE eventor_owner" -f tests/database/event_notification_delivery_result_smoke.sql
+
+      - name: Verify authenticated Resend webhook endpoint, correlation and idempotency
+        run: psql "$RUNTIME_URL" -X -v ON_ERROR_STOP=1 -f tests/database/resend_delivery_webhook_smoke.sql
+      - name: Verify queued campaign cancellation guard after sending starts
+        run: psql "$RUNTIME_URL" -X -v ON_ERROR_STOP=1 -f tests/database/event_notification_campaign_cancel_smoke.sql
+      - name: Verify campaign listing and privacy-safe delivery reporting
+        run: psql "$RUNTIME_URL" -X -v ON_ERROR_STOP=1 -f tests/database/event_notification_campaign_reporting_smoke.sql
+ 
+      - name: Verify confirmed campaign snapshot guards as owner
+        run: psql "$MIGRATOR_URL" -X -v ON_ERROR_STOP=1 -f tests/database/event_notification_campaign_snapshot_guard_smoke.sql
+
+      - name: Verify PR review remediation regressions
+        run: psql "$MIGRATOR_URL" -X -v ON_ERROR_STOP=1 -f tests/database/review_regressions.sql
+
+      - name: Verify committed booking-hold fixture persistence as owner
+        run: psql "$MIGRATOR_URL" -X -v ON_ERROR_STOP=1 -f tests/database/booking_fixture_persistence_smoke.sql
+
+      - name: Verify permission-gated booking reservation conversion as runtime
+        run: psql "$RUNTIME_URL" -X -v ON_ERROR_STOP=1 -f tests/database/booking_confirmation_runtime_smoke.sql
+
+      - name: Prepare cancelled booking fixture for selected reservation release
+        run: psql "$MIGRATOR_URL" -X -v ON_ERROR_STOP=1 -f tests/database/booking_release_fixture_smoke.sql
+
+      - name: Verify selected booking reservation release as runtime
+        run: psql "$RUNTIME_URL" -X -v ON_ERROR_STOP=1 -f tests/database/booking_reservation_release_runtime_smoke.sql
+
+      - name: Verify delegated task projection and status command as runtime
+        run: psql "$RUNTIME_URL" -X -v ON_ERROR_STOP=1 -f tests/database/delegated_task_runtime_smoke.sql
+
+      - name: Verify delegated task audit attribution in event-owner tenant
+        run: psql "$MIGRATOR_URL" -X -v ON_ERROR_STOP=1 -f tests/database/delegated_task_audit_smoke.sql
 
       - name: Verify isolated authentication database role
         run: psql "$AUTH_URL" -X -v ON_ERROR_STOP=1 -f tests/database/auth_role_smoke.sql

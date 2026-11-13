@@ -1,0 +1,203 @@
+\set ON_ERROR_STOP on
+BEGIN;
+SET LOCAL app.organization_id = '22222222-2222-4222-8222-222222222222';
+
+DO $delivery$
+DECLARE
+  v_first jsonb;
+  v_second jsonb;
+  v_third jsonb;
+  v_invalid_rejected boolean := false;
+  v_count integer;
+  v_test jsonb;
+  v_test_retry jsonb;
+  v_projection jsonb;
+  v_enabled jsonb;
+  v_queue jsonb;
+  v_campaign_id uuid;
+  v_queued integer;
+BEGIN
+  IF has_table_privilege(current_user, 'eogp.organization_delivery_config_revisions', 'SELECT')
+     OR has_table_privilege(current_user, 'eogp.organization_delivery_config_revisions', 'INSERT')
+     OR has_table_privilege(current_user, 'eogp.organization_delivery_config_heads', 'SELECT')
+     OR has_table_privilege(current_user, 'eogp.organization_delivery_config_heads', 'UPDATE') THEN
+    RAISE EXCEPTION 'runtime must access delivery configuration only through restricted functions';
+  END IF;
+
+  v_first := eogp.set_organization_email_delivery_config(
+    '22222222-2222-4222-8222-222222222222',
+    'bbbbbbbb-2222-4222-8222-bbbbbbbbbbbb',
+    jsonb_build_object(
+      'host','smtp.example.test',
+      'port',587,
+      'transportSecurity','starttls',
+      'authMode','password',
+      'senderEmail','events@example.test',
+      'senderName','Eventor CI',
+      'replyTo','reply@example.test',
+      'connectionTimeoutMs',12000
+    ),
+    decode('45444331' || repeat('00',29),'hex'),
+    true,
+    false
+  );
+
+  IF v_first ->> 'channel' <> 'email'
+     OR v_first ->> 'provider' <> 'smtp'
+     OR (v_first ->> 'revision')::integer <> 1
+     OR (v_first ->> 'credentialsConfigured')::boolean IS DISTINCT FROM true
+     OR v_first::text LIKE '%45444331%' THEN
+    RAISE EXCEPTION 'SMTP config creation returned an invalid or sensitive projection: %', v_first;
+  END IF;
+
+  v_second := eogp.set_organization_email_delivery_config(
+    '22222222-2222-4222-8222-222222222222',
+    'bbbbbbbb-2222-4222-8222-bbbbbbbbbbbb',
+    jsonb_build_object(
+      'host','smtp.example.test',
+      'port',587,
+      'transportSecurity','starttls',
+      'authMode','password',
+      'senderEmail','events@example.test',
+      'senderName','Eventor CI updated',
+      'replyTo','reply@example.test',
+      'connectionTimeoutMs',12000
+    ),
+    NULL,
+    false,
+    false
+  );
+
+  IF (v_second ->> 'revision')::integer <> 2
+     OR (v_second ->> 'credentialsConfigured')::boolean IS DISTINCT FROM true THEN
+    RAISE EXCEPTION 'SMTP credential preservation on settings revision failed: %', v_second;
+  END IF;
+
+  v_third := eogp.set_organization_email_delivery_config(
+    '22222222-2222-4222-8222-222222222222',
+    'bbbbbbbb-2222-4222-8222-bbbbbbbbbbbb',
+    jsonb_build_object(
+      'host','smtp.resend.com',
+      'port',587,
+      'transportSecurity','starttls',
+      'authMode','password',
+      'senderEmail','events@example.test',
+      'senderName','Eventor CI',
+      'replyTo','',
+      'connectionTimeoutMs',15000
+    ),
+    decode('45444331' || repeat('00',29),'hex'),
+    true,
+    false
+  );
+
+  IF (v_third ->> 'revision')::integer <> 3
+     OR (v_third ->> 'credentialsConfigured')::boolean IS DISTINCT FROM true THEN
+    RAISE EXCEPTION 'SMTP credential clearing failed: %', v_third;
+  END IF;
+
+  BEGIN
+    PERFORM eogp.set_organization_email_delivery_config(
+      '22222222-2222-4222-8222-222222222222',
+      'bbbbbbbb-2222-4222-8222-bbbbbbbbbbbb',
+      jsonb_build_object(
+        'host','smtp.example.test',
+        'port',25,
+        'transportSecurity','none',
+        'authMode','none',
+        'senderEmail','events@example.test'
+      ),
+      NULL,false,false
+    );
+  EXCEPTION WHEN SQLSTATE '22023' THEN
+    v_invalid_rejected := true;
+  END;
+  IF NOT v_invalid_rejected THEN
+    RAISE EXCEPTION 'insecure SMTP transport configuration must be rejected';
+  END IF;
+
+  SELECT count(*) INTO v_count
+    FROM eogp.audit_events
+   WHERE organization_id = '22222222-2222-4222-8222-222222222222'
+     AND aggregate_type = 'organization_delivery_config'
+     AND action = 'organization.delivery.email_configured'
+     AND actor_membership_id = 'bbbbbbbb-2222-4222-8222-bbbbbbbbbbbb';
+  IF v_count <> 3 THEN
+    RAISE EXCEPTION 'expected one audit event per delivery configuration revision; got %', v_count;
+  END IF;
+
+  v_projection := eogp.get_organization_email_delivery_config(
+    '22222222-2222-4222-8222-222222222222',
+    'bbbbbbbb-2222-4222-8222-bbbbbbbbbbbb'
+  );
+  IF v_projection ->> 'credentialsConfigured' <> 'true'
+     OR v_projection::text LIKE '%45444331%'
+     OR v_projection ? 'credentialsCiphertextBase64' THEN
+    RAISE EXCEPTION 'delivery configuration projection did not return a safe current-head view';
+  END IF;
+
+  v_test := eogp.begin_organization_email_delivery_test(
+    '22222222-2222-4222-8222-222222222222',
+    'bbbbbbbb-2222-4222-8222-bbbbbbbbbbbb',
+    repeat('1',64),
+    repeat('2',64)
+  );
+  IF (v_test ->> 'created')::boolean IS DISTINCT FROM true
+     OR v_test ->> 'status' <> 'pending'
+     OR v_test ->> 'credentialsCiphertextBase64' IS NULL
+     OR decode(v_test ->> 'credentialsCiphertextBase64','base64')
+          IS DISTINCT FROM decode('45444331' || repeat('00',29),'hex') THEN
+    RAISE EXCEPTION 'SMTP test request did not return only the expected encrypted credential envelope: %',v_test;
+  END IF;
+
+  v_test_retry := eogp.begin_organization_email_delivery_test(
+    '22222222-2222-4222-8222-222222222222',
+    'bbbbbbbb-2222-4222-8222-bbbbbbbbbbbb',
+    repeat('1',64),
+    repeat('2',64)
+  );
+  IF (v_test_retry ->> 'created')::boolean IS DISTINCT FROM false
+     OR v_test_retry ->> 'status' <> 'pending'
+     OR v_test_retry ->> 'credentialsCiphertextBase64' IS NOT NULL THEN
+    RAISE EXCEPTION 'idempotent SMTP test retry must not return the encrypted credential envelope again: %',v_test_retry;
+  END IF;
+
+    v_enabled := eogp.complete_organization_email_delivery_test(
+      '22222222-2222-4222-8222-222222222222',
+      'bbbbbbbb-2222-4222-8222-bbbbbbbbbbbb',
+      (v_test ->> 'requestId')::uuid,
+      true,
+      NULL
+    );
+    IF v_enabled ->> 'status' <> 'succeeded'
+       OR (v_enabled ->> 'deliveryEnabled')::boolean IS DISTINCT FROM true THEN
+      RAISE EXCEPTION 'successful SMTP test did not enable current configuration: %',v_enabled;
+    END IF;
+
+    SELECT id INTO v_campaign_id
+      FROM eogp.event_notification_campaigns
+     WHERE organization_id='22222222-2222-4222-8222-222222222222'
+       AND event_decision_id='94900000-0000-4000-8000-000000000001';
+    v_queue := eogp.queue_event_notification_campaign(
+      '22222222-2222-4222-8222-222222222222',
+      v_campaign_id,
+      'bbbbbbbb-2222-4222-8222-bbbbbbbbbbbb'
+    );
+    IF v_queue ->> 'status' <> 'queued'
+       OR (v_queue ->> 'emailRecipientCount')::integer <> 3 THEN
+      RAISE EXCEPTION 'explicit campaign queue did not queue the expected email recipients: %',v_queue;
+    END IF;
+
+    SELECT count(*) INTO v_queued
+      FROM eogp.event_notification_delivery_attempts
+     WHERE organization_id='22222222-2222-4222-8222-222222222222'
+       AND campaign_id=v_campaign_id AND status='queued';
+    IF v_queued <> 3 THEN
+      RAISE EXCEPTION 'expected three queued SMTP attempts, got %',v_queued;
+    END IF;
+
+END;
+$delivery$;
+COMMIT;
+
+\echo 'Organization delivery configuration smoke tests passed.'
