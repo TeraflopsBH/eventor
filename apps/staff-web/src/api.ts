@@ -715,6 +715,53 @@ export interface PublicBookingOffer {
     cancellationTerms: string | null;
   };
 }
+export interface PublicBookingFormField {
+  code: string;
+  type: "text" | "textarea" | "email" | "phone" | "number" | "date" | "datetime" | "time" | "select" | "multiselect" | "checkbox";
+  label?: string;
+  description?: string;
+  helpText?: string;
+  placeholder?: string;
+  required?: boolean;
+  options?: Array<{ value: string; label: string }>;
+  minLength?: number;
+  maxLength?: number;
+  min?: number;
+  max?: number;
+  integer?: boolean;
+  minItems?: number;
+  maxItems?: number;
+}
+export interface PublicBookingForm {
+  organizationId: string;
+  organizationSlug: string;
+  organizationName: string;
+  defaultLocale: "bs-BA" | "en";
+  defaultTimezone: string;
+  formCode: string;
+  formName: string;
+  formRevisionId: string;
+  revisionNumber: number;
+  /** Language of vendor-authored labels/options in this immutable form revision. */
+  locale: "bs-BA" | "en";
+  fieldSchema: { schemaVersion?: number; fields: PublicBookingFormField[] };
+  publishedAt: string;
+}
+export interface PublicBookingInquirySubmission {
+  formCode: string;
+  formRevisionId: string;
+  customerLocale: "bs-BA" | "en";
+  requester: { displayName: string; email?: string; phone?: string };
+  requested: { startAt?: string; endAt?: string; timezone?: string; spaceCodes?: string[] };
+  answers: Record<string, unknown>;
+}
+export interface PublicBookingInquirySubmissionResult {
+  inquiryId: string;
+  publicReference: string;
+  status: string;
+  replayed: boolean;
+}
+
 export interface PageMeta {
   limit: number;
   offset: number;
@@ -723,6 +770,17 @@ export interface PageMeta {
 }
 
 export const api = {
+  getPublicBookingForm: (organizationSlug: string, formCode: string) =>
+    request<Envelope<PublicBookingForm>>(
+      `/public/organizations/${encodeURIComponent(organizationSlug)}/booking-forms/${encodeURIComponent(formCode)}`,
+      { credentials: "omit" },
+    ),
+  submitPublicBookingInquiry: (organizationSlug: string, body: PublicBookingInquirySubmission) =>
+    request<Envelope<PublicBookingInquirySubmissionResult>>(
+      `/public/organizations/${encodeURIComponent(organizationSlug)}/booking-inquiries`,
+      { method: "POST", body, idempotent: true, credentials: "omit", skipCsrf: true },
+    ),
+
   getPublicBookingOffer: (offerId: string, token: string) =>
     request<Envelope<PublicBookingOffer>>(
       `/public/booking-offers/${encodeURIComponent(offerId)}`,

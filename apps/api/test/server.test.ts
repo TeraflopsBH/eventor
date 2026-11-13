@@ -123,6 +123,7 @@ function makePool() {
           organizationId: "11111111-1111-4111-8111-111111111111",
           organizationSlug: values[0],
           organizationName: "GHB",
+          defaultLocale: "en",
           defaultTimezone: "Europe/Sarajevo",
           formCode: values[1],
           formName: "Venue rental inquiry",
@@ -980,12 +981,16 @@ test("public booking intake exposes only published forms and stores anonymous in
     data: {
       organizationId: string;
       organizationSlug: string;
+      organizationName: string;
+      defaultLocale: "bs-BA" | "en";
       formCode: string;
       formRevisionId: string;
       fieldSchema: { fields: Array<{ code: string }> };
     };
   }>().data;
   assert.equal(form.organizationSlug, "ghb");
+  assert.equal(form.organizationName, "GHB");
+  assert.equal(form.defaultLocale, "en");
   assert.equal(form.formCode, "venue-rental");
   assert.equal(form.formRevisionId, "12121212-1212-4121-8121-121212121212");
   assert.equal(form.fieldSchema.fields[0]?.code, "event_date");
