@@ -583,6 +583,29 @@ BEGIN
     RAISE EXCEPTION 'draft space hold remained active after booking confirmation';
   END IF;
 
+  -- The exclusion boundary is shared across reservation origins: a new
+  -- temporary hold cannot overlap an already-confirmed booking reservation.
+  BEGIN
+    INSERT INTO eogp.venue_space_time_blocks(
+      organization_id,venue_space_id,booking_draft_revision_id,reservation_kind,status,
+      starts_at,ends_at,expires_at,idempotency_key,actor_membership_id
+    ) VALUES(
+      v_org,v_space_id,v_draft_revision_id,'draft_hold','held',
+      v_space_starts_at,v_space_ends_at,clock_timestamp()+interval '1 day',
+      'ci-e2e-draft-hold-vs-confirmed-booking',v_creator
+    );
+    RAISE EXCEPTION 'overlapping draft hold unexpectedly coexisted with confirmed booking';
+  EXCEPTION WHEN SQLSTATE '23P01' THEN
+    NULL;
+  END;
+  IF EXISTS (
+    SELECT 1 FROM eogp.venue_space_time_blocks
+     WHERE organization_id=v_org
+       AND idempotency_key='ci-e2e-draft-hold-vs-confirmed-booking'
+  ) THEN
+    RAISE EXCEPTION 'cross-origin overlapping draft hold was persisted';
+  END IF;
+
   IF (SELECT count(*) FROM eogp.resource_reservations reservation
        WHERE reservation.organization_id=v_org AND reservation.booking_id=v_booking_id
          AND reservation.booking_draft_revision_id IS NULL
