@@ -195,7 +195,7 @@ When behind a reverse proxy, configure `EVENTOR_TRUST_PROXY_CIDRS` with only pro
 Build and start the API:
 
 ```sh
-npm install
+npm ci
 npm run build
 npm start
 ```
@@ -214,7 +214,7 @@ The API requires `EVENTOR_RUNTIME_DATABASE_URL`, `EVENTOR_AUTH_DATABASE_URL`, `E
 From this directory:
 
 ```sh
-npm install --no-package-lock
+npm ci
 npm test
 ```
 
