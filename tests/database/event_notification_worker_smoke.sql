@@ -36,7 +36,11 @@ BEGIN
      AND pg_get_function_identity_arguments(procedure.oid) = 'integer';
 
   IF v_security_definer IS DISTINCT FROM true
-     OR NOT (coalesce(v_search_path, ARRAY[]::text[]) @> ARRAY['search_path=pg_catalog, eogp']) THEN
+     OR NOT EXISTS (
+       SELECT 1
+         FROM unnest(coalesce(v_search_path, ARRAY[]::text[])) AS setting
+        WHERE replace(setting,' ','') = 'search_path=pg_catalog,eogp'
+     ) THEN
     RAISE EXCEPTION 'outbox processor must be SECURITY DEFINER with a fixed search_path';
   END IF;
 
