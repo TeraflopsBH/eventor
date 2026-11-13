@@ -19,6 +19,7 @@ tags:
   - name: Venue Inventory
   - name: Resource Availability
   - name: Booking Cancellation
+  - name: Tax Configuration
   - name: Cancellation Policy
   - name: Events
   - name: Event Capabilities
@@ -3637,6 +3638,161 @@ paths:
         '422': { $ref: '#/components/responses/UnprocessableEntity' }
         '429': { $ref: '#/components/responses/TooManyRequests' }
         '500': { $ref: '#/components/responses/InternalServerError' }
+  "/organization/booking-tax-profiles":
+    get:
+      tags: ["Tax Configuration"]
+      operationId: listOrganizationBookingTaxProfiles
+      summary: List versioned tax profiles
+      security: [{ StaffSession: [] }]
+      responses:
+        '200': { description: Success, content: { application/json: { schema: { $ref: '#/components/schemas/DataEnvelope' } } } }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+    post:
+      tags: ["Tax Configuration"]
+      operationId: createOrganizationBookingTaxProfile
+      summary: Create a tax profile and first draft revision
+      security: [{ StaffSession: [], StaffCsrf: [] }]
+      parameters: [{ $ref: '#/components/parameters/IdempotencyKey' }]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [code, name, currency, taxBasis]
+              properties:
+                code: { type: string, minLength: 2, maxLength: 80 }
+                name: { type: string, minLength: 1, maxLength: 250 }
+                jurisdictionCode: { type: [string, 'null'], maxLength: 100 }
+                registrationIdentifier: { type: [string, 'null'], maxLength: 120 }
+                currency: { type: string, pattern: '^[A-Z]{3}$' }
+                taxBasis: { type: string, enum: [inclusive, exclusive, not_applicable] }
+              additionalProperties: false
+      responses:
+        '201': { description: Created, content: { application/json: { schema: { $ref: '#/components/schemas/DataEnvelope' } } } }
+        '400': { $ref: '#/components/responses/BadRequest' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '409': { $ref: '#/components/responses/Conflict' }
+  "/booking-tax-profiles/{taxProfileId}/revisions":
+    post:
+      tags: ["Tax Configuration"]
+      operationId: createBookingTaxProfileRevision
+      summary: Create a successor draft tax profile revision
+      security: [{ StaffSession: [], StaffCsrf: [] }]
+      parameters:
+        - { name: taxProfileId, in: path, required: true, schema: { type: string, format: uuid } }
+        - { $ref: '#/components/parameters/IdempotencyKey' }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [jurisdictionCode, registrationIdentifier, currency, taxBasis, roundingMethod, roundingScale, effectiveFrom, effectiveUntil]
+              properties:
+                jurisdictionCode: { type: [string, 'null'], maxLength: 100 }
+                registrationIdentifier: { type: [string, 'null'], maxLength: 120 }
+                currency: { type: string, pattern: '^[A-Z]{3}$' }
+                taxBasis: { type: string, enum: [inclusive, exclusive, not_applicable] }
+                roundingMethod: { type: string, enum: [per_line, per_tax_code, invoice_total] }
+                roundingScale: { type: integer, minimum: 0, maximum: 4 }
+                effectiveFrom: { type: [string, 'null'], format: date-time }
+                effectiveUntil: { type: [string, 'null'], format: date-time }
+              additionalProperties: false
+      responses:
+        '201': { description: Created, content: { application/json: { schema: { $ref: '#/components/schemas/DataEnvelope' } } } }
+        '400': { $ref: '#/components/responses/BadRequest' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '409': { $ref: '#/components/responses/Conflict' }
+  "/booking-tax-profiles/{taxProfileId}/revisions/{revisionId}":
+    put:
+      tags: ["Tax Configuration"]
+      operationId: updateBookingTaxProfileDraftRevision
+      summary: Update the latest draft tax profile revision
+      security: [{ StaffSession: [], StaffCsrf: [] }]
+      parameters:
+        - { name: taxProfileId, in: path, required: true, schema: { type: string, format: uuid } }
+        - { name: revisionId, in: path, required: true, schema: { type: string, format: uuid } }
+        - { $ref: '#/components/parameters/IdempotencyKey' }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [jurisdictionCode, registrationIdentifier, currency, taxBasis, roundingMethod, roundingScale, effectiveFrom, effectiveUntil, taxCodes]
+              properties:
+                jurisdictionCode: { type: [string, 'null'], maxLength: 100 }
+                registrationIdentifier: { type: [string, 'null'], maxLength: 120 }
+                currency: { type: string, pattern: '^[A-Z]{3}$' }
+                taxBasis: { type: string, enum: [inclusive, exclusive, not_applicable] }
+                roundingMethod: { type: string, enum: [per_line, per_tax_code, invoice_total] }
+                roundingScale: { type: integer, minimum: 0, maximum: 4 }
+                effectiveFrom: { type: [string, 'null'], format: date-time }
+                effectiveUntil: { type: [string, 'null'], format: date-time }
+                taxCodes:
+                  type: array
+                  maxItems: 200
+                  items:
+                    type: object
+                    required: [taxCode, label, treatment, rate]
+                    properties:
+                      taxCode: { type: string, minLength: 1, maxLength: 80 }
+                      label: { type: string, minLength: 1, maxLength: 200 }
+                      treatment: { type: string, enum: [percentage, zero_rated, exempt, out_of_scope, manual] }
+                      rate: { type: [number, 'null'], minimum: 0, maximum: 100 }
+                    additionalProperties: false
+              additionalProperties: false
+      responses:
+        '200': { description: Updated, content: { application/json: { schema: { $ref: '#/components/schemas/DataEnvelope' } } } }
+        '400': { $ref: '#/components/responses/BadRequest' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '409': { $ref: '#/components/responses/Conflict' }
+  "/booking-tax-profiles/{taxProfileId}/revisions/{revisionId}/publish":
+    post:
+      tags: ["Tax Configuration"]
+      operationId: publishBookingTaxProfileRevision
+      summary: Publish a draft tax profile revision
+      security: [{ StaffSession: [], StaffCsrf: [] }]
+      parameters:
+        - { name: taxProfileId, in: path, required: true, schema: { type: string, format: uuid } }
+        - { name: revisionId, in: path, required: true, schema: { type: string, format: uuid } }
+        - { $ref: '#/components/parameters/IdempotencyKey' }
+      responses:
+        '200': { description: Published, content: { application/json: { schema: { $ref: '#/components/schemas/DataEnvelope' } } } }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '409': { $ref: '#/components/responses/Conflict' }
+  "/booking-price-lists/{priceListId}/revisions/{revisionId}/tax-profile":
+    put:
+      tags: ["Tax Configuration"]
+      operationId: setBookingPriceListTaxProfileRevision
+      summary: Select a published tax profile revision for a draft price list
+      security: [{ StaffSession: [], StaffCsrf: [] }]
+      parameters:
+        - { name: priceListId, in: path, required: true, schema: { type: string, format: uuid } }
+        - { name: revisionId, in: path, required: true, schema: { type: string, format: uuid } }
+        - { $ref: '#/components/parameters/IdempotencyKey' }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [taxProfileRevisionId]
+              properties:
+                taxProfileRevisionId: { type: [string, 'null'], format: uuid }
+              additionalProperties: false
+      responses:
+        '200': { description: Updated, content: { application/json: { schema: { $ref: '#/components/schemas/DataEnvelope' } } } }
+        '400': { $ref: '#/components/responses/BadRequest' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '409': { $ref: '#/components/responses/Conflict' }
   "/organization/booking-cancellation-policies":
     get:
       tags: ["Cancellation Policy"]

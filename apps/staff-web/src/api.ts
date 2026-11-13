@@ -551,6 +551,59 @@ export interface BookingConfirmationResult {
   replayed: boolean;
 }
 
+
+export type BookingTaxTreatment = "percentage" | "zero_rated" | "exempt" | "out_of_scope" | "manual";
+export interface BookingTaxCode {
+  taxCode: string;
+  label: string;
+  treatment: BookingTaxTreatment;
+  rate: number | null;
+}
+export interface BookingTaxProfileRevision {
+  revisionId: string;
+  revisionNumber: number;
+  jurisdictionCode: string | null;
+  registrationIdentifier: string | null;
+  currency: string;
+  taxBasis: "inclusive" | "exclusive" | "not_applicable";
+  roundingMethod: "per_line" | "per_tax_code" | "invoice_total";
+  roundingScale: number;
+  taxCodes: BookingTaxCode[];
+  effectiveFrom: string | null;
+  effectiveUntil: string | null;
+  state: "draft" | "published" | "retired";
+  publishedAt: string | null;
+  createdAt: string;
+}
+export interface BookingTaxProfile {
+  taxProfileId: string;
+  code: string;
+  name: string;
+  status: "active" | "retired";
+  createdAt: string;
+  latestRevisionId: string | null;
+  revisions: BookingTaxProfileRevision[];
+}
+export interface BookingTaxProfileMutationResult {
+  taxProfileId: string;
+  revisionId?: string;
+  revisionNumber?: number;
+  state: "draft" | "published";
+  publishedAt?: string;
+  taxCodeCount?: number;
+}
+export interface BookingTaxProfileRevisionInput {
+  jurisdictionCode: string | null;
+  registrationIdentifier: string | null;
+  currency: string;
+  taxBasis: "inclusive" | "exclusive" | "not_applicable";
+  roundingMethod: "per_line" | "per_tax_code" | "invoice_total";
+  roundingScale: number;
+  effectiveFrom: string | null;
+  effectiveUntil: string | null;
+  taxCodes: BookingTaxCode[];
+}
+
 export interface BookingPriceListItem {
   itemCode: string;
   label: string;
@@ -565,6 +618,7 @@ export interface BookingPriceListRevision {
   revisionNumber: number;
   currency: string;
   taxBasis: "inclusive" | "exclusive" | "not_applicable" | "to_be_confirmed";
+  taxProfileRevisionId?: string | null;
   state: "draft" | "published" | "retired";
   effectiveFrom: string | null;
   effectiveUntil: string | null;
@@ -772,6 +826,36 @@ export const api = {
     request<Envelope<{ deliveryId: string; status: string; manualRetryCount: number }>>(
       `/booking-offer-email-deliveries/${encodeURIComponent(deliveryId)}/retry`,
       { method: "POST", body: { reason }, idempotent: true, idempotencyKey: requestKey },
+    ),
+
+  getBookingTaxProfiles: () =>
+    request<Envelope<BookingTaxProfile[]>>("/organization/booking-tax-profiles"),
+  createBookingTaxProfile: (body: {
+    code: string; name: string; jurisdictionCode?: string | null; registrationIdentifier?: string | null;
+    currency: string; taxBasis: "inclusive" | "exclusive" | "not_applicable";
+  }) =>
+    request<Envelope<BookingTaxProfileMutationResult>>(
+      "/organization/booking-tax-profiles", { method: "POST", body, idempotent: true },
+    ),
+  createBookingTaxProfileRevision: (taxProfileId: string, body: Omit<BookingTaxProfileRevisionInput, "taxCodes">) =>
+    request<Envelope<BookingTaxProfileMutationResult>>(
+      `/booking-tax-profiles/${encodeURIComponent(taxProfileId)}/revisions`,
+      { method: "POST", body, idempotent: true },
+    ),
+  updateBookingTaxProfileDraftRevision: (taxProfileId: string, revisionId: string, body: BookingTaxProfileRevisionInput) =>
+    request<Envelope<BookingTaxProfileMutationResult>>(
+      `/booking-tax-profiles/${encodeURIComponent(taxProfileId)}/revisions/${encodeURIComponent(revisionId)}`,
+      { method: "PUT", body, idempotent: true },
+    ),
+  publishBookingTaxProfileRevision: (taxProfileId: string, revisionId: string) =>
+    request<Envelope<BookingTaxProfileMutationResult>>(
+      `/booking-tax-profiles/${encodeURIComponent(taxProfileId)}/revisions/${encodeURIComponent(revisionId)}/publish`,
+      { method: "POST", body: {}, idempotent: true },
+    ),
+  setBookingPriceListTaxProfileRevision: (priceListId: string, revisionId: string, taxProfileRevisionId: string | null) =>
+    request<Envelope<{ priceListId: string; revisionId: string; taxProfileRevisionId: string | null; state: "draft" }>>(
+      `/booking-price-lists/${encodeURIComponent(priceListId)}/revisions/${encodeURIComponent(revisionId)}/tax-profile`,
+      { method: "PUT", body: { taxProfileRevisionId }, idempotent: true },
     ),
   getBookingPriceLists: () =>
     request<Envelope<BookingPriceList[]>>("/organization/booking-price-lists"),
