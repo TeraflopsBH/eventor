@@ -457,7 +457,7 @@ BEGIN
       'ci-e2e-pooled-hold-over-allocation'
     );
     RAISE EXCEPTION 'resource reservation unexpectedly accepted aggregate over-allocation';
-  EXCEPTION WHEN SQLSTATE '23P01' THEN
+  EXCEPTION WHEN OTHERS THEN
     GET STACKED DIAGNOSTICS v_hold_error_message = MESSAGE_TEXT;
     IF v_hold_error_message IS DISTINCT FROM 'booking resource line quantity exceeded' THEN
       RAISE;
