@@ -470,7 +470,9 @@ BEGIN
     );
     RAISE EXCEPTION 'commercial confirmation unexpectedly converted an unlinked resource hold';
   EXCEPTION WHEN SQLSTATE '23P01' THEN
-    NULL;
+    IF SQLERRM <> 'an active resource hold is not represented by a booking resource line' THEN
+      RAISE EXCEPTION 'confirmation failed for an unexpected reason instead of the unlinked-hold guard: %',SQLERRM;
+    END IF;
   END;
   IF EXISTS (
     SELECT 1 FROM eogp.booking_records
