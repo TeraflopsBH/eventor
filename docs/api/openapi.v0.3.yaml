@@ -747,6 +747,140 @@ paths:
         '422': { $ref: '#/components/responses/UnprocessableEntity' }
         '429': { $ref: '#/components/responses/TooManyRequests' }
         '500': { $ref: '#/components/responses/InternalServerError' }
+  "/organization/booking-forms":
+    get:
+      tags: ["Booking Administration"]
+      operationId: listBookingForms
+      summary: "List tenant booking forms and their revisions"
+      security: [{ StaffSession: [] }]
+      responses:
+        '200':
+          description: "Booking forms."
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/DataEnvelope' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+    post:
+      tags: ["Booking Administration"]
+      operationId: createBookingForm
+      summary: "Create a booking form and its first draft revision"
+      security: [{ StaffSession: [], StaffCsrf: [] }]
+      parameters:
+        - $ref: '#/components/parameters/IdempotencyKey'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [code, name, locale, fieldSchema]
+              properties:
+                code: { type: string, minLength: 2, maxLength: 80, pattern: '^[A-Za-z0-9][A-Za-z0-9_-]*$' }
+                name: { type: string, minLength: 1, maxLength: 250 }
+                locale: { type: string, enum: [bs-BA, en] }
+                fieldSchema: { type: object, description: "Booking form schema v1, including optional contentTranslations." }
+              additionalProperties: false
+      responses:
+        '201':
+          description: "Draft form created."
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/DataEnvelope' }
+        '400': { $ref: '#/components/responses/BadRequest' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '409': { $ref: '#/components/responses/Conflict' }
+        '422': { $ref: '#/components/responses/UnprocessableEntity' }
+  "/booking-forms/{formId}/revisions":
+    post:
+      tags: ["Booking Administration"]
+      operationId: createBookingFormRevision
+      summary: "Create a draft revision from the latest published revision"
+      security: [{ StaffSession: [], StaffCsrf: [] }]
+      parameters:
+        - name: formId
+          in: path
+          required: true
+          schema: { type: string, format: uuid }
+        - $ref: '#/components/parameters/IdempotencyKey'
+      responses:
+        '201':
+          description: "Draft revision created."
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/DataEnvelope' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '404': { $ref: '#/components/responses/NotFound' }
+        '409': { $ref: '#/components/responses/Conflict' }
+  "/booking-forms/{formId}/revisions/{revisionId}":
+    put:
+      tags: ["Booking Administration"]
+      operationId: saveBookingFormDraft
+      summary: "Replace the latest editable booking form draft"
+      security: [{ StaffSession: [], StaffCsrf: [] }]
+      parameters:
+        - name: formId
+          in: path
+          required: true
+          schema: { type: string, format: uuid }
+        - name: revisionId
+          in: path
+          required: true
+          schema: { type: string, format: uuid }
+        - $ref: '#/components/parameters/IdempotencyKey'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [locale, fieldSchema]
+              properties:
+                locale: { type: string, enum: [bs-BA, en] }
+                fieldSchema: { type: object, description: "Booking form schema v1, including optional contentTranslations." }
+              additionalProperties: false
+      responses:
+        '201':
+          description: "Draft saved."
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/DataEnvelope' }
+        '400': { $ref: '#/components/responses/BadRequest' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '404': { $ref: '#/components/responses/NotFound' }
+        '409': { $ref: '#/components/responses/Conflict' }
+        '412': { $ref: '#/components/responses/PreconditionFailed' }
+        '422': { $ref: '#/components/responses/UnprocessableEntity' }
+  "/booking-forms/{formId}/revisions/{revisionId}/publish":
+    post:
+      tags: ["Booking Administration"]
+      operationId: publishBookingFormRevision
+      summary: "Publish an immutable booking form revision"
+      security: [{ StaffSession: [], StaffCsrf: [] }]
+      parameters:
+        - name: formId
+          in: path
+          required: true
+          schema: { type: string, format: uuid }
+        - name: revisionId
+          in: path
+          required: true
+          schema: { type: string, format: uuid }
+        - $ref: '#/components/parameters/IdempotencyKey'
+      responses:
+        '201':
+          description: "Revision published."
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/DataEnvelope' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '404': { $ref: '#/components/responses/NotFound' }
+        '409': { $ref: '#/components/responses/Conflict' }
+        '422': { $ref: '#/components/responses/UnprocessableEntity' }
   "/organization/booking-price-lists":
     get:
       tags: ["Booking Administration"]

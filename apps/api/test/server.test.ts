@@ -821,6 +821,26 @@ function makePool() {
         commandCalls.push({ sql: normalized, values });
         return { rows: [{ result: { status: "cancelled", notificationState: "queued_for_dispatch" } }], rowCount: 1 };
       }
+      if (normalized.includes("eogp.get_booking_forms(")) {
+        commandCalls.push({ sql: normalized, values });
+        return { rows: [{ result: [{ formId: "31313131-3131-4131-8131-313131313131", formCode: "venue-rental", status: "active", revisions: [] }] }], rowCount: 1 };
+      }
+      if (normalized.includes("eogp.create_booking_form(")) {
+        commandCalls.push({ sql: normalized, values });
+        return { rows: [{ result: { formId: "31313131-3131-4131-8131-313131313131", revisionId: "32323232-3232-4232-8232-323232323232", revisionNumber: 1, state: "draft" } }], rowCount: 1 };
+      }
+      if (normalized.includes("eogp.create_booking_form_revision(")) {
+        commandCalls.push({ sql: normalized, values });
+        return { rows: [{ result: { formId: values[1], revisionId: "33333333-3333-4333-8333-333333333333", revisionNumber: 2, state: "draft" } }], rowCount: 1 };
+      }
+      if (normalized.includes("eogp.save_booking_form_draft(")) {
+        commandCalls.push({ sql: normalized, values });
+        return { rows: [{ result: { formId: values[1], revisionId: values[2], revisionNumber: 2, state: "draft" } }], rowCount: 1 };
+      }
+      if (normalized.includes("eogp.publish_booking_form_revision(")) {
+        commandCalls.push({ sql: normalized, values });
+        return { rows: [{ result: { formId: values[1], revisionId: values[2], revisionNumber: 2, state: "published", publishedAt: "2026-11-12T12:00:00.000Z" } }], rowCount: 1 };
+      }
       throw new Error("Unexpected SQL in route test: " + normalized);
     },
     release() { /* no-op for the test pool */ },
@@ -971,6 +991,64 @@ test("staff and organization locale preferences are validated and organization w
   });
   assert.equal(unsupportedOrganizationLocale.statusCode, 400);
   assert.equal(mock.commandCalls.filter((call) => call.sql.includes("eogp.set_organization_default_locale(")).length, 1);
+});
+
+test("staff booking form authoring API validates schemas and exposes idempotent tenant-scoped commands", async (t) => {
+  const mock = makePool();
+  const app = makeApi(mock.pool);
+  t.after(async () => app.close());
+
+  const list = await app.inject({ method: "GET", url: "/organization/booking-forms" });
+  assert.equal(list.statusCode, 200);
+  assert.equal(list.json().data[0].formCode, "venue-rental");
+
+  const invalid = await app.inject({
+    method: "POST", url: "/organization/booking-forms",
+    headers: { "idempotency-key": "booking-form-invalid-0001" },
+    payload: { code: "venue-rental", name: "Venue rental", locale: "en",
+      fieldSchema: { schemaVersion: 1, fields: [], contentTranslations: { fr: { formName: "Form", fields: {} } } } },
+  });
+  assert.equal(invalid.statusCode, 422);
+  assert.equal(mock.commandCalls.filter(call => call.sql.includes("eogp.create_booking_form(")).length, 0);
+
+  const create = await app.inject({
+    method: "POST", url: "/organization/booking-forms",
+    headers: { "idempotency-key": "booking-form-create-0001" },
+    payload: { code: "venue-rental", name: "Venue rental", locale: "en",
+      fieldSchema: { schemaVersion: 1, fields: [{ code: "event_name", type: "text", label: "Event name" }],
+        contentTranslations: { "bs-BA": { formName: "Upit", fields: { event_name: { label: "Naziv događaja" } } } } } },
+  });
+  assert.equal(create.statusCode, 201);
+  assert.equal(create.json().data.state, "draft");
+  const createCall = mock.commandCalls.find(call => call.sql.includes("eogp.create_booking_form("));
+  assert.deepEqual(createCall?.values.slice(0, 5), [principal.organizationId, principal.membershipId, "venue-rental", "Venue rental", "en"]);
+  assert.equal(JSON.parse(String(createCall?.values[5])).contentTranslations["bs-BA"].formName, "Upit");
+
+  const revision = await app.inject({
+    method: "POST", url: "/booking-forms/31313131-3131-4131-8131-313131313131/revisions",
+    headers: { "idempotency-key": "booking-form-revision-0001" },
+  });
+  assert.equal(revision.statusCode, 201);
+  assert.equal(revision.json().data.revisionNumber, 2);
+
+  const save = await app.inject({
+    method: "PUT", url: "/booking-forms/31313131-3131-4131-8131-313131313131/revisions/33333333-3333-4333-8333-333333333333",
+    headers: { "idempotency-key": "booking-form-save-0001" },
+    payload: { locale: "bs-BA", fieldSchema: { schemaVersion: 1, fields: [{ code: "event_name", type: "text" }] } },
+  });
+  assert.equal(save.statusCode, 201);
+  assert.equal(save.json().data.state, "draft");
+
+  const publish = await app.inject({
+    method: "POST", url: "/booking-forms/31313131-3131-4131-8131-313131313131/revisions/33333333-3333-4333-8333-333333333333/publish",
+    headers: { "idempotency-key": "booking-form-publish-0001" },
+  });
+  assert.equal(publish.statusCode, 201);
+  assert.equal(publish.json().data.state, "published");
+
+  const calls = mock.commandCalls.filter(call => /eogp\.(?:get_booking_forms|create_booking_form|create_booking_form_revision|save_booking_form_draft|publish_booking_form_revision)\(/.test(call.sql));
+  assert.equal(calls.length, 5);
+  for (const call of calls) assert.equal(call.values[0], principal.organizationId);
 });
 
 test("public booking intake exposes only published forms and stores anonymous inquiries encrypted and idempotently", async (t) => {
