@@ -43,8 +43,8 @@ Perform this on a new or explicitly approved target database, using a database a
      -v database_name=eventor -f scripts/db/bootstrap-roles.sql
    ```
 
-   Connect `ADMIN_DATABASE_URL` to the Eventor database (or an administrative connection able to manage the target database). The script reconciles role attributes and memberships. It does not set passwords.
-3. Set distinct strong passwords for `eventor_migrator`, `eventor_runtime`, `eventor_auth` and `eventor_worker` using the organization's secret-management process or interactive PostgreSQL `\\password`. Never place passwords in shell history or commit them.
+   Connect `ADMIN_DATABASE_URL` directly to the Eventor database; the bootstrap script does not switch databases. The script reconciles role attributes and memberships. It does not set passwords.
+3. Set distinct strong passwords for `eventor_migrator`, `eventor_runtime`, `eventor_auth` and `eventor_worker` using the organization's secret-management process or interactive PostgreSQL `\password`. Never place passwords in shell history or commit them.
 4. Verify the role attributes and membership graph using `tests/database/auth_role_smoke.sql` and the role checks in the database CI workflow, adapted only as needed for the target environment.
 5. Take and verify a pre-migration backup using the organization's PostgreSQL backup procedure.
 6. Run migrations from a trusted release checkout, connecting as `eventor_migrator`:
