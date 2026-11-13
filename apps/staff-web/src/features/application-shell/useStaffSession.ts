@@ -1,0 +1,96 @@
+import { computed, reactive, ref, type Ref } from "vue";
+import { ApiError, type Principal } from "../../api";
+
+interface StaffSessionDependencies {
+  api: typeof import("../../api").api;
+  busy: Ref<boolean>;
+  pageError: Ref<string>;
+  pageNotice: Ref<string>;
+  clearMessages: () => void;
+  loadConfiguration: () => Promise<void>;
+  resetWorkspace: () => void;
+}
+
+export function useStaffSession({
+  api, busy, pageError, pageNotice, clearMessages, loadConfiguration, resetWorkspace,
+}: StaffSessionDependencies) {
+  const principal = ref<Principal | null>(null);
+  const loadingSession = ref(true);
+  const loginForm = reactive({ email: "", password: "", organizationSlug: "" });
+  const selectedOrganization = computed(() =>
+    principal.value?.memberships?.find((membership) => membership.selected)?.organizationName
+    ?? principal.value?.organizationId
+    ?? "",
+  );
+
+  function showError(error: unknown): void {
+    if (error instanceof ApiError) {
+      if (error.status === 401) {
+        principal.value = null;
+        resetWorkspace();
+        pageError.value = "Your session has expired. Please sign in again.";
+        return;
+      }
+      if (error.status === 403) {
+        pageError.value = `Permission denied: ${error.message}`;
+        return;
+      }
+      pageError.value = `${error.message} [${error.code}]`;
+      return;
+    }
+    pageError.value = error instanceof Error ? error.message : "An unexpected error occurred.";
+  }
+
+  async function refreshSession(): Promise<void> {
+    loadingSession.value = true;
+    try {
+      const result = await api.me();
+      principal.value = result.data;
+      await loadConfiguration();
+    } catch (error) {
+      if (error instanceof ApiError && error.status === 401) {
+        principal.value = null;
+      } else {
+        showError(error);
+      }
+    } finally {
+      loadingSession.value = false;
+    }
+  }
+
+  async function signIn(): Promise<void> {
+    clearMessages();
+    busy.value = true;
+    try {
+      await api.login({
+        email: loginForm.email.trim(),
+        password: loginForm.password,
+        organizationSlug: loginForm.organizationSlug.trim(),
+      });
+      loginForm.password = "";
+      await refreshSession();
+      if (principal.value) pageNotice.value = "Signed in successfully.";
+    } catch (error) {
+      showError(error);
+    } finally {
+      busy.value = false;
+    }
+  }
+
+  async function signOut(): Promise<void> {
+    clearMessages();
+    busy.value = true;
+    try {
+      await api.logout();
+      principal.value = null;
+      resetWorkspace();
+      pageNotice.value = "You have been signed out.";
+    } catch (error) {
+      showError(error);
+    } finally {
+      busy.value = false;
+    }
+  }
+
+  return { principal, loadingSession, loginForm, selectedOrganization, showError, refreshSession, signIn, signOut };
+}
