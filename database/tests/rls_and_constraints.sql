@@ -1,6 +1,7 @@
 \set ON_ERROR_STOP on
 
--- PostgreSQL integration smoke tests. Run as eventor_runtime after all migrations.
+-- PostgreSQL integration smoke tests. Run as eventor_owner via eventor_migrator SET ROLE.
+-- FORCE ROW LEVEL SECURITY remains active; runtime privilege checks target eventor_runtime.
 -- The test uses isolated synthetic tenants and deterministic IDs only.
 
 BEGIN;
@@ -490,9 +491,9 @@ BEGIN
   IF visible_orgs <> 1 OR visible_venues <> 1 OR visible_profiles <> 1 THEN
     RAISE EXCEPTION 'tenant RLS/profile view failed: orgs %, venues %, profiles %', visible_orgs, visible_venues, visible_profiles;
   END IF;
-  IF has_table_privilege(current_user, 'eogp.users', 'SELECT')
-     OR has_column_privilege(current_user, 'eogp.users', 'password_hash', 'SELECT')
-     OR has_table_privilege(current_user, 'eogp.users', 'INSERT') THEN
+  IF has_table_privilege('eventor_runtime', 'eogp.users', 'SELECT')
+     OR has_column_privilege('eventor_runtime', 'eogp.users', 'password_hash', 'SELECT')
+     OR has_table_privilege('eventor_runtime', 'eogp.users', 'INSERT') THEN
     RAISE EXCEPTION 'general runtime role has direct access to global user identities';
   END IF;
   BEGIN
