@@ -5,9 +5,13 @@ import type { SupportedLocale } from "./i18n";
 import { useBookingInquiries } from "./features/booking-inquiries/useBookingInquiries";
 import { useBookingDraft } from "./features/booking-drafts/useBookingDraft";
 import { useBookingOffers } from "./features/booking-offers/useBookingOffers";
+import { useBookingPriceLists } from "./features/booking-prices/useBookingPriceLists";
+import { useBookingTaxProfiles } from "./features/booking-taxes/useBookingTaxProfiles";
+import { useBookingApprovalPolicies } from "./features/booking-approvals/useBookingApprovalPolicies";
+import { useBookingCancellationPolicies } from "./features/booking-cancellations/useBookingCancellationPolicies";
 import BookingInquiryView from "./features/booking-inquiries/BookingInquiryView.vue";
 import { formatBookingMoney, formatInquiryDate } from "./features/booking-inquiries/presentation";
-import { api, ApiError, type CampaignReview, type CampaignProgress, type CampaignListItem, type DeliveryAttempt, type PageMeta, type EmailConfiguration, type ResendWebhookConfiguration, type Principal, type BookingApprovalPolicy, type BookingApprovalRule, type BookingPriceList, type BookingPriceListItem, type BookingTaxProfile, type BookingTaxProfileRevisionInput, type BookingTaxCode, type BookingCancellationPolicy, type BookingCancellationPolicyRevisionInput, type PublicBookingOffer } from "./api";
+import { api, ApiError, type CampaignReview, type CampaignProgress, type CampaignListItem, type DeliveryAttempt, type PageMeta, type EmailConfiguration, type ResendWebhookConfiguration, type Principal, type PublicBookingOffer } from "./api";
 
 const { locale } = useI18n();
 watch(locale, (value) => { document.documentElement.lang = value; }, { immediate: true });
@@ -72,80 +76,6 @@ const campaignListOffset = ref(0);
 const operatorResolution = reactive<Record<string, string>>({});
 const operatorReason = reactive<Record<string, string>>({});
 
-const approvalPolicies = ref<BookingApprovalPolicy[]>([]);
-const bookingPriceLists = ref<BookingPriceList[]>([]);
-const selectedPriceListId = ref("");
-const priceListCreateForm = reactive({ code: "", name: "", currency: "", taxBasis: "to_be_confirmed" as "inclusive" | "exclusive" | "not_applicable" | "to_be_confirmed" });
-const priceListRevisionForm = reactive({
-  currency: "",
-  taxBasis: "to_be_confirmed" as "inclusive" | "exclusive" | "not_applicable" | "to_be_confirmed",
-  effectiveFrom: "",
-  effectiveUntil: "",
-});
-const priceListItemsJson = ref("[]");
-const selectedPriceList = computed(() =>
-  bookingPriceLists.value.find((item) => item.priceListId === selectedPriceListId.value) ?? null,
-);
-const selectedPriceListLatestRevision = computed(() => {
-  const priceList = selectedPriceList.value;
-  return priceList?.revisions.find((revision) => revision.revisionId === priceList.latestRevisionId)
-    ?? priceList?.revisions[0]
-    ?? null;
-});
-
-const bookingTaxProfiles = ref<BookingTaxProfile[]>([]);
-const selectedTaxProfileId = ref("");
-const taxProfileCreateForm = reactive({
-  code: "", name: "", jurisdictionCode: "", registrationIdentifier: "", currency: "", taxBasis: "exclusive" as "inclusive" | "exclusive" | "not_applicable",
-});
-const taxProfileRevisionForm = reactive({
-  jurisdictionCode: "", registrationIdentifier: "", currency: "",
-  taxBasis: "exclusive" as "inclusive" | "exclusive" | "not_applicable",
-  roundingMethod: "invoice_total" as "per_line" | "per_tax_code" | "invoice_total",
-  roundingScale: 2, effectiveFrom: "", effectiveUntil: "",
-});
-const taxCodesJson = ref("[]");
-const priceListTaxProfileRevisionId = ref("");
-const selectedTaxProfile = computed(() =>
-  bookingTaxProfiles.value.find((profile) => profile.taxProfileId === selectedTaxProfileId.value) ?? null,
-);
-const selectedTaxProfileLatestRevision = computed(() => {
-  const profile = selectedTaxProfile.value;
-  return profile?.revisions.find((revision) => revision.revisionId === profile.latestRevisionId) ?? profile?.revisions[0] ?? null;
-});
-const publishedTaxProfileRevisions = computed(() => bookingTaxProfiles.value.flatMap((profile) =>
-  profile.status === "active" ? profile.revisions.filter((revision) => revision.state === "published").map((revision) => ({
-    ...revision, profileCode: profile.code, profileName: profile.name, profileId: profile.taxProfileId,
-  })) : [],
-));
-
-const compatibleTaxProfileRevisions = computed(() => publishedTaxProfileRevisions.value.filter((revision) => revision.currency === priceListRevisionForm.currency && revision.taxBasis === priceListRevisionForm.taxBasis));
-const selectedApprovalPolicyId = ref("");
-const approvalPolicyCreateForm = reactive({ code: "", name: "" });
-const approvalPolicyRulesJson = ref("[]");
-const selectedApprovalPolicy = computed(() =>
-  approvalPolicies.value.find((policy) => policy.policyId === selectedApprovalPolicyId.value) ?? null,
-);
-const selectedApprovalPolicyLatestRevision = computed(() => {
-  const policy = selectedApprovalPolicy.value;
-  return policy?.revisions.find((revision) => revision.revisionId === policy.latestRevisionId)
-    ?? policy?.revisions[0]
-    ?? null;
-});
-
-const cancellationPolicies = ref<BookingCancellationPolicy[]>([]);
-const selectedCancellationPolicyId = ref("");
-const cancellationPolicyCreateForm = reactive({ code: "", name: "" });
-const cancellationPolicyCustomerMode = ref<"request_only" | "approval_required" | "self_service">("request_only");
-const cancellationPolicyPublicTerms = ref("");
-const cancellationPolicyApprovalRulesJson = ref("{}");
-const cancellationPolicyCommercialRulesJson = ref("{}");
-const cancellationPolicyNoticeRulesJson = ref("{}");
-const selectedCancellationPolicy = computed(() => cancellationPolicies.value.find((policy) => policy.policyId === selectedCancellationPolicyId.value) ?? null);
-const selectedCancellationPolicyLatestRevision = computed(() => {
-  const policy = selectedCancellationPolicy.value;
-  return policy?.revisions.find((revision) => revision.revisionId === policy.latestRevisionId) ?? policy?.revisions[0] ?? null;
-});
 const selectedOrganization = computed(() =>
   principal.value?.memberships?.find((membership) => membership.selected)?.organizationName
   ?? principal.value?.organizationId
@@ -225,6 +155,56 @@ const {
   copyBookingOfferCapability, canDecideBookingOfferRequirement, decideBookingOfferApproval,
   confirmBookingFromAcceptedOffer,
 } = bookingOfferState;
+
+const bookingTaxProfileState = useBookingTaxProfiles({
+  api, busy, pageError, pageNotice, activeTab, clearMessages, showError,
+});
+const {
+  bookingTaxProfiles, selectedTaxProfileId, taxProfileCreateForm, taxProfileRevisionForm,
+  taxCodesJson, selectedTaxProfile, selectedTaxProfileLatestRevision,
+  publishedTaxProfileRevisions, syncTaxProfileEditor, loadBookingTaxProfiles,
+  openBookingTaxProfiles, selectBookingTaxProfile, taxProfileRevisionPayload,
+  createBookingTaxProfile, createBookingTaxProfileRevision, saveBookingTaxProfileDraft,
+  publishBookingTaxProfileRevision,
+} = bookingTaxProfileState;
+
+const bookingPriceListState = useBookingPriceLists({
+  api, busy, pageError, pageNotice, activeTab, clearMessages, showError,
+  publishedTaxProfileRevisions, loadBookingTaxProfiles,
+});
+const {
+  bookingPriceLists, selectedPriceListId, priceListCreateForm, priceListRevisionForm,
+  priceListItemsJson, priceListTaxProfileRevisionId, selectedPriceList,
+  selectedPriceListLatestRevision, compatibleTaxProfileRevisions,
+  loadBookingPriceLists, syncSelectedPriceListDraft, openBookingPriceLists,
+  selectBookingPriceList, createBookingPriceList, createBookingPriceListRevision,
+  saveBookingPriceListDraft, publishBookingPriceListRevision,
+} = bookingPriceListState;
+
+const bookingApprovalPolicyState = useBookingApprovalPolicies({
+  api, busy, pageError, pageNotice, activeTab, clearMessages, showError,
+});
+const {
+  approvalPolicies, selectedApprovalPolicyId, approvalPolicyCreateForm, approvalPolicyRulesJson,
+  selectedApprovalPolicy, selectedApprovalPolicyLatestRevision, loadBookingApprovalPolicies,
+  openBookingApprovalPolicies, selectBookingApprovalPolicy, createBookingApprovalPolicy,
+  createBookingApprovalPolicyRevision, publishBookingApprovalPolicyRevision,
+} = bookingApprovalPolicyState;
+
+const bookingCancellationPolicyState = useBookingCancellationPolicies({
+  api, busy, pageError, pageNotice, activeTab, clearMessages, showError,
+});
+const {
+  cancellationPolicies, selectedCancellationPolicyId, cancellationPolicyCreateForm,
+  cancellationPolicyCustomerMode, cancellationPolicyPublicTerms,
+  cancellationPolicyApprovalRulesJson, cancellationPolicyCommercialRulesJson,
+  cancellationPolicyNoticeRulesJson, selectedCancellationPolicy,
+  selectedCancellationPolicyLatestRevision, loadCancellationPolicyEditor,
+  loadBookingCancellationPolicies, openBookingCancellationPolicies,
+  selectBookingCancellationPolicy, createBookingCancellationPolicy,
+  saveBookingCancellationPolicyRevision, publishBookingCancellationPolicyRevision,
+} = bookingCancellationPolicyState;
+
 
 function showError(error: unknown): void {
   if (error instanceof ApiError) {
@@ -611,425 +591,6 @@ async function openBookingDraft(): Promise<void> {
 
 
 
-
-async function loadBookingPriceLists(): Promise<void> {
-  const result = await api.getBookingPriceLists();
-  bookingPriceLists.value = result.data;
-  if (selectedPriceListId.value && !result.data.some((item) => item.priceListId === selectedPriceListId.value)) selectedPriceListId.value = "";
-  if (!selectedPriceListId.value && result.data.length) selectedPriceListId.value = result.data[0]!.priceListId;
-  syncSelectedPriceListDraft();
-}
-
-function syncSelectedPriceListDraft(): void {
-  const revision = selectedPriceListLatestRevision.value;
-  priceListRevisionForm.currency = revision?.currency ?? "";
-  priceListRevisionForm.taxBasis = revision?.taxBasis ?? "to_be_confirmed";
-  priceListRevisionForm.effectiveFrom = revision?.state === "draft" && revision.effectiveFrom ? revision.effectiveFrom.slice(0, 16) : "";
-  priceListRevisionForm.effectiveUntil = revision?.state === "draft" && revision.effectiveUntil ? revision.effectiveUntil.slice(0, 16) : "";
-  priceListItemsJson.value = JSON.stringify(revision?.items ?? [], null, 2);
-  priceListTaxProfileRevisionId.value = revision?.taxProfileRevisionId ?? "";
-}
-
-async function openBookingPriceLists(): Promise<void> {
-  activeTab.value = "prices";
-  clearMessages();
-  busy.value = true;
-  try { await Promise.all([loadBookingPriceLists(), loadBookingTaxProfiles()]); }
-  catch (error) { showError(error); }
-  finally { busy.value = false; }
-}
-
-function selectBookingPriceList(priceListId: string): void {
-  selectedPriceListId.value = priceListId;
-  syncSelectedPriceListDraft();
-}
-
-async function createBookingPriceList(): Promise<void> {
-  const code = priceListCreateForm.code.trim();
-  const name = priceListCreateForm.name.trim();
-  if (code.length < 2 || code.length > 80 || !/^[A-Za-z0-9][A-Za-z0-9._-]*$/.test(code) || !name) {
-    pageError.value = "Enter a valid price-list code and name.";
-    return;
-  }
-  if (!window.confirm("Create this organization price list? It starts as an unpublished draft with no items.")) return;
-  clearMessages(); busy.value = true;
-  try {
-    const result = await api.createBookingPriceList({ code, name, currency: priceListCreateForm.currency, taxBasis: priceListCreateForm.taxBasis });
-    priceListCreateForm.code = ""; priceListCreateForm.name = "";
-    selectedPriceListId.value = result.data.priceListId;
-    await loadBookingPriceLists();
-    pageNotice.value = "Price list created. Add line items and explicitly publish the draft before using it in an offer.";
-  } catch (error) { showError(error); }
-  finally { busy.value = false; }
-}
-
-async function createBookingPriceListRevision(): Promise<void> {
-  const priceList = selectedPriceList.value;
-  const latest = selectedPriceListLatestRevision.value;
-  if (!priceList || priceList.status !== "active" || latest?.state === "draft") return;
-  if (!window.confirm("Create a successor draft revision? Published revisions and offers using them remain unchanged.")) return;
-  clearMessages(); busy.value = true;
-  try {
-    const result = await api.createBookingPriceListRevision(priceList.priceListId, {
-      currency: priceListRevisionForm.currency,
-      taxBasis: priceListRevisionForm.taxBasis,
-      effectiveFrom: priceListRevisionForm.effectiveFrom ? new Date(priceListRevisionForm.effectiveFrom).toISOString() : null,
-      effectiveUntil: priceListRevisionForm.effectiveUntil ? new Date(priceListRevisionForm.effectiveUntil).toISOString() : null,
-    });
-    await loadBookingPriceLists();
-    pageNotice.value = "Draft price-list revision " + result.data.revisionNumber + " created. Add its items before publication.";
-  } catch (error) { showError(error); }
-  finally { busy.value = false; }
-}
-
-async function saveBookingPriceListDraft(): Promise<void> {
-  const priceList = selectedPriceList.value;
-  const revision = selectedPriceListLatestRevision.value;
-  if (!priceList || !revision || revision.state !== "draft") return;
-  let items: unknown;
-  try {
-    items = JSON.parse(priceListItemsJson.value);
-    if (!Array.isArray(items) || items.length > 500) throw new Error("Items must be a JSON array containing no more than 500 entries.");
-    const codes = new Set<string>();
-    for (const item of items) {
-      if (!item || typeof item !== "object" || Array.isArray(item)) throw new Error("Each price item must be an object.");
-      const row = item as Record<string, unknown>;
-      if (typeof row.itemCode !== "string" || typeof row.label !== "string" || typeof row.unit !== "string" ||
-          typeof row.unitAmount !== "number" || !Number.isFinite(row.unitAmount) || row.unitAmount < 0) {
-        throw new Error("Each item needs itemCode, label, unit and a non-negative numeric unitAmount.");
-      }
-      if (codes.has(row.itemCode)) throw new Error("Price item codes must be unique within a revision.");
-      codes.add(row.itemCode);
-    }
-  } catch (error) {
-    pageError.value = error instanceof Error ? error.message : "Price-list items are invalid JSON.";
-    return;
-  }
-  if (!window.confirm("Replace the complete item set on this draft revision? Published revisions are not affected.")) return;
-  clearMessages(); busy.value = true;
-  try {
-    const result = await api.updateBookingPriceListDraftRevision(priceList.priceListId, revision.revisionId, {
-      currency: priceListRevisionForm.currency,
-      taxBasis: priceListRevisionForm.taxBasis,
-      effectiveFrom: priceListRevisionForm.effectiveFrom ? new Date(priceListRevisionForm.effectiveFrom).toISOString() : null,
-      effectiveUntil: priceListRevisionForm.effectiveUntil ? new Date(priceListRevisionForm.effectiveUntil).toISOString() : null,
-      items: items as BookingPriceListItem[],
-    });
-    await api.setBookingPriceListTaxProfileRevision(priceList.priceListId, revision.revisionId, priceListTaxProfileRevisionId.value || null);
-    await loadBookingPriceLists();
-    pageNotice.value = "Draft saved with " + (result.data.itemCount ?? 0) + " price item(s). It remains unpublished.";
-  } catch (error) { showError(error); }
-  finally { busy.value = false; }
-}
-
-async function publishBookingPriceListRevision(): Promise<void> {
-  const priceList = selectedPriceList.value;
-  const revision = selectedPriceListLatestRevision.value;
-  if (!priceList || !revision || revision.state !== "draft") return;
-  if (!window.confirm("Publish this exact price-list revision? It becomes immutable and may be selected for new offers.")) return;
-  clearMessages(); busy.value = true;
-  try {
-    const result = await api.publishBookingPriceListRevision(priceList.priceListId, revision.revisionId);
-    await loadBookingPriceLists();
-    pageNotice.value = "Price-list revision " + result.data.revisionNumber + " published and locked.";
-  } catch (error) { showError(error); }
-  finally { busy.value = false; }
-}
-
-function syncTaxProfileEditor(): void {
-  const revision = selectedTaxProfileLatestRevision.value;
-  taxProfileRevisionForm.jurisdictionCode = revision?.jurisdictionCode ?? "";
-  taxProfileRevisionForm.registrationIdentifier = revision?.registrationIdentifier ?? "";
-  taxProfileRevisionForm.currency = revision?.currency ?? "";
-  taxProfileRevisionForm.taxBasis = revision?.taxBasis ?? "exclusive";
-  taxProfileRevisionForm.roundingMethod = revision?.roundingMethod ?? "invoice_total";
-  taxProfileRevisionForm.roundingScale = revision?.roundingScale ?? 2;
-  taxProfileRevisionForm.effectiveFrom = revision?.effectiveFrom ? revision.effectiveFrom.slice(0,16) : "";
-  taxProfileRevisionForm.effectiveUntil = revision?.effectiveUntil ? revision.effectiveUntil.slice(0,16) : "";
-  taxCodesJson.value = JSON.stringify(revision?.taxCodes ?? [], null, 2);
-}
-async function loadBookingTaxProfiles(): Promise<void> {
-  const result = await api.getBookingTaxProfiles();
-  bookingTaxProfiles.value = result.data;
-  if (selectedTaxProfileId.value && !result.data.some(profile => profile.taxProfileId === selectedTaxProfileId.value)) selectedTaxProfileId.value = "";
-  if (!selectedTaxProfileId.value && result.data.length) selectedTaxProfileId.value = result.data[0]!.taxProfileId;
-  syncTaxProfileEditor();
-}
-async function openBookingTaxProfiles(): Promise<void> {
-  activeTab.value = "taxes"; clearMessages(); busy.value = true;
-  try { await loadBookingTaxProfiles(); } catch (error) { showError(error); } finally { busy.value = false; }
-}
-function selectBookingTaxProfile(id: string): void { selectedTaxProfileId.value = id; syncTaxProfileEditor(); }
-function taxProfileRevisionPayload(): BookingTaxProfileRevisionInput {
-  if (!/^[A-Z]{3}$/.test(taxProfileRevisionForm.currency.trim().toUpperCase())) throw new Error("Currency must be a three-letter uppercase code.");
-  if (!Number.isInteger(taxProfileRevisionForm.roundingScale) || taxProfileRevisionForm.roundingScale < 0 || taxProfileRevisionForm.roundingScale > 4) throw new Error("Rounding decimal places must be an integer from 0 to 4.");
-  const taxCodes: unknown = JSON.parse(taxCodesJson.value);
-  if (!Array.isArray(taxCodes) || taxCodes.length > 200) throw new Error("Tax codes must be a JSON array with at most 200 entries.");
-  const seen = new Set<string>();
-  for (const value of taxCodes) {
-    if (!value || typeof value !== "object" || Array.isArray(value)) throw new Error("Each tax code must be an object.");
-    const row = value as Record<string, unknown>;
-    if (typeof row.taxCode !== "string" || !/^[A-Za-z0-9][A-Za-z0-9._-]{0,79}$/.test(row.taxCode) ||
-        typeof row.label !== "string" || !row.label.trim() ||
-        !["percentage","zero_rated","exempt","out_of_scope","manual"].includes(String(row.treatment)) ||
-        !(row.rate === null || (typeof row.rate === "number" && Number.isFinite(row.rate) && row.rate >= 0 && row.rate <= 100))) {
-      throw new Error("Each tax code needs a valid taxCode, label, treatment and numeric/null rate.");
-    }
-    if (seen.has(row.taxCode)) throw new Error("Tax codes must be unique within a profile revision.");
-    seen.add(row.taxCode);
-    if ((row.treatment === "percentage" && typeof row.rate !== "number") ||
-        (row.treatment !== "percentage" && row.rate !== null)) throw new Error("Only percentage tax codes may have a rate.");
-  }
-  if (taxProfileRevisionForm.taxBasis === "not_applicable" && taxCodes.length > 0) throw new Error("A not-applicable tax profile cannot contain tax codes.");
-  return {
-    jurisdictionCode: taxProfileRevisionForm.jurisdictionCode.trim() || null,
-    registrationIdentifier: taxProfileRevisionForm.registrationIdentifier.trim() || null,
-    currency: taxProfileRevisionForm.currency.trim().toUpperCase(),
-    taxBasis: taxProfileRevisionForm.taxBasis,
-    roundingMethod: taxProfileRevisionForm.roundingMethod,
-    roundingScale: taxProfileRevisionForm.roundingScale,
-    effectiveFrom: taxProfileRevisionForm.effectiveFrom ? new Date(taxProfileRevisionForm.effectiveFrom).toISOString() : null,
-    effectiveUntil: taxProfileRevisionForm.effectiveUntil ? new Date(taxProfileRevisionForm.effectiveUntil).toISOString() : null,
-    taxCodes: taxCodes as BookingTaxCode[],
-  };
-}
-async function createBookingTaxProfile(): Promise<void> {
-  const code=taxProfileCreateForm.code.trim(), name=taxProfileCreateForm.name.trim();
-  if (code.length<2 || !/^[A-Za-z0-9][A-Za-z0-9._-]*$/.test(code) || !name || !/^[A-Z]{3}$/.test(taxProfileCreateForm.currency)) {
-    pageError.value="Enter a valid profile code, name and three-letter currency."; return;
-  }
-  if (!window.confirm("Create an organization tax profile with an unpublished first revision?")) return;
-  clearMessages(); busy.value=true;
-  try {
-    const result=await api.createBookingTaxProfile({
-      code,name,jurisdictionCode:taxProfileCreateForm.jurisdictionCode.trim()||null,
-      registrationIdentifier:taxProfileCreateForm.registrationIdentifier.trim()||null,
-      currency:taxProfileCreateForm.currency.toUpperCase(),taxBasis:taxProfileCreateForm.taxBasis,
-    });
-    selectedTaxProfileId.value=result.data.taxProfileId;
-    taxProfileCreateForm.code=""; taxProfileCreateForm.name="";
-    await loadBookingTaxProfiles();
-    pageNotice.value="Tax profile created. Add its tax codes and publish the first revision.";
-  } catch(error){showError(error);} finally{busy.value=false;}
-}
-async function createBookingTaxProfileRevision(): Promise<void> {
-  const profile=selectedTaxProfile.value, latest=selectedTaxProfileLatestRevision.value;
-  if(!profile || profile.status!=="active" || latest?.state==="draft")return;
-  if(!window.confirm("Create a successor draft revision? Existing price lists and offers keep their currently pinned tax revision."))return;
-  clearMessages();busy.value=true;
-  try{
-    await api.createBookingTaxProfileRevision(profile.taxProfileId,{
-      jurisdictionCode:taxProfileRevisionForm.jurisdictionCode.trim()||null,
-      registrationIdentifier:taxProfileRevisionForm.registrationIdentifier.trim()||null,
-      currency:taxProfileRevisionForm.currency.trim().toUpperCase(),taxBasis:taxProfileRevisionForm.taxBasis,
-      roundingMethod:taxProfileRevisionForm.roundingMethod,roundingScale:taxProfileRevisionForm.roundingScale,
-      effectiveFrom:taxProfileRevisionForm.effectiveFrom?new Date(taxProfileRevisionForm.effectiveFrom).toISOString():null,
-      effectiveUntil:taxProfileRevisionForm.effectiveUntil?new Date(taxProfileRevisionForm.effectiveUntil).toISOString():null,
-    });
-    await loadBookingTaxProfiles();pageNotice.value="Successor tax profile draft created. Review its copied tax codes before saving.";
-  }catch(error){showError(error);}finally{busy.value=false;}
-}
-async function saveBookingTaxProfileDraft(): Promise<void> {
-  const profile=selectedTaxProfile.value,revision=selectedTaxProfileLatestRevision.value;
-  if(!profile||!revision||revision.state!=="draft")return;
-  let body:BookingTaxProfileRevisionInput;
-  try{body=taxProfileRevisionPayload();}catch(error){pageError.value=error instanceof Error?error.message:"Invalid tax profile revision.";return;}
-  if(!window.confirm("Save this tax profile draft? It remains inactive until explicitly published."))return;
-  clearMessages();busy.value=true;
-  try{
-    const result=await api.updateBookingTaxProfileDraftRevision(profile.taxProfileId,revision.revisionId,body);
-    await loadBookingTaxProfiles();pageNotice.value="Tax profile revision "+result.data.revisionNumber+" saved as draft.";
-  }catch(error){showError(error);}finally{busy.value=false;}
-}
-async function publishBookingTaxProfileRevision(): Promise<void> {
-  const profile=selectedTaxProfile.value,revision=selectedTaxProfileLatestRevision.value;
-  if(!profile||!revision||revision.state!=="draft")return;
-  if(!window.confirm("Publish this exact tax profile revision? It becomes immutable and can be selected by compatible price lists."))return;
-  clearMessages();busy.value=true;
-  try{
-    const result=await api.publishBookingTaxProfileRevision(profile.taxProfileId,revision.revisionId);
-    await loadBookingTaxProfiles();pageNotice.value="Tax profile revision "+result.data.revisionNumber+" published.";
-  }catch(error){showError(error);}finally{busy.value=false;}
-}
-
-function loadCancellationPolicyEditor(): void {
-  const revision = selectedCancellationPolicyLatestRevision.value;
-  cancellationPolicyCustomerMode.value = revision?.customerMode ?? "request_only";
-  cancellationPolicyPublicTerms.value = revision?.publicTerms ?? "";
-  cancellationPolicyApprovalRulesJson.value = JSON.stringify(revision?.approvalRules ?? {}, null, 2);
-  cancellationPolicyCommercialRulesJson.value = JSON.stringify(revision?.commercialRules ?? {}, null, 2);
-  cancellationPolicyNoticeRulesJson.value = JSON.stringify(revision?.noticeRules ?? {}, null, 2);
-}
-async function loadBookingCancellationPolicies(): Promise<void> {
-  const result = await api.getBookingCancellationPolicies();
-  cancellationPolicies.value = result.data;
-  if (selectedCancellationPolicyId.value && !result.data.some((policy) => policy.policyId === selectedCancellationPolicyId.value)) selectedCancellationPolicyId.value = "";
-  if (!selectedCancellationPolicyId.value && result.data.length) selectedCancellationPolicyId.value = result.data[0]!.policyId;
-  loadCancellationPolicyEditor();
-}
-async function openBookingCancellationPolicies(): Promise<void> {
-  activeTab.value = "cancellations"; clearMessages(); busy.value = true;
-  try { await loadBookingCancellationPolicies(); } catch (error) { showError(error); } finally { busy.value = false; }
-}
-function selectBookingCancellationPolicy(policyId: string): void { selectedCancellationPolicyId.value = policyId; loadCancellationPolicyEditor(); }
-async function createBookingCancellationPolicy(): Promise<void> {
-  const code = cancellationPolicyCreateForm.code.trim(), name = cancellationPolicyCreateForm.name.trim();
-  if (code.length < 2 || code.length > 80 || !name || name.length > 250) { pageError.value = "Enter a valid policy code and name."; return; }
-  if (!window.confirm("Create an organization cancellation policy? It cannot be used for offers until its first revision is published.")) return;
-  clearMessages(); busy.value = true;
-  try {
-    const result = await api.createBookingCancellationPolicy({ code, name });
-    cancellationPolicyCreateForm.code = ""; cancellationPolicyCreateForm.name = "";
-    selectedCancellationPolicyId.value = result.data.policyId;
-    await loadBookingCancellationPolicies(); pageNotice.value = "Cancellation policy created. Publish its first revision before using it for offers.";
-  } catch (error) { showError(error); } finally { busy.value = false; }
-}
-async function saveBookingCancellationPolicyRevision(): Promise<void> {
-  const policy = selectedCancellationPolicy.value; if (!policy || policy.status !== "active") return;
-  let body: BookingCancellationPolicyRevisionInput;
-  try {
-    const parseObject = (value: string, label: string): Record<string, unknown> => {
-      const parsed: unknown = JSON.parse(value);
-      if (!parsed || typeof parsed !== "object" || Array.isArray(parsed)) throw new Error(label + " must be a JSON object.");
-      return parsed as Record<string, unknown>;
-    };
-    body = { customerMode: cancellationPolicyCustomerMode.value, publicTerms: cancellationPolicyPublicTerms.value.trim(),
-      approvalRules: parseObject(cancellationPolicyApprovalRulesJson.value, "Approval rules"),
-      commercialRules: parseObject(cancellationPolicyCommercialRulesJson.value, "Commercial rules"),
-      noticeRules: parseObject(cancellationPolicyNoticeRulesJson.value, "Notice rules") };
-    if (!body.publicTerms || body.publicTerms.length > 10000) throw new Error("Customer-facing terms must contain 1–10,000 characters.");
-  } catch (error) { pageError.value = error instanceof Error ? error.message : "Invalid cancellation policy revision."; return; }
-  const latest = selectedCancellationPolicyLatestRevision.value;
-  if (!window.confirm(latest?.state === "draft" ? "Save this draft revision?" : "Create a successor draft? Existing offers and bookings retain their pinned policy revision.")) return;
-  clearMessages(); busy.value = true;
-  try {
-    const result = latest?.state === "draft" ? await api.updateBookingCancellationPolicyDraftRevision(policy.policyId, latest.revisionId, body) : await api.createBookingCancellationPolicyRevision(policy.policyId, body);
-    await loadBookingCancellationPolicies(); pageNotice.value = "Cancellation policy revision " + result.data.revisionNumber + " saved as a draft.";
-  } catch (error) { showError(error); } finally { busy.value = false; }
-}
-async function publishBookingCancellationPolicyRevision(): Promise<void> {
-  const policy = selectedCancellationPolicy.value, revision = selectedCancellationPolicyLatestRevision.value;
-  if (!policy || !revision || revision.state !== "draft") return;
-  if (!window.confirm("Publish this exact revision? It becomes immutable; existing offers and confirmed bookings remain unchanged.")) return;
-  clearMessages(); busy.value = true;
-  try { const result = await api.publishBookingCancellationPolicyRevision(policy.policyId, revision.revisionId); await loadBookingCancellationPolicies(); pageNotice.value = "Cancellation policy revision " + result.data.revisionNumber + " published."; }
-  catch (error) { showError(error); } finally { busy.value = false; }
-}
-async function loadBookingApprovalPolicies(): Promise<void> {
-  const result = await api.getBookingApprovalPolicies();
-  approvalPolicies.value = result.data;
-  if (selectedApprovalPolicyId.value && !result.data.some((policy) => policy.policyId === selectedApprovalPolicyId.value)) {
-    selectedApprovalPolicyId.value = "";
-  }
-  if (!selectedApprovalPolicyId.value && result.data.length) {
-    selectedApprovalPolicyId.value = result.data[0]!.policyId;
-  }
-  const revision = selectedApprovalPolicyLatestRevision.value;
-  approvalPolicyRulesJson.value = JSON.stringify(revision?.rules ?? [], null, 2);
-}
-
-async function openBookingApprovalPolicies(): Promise<void> {
-  activeTab.value = "approvals";
-  clearMessages();
-  busy.value = true;
-  try {
-    await loadBookingApprovalPolicies();
-  } catch (error) {
-    showError(error);
-  } finally {
-    busy.value = false;
-  }
-}
-
-function selectBookingApprovalPolicy(policyId: string): void {
-  selectedApprovalPolicyId.value = policyId;
-  const revision = selectedApprovalPolicyLatestRevision.value;
-  approvalPolicyRulesJson.value = JSON.stringify(revision?.rules ?? [], null, 2);
-}
-
-async function createBookingApprovalPolicy(): Promise<void> {
-  const code = approvalPolicyCreateForm.code.trim();
-  const name = approvalPolicyCreateForm.name.trim();
-  if (code.length < 2 || code.length > 80 || name.length < 1 || name.length > 250) {
-    pageError.value = "Enter a policy code (2–80 characters) and name (1–250 characters).";
-    return;
-  }
-  if (!window.confirm("Create a new organization approval policy? It has no revisions yet. You will create and explicitly publish its first rules revision before it can be used for a new offer.")) return;
-  clearMessages();
-  busy.value = true;
-  try {
-    const result = await api.createBookingApprovalPolicy({ code, name });
-    approvalPolicyCreateForm.code = "";
-    approvalPolicyCreateForm.name = "";
-    selectedApprovalPolicyId.value = result.data.policyId;
-    await loadBookingApprovalPolicies();
-    pageNotice.value = "Approval policy created. Create and publish its first rules revision before selecting it for a new offer.";
-  } catch (error) {
-    showError(error);
-  } finally {
-    busy.value = false;
-  }
-}
-
-async function createBookingApprovalPolicyRevision(): Promise<void> {
-  const policy = selectedApprovalPolicy.value;
-  if (!policy || policy.status !== "active") return;
-  let parsed: unknown;
-  try {
-    parsed = JSON.parse(approvalPolicyRulesJson.value);
-    if (!Array.isArray(parsed)) throw new Error("Rules must be a JSON array.");
-    if (parsed.length > 50) throw new Error("A policy may contain no more than 50 rules.");
-    for (const item of parsed) {
-      if (!item || typeof item !== "object" || Array.isArray(item)) throw new Error("Each rule must be a JSON object.");
-      const rule = item as Record<string, unknown>;
-      if (typeof rule.code !== "string" || typeof rule.condition !== "object" || !rule.condition ||
-          typeof rule.requiredApprovals !== "number" || typeof rule.permission !== "string" ||
-          typeof rule.separationOfDuties !== "boolean") {
-        throw new Error("Each rule needs code, condition, requiredApprovals, permission and separationOfDuties.");
-      }
-    }
-  } catch (error) {
-    pageError.value = error instanceof Error ? error.message : "Approval policy rules are invalid JSON.";
-    return;
-  }
-  const latest = selectedApprovalPolicyLatestRevision.value;
-  if (!window.confirm(
-    latest?.state === "draft"
-      ? "Save changes to this exact draft revision? The draft remains unpublished until you explicitly publish it."
-      : "Create a new immutable draft revision? Any existing offers keep their already-pinned approval requirements.",
-  )) return;
-  clearMessages();
-  busy.value = true;
-  try {
-    const result = latest?.state === "draft"
-      ? await api.updateBookingApprovalPolicyDraftRevision(policy.policyId, latest.revisionId, parsed as BookingApprovalRule[])
-      : await api.createBookingApprovalPolicyRevision(policy.policyId, parsed as BookingApprovalRule[]);
-    await loadBookingApprovalPolicies();
-    pageNotice.value = "Approval policy revision " + result.data.revisionNumber + " saved as a draft. Publish it explicitly when ready.";
-  } catch (error) {
-    showError(error);
-  } finally {
-    busy.value = false;
-  }
-}
-
-async function publishBookingApprovalPolicyRevision(): Promise<void> {
-  const policy = selectedApprovalPolicy.value;
-  const revision = selectedApprovalPolicyLatestRevision.value;
-  if (!policy || !revision || revision.state !== "draft") return;
-  if (!window.confirm("Publish approval policy revision " + revision.revisionNumber + "? Published revisions are immutable. Existing offer revisions retain their original approval-rule snapshot.")) return;
-  clearMessages();
-  busy.value = true;
-  try {
-    await api.publishBookingApprovalPolicyRevision(policy.policyId, revision.revisionId);
-    await loadBookingApprovalPolicies();
-    pageNotice.value = "Approval policy revision published. New offer revisions may now pin this policy revision.";
-  } catch (error) {
-    showError(error);
-  } finally {
-    busy.value = false;
-  }
-}
 
 function createPublicDecisionKey(): string {
   return globalThis.crypto.randomUUID();
