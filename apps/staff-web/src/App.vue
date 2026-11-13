@@ -2375,7 +2375,8 @@ onMounted(() => {
                     <textarea v-model="bookingOfferLineItemsJson" rows="5" spellcheck="false" placeholder='[{"itemCode":"published-item-code","quantity":1}]'></textarea>
                   </label>
                   <label>Manual adjustments (JSON array)
-                    <textarea v-model="bookingOfferAdjustmentsJson" rows="4" spellcheck="false" placeholder='[{"code":"adjustment-code","label":"Reasoned adjustment","kind":"discount","amount":0.01}]'></textarea>
+                    <textarea v-model="bookingOfferAdjustmentsJson" rows="5" spellcheck="false" placeholder='[{"code":"adjustment-code","label":"Reasoned adjustment","kind":"discount","amount":0.01,"allocationMethod":"proportional_to_lines"}]'></textarea>
+                    <small>When the selected price list has a tax profile, every adjustment must explicitly use allocationMethod "tax_code" with a taxCode, "proportional_to_lines" (allocated by the priced lines' tax-code mix), or "not_applicable" for a not-applicable profile. Eventor never guesses tax treatment. Without a selected profile, the legacy manual tax workflow remains available.</small>
                   </label>
                   <label>Internal reason / tax audit reason
                     <textarea v-model="bookingOfferInternalReason" rows="2" maxlength="2000" required placeholder="Explain manual terms, especially any tax amount or adjustment…"></textarea>

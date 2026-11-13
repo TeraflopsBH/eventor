@@ -41,9 +41,18 @@ The offer's terms_snapshot now stores the calculation result, including the exac
 
 A tax code configured as manual requires a positive invoice-level tax amount. Any positive manually supplied tax amount continues to require an internal reason and booking.approve; it is recorded as a manual override in the calculation snapshot. Manual overrides are invoice-level and are not allocated across individual lines or tax codes. This supports exceptional cases without pretending the platform knows the legal calculation.
 
-Price adjustments (fees, discounts and credits) do not yet carry tax classifications. When a tax profile is selected, an offer containing adjustments cannot use automatic calculation with a zero tax amount; staff must supply an audited invoice-level override. This prevents silently calculating tax on an incomplete taxable base. Per-adjustment tax classification/allocation is a separate follow-up.
+Every manual adjustment (fee, discount or credit) must carry an explicit tax allocation when its price list pins a tax profile. Eventor never infers an adjustment's tax code from its label, kind or nearby price lines.
 
-The calculation engine is intentionally limited to a single configured percentage layer per price item. Compound/multi-component taxes, tax-on-tax ordering, item-level manual amounts, discount allocation across tax codes, exemption eligibility, reverse-charge logic, rounding-law presets, invoices, credit notes and tax reporting are not implemented. Organizations must configure and validate their own rates and classifications with their qualified tax adviser. Eventor does not determine statutory treatment.
+Two allocation methods are supported:
+
+- `tax_code`: the adjustment supplies one `taxCode` from the exact pinned profile revision. The complete adjustment amount is assigned to that code.
+- `proportional_to_lines`: the adjustment omits `taxCode`; its amount is allocated proportionally across the tax codes represented by positively priced offer lines. The allocation is grouped by tax code, ordered by code, rounded to two decimal places, and the final code receives the exact residual so allocated amounts always sum to the original adjustment. Fees, discounts and credits may use either method.
+
+For a profile whose basis is `not_applicable`, each adjustment must explicitly use `allocationMethod: "not_applicable"` and omit `taxCode`. A profile-backed adjustment with a missing/unknown allocation method or unknown tax code is rejected. A discount or credit cannot reduce any tax-code taxable base below zero. The resulting per-adjustment allocation is stored in the immutable offer terms snapshot and contributes to the line/tax-code calculation breakdown using the configured profile rounding method.
+
+A price list without a selected tax profile retains the legacy explicit invoice-level tax workflow and existing adjustment payload compatibility. A profile-backed adjustment using a `manual` tax treatment still requires the existing positive, audited invoice-level tax override and `booking.approve`; manual tax overrides are not falsely allocated across lines or tax codes.
+
+The calculation engine is intentionally limited to a single configured percentage layer per price item. Compound/multi-component taxes, tax-on-tax ordering, item-level manual amounts beyond the explicit adjustment allocation methods above, exemption eligibility, reverse-charge logic, rounding-law presets, invoices, credit notes and tax reporting are not implemented. Organizations must configure and validate their own rates and classifications with their qualified tax adviser. Eventor does not determine statutory treatment.
 
 A price list without a selected tax profile retains the legacy explicit tax amount workflow. A positive tax amount in either mode is an audited manual override; zero with a selected profile requests automatic calculation (except where the manual/adjustment boundaries above require an override).
 

@@ -5,6 +5,7 @@ DO $test$
 DECLARE
   v_relation record;
   v_name text;
+  v_definition text;
   v_required_tables text[] := ARRAY[
     'booking_approval_policies',
     'booking_approval_policy_revisions',
@@ -92,6 +93,21 @@ BEGIN
      OR has_table_privilege(current_user,'eogp.booking_tax_profiles','SELECT')
      OR has_table_privilege(current_user,'eogp.booking_tax_profile_revisions','SELECT') THEN
     RAISE EXCEPTION 'runtime role has direct table read access to protected commercial data';
+  END IF;
+
+  IF to_regprocedure('eogp.allocate_booking_offer_adjustment_tax(uuid,uuid,jsonb,jsonb,text)') IS NULL THEN
+    RAISE EXCEPTION 'offer adjustment tax allocation helper is missing';
+  END IF;
+  IF has_function_privilege(current_user,
+       'eogp.allocate_booking_offer_adjustment_tax(uuid,uuid,jsonb,jsonb,text)','EXECUTE') THEN
+    RAISE EXCEPTION 'runtime role must not execute the internal adjustment tax allocation helper directly';
+  END IF;
+  SELECT pg_get_functiondef(
+    'eogp.save_booking_offer_revision(uuid,uuid,uuid,uuid,uuid,uuid,uuid,text,text,timestamptz,jsonb,jsonb,numeric,text,boolean)'::regprocedure
+  ) INTO v_definition;
+  IF position('allocate_booking_offer_adjustment_tax' in v_definition)=0
+     OR position('v_tax_lines' in v_definition)=0 THEN
+    RAISE EXCEPTION 'offer-save command does not use the adjustment tax allocation helper';
   END IF;
 
   IF NOT EXISTS (
