@@ -585,6 +585,58 @@ paths:
         '422': { $ref: '#/components/responses/UnprocessableEntity' }
         '429': { $ref: '#/components/responses/TooManyRequests' }
         '500': { $ref: '#/components/responses/InternalServerError' }
+  "/booking-drafts/{draftId}/allocation-options":
+    get:
+      tags: ["Booking Administration"]
+      operationId: getBookingDraftAllocationOptions
+      summary: "Read active venue-space and reservable-resource options for a booking draft"
+      description: "Requires booking.draft.read or booking.draft.manage. The tenant-scoped database projection returns active spaces at active venues and reservable resource types with the combined capacity of their active pools. This is catalogue capacity, not a real-time availability guarantee; final reservation checks remain authoritative."
+      security: [{ StaffSession: [] }]
+      parameters:
+        - $ref: '#/components/parameters/PDraftId'
+      responses:
+        '200':
+          description: "Active organization allocation catalogue."
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [data]
+                properties:
+                  data:
+                    type: object
+                    required: [spaces, resources]
+                    properties:
+                      spaces:
+                        type: array
+                        items:
+                          type: object
+                          required: [venueSpaceId, venueId, venueName, code, name, spaceKind, capacity]
+                          properties:
+                            venueSpaceId: { type: string, format: uuid }
+                            venueId: { type: string, format: uuid }
+                            venueName: { type: string }
+                            code: { type: string }
+                            name: { type: string }
+                            spaceKind: { type: string, enum: [building_area, level_area, room, zone, other] }
+                            capacity: { type: integer, minimum: 0, nullable: true }
+                      resources:
+                        type: array
+                        items:
+                          type: object
+                          required: [resourceTypeId, code, name, unitLabel, capacity]
+                          properties:
+                            resourceTypeId: { type: string, format: uuid }
+                            code: { type: string }
+                            name: { type: string }
+                            unitLabel: { type: string }
+                            capacity: { type: integer, minimum: 0 }
+        '400': { $ref: '#/components/responses/BadRequest' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '404': { $ref: '#/components/responses/NotFound' }
+        '429': { $ref: '#/components/responses/TooManyRequests' }
+        '500': { $ref: '#/components/responses/InternalServerError' }
   "/booking-drafts/{draftId}/revisions":
     post:
       tags: ["Booking Administration"]

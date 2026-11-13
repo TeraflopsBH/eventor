@@ -50,8 +50,13 @@ const {
   valuesJson: bookingDraftValuesJson,
   draftAnswers: bookingDraftAnswers,
   sourceFormFields: bookingDraftSourceFormFields,
-  spaceLinesJson: bookingDraftSpaceLinesJson,
-  resourceLinesJson: bookingDraftResourceLinesJson,
+  allocationOptions: bookingDraftAllocationOptions,
+  spaceLines: bookingDraftSpaceLines,
+  resourceLines: bookingDraftResourceLines,
+  addSpaceLine: addBookingDraftSpaceLine,
+  removeSpaceLine: removeBookingDraftSpaceLine,
+  addResourceLine: addBookingDraftResourceLine,
+  removeResourceLine: removeBookingDraftResourceLine,
   requestedStart: bookingDraftRequestedStart,
   requestedEnd: bookingDraftRequestedEnd,
   timezone: bookingDraftTimezone,
@@ -183,10 +188,76 @@ const { busy } = props.workspace;
                     <label>{{$t('commercialBooking.timezone')}}<input v-model="bookingDraftTimezone" type="text" maxlength="80" required />
                     </label>
                   </div>
-                  <label>{{$t('commercialBooking.spaceLines')}}<textarea v-model="bookingDraftSpaceLinesJson" rows="5" spellcheck="false"></textarea>
-                  </label>
-                  <label>{{$t('commercialBooking.resourceLines')}}<textarea v-model="bookingDraftResourceLinesJson" rows="5" spellcheck="false"></textarea>
-                  </label>
+                  <section class="draft-allocation-editor">
+                    <div class="inquiry-card-heading">
+                      <h5>{{ t("commercialBooking.spaceLines") }}</h5>
+                      <button class="button button-quiet" type="button" :disabled="busy || bookingDraftAllocationOptions.spaces.length === 0" @click="addBookingDraftSpaceLine">
+                        {{ t("commercialBooking.addSpaceLine") }}
+                      </button>
+                    </div>
+                    <p v-if="bookingDraftAllocationOptions.spaces.length === 0" class="muted">{{ t("commercialBooking.noActiveSpaces") }}</p>
+                    <div v-for="(line, index) in bookingDraftSpaceLines" :key="'space-' + index" class="draft-allocation-row">
+                      <label>
+                        {{ t("commercialBooking.space") }}
+                        <select v-model="line.venueSpaceId" required>
+                          <option value="">{{ t("commercialBooking.chooseSpace") }}</option>
+                          <option v-for="space in bookingDraftAllocationOptions.spaces" :key="space.venueSpaceId" :value="space.venueSpaceId">
+                            {{ space.venueName }} · {{ space.name }} ({{ space.code }}){{ space.capacity === null ? "" : " · " + t("commercialBooking.capacityValue", { capacity: space.capacity }) }}
+                          </option>
+                        </select>
+                      </label>
+                      <label>
+                        {{ t("commercialBooking.blockKind") }}
+                        <select v-model="line.blockKind">
+                          <option value="setup">{{ t("commercialBooking.blockSetup") }}</option>
+                          <option value="rehearsal">{{ t("commercialBooking.blockRehearsal") }}</option>
+                          <option value="event_use">{{ t("commercialBooking.blockEventUse") }}</option>
+                          <option value="teardown">{{ t("commercialBooking.blockTeardown") }}</option>
+                          <option value="buffer">{{ t("commercialBooking.blockBuffer") }}</option>
+                        </select>
+                      </label>
+                      <label>
+                        {{ t("commercialBooking.startsAt") }}
+                        <input v-model="line.startsAt" type="text" required placeholder="2027-01-18T09:00:00+01:00" />
+                      </label>
+                      <label>
+                        {{ t("commercialBooking.endsAt") }}
+                        <input v-model="line.endsAt" type="text" required placeholder="2027-01-18T13:00:00+01:00" />
+                      </label>
+                      <label>
+                        {{ t("commercialBooking.requestedCapacity") }}
+                        <input v-model.number="line.requestedCapacity" type="number" min="1" step="1" :placeholder="t('commercialBooking.optional')" />
+                      </label>
+                      <button class="button button-quiet" type="button" :disabled="busy" @click="removeBookingDraftSpaceLine(index)">{{ t("commercialBooking.removeLine") }}</button>
+                    </div>
+                    <p class="fine-print">{{ t("commercialBooking.allocationIntervalHelp") }}</p>
+                  </section>
+                  <section class="draft-allocation-editor">
+                    <div class="inquiry-card-heading">
+                      <h5>{{ t("commercialBooking.resourceLines") }}</h5>
+                      <button class="button button-quiet" type="button" :disabled="busy || !bookingDraftAllocationOptions.resources.some((resource) => resource.capacity > 0)" @click="addBookingDraftResourceLine">
+                        {{ t("commercialBooking.addResourceLine") }}
+                      </button>
+                    </div>
+                    <p v-if="!bookingDraftAllocationOptions.resources.some((resource) => resource.capacity > 0)" class="muted">{{ t("commercialBooking.noReservableResources") }}</p>
+                    <div v-for="(line, index) in bookingDraftResourceLines" :key="'resource-' + index" class="draft-allocation-row">
+                      <label>
+                        {{ t("commercialBooking.resource") }}
+                        <select v-model="line.resourceTypeId" required>
+                          <option value="">{{ t("commercialBooking.chooseResource") }}</option>
+                          <option v-for="resource in bookingDraftAllocationOptions.resources" :key="resource.resourceTypeId" :value="resource.resourceTypeId" :disabled="resource.capacity < 1">
+                            {{ resource.name }} ({{ resource.code }}) · {{ resource.capacity }} {{ resource.unitLabel }}
+                          </option>
+                        </select>
+                      </label>
+                      <label>
+                        {{ t("commercialBooking.requestedQuantity") }}
+                        <input v-model.number="line.requestedQuantity" type="number" min="1" step="1" required />
+                      </label>
+                      <button class="button button-quiet" type="button" :disabled="busy" @click="removeBookingDraftResourceLine(index)">{{ t("commercialBooking.removeLine") }}</button>
+                    </div>
+                    <p class="fine-print">{{ t("commercialBooking.resourceCapacityHelp") }}</p>
+                  </section>
                   <label>{{$t('commercialBooking.changeReason')}}<textarea v-model="bookingDraftChangeReason" rows="2" maxlength="2000" required  :placeholder="t('commercialBooking.changeReasonPlaceholder')"></textarea>
                   </label>
                   <div class="form-actions">
