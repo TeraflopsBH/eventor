@@ -1,6 +1,5 @@
 \set ON_ERROR_STOP on
 BEGIN;
-SET LOCAL app.organization_id = '22222222-2222-4222-8222-222222222222';
 
 DO $outbox_boundary$
 DECLARE
@@ -52,6 +51,35 @@ BEGIN
   END IF;
 END;
 $outbox_boundary$;
+
+-- With no tenant context, the worker may discover only the pending notification
+-- topic and only through the metadata columns granted above.
+DO $outbox_discovery$
+DECLARE
+  pending_tenants integer;
+  unrelated_topics integer;
+BEGIN
+  SELECT count(DISTINCT organization_id)
+    INTO pending_tenants
+    FROM eogp.outbox_events
+   WHERE topic = 'event.change.notification_requested'
+     AND published_at IS NULL
+     AND dead_lettered_at IS NULL
+     AND available_at <= clock_timestamp();
+
+  SELECT count(topic)
+    INTO unrelated_topics
+    FROM eogp.outbox_events
+   WHERE topic <> 'event.change.notification_requested';
+
+  IF pending_tenants < 1 OR unrelated_topics <> 0 THEN
+    RAISE EXCEPTION 'worker outbox discovery leaked unrelated topics or found no pending tenant: pending %, unrelated %',
+      pending_tenants, unrelated_topics;
+  END IF;
+END;
+$outbox_discovery$;
+
+SET LOCAL app.organization_id = '22222222-2222-4222-8222-222222222222';
 
 SELECT eogp.process_event_notification_outbox(10);
 
