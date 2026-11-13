@@ -13,7 +13,7 @@ test("notification worker wakes from a long idle poll on SIGTERM and removes its
   const pool = {
     async query() {
       queryCount += 1;
-      if (queryCount === 4) markPollCycleReady();
+      if (queryCount === 3) markPollCycleReady();
       return { rows: [], rowCount: 0 };
     },
     async connect() {
