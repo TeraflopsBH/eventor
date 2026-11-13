@@ -86,3 +86,6 @@ Stable API problem codes are localized at the staff presentation boundary throug
 
 
 A follow-up presentation audit of the commercial booking workspace keeps all staff-authored labels, action captions and explanatory placeholders in the `commercialBooking` locale catalogue. Existing feature keys are reused where semantics match; new keys cover the remaining draft/offer placeholders and offer reference labels. Technical JSON/ISO/currency examples and protocol identifiers remain literal, and locale changes do not alter submitted values or workflow behavior.
+
+
+The staff UI localization audit also covers accessible names and browser-native constraint validation. Interactive controls retain explicit localized labels or meaningful visible text; brand names remain proper names. HTML constraint-validation messages remain browser-owned and are not duplicated as application translations. Residual application-owned fallback copy must use the feature catalogue, including the inquiry list's missing-requested-date label.
