@@ -360,7 +360,7 @@ DECLARE
 BEGIN
   SELECT pg_get_functiondef('eogp.guard_guest_invitation_manage_permission()'::regprocedure)
     INTO v_auth;
-  IF strpos(v_auth,'FOR SHARE OF user_grant, role_permission')=0
+  IF strpos(v_auth,'FOR SHARE OF user_grant,role_permission')=0
      OR strpos(v_auth,'invitation.manage')=0
      OR NOT EXISTS (
        SELECT 1 FROM pg_trigger trigger_row
