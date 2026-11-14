@@ -1,4 +1,4 @@
-import { randomBytes, createHash } from "node:crypto";
+import { randomBytes, randomUUID, createHash } from "node:crypto";
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import { Pool } from "pg";
@@ -49,7 +49,7 @@ test("booking-offer worker sends a queued PostgreSQL delivery through fake SMTP 
     organizationId, contactKind: "other",
   });
   let deliveryId: string | undefined;
-  let smtpMessage: { to: string; subject: string; text: string } | undefined;
+  const smtpMessages: { to: string; subject: string; text: string }[] = [];
   let smtpCalls = 0;
 
   const fakeSmtp: SmtpTransportFactory = (settings, credentials) => {
@@ -59,7 +59,7 @@ test("booking-offer worker sends a queued PostgreSQL delivery through fake SMTP 
       async verify() { return true; },
       async sendMail(message) {
         smtpCalls += 1;
-        smtpMessage = message;
+        smtpMessages.push(message);
         return { messageId: `<ci-${suffix}@example.invalid>`, accepted: [message.to] };
       },
       close() {},
@@ -222,8 +222,8 @@ test("booking-offer worker sends a queued PostgreSQL delivery through fake SMTP 
     assert.equal(totals.bookingOfferEmailAttempts, 1);
     assert.equal(totals.bookingOfferEmailSent, 1);
     assert.equal(smtpCalls, 1);
-    assert.equal(smtpMessage?.to, email);
-    assert.match(smtpMessage?.text ?? "", new RegExp(`/offers/[^\\s]+#token=${token}`));
+    assert.equal(smtpMessages[0]?.to, email);
+    assert.match(smtpMessages[0]?.text ?? "", new RegExp(`/offers/[^\\s]+#token=${token}`));
 
     const verification = await owner.connect();
     try {
