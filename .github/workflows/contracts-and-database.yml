@@ -251,7 +251,7 @@ jobs:
         run: node apps/api/scripts/notification-worker-postgres-smoke.mjs
 
       - name: Verify SMTP delivery worker claim, retry and terminal states
-        run: psql "$WORKER_URL" -X -v ON_ERROR_STOP=1 -f tests/database/event_notification_delivery_worker_smoke.sql
+        run: psql "$WORKER_URL" -X -v ON_ERROR_STOP=1 -v ci_worker_preprocessed_one=true -f tests/database/event_notification_delivery_worker_smoke.sql
 
       - name: Verify delivery result under forced-RLS owner
         run: psql "$MIGRATOR_URL" -X -v ON_ERROR_STOP=1 -c "SET ROLE eventor_owner" -f tests/database/event_notification_delivery_result_smoke.sql
