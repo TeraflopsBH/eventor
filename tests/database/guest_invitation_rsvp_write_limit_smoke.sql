@@ -14,10 +14,6 @@ UPDATE eogp.invitations
    SET status='active',current_revision_number=1,issued_at=clock_timestamp(),revoked_at=NULL
  WHERE organization_id='22222222-2222-4222-8222-222222222222'
    AND id='94500000-0000-4000-8000-000000000005';
-UPDATE eogp.invitation_revisions
-   SET issued_at=clock_timestamp()
- WHERE organization_id='22222222-2222-4222-8222-222222222222'
-   AND id='96500000-0000-4000-8000-000000000001';
 UPDATE eogp.invitation_links
    SET revoked_at=NULL,expires_at=clock_timestamp()+interval '1 hour'
  WHERE organization_id='22222222-2222-4222-8222-222222222222'
