@@ -6,8 +6,9 @@ specific target distribution or host.
 
 ## Assumptions
 
-- Node.js is installed at `/usr/bin/node`. Change `ExecStart` if the target
-  distribution installs it elsewhere.
+- Node.js 22 is installed in the system service `PATH` (normally `/usr/local/bin`
+  or `/usr/bin`). The units invoke it through `/usr/bin/env`; do not rely on a
+  per-user version manager whose binaries are unavailable to system services.
 - A reviewed release is installed at `/opt/eventor/releases/<release-id>`,
   and `/opt/eventor/current` points to that release.
 - The release tree is root-owned and readable/traversable, but not writable, by
