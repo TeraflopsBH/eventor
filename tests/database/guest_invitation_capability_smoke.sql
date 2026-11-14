@@ -407,4 +407,23 @@ BEGIN
 END;
 $guest_capability_participation_eligibility$;
 
+
+DO $guest_invitation_projection_authorization_lock$
+DECLARE
+  v_definition text;
+BEGIN
+  SELECT pg_get_functiondef(
+    'eogp.list_guest_invitation_participations(uuid,uuid,uuid)'::regprocedure
+  ) INTO v_definition;
+
+  IF strpos(v_definition, 'organization_memberships membership') = 0
+     OR strpos(v_definition, 'membership.status=''active''') = 0
+     OR strpos(v_definition, 'FOR SHARE;') = 0
+     OR strpos(v_definition, 'FOR SHARE OF user_grant,role_permission') = 0
+     OR strpos(v_definition, 'invitation.manage') = 0 THEN
+    RAISE EXCEPTION 'guest invitation staff projection must serialize authorization with membership and permission revocation';
+  END IF;
+END;
+$guest_invitation_projection_authorization_lock$;
+
 ROLLBACK;
