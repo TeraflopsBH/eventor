@@ -101,6 +101,34 @@ END;
 $guest_capability_validation$;
 
 
+DO $staff_rsvp_command_security$
+DECLARE
+  v_definition text;
+BEGIN
+  SELECT pg_get_functiondef(
+    'eogp.record_staff_guest_rsvp(uuid,uuid,uuid,uuid,text,text,text,timestamptz,uuid,bytea,uuid,text)'::regprocedure
+  ) INTO v_definition;
+  IF strpos(v_definition,'app.actor_membership_id')=0
+     OR strpos(v_definition,'IS DISTINCT FROM p_actor_membership_id')=0
+     OR strpos(v_definition,'rsvp.record')=0
+     OR strpos(v_definition,'rsvp.correct')=0
+     OR strpos(v_definition,'rsvp.override_deadline')=0
+     OR strpos(v_definition,'current_event_schedule_revision_id')=0
+     OR strpos(v_definition,'correction_of_response_id')=0
+     OR strpos(v_definition,'FOR UPDATE')=0 THEN
+    RAISE EXCEPTION 'staff RSVP command is missing actor, permission, effective schedule, serialization or correction guards';
+  END IF;
+  IF NOT EXISTS (
+    SELECT 1 FROM pg_trigger trigger_row
+    WHERE trigger_row.tgrelid='eogp.rsvp_responses'::regclass
+      AND trigger_row.tgname='rsvp_responses_append_only_guard'
+      AND NOT trigger_row.tgisinternal
+  ) THEN
+    RAISE EXCEPTION 'staff RSVP history must remain append-only';
+  END IF;
+END;
+$staff_rsvp_command_security$;
+
 DO $guest_rsvp_lock_order$
 DECLARE
   v_definition text;
