@@ -48,8 +48,7 @@ async function toggleAttemptHistory(invitationId: string): Promise<void> {
     return;
   }
   expandedInvitationId.value = invitationId;
-  if (attemptHistory.value[invitationId]) return;
-  historyLoading.value = true;
+    historyLoading.value = true;
   error.value = "";
   try {
     const result = await api.getGuestInvitationDeliveryAttempts(invitationId);
