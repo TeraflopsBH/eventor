@@ -1,5 +1,23 @@
 \set ON_ERROR_STOP on
 BEGIN;
+DO $delegated_task_authorization_order$
+DECLARE v_projection text; v_update text;
+BEGIN
+  SELECT pg_get_functiondef('eogp.get_assigned_task_projection(uuid,uuid)'::regprocedure) INTO v_projection;
+  SELECT pg_get_functiondef('eogp.update_assigned_task_status(uuid,uuid,text,text,jsonb)'::regprocedure) INTO v_update;
+  IF strpos(v_projection,'organization_memberships membership')=0
+     OR strpos(v_projection,'FOR SHARE')>strpos(v_projection,'FROM eogp.event_responsibility_assignments')
+     OR strpos(v_projection,'role_permission.permission_code=''task.perform''')=0
+     OR strpos(v_projection,'role_permission.permission_code=''task.perform''')>strpos(v_projection,'FROM eogp.event_responsibility_assignments')
+     OR strpos(v_update,'organization_memberships membership')=0
+     OR strpos(v_update,'FOR SHARE')>strpos(v_update,'FROM eogp.event_responsibility_assignments')
+     OR strpos(v_update,'role_permission.permission_code=''task.perform''')=0
+     OR strpos(v_update,'role_permission.permission_code=''task.perform''')>strpos(v_update,'FROM eogp.event_responsibility_assignments') THEN
+    RAISE EXCEPTION 'delegated task authorization must precede assignment lookup/lock';
+  END IF;
+END;
+$delegated_task_authorization_order$;
+
 SELECT set_config('app.organization_id','22222222-2222-4222-8222-222222222222',true);
 SELECT set_config('app.actor_membership_id','bbbbbbbb-2222-4222-8222-bbbbbbbbbbbb',true);
 
