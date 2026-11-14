@@ -436,3 +436,8 @@ Added `scripts/db/test_space_overlap_concurrency.sh` to exercise the venue-space
 The exact CI log records a **1,993 ms wait** by the second runtime connection followed by the expected exclusion violation. This proves that concurrent overlapping space claims cannot both become active; it does not change production SQL. The schema constraint matrix now records **82 verified assertions and 23 unchecked scenarios**.
 
 The exact code head `5b069ace028cacd24682dc6b9d36bdbcbd413547` passed PostgreSQL 18.6 migrations/RLS/concurrency, OpenAPI 3.1, API and staff-web checks in [#43537134477](https://github.com/TeraflopsBH/eventor/actions/runs/43537134477), with full-history Gitleaks passing in [#43537134460](https://github.com/TeraflopsBH/eventor/actions/runs/43537134460). PR #76 remains open and draft; no PRs have been merged.
+## Schema-matrix evidence reconciliation: cross-venue building reference — 2026-11-14
+
+Rechecked the unchecked schema matrix against the existing PostgreSQL smoke tests and found that the cross-venue building-reference case was already covered. `tests/database/migration_smoke.sql` creates two venues and one building for each, then attempts to create a space in Venue A that references Venue B's building; the test requires a foreign-key violation. The workflow runs this file in the `Run database integrity smoke tests` step. No new test or production code was needed.
+
+The matrix now records **83 verified assertions and 22 unchecked scenarios**. This is evidence reconciliation only; it does not add new runtime behavior.
