@@ -1,5 +1,5 @@
 -- Revalidate the latest schedule and currently published RSVP policy at the SMTP authorization point.
-CREATE FUNCTION eogp.authorize_invitation_email_submission(
+CREATE OR REPLACE FUNCTION eogp.authorize_invitation_email_submission(
   p_organization_id uuid,p_delivery_id uuid
 ) RETURNS boolean
 LANGUAGE plpgsql
