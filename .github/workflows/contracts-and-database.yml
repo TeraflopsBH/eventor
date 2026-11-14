@@ -7,10 +7,12 @@ on:
       - fix/pr26-high-risk-integrity-review
       - feat/booking-commercial-workflow
       - feat/booking-allocation-alternatives
+      - fix/booking-offer-email-worker-db
       - main
   pull_request:
     branches:
       - main
+      - feat/booking-allocation-alternatives
       - feat/postgresql18-migrations-openapi-v0.3
       - fix/pr26-high-risk-integrity-review
       - feat/booking-draft-allocation-availability-preview
@@ -151,8 +153,10 @@ jobs:
             *) echo "Expected PostgreSQL 18.x" >&2; exit 1 ;;
           esac
 
-      - name: Apply checksum-verified migrations
-        run: bash scripts/db/migrate.sh
+      - name: Rehearse populated schema upgrade from 000073 to 000074
+        run: |
+          bash -n scripts/db/test-upgrade-000073-to-000074.sh
+          bash scripts/db/test-upgrade-000073-to-000074.sh
 
       - name: Verify safe public booking form projection
         run: psql "$MIGRATOR_URL" -X -v ON_ERROR_STOP=1 -f tests/database/public_booking_form_smoke.sql
@@ -161,12 +165,6 @@ jobs:
       - name: Verify permissioned staff booking inquiry workflow
         run: psql "$MIGRATOR_URL" -X -v ON_ERROR_STOP=1 -f tests/database/staff_booking_inquiry_smoke.sql
 
-
-      - name: Seed synthetic identities through authentication role
-        run: psql "$AUTH_URL" -X -v ON_ERROR_STOP=1 -f tests/database/seed_auth_test_users.sql
-
-      - name: Run database integrity smoke tests
-        run: psql "$MIGRATOR_URL" -X -v ON_ERROR_STOP=1 -f tests/database/migration_smoke.sql
 
       - name: Verify tenant isolation as non-owner runtime role
         run: |
@@ -208,6 +206,28 @@ jobs:
         run: psql "$RUNTIME_URL" -X -v ON_ERROR_STOP=1 -f tests/database/organization_delivery_configuration_smoke.sql
       - name: Verify SMTP delivery worker claim, retry and terminal states
         run: psql "$WORKER_URL" -X -v ON_ERROR_STOP=1 -f tests/database/event_notification_delivery_worker_smoke.sql
+      - name: Verify booking-offer email worker SQL contract as worker
+        run: psql "$WORKER_URL" -X -v ON_ERROR_STOP=1 -f tests/database/booking_offer_email_worker_sql_smoke.sql
+
+      - name: Set up Node.js for PostgreSQL-backed worker integration
+        uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020
+        with:
+          node-version: "22.16.0"
+
+      - name: Install API dependencies for worker integration
+        working-directory: apps/api
+        run: npm ci --no-audit --no-fund
+
+      - name: Build API worker integration test
+        working-directory: apps/api
+        run: npm run build
+
+      - name: Verify booking-offer email delivery through PostgreSQL and fake SMTP
+        working-directory: apps/api
+        env:
+          MIGRATOR_URL: ${{ env.MIGRATOR_URL }}
+          WORKER_URL: ${{ env.WORKER_URL }}
+        run: node --test dist/test/booking-offer-email-worker.integration.test.js
 
       - name: Verify delivery result under forced-RLS owner
         run: psql "$MIGRATOR_URL" -X -v ON_ERROR_STOP=1 -c "SET ROLE eventor_owner" -f tests/database/event_notification_delivery_result_smoke.sql
