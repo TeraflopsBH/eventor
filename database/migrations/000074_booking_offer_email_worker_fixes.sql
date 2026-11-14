@@ -23,12 +23,23 @@ AS $function$
 DECLARE
   v_delivery eogp.booking_offer_email_deliveries%ROWTYPE;
   v_next_available timestamptz;
+  v_service_principal_id uuid;
 BEGIN
   IF session_user<>'eventor_worker'
      OR eogp.current_organization_id() IS DISTINCT FROM p_organization_id THEN
     RAISE EXCEPTION 'offer email claim requires worker role and matching tenant context'
       USING ERRCODE='42501';
   END IF;
+
+  INSERT INTO eogp.service_principals(
+    organization_id,code,display_name,purpose
+  ) VALUES (
+    p_organization_id,'booking-offer-email-worker','Booking offer email worker',
+    'Deliver queued customer booking offer emails'
+  )
+  ON CONFLICT (organization_id,code) DO UPDATE
+    SET display_name=EXCLUDED.display_name,purpose=EXCLUDED.purpose
+  RETURNING id INTO v_service_principal_id;
 
   WITH expired AS (
     UPDATE eogp.booking_offer_email_deliveries
@@ -39,10 +50,11 @@ BEGIN
      RETURNING id,offer_id,offer_revision_id
   )
   INSERT INTO eogp.audit_events(
-    organization_id,actor_kind,action,aggregate_type,aggregate_id,
-    reason_code,safe_metadata,occurred_at
+    organization_id,actor_organization_id,actor_service_principal_id,
+    actor_kind,action,aggregate_type,aggregate_id,reason_code,safe_metadata,occurred_at
   )
-  SELECT p_organization_id,'service_principal','booking.offer.email_uncertain',
+  SELECT p_organization_id,p_organization_id,v_service_principal_id,
+         'service_principal','booking.offer.email_uncertain',
          'booking_offer',expired.offer_id,'SMTP_UNKNOWN',
          jsonb_build_object('deliveryId',expired.id,'offerRevisionId',expired.offer_revision_id,
            'source','expired_worker_lease'),
@@ -73,10 +85,11 @@ BEGIN
      RETURNING id,offer_id,offer_revision_id
   )
   INSERT INTO eogp.audit_events(
-    organization_id,actor_kind,action,aggregate_type,aggregate_id,
-    reason_code,safe_metadata,occurred_at
+    organization_id,actor_organization_id,actor_service_principal_id,
+    actor_kind,action,aggregate_type,aggregate_id,reason_code,safe_metadata,occurred_at
   )
-  SELECT p_organization_id,'service_principal','booking.offer.email_failed',
+  SELECT p_organization_id,p_organization_id,v_service_principal_id,
+         'service_principal','booking.offer.email_failed',
          'booking_offer',stale.offer_id,'OFFER_NO_LONGER_CURRENT',
          jsonb_build_object('deliveryId',stale.id,'offerRevisionId',stale.offer_revision_id,
            'source','offer_no_longer_current'),
@@ -157,12 +170,22 @@ DECLARE
   v_delivery eogp.booking_offer_email_deliveries%ROWTYPE;
   v_retry boolean := false;
   v_next timestamptz;
+  v_service_principal_id uuid;
 BEGIN
   IF session_user<>'eventor_worker'
      OR eogp.current_organization_id() IS DISTINCT FROM p_organization_id THEN
     RAISE EXCEPTION 'offer email completion requires worker role and matching tenant context'
       USING ERRCODE='42501';
   END IF;
+  INSERT INTO eogp.service_principals(
+    organization_id,code,display_name,purpose
+  ) VALUES (
+    p_organization_id,'booking-offer-email-worker','Booking offer email worker',
+    'Deliver queued customer booking offer emails'
+  )
+  ON CONFLICT (organization_id,code) DO UPDATE
+    SET display_name=EXCLUDED.display_name,purpose=EXCLUDED.purpose
+  RETURNING id INTO v_service_principal_id;
   IF p_outcome NOT IN ('sent','failed','uncertain') THEN
     RAISE EXCEPTION 'invalid offer email outcome' USING ERRCODE='22023';
   END IF;
@@ -221,10 +244,10 @@ BEGIN
   END IF;
 
   INSERT INTO eogp.audit_events(
-    organization_id,actor_kind,action,aggregate_type,aggregate_id,
-    reason_code,safe_metadata,occurred_at
+    organization_id,actor_organization_id,actor_service_principal_id,
+    actor_kind,action,aggregate_type,aggregate_id,reason_code,safe_metadata,occurred_at
   ) VALUES (
-    p_organization_id,'service_principal',
+    p_organization_id,p_organization_id,v_service_principal_id,'service_principal',
     CASE WHEN p_outcome='sent' THEN 'booking.offer.email_sent'
          WHEN p_outcome='uncertain' THEN 'booking.offer.email_uncertain'
          ELSE 'booking.offer.email_failed' END,
