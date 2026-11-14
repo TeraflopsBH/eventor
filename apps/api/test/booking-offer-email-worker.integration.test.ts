@@ -248,7 +248,7 @@ test("booking-offer worker sends a queued PostgreSQL delivery through fake SMTP 
       assert.equal(row.rows[0].provider_message_reference, `<ci-${suffix}@example.invalid>`);
       assert.ok(row.rows[0].sent_at);
       const audit = await verification.query(
-        `SELECT actor_kind,action FROM eogp.audit_events
+        `SELECT actor_kind,actor_service_principal_id,action FROM eogp.audit_events
           WHERE organization_id=$1 AND aggregate_id=$2
             AND action='booking.offer.email_sent'`,
         [organizationId, (await verification.query(
@@ -256,7 +256,7 @@ test("booking-offer worker sends a queued PostgreSQL delivery through fake SMTP 
         )).rows[0].offer_id],
       );
       assert.ok(audit.rows.some((entry) =>
-        entry.actor_kind === "service_principal" && entry.action === "booking.offer.email_sent"));
+        entry.actor_kind === "service_principal" && entry.actor_service_principal_id !== null && entry.action === "booking.offer.email_sent"));
       await verification.query("COMMIT");
     } catch (error) {
       await verification.query("ROLLBACK");
