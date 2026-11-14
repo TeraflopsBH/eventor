@@ -84,6 +84,7 @@ function makePool() {
   let bookingInquiryConversionCalls = 0;
   let bookingDraftGetCalls = 0;
   let bookingDraftAccessAllowed = true;
+  let bookingDraftManageAllowed = true;
   let bookingDraftAllocationPreviewCalls = 0;
   let bookingDraftRevisionCalls = 0;
   let bookingOfferPrepareCalls = 0;
@@ -164,7 +165,7 @@ function makePool() {
         commandCalls.push({ sql: normalized, values });
         return { rows: [{ result: {
           canAssign: true, canManage: true, canAnnotate: true, canConvert: true,
-          canReadDraft: true, canManageDraft: true,
+          canReadDraft: true, canManageDraft: bookingDraftManageAllowed,
         } }], rowCount: 1 };
       }
       if (normalized.includes("eogp.preview_booking_draft_allocation_availability(")) {
@@ -944,6 +945,7 @@ function makePool() {
     get bookingInquiryConversionCalls() { return bookingInquiryConversionCalls; },
     get bookingDraftGetCalls() { return bookingDraftGetCalls; },
     setBookingDraftAccessAllowed(value: boolean) { bookingDraftAccessAllowed = value; },
+    setBookingDraftManageAllowed(value: boolean) { bookingDraftManageAllowed = value; },
     get bookingDraftAllocationPreviewCalls() { return bookingDraftAllocationPreviewCalls; },
     get bookingDraftRevisionCalls() { return bookingDraftRevisionCalls; },
     get bookingOfferPrepareCalls() { return bookingOfferPrepareCalls; },
@@ -1732,16 +1734,27 @@ test("staff inquiry inbox decrypts authorized projections and routes assignment,
   assert.deepEqual(revisionReplay.json(), revision.json());
   assert.equal(mock.bookingDraftRevisionCalls, 1);
 
-  // A previously authorized idempotency key must not bypass current resource
-  // access after the actor's event assignment or permission is revoked.
-  mock.setBookingDraftAccessAllowed(false);
-  const revokedReplay = await app.inject({
+  // A previously authorized idempotency key must not bypass the stronger
+  // draft-management permission even while read access remains active.
+  mock.setBookingDraftManageAllowed(false);
+  const revokedManageReplay = await app.inject({
     method: "POST",
     url: `/booking-drafts/${draftId}/revisions`,
     headers: { "idempotency-key": "draft-revision-0001" },
     payload: revisionBody,
   });
-  assert.equal(revokedReplay.statusCode, 403);
+  assert.equal(revokedManageReplay.statusCode, 403);
+  assert.equal(mock.bookingDraftRevisionCalls, 1);
+
+  // Revoking draft visibility must also prevent replay.
+  mock.setBookingDraftAccessAllowed(false);
+  const revokedReadReplay = await app.inject({
+    method: "POST",
+    url: `/booking-drafts/${draftId}/revisions`,
+    headers: { "idempotency-key": "draft-revision-0001" },
+    payload: revisionBody,
+  });
+  assert.equal(revokedReadReplay.statusCode, 403);
   assert.equal(mock.bookingDraftRevisionCalls, 1);
 
   const convertedInquiry = await app.inject({
