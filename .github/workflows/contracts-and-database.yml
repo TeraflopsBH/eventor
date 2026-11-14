@@ -278,3 +278,27 @@ jobs:
         run: |
           psql "$MIGRATOR_URL" -X -v ON_ERROR_STOP=1 \
             -c "SET ROLE eventor_owner; SELECT version, filename, execution_ms FROM eogp.schema_migrations ORDER BY version;"
+
+
+  systemd:
+    name: systemd service unit verification
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
+      - name: Prepare referenced paths and service identities
+        run: |
+          sudo groupadd --system eventor-api
+          sudo useradd --system --no-create-home --shell /usr/sbin/nologin --gid eventor-api eventor-api
+          sudo groupadd --system eventor-worker
+          sudo useradd --system --no-create-home --shell /usr/sbin/nologin --gid eventor-worker eventor-worker
+          sudo install -d -o root -g root -m 0755 /opt/eventor/current/apps/api
+          sudo install -d -o root -g root -m 0755 /opt/eventor/current/docs/operations
+          sudo install -d -o root -g root -m 0755 /etc/eventor
+          sudo install -o root -g root -m 0644 /dev/null /etc/eventor/api.env
+          sudo install -o root -g root -m 0644 /dev/null /etc/eventor/worker.env
+          sudo install -o root -g root -m 0644 /dev/null /opt/eventor/current/docs/operations/SELF_HOSTED_DEPLOYMENT_RUNBOOK.md
+      - name: Verify systemd unit syntax and referenced identities
+        run: |
+          command -v systemd-analyze
+          sudo systemd-analyze verify deploy/systemd/eventor-api.service deploy/systemd/eventor-worker.service
