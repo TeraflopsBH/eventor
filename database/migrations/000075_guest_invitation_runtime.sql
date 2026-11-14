@@ -35,6 +35,13 @@ CREATE TRIGGER guest_invitation_capability_lookup_insert
   AFTER INSERT ON eogp.invitation_links
   FOR EACH ROW EXECUTE FUNCTION eogp.index_guest_invitation_capability();
 
+INSERT INTO eogp.guest_invitation_capability_lookup (
+  token_sha256, organization_id, invitation_link_id
+)
+SELECT link.token_sha256, link.organization_id, link.id
+  FROM eogp.invitation_links link
+ON CONFLICT (token_sha256) DO NOTHING;
+
 REVOKE ALL ON FUNCTION eogp.index_guest_invitation_capability()
   FROM PUBLIC, eventor_runtime, eventor_worker, eventor_auth;
 
@@ -49,6 +56,12 @@ CREATE TABLE eogp.guest_invitation_rsvp_idempotency (
   FOREIGN KEY (organization_id, invitation_link_id)
     REFERENCES eogp.invitation_links(organization_id, id)
 );
+
+ALTER TABLE eogp.guest_invitation_rsvp_idempotency ENABLE ROW LEVEL SECURITY;
+ALTER TABLE eogp.guest_invitation_rsvp_idempotency FORCE ROW LEVEL SECURITY;
+CREATE POLICY tenant_isolation ON eogp.guest_invitation_rsvp_idempotency
+  USING (organization_id = eogp.current_organization_id())
+  WITH CHECK (organization_id = eogp.current_organization_id());
 
 REVOKE ALL ON eogp.guest_invitation_rsvp_idempotency
   FROM PUBLIC, eventor_runtime, eventor_worker, eventor_auth;
@@ -306,10 +319,10 @@ BEGIN
   );
 
   INSERT INTO eogp.audit_events (
-    organization_id, actor_kind, action, aggregate_type, aggregate_id,
+    organization_id, actor_external_capability_id, actor_kind, action, aggregate_type, aggregate_id,
     reason_code, safe_metadata, occurred_at
   ) VALUES (
-    v_organization_id, 'external_capability', 'guest.rsvp.submitted',
+    v_organization_id, v_link.id, 'external_capability', 'guest.rsvp.submitted',
     'invitation', v_invitation.id, 'guest_submitted_rsvp',
     jsonb_build_object('response', p_response, 'responseId', v_response_id),
     v_now
