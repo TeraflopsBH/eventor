@@ -87,6 +87,7 @@ DECLARE
   v_revision_number integer;
   v_person_id uuid;
   v_destination bytea;
+  v_destination_hash text;
   v_config_id uuid;
   v_member_status text;
   v_existing eogp.invitation_deliveries%ROWTYPE;
@@ -185,7 +186,8 @@ BEGIN
     RAISE EXCEPTION 'a published RSVP policy revision is required' USING ERRCODE='55000';
   END IF;
 
-  SELECT contact.encrypted_value INTO v_destination
+  SELECT contact.encrypted_value,contact.normalized_value_hash
+    INTO v_destination,v_destination_hash
     FROM eogp.person_contact_points contact
    WHERE contact.organization_id=p_organization_id
      AND contact.person_id=v_person_id
@@ -272,7 +274,7 @@ BEGIN
     idempotency_key_sha256,capability_ciphertext,delivery_config_revision_id
   ) VALUES (
     p_organization_id,p_event_id,v_invitation.id,v_revision_id,
-    'email',v_destination,encode(digest(v_destination,'sha256'),'hex'),'queued',
+    'email',v_destination,v_destination_hash,'queued',
     p_idempotency_key_sha256,p_capability_ciphertext,v_config_id
   ) RETURNING id INTO v_delivery_id;
 
@@ -436,14 +438,51 @@ BEGIN
    WHERE organization_id=p_organization_id AND status='sending'
      AND lease_expires_at<=clock_timestamp();
 
+  -- A reissue revokes the previous link and advances the invitation revision.
+  -- Never send a queued message for an obsolete or revoked capability.
+  UPDATE eogp.invitation_deliveries delivery
+     SET status='suppressed',failure_code='INVITATION_LINK_NO_LONGER_CURRENT'
+   WHERE delivery.organization_id=p_organization_id
+     AND delivery.status='queued'
+     AND NOT EXISTS (
+       SELECT 1
+         FROM eogp.invitations invitation
+         JOIN eogp.invitation_revisions revision
+           ON revision.organization_id=invitation.organization_id
+          AND revision.event_id=invitation.event_id
+          AND revision.invitation_id=invitation.id
+         JOIN eogp.invitation_links link
+           ON link.organization_id=revision.organization_id
+          AND link.event_id=revision.event_id
+          AND link.invitation_id=revision.invitation_id
+          AND link.invitation_revision_id=revision.id
+        WHERE invitation.organization_id=delivery.organization_id
+          AND invitation.id=delivery.invitation_id
+          AND invitation.status='active'
+          AND invitation.current_revision_number=revision.revision_number
+          AND revision.id=delivery.invitation_revision_id
+          AND link.revoked_at IS NULL
+          AND link.expires_at>clock_timestamp()
+     );
+
   SELECT delivery.* INTO v_delivery
     FROM eogp.invitation_deliveries delivery
     JOIN eogp.invitations invitation
       ON invitation.organization_id=delivery.organization_id
      AND invitation.id=delivery.invitation_id
+    JOIN eogp.invitation_revisions revision
+      ON revision.organization_id=delivery.organization_id
+     AND revision.id=delivery.invitation_revision_id
+     AND revision.invitation_id=invitation.id
+    JOIN eogp.invitation_links link
+      ON link.organization_id=delivery.organization_id
+     AND link.invitation_id=invitation.id
+     AND link.invitation_revision_id=revision.id
    WHERE delivery.organization_id=p_organization_id
      AND delivery.status='queued' AND delivery.next_attempt_at<=clock_timestamp()
      AND invitation.status='active'
+     AND invitation.current_revision_number=revision.revision_number
+     AND link.revoked_at IS NULL AND link.expires_at>clock_timestamp()
    ORDER BY delivery.next_attempt_at,delivery.queued_at,delivery.id
    FOR UPDATE OF delivery SKIP LOCKED LIMIT 1;
   IF NOT FOUND THEN
