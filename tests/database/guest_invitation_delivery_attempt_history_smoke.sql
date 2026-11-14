@@ -5,6 +5,14 @@ SET LOCAL app.organization_id='22222222-2222-4222-8222-222222222222';
 
 -- Reuse the committed event-notification fixture's event, schedule,
 -- participations, memberships and invitations. Everything added here rolls back.
+-- The notification worker fixture intentionally cancels its event. Temporarily
+-- restore its lifecycle state inside this transaction so invitation revision
+-- guards permit the fixture rows; the event change is rolled back at the end.
+UPDATE eogp.events
+   SET status='scheduled',updated_at=clock_timestamp()
+ WHERE organization_id='22222222-2222-4222-8222-222222222222'
+   AND id='94000000-0000-4000-8000-000000000001';
+
 INSERT INTO eogp.rsvp_policies (
   id, organization_id, event_id, code, name
 ) VALUES (
