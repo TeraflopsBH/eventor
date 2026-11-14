@@ -299,6 +299,17 @@ BEGIN
     RAISE EXCEPTION 'email delivery is not enabled or configured' USING ERRCODE='55000';
   END IF;
 
+  IF p_invitation_id IS NULL AND EXISTS (
+    SELECT 1 FROM eogp.invitations existing
+     WHERE existing.organization_id=p_organization_id
+       AND existing.event_id=p_event_id
+       AND existing.participation_id=p_participation_id
+       AND existing.status='active'
+  ) THEN
+    RAISE EXCEPTION 'an active invitation already exists; reissue that invitation instead'
+      USING ERRCODE='23505';
+  END IF;
+
   IF p_invitation_id IS NULL THEN
     INSERT INTO eogp.invitations(
       organization_id,event_id,participation_id,status,current_revision_number,
@@ -526,7 +537,7 @@ BEGIN
   -- A reissue revokes the previous link and advances the invitation revision.
   -- Never send a queued message for an obsolete or revoked capability.
   UPDATE eogp.invitation_deliveries delivery
-     SET status='suppressed',failure_code='INVITATION_LINK_NO_LONGER_CURRENT'
+     SET status='suppressed',failure_code='INVITATION_OR_RECIPIENT_NO_LONGER_ELIGIBLE'
    WHERE delivery.organization_id=p_organization_id
      AND delivery.status='queued'
      AND NOT EXISTS (
@@ -548,6 +559,20 @@ BEGIN
           AND revision.id=delivery.invitation_revision_id
           AND link.revoked_at IS NULL
           AND link.expires_at>clock_timestamp()
+          AND EXISTS (
+            SELECT 1
+              FROM eogp.event_participations participation
+              JOIN eogp.person_contact_points contact
+                ON contact.organization_id=participation.organization_id
+               AND contact.person_id=participation.person_id
+             WHERE participation.organization_id=delivery.organization_id
+               AND participation.event_id=delivery.event_id
+               AND participation.id=invitation.participation_id
+               AND contact.contact_kind='email'
+               AND contact.normalized_value_hash=delivery.destination_hash
+               AND contact.is_primary=true AND contact.is_verified=true
+               AND contact.contact_consent='permitted'
+          )
      );
 
   SELECT delivery.* INTO v_delivery
@@ -563,6 +588,17 @@ BEGIN
       ON link.organization_id=delivery.organization_id
      AND link.invitation_id=invitation.id
      AND link.invitation_revision_id=revision.id
+    JOIN eogp.event_participations participation
+      ON participation.organization_id=delivery.organization_id
+     AND participation.event_id=delivery.event_id
+     AND participation.id=invitation.participation_id
+    JOIN eogp.person_contact_points contact
+      ON contact.organization_id=participation.organization_id
+     AND contact.person_id=participation.person_id
+     AND contact.contact_kind='email'
+     AND contact.normalized_value_hash=delivery.destination_hash
+     AND contact.is_primary=true AND contact.is_verified=true
+     AND contact.contact_consent='permitted'
    WHERE delivery.organization_id=p_organization_id
      AND delivery.status='queued' AND delivery.next_attempt_at<=clock_timestamp()
      AND invitation.status='active'
