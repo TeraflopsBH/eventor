@@ -3152,6 +3152,40 @@ paths:
         '422': { $ref: '#/components/responses/UnprocessableEntity' }
         '429': { $ref: '#/components/responses/TooManyRequests' }
         '500': { $ref: '#/components/responses/InternalServerError' }
+  "/organizations/{organizationId}/guest-invitation-events":
+    get:
+      tags: ["Invitations and RSVP"]
+      operationId: listGuestInvitationEvents
+      summary: "List events the staff member may manage invitations for"
+      security: [{ StaffSession: [] }]
+      parameters:
+        - $ref: '#/components/parameters/POrganizationId'
+      responses:
+        '200':
+          description: "Successful response."
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/ListEnvelope' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '500': { $ref: '#/components/responses/InternalServerError' }
+  "/events/{eventId}/guest-invitation-participations":
+    get:
+      tags: ["Invitations and RSVP"]
+      operationId: listGuestInvitationParticipations
+      summary: "List invitation-eligible event participation projections"
+      security: [{ StaffSession: [] }]
+      parameters:
+        - $ref: '#/components/parameters/PEventId'
+      responses:
+        '200':
+          description: "Successful response."
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/ListEnvelope' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '500': { $ref: '#/components/responses/InternalServerError' }
   "/events/{eventId}/participations":
     get:
       tags: ["Event Participation"]
