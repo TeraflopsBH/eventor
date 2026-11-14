@@ -236,6 +236,11 @@ const inquiryParams = {
   properties: { inquiryId: { type: "string", pattern: uuidPattern } },
   additionalProperties: false,
 } as const;
+const participationOnlyParams = {
+  type: "object", required: ["participationId"],
+  properties: { participationId: { type: "string", pattern: uuidPattern } },
+  additionalProperties: false,
+} as const;
 const eventParticipationParams = {
   type: "object", required: ["eventId", "participationId"],
   properties: {
@@ -3376,6 +3381,32 @@ export function buildApi(dependencies: ApiDependencies): FastifyInstance {
           reservationIds: body.reservationIds,
         };
       });
+    },
+  );
+
+  server.get<{ Params: { participationId: string } }>(
+    "/participations/:participationId/rsvp-history",
+    { schema: { params: participationOnlyParams } },
+    async (request, reply) => {
+      const principal = request.staffPrincipal!;
+      const client = await dependencies.pool.connect();
+      try {
+        await client.query("BEGIN");
+        await client.query("SELECT set_config('app.organization_id',$1,true)", [principal.organizationId]);
+        const result = await client.query<ResultRow>(
+          "SELECT eogp.get_participation_rsvp_history($1::uuid,$2::uuid,$3::uuid) AS result",
+          [principal.organizationId, request.params.participationId, principal.membershipId],
+        );
+        await client.query("COMMIT");
+        return reply.code(200).send({
+          data: result.rows[0]?.result ?? { participationId: request.params.participationId, responses: [] },
+        });
+      } catch (error) {
+        try { await client.query("ROLLBACK"); } catch { /* preserve the original read error */ }
+        throw databaseError(error);
+      } finally {
+        client.release();
+      }
     },
   );
 
