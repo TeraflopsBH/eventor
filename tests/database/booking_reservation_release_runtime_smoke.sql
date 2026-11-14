@@ -1,5 +1,19 @@
 \set ON_ERROR_STOP on
 BEGIN;
+DO $booking_release_authorization_order$
+DECLARE v_definition text;
+BEGIN
+  SELECT pg_get_functiondef('eogp.release_booking_reservations(uuid,uuid,uuid[],uuid,text)'::regprocedure) INTO v_definition;
+  IF strpos(v_definition,'organization_memberships')=0
+     OR strpos(v_definition,'FOR SHARE OF user_grant, role_permission')=0
+     OR strpos(v_definition,'role_permission.permission_code = ''booking.cancellation.execute''')=0
+     OR strpos(v_definition,'role_permission.permission_code = ''booking.cancellation.execute''')>strpos(v_definition,'FROM eogp.booking_records')
+     OR strpos(v_definition,'FOR UPDATE')>strpos(v_definition,'FROM eogp.booking_records') THEN
+    RAISE EXCEPTION 'booking reservation release must authorize before booking lookup/lock';
+  END IF;
+END;
+$booking_release_authorization_order$;
+
 SELECT set_config('app.organization_id','11111111-1111-4111-8111-111111111111',true);
 SELECT set_config('app.actor_membership_id','aaaaaaaa-1111-4111-8111-aaaaaaaaaaaa',true);
 
