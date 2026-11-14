@@ -197,18 +197,6 @@ jobs:
       - name: Verify event change commands, scoped permissions and replacement schedules
         run: psql "$MIGRATOR_URL" -X -v ON_ERROR_STOP=1 -f tests/database/event_change_command_runtime_smoke.sql
 
-      - name: Prepare event notification worker fixture
-        run: psql "$MIGRATOR_URL" -X -v ON_ERROR_STOP=1 -f tests/database/event_notification_worker_fixture.sql
-
-      - name: Verify tenant-safe notification campaign preparation as worker
-        run: psql "$WORKER_URL" -X -v ON_ERROR_STOP=1 -f tests/database/event_notification_worker_smoke.sql
-
-      - name: Verify prepared notification snapshot as forced-RLS owner
-        run: psql "$MIGRATOR_URL" -X -v ON_ERROR_STOP=1 -c "SET ROLE eventor_owner" -f tests/database/event_notification_worker_result_smoke.sql
-
-      - name: Verify organizer notification campaign review and confirmation as runtime
-        run: psql "$RUNTIME_URL" -X -v ON_ERROR_STOP=1 -f tests/database/event_notification_campaign_confirmation_smoke.sql
-
       - name: Set up Node.js for PostgreSQL-backed worker and browser acceptance
         uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020
         with:
@@ -219,6 +207,23 @@ jobs:
         run: |
           npm ci --no-audit --no-fund
           npm run build
+
+      - name: Prepare event notification worker fixture
+        run: psql "$MIGRATOR_URL" -X -v ON_ERROR_STOP=1 -f tests/database/event_notification_worker_fixture.sql
+
+      - name: Encrypt synthetic contact values before immutable campaign recipient snapshots
+        env:
+          EVENTOR_CONTACT_ENCRYPTION_KEY: ${{ env.EVENTOR_CONTACT_ENCRYPTION_KEY }}
+        run: node apps/api/scripts/prepare-notification-worker-fixture.mjs
+
+      - name: Verify tenant-safe notification campaign preparation as worker
+        run: psql "$WORKER_URL" -X -v ON_ERROR_STOP=1 -f tests/database/event_notification_worker_smoke.sql
+
+      - name: Verify prepared notification snapshot as forced-RLS owner
+        run: psql "$MIGRATOR_URL" -X -v ON_ERROR_STOP=1 -c "SET ROLE eventor_owner" -f tests/database/event_notification_worker_result_smoke.sql
+
+      - name: Verify organizer notification campaign review and confirmation as runtime
+        run: psql "$RUNTIME_URL" -X -v ON_ERROR_STOP=1 -f tests/database/event_notification_campaign_confirmation_smoke.sql
 
       - name: Generate valid encrypted SMTP credentials for the immutable CI fixture
         env:
