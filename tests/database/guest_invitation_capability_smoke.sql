@@ -387,4 +387,24 @@ BEGIN
 END;
 $guest_invitation_review_guards$;
 
+
+DO $guest_capability_participation_eligibility$
+DECLARE
+  v_resolver text;
+  v_history text;
+BEGIN
+  SELECT pg_get_functiondef('eogp.resolve_guest_invitation(text)'::regprocedure)
+    INTO v_resolver;
+  SELECT pg_get_functiondef('eogp.get_guest_invitation_rsvp_history(text)'::regprocedure)
+    INTO v_history;
+
+  IF strpos(v_resolver, 'JOIN eogp.event_participations participation') = 0
+     OR strpos(v_resolver, 'participation.status = ''eligible''') = 0
+     OR strpos(v_history, 'JOIN eogp.event_participations participation') = 0
+     OR strpos(v_history, 'participation.status = ''eligible''') = 0 THEN
+    RAISE EXCEPTION 'guest invitation resolution and RSVP history must reject ineligible participants';
+  END IF;
+END;
+$guest_capability_participation_eligibility$;
+
 ROLLBACK;
