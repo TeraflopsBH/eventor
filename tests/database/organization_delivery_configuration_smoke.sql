@@ -86,7 +86,7 @@ BEGIN
       'replyTo','',
       'connectionTimeoutMs',15000
     ),
-    decode('45444331' || repeat('00',29),'hex'),
+    decode('45444331' || repeat('01',29),'hex'),
     true,
     false
   );
@@ -94,6 +94,31 @@ BEGIN
   IF (v_third ->> 'revision')::integer <> 3
      OR (v_third ->> 'credentialsConfigured')::boolean IS DISTINCT FROM true THEN
     RAISE EXCEPTION 'SMTP credential clearing failed: %', v_third;
+  END IF;
+
+  -- A credential replacement must be scoped to the owning organization; an
+  -- otherwise active membership from another tenant cannot replace its secret.
+  v_invalid_rejected := false;
+  BEGIN
+    PERFORM eogp.set_organization_email_delivery_config(
+      '22222222-2222-4222-8222-222222222222',
+      'aaaaaaaa-1111-4111-8111-aaaaaaaaaaaa',
+      jsonb_build_object(
+        'host','smtp.example.test',
+        'port',587,
+        'transportSecurity','starttls',
+        'authMode','password',
+        'senderEmail','events@example.test'
+      ),
+      decode('45444331' || repeat('02',29),'hex'),
+      true,
+      false
+    );
+  EXCEPTION WHEN SQLSTATE '42501' THEN
+    v_invalid_rejected := true;
+  END;
+  IF NOT v_invalid_rejected THEN
+    RAISE EXCEPTION 'cross-organization credential replacement was not rejected';
   END IF;
 
   BEGIN
@@ -146,7 +171,7 @@ BEGIN
      OR v_test ->> 'status' <> 'pending'
      OR v_test ->> 'credentialsCiphertextBase64' IS NULL
      OR decode(v_test ->> 'credentialsCiphertextBase64','base64')
-          IS DISTINCT FROM decode('45444331' || repeat('00',29),'hex') THEN
+          IS DISTINCT FROM decode('45444331' || repeat('01',29),'hex') THEN
     RAISE EXCEPTION 'SMTP test request did not return only the expected encrypted credential envelope: %',v_test;
   END IF;
 
