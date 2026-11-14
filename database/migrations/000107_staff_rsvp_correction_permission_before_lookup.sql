@@ -117,6 +117,26 @@ BEGIN
      AND participation.status='eligible'
    FOR UPDATE;
   IF NOT FOUND THEN
+    -- A caller with rsvp.record but without the conditional late-response
+    -- permission must not distinguish a late eligible participation (which
+    -- fails later with 42501) from an unknown participation (404).
+    PERFORM 1
+      FROM eogp.user_role_grants user_grant
+      JOIN eogp.role_permissions role_permission
+        ON role_permission.organization_id=user_grant.organization_id
+       AND role_permission.role_id=user_grant.role_id
+     WHERE user_grant.organization_id=p_organization_id
+       AND user_grant.membership_id=p_actor_membership_id
+       AND user_grant.revoked_at IS NULL
+       AND (user_grant.expires_at IS NULL OR user_grant.expires_at>v_now)
+       AND role_permission.permission_code='rsvp.override_deadline'
+       AND (user_grant.scope_kind='organization'
+         OR (user_grant.scope_kind='event' AND user_grant.scope_event_id=p_event_id))
+     FOR SHARE OF user_grant, role_permission;
+    IF NOT FOUND THEN
+      RAISE EXCEPTION 'rsvp.override_deadline permission is required after the RSVP deadline'
+        USING ERRCODE='42501';
+    END IF;
     RAISE EXCEPTION 'eligible event participation not found' USING ERRCODE='P0002';
   END IF;
 
