@@ -16,6 +16,7 @@ trap 'rm -rf "$pre_dir" "$post_dir"' EXIT
 cp "$ROOT_DIR"/database/migrations/[0-9][0-9][0-9][0-9][0-9][0-9]_*.sql "$pre_dir/"
 rm "$pre_dir/000074_booking_offer_email_worker_fixes.sql"
 rm "$pre_dir/000075_guest_invitation_runtime.sql"
+rm "$pre_dir/000076_guest_invitation_issuance_delivery.sql"
 
 echo "=== Apply schema through 000073 ==="
 DATABASE_URL="$MIGRATOR_URL" MIGRATIONS_DIR="$pre_dir" \
