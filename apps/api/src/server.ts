@@ -2055,7 +2055,8 @@ export function buildApi(dependencies: ApiDependencies): FastifyInstance {
           await client.query<ResultRow>(
             "SELECT eogp.get_booking_draft($1::uuid,$2::uuid,$3::uuid) AS result",
             [principal.organizationId, request.params.draftId, principal.membershipId],
-          );,
+          );
+        },
       );
     },
   );
