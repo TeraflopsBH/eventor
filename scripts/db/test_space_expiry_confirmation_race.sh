@@ -21,6 +21,13 @@ sleep 3.2
 psql "$WORKER_URL" -X -v ON_ERROR_STOP=1 -qAt >"$tmp/worker.log" 2>&1 <<SQL &
 BEGIN;
 SELECT set_config('app.organization_id','$org',true);
+DO \$worker\$
+BEGIN
+  IF session_user <> 'eventor_worker' THEN
+    RAISE EXCEPTION 'expiry command must use the eventor_worker login, got %',session_user;
+  END IF;
+END;
+\$worker\$;
 SELECT 'WORKER_EXPIRED_COUNT=' || eogp.expire_space_holds('$org');
 \! touch "$tmp/worker-ready"
 SELECT pg_sleep(2);
