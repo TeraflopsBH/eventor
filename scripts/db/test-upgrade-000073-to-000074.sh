@@ -45,6 +45,7 @@ rm "$pre_dir/000101_guest_invitation_projection_authorization_lock.sql"
 rm "$pre_dir/000102_guest_invitation_event_projection_authorization_lock.sql"
 rm "$pre_dir/000103_guest_invitation_delivery_history_authorization_lock.sql"
 rm "$pre_dir/000104_guest_invitation_idempotent_replay_authorization_lock.sql"
+rm "$pre_dir/000105_guest_invitation_delivery_history_non_enumeration.sql"
 
 echo "=== Apply schema through 000073 ==="
 DATABASE_URL="$MIGRATOR_URL" MIGRATIONS_DIR="$pre_dir" \
