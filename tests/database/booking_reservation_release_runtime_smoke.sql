@@ -8,7 +8,7 @@ BEGIN
      OR strpos(v_definition,'FOR SHARE OF user_grant, role_permission')=0
      OR strpos(v_definition,'role_permission.permission_code = ''booking.cancellation.execute''')=0
      OR strpos(v_definition,'role_permission.permission_code = ''booking.cancellation.execute''')>strpos(v_definition,'FROM eogp.booking_records')
-     OR strpos(v_definition,'FOR UPDATE')>strpos(v_definition,'FROM eogp.booking_records') THEN
+     OR strpos(v_definition,'FOR UPDATE')<strpos(v_definition,'FROM eogp.booking_records') THEN
     RAISE EXCEPTION 'booking reservation release must authorize before booking lookup/lock';
   END IF;
 END;
