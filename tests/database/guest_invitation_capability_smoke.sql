@@ -520,7 +520,10 @@ BEGIN
   IF strpos(v_definition, 'role_permission.permission_code=''rsvp.record''') = 0
      OR strpos(v_definition, 'FOR SHARE OF user_grant, role_permission') = 0
      OR strpos(v_definition, 'role_permission.permission_code=''rsvp.record''')
-          > strpos(v_definition, 'FROM eogp.event_participations participation') THEN
+          > strpos(v_definition, 'FROM eogp.event_participations participation')
+     OR strpos(v_definition, 'role_permission.permission_code=''rsvp.override_deadline''') = 0
+     OR strpos(v_definition, 'role_permission.permission_code=''rsvp.override_deadline''')
+          > strpos(v_definition, 'eligible event participation not found') THEN
     RAISE EXCEPTION 'staff RSVP must lock rsvp.record authorization before looking up participation state';
   END IF;
 END;
