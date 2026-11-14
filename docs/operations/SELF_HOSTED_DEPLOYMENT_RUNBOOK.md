@@ -102,7 +102,7 @@ Generate six independent cryptographically random 32-byte keys and base64-encode
 
 Set `EVENTOR_ALLOWED_ORIGINS` to the exact HTTPS staff-web origin(s), not a wildcard. Configure API and worker database URLs with certificate and hostname verification. Use separate OS service accounts with only the filesystem and network permissions each process needs. Run the API and worker as separate supervised services; do not run either as root or with migration/owner credentials.
 
-The repository does not yet ship validated systemd unit files or a tested reverse-proxy configuration. Create and review those for the target distribution before deployment; verify service restart policy, environment-file permissions, working directory, executable path, log handling, shutdown timeout and least-privilege filesystem access.
+The repository now includes example systemd units and installation guidance in `deploy/systemd/`. They are templates, not target-host-validated service definitions: confirm the Node executable path, service accounts, release symlink, environment-file permissions, sandbox compatibility, restart policy and graceful-shutdown timeout on the selected distribution. A tested reverse-proxy configuration is still not included; configure and review that separately before deployment.
 
 ## 5. First-start verification
 
