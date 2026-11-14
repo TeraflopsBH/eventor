@@ -362,7 +362,7 @@ test("staff RSVP recording encrypts restricted notes and submits actor-bound evi
   ]);
   const encryptedNote = call.values[9] as Buffer;
   assert.ok(Buffer.isBuffer(encryptedNote));
-  assert.equal(encryptedNote.subarray(0, 3).toString("ascii"), "EV1");
+  assert.equal(encryptedNote.subarray(0, 4).toString("ascii"), "ECP1");
   assert.equal(encryptedNote.toString("utf8").includes("Guest confirmed"), false);
 });
 
