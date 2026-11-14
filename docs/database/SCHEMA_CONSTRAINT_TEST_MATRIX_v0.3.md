@@ -113,7 +113,7 @@ This matrix tracks executable PostgreSQL integration coverage and remaining gaps
 - [x] Runtime role lacks UPDATE/DELETE privileges on append-only history tables.
 - [x] Table triggers also reject UPDATE/DELETE when executed by the table owner.
 - [x] Booking draft revisions reject UPDATE/DELETE.
-- [ ] Invitation revisions reject UPDATE/DELETE in a dedicated regression test.
+- [x] Invitation revisions reject UPDATE/DELETE under owner-level access; `event_cancellation_postponement_smoke.sql` uses a fixture revision and requires SQLSTATE 55000 for both operations.
 - [x] Issued offer terms reject mutation; only one terminal offer decision transition is permitted.
 - [x] Booking-event link grant provenance is written to audit history and substantive link fields cannot be rewritten.
 - [x] Booking-event link and venue snapshot share lifecycle transitions are one-way and auditable.
