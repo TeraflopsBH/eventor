@@ -461,9 +461,9 @@ BEGIN
     'eogp.issue_guest_invitation(uuid,uuid,uuid,uuid,uuid,uuid,uuid,text,bytea,text,bytea,timestamptz,text)'::regprocedure
   ) INTO v_definition;
   IF strpos(v_definition, 'FOR SHARE OF user_grant,role_permission') = 0
-     OR strpos(v_definition, 'pg_advisory_xact_lock') = 0
-     OR strpos(v_definition, 'idempotency_key_sha256=p_idempotency_key_sha256') = 0 THEN
-    RAISE EXCEPTION 'guest invitation issuance must serialize permission revocation before returning idempotency replays';
+     OR strpos(v_definition, 'pg_advisory_xact_lock') <= strpos(v_definition, 'FOR SHARE OF user_grant,role_permission')
+     OR strpos(v_definition, 'idempotency_key_sha256=p_idempotency_key_sha256') <= strpos(v_definition, 'pg_advisory_xact_lock') THEN
+    RAISE EXCEPTION 'guest invitation issuance must lock authorization before idempotency replay lookup';
   END IF;
 END;
 $guest_invitation_issue_authorization_lock$;
