@@ -165,3 +165,7 @@ The following are external or unimplemented gates, not claims that this reposito
 - A documented security/incident response process.
 
 Until these are evidenced, classify the deployment as **pre-production**.
+
+## 9. External acceptance evidence
+
+Use `docs/operations/EXTERNAL_ACCEPTANCE_EVIDENCE.md` as the dated evidence record for browser-driven business workflow acceptance, Resend/SMTP sandbox acceptance, prior-schema migration upgrade rehearsal, backup/restore/PITR drills and target-host/network acceptance. Assign an accountable owner and exact candidate SHA to each activity. Mark activities deferred until the required isolated environment, credentials, representative data or approved operational targets exist; do not convert missing evidence into a pass. Production remains blocked until the required evidence and approvals are complete.
