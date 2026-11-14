@@ -463,7 +463,7 @@ BEGIN
   v_replay := strpos(v_definition,'IF FOUND THEN');
   IF v_replay=0
      OR strpos(substring(v_definition FROM v_replay),'v_existing.event_id IS DISTINCT FROM p_event_id')=0
-     OR strpos(substring(v_definition FROM v_replay),'existing_invitation.participation_id=p_participation_id')=0
+     OR strpos(substring(v_definition FROM v_replay),'v_existing.invitation_id IS DISTINCT FROM p_invitation_id')=0
      OR strpos(substring(v_definition FROM v_replay),'v_existing.invitation_id IS DISTINCT FROM p_invitation_id')=0 THEN
     RAISE EXCEPTION 'invitation idempotency replay must remain bound to its event, participation and explicit invitation';
   END IF;
