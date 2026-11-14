@@ -50,6 +50,7 @@ rm "$pre_dir/000106_staff_rsvp_permission_before_participation_lookup.sql"
 rm "$pre_dir/000107_staff_rsvp_correction_permission_before_lookup.sql"
 rm "$pre_dir/000108_delegated_task_authorization_before_lookup.sql"
 rm "$pre_dir/000109_booking_reservation_authorization_before_lookup.sql"
+rm "$pre_dir/000110_booking_reservation_release_authorization_before_lookup.sql"
 
 echo "=== Apply schema through 000073 ==="
 DATABASE_URL="$MIGRATOR_URL" MIGRATIONS_DIR="$pre_dir" \
