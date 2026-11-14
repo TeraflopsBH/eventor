@@ -19,6 +19,28 @@ VALUES (
 )
 ON CONFLICT DO NOTHING;
 
+-- A second event with an event-scoped invitation manager exercises the
+-- cross-event idempotency replay boundary.
+INSERT INTO eogp.events
+  (id,organization_id,event_code,title,status,current_revision,created_by_membership_id)
+VALUES (
+ '94000000-0000-4000-8000-000000000002',
+ '22222222-2222-4222-8222-222222222222',
+ 'CI-INVITATION-IDEMPOTENCY-OTHER',
+ 'Invitation idempotency boundary event',
+ 'scheduled',1,'bbbbbbbb-2222-4222-8222-bbbbbbbbbbbb'
+);
+INSERT INTO eogp.user_role_grants (
+ id,organization_id,membership_id,role_id,scope_kind,scope_event_id,granted_by_membership_id
+) VALUES (
+ '93900000-0000-4000-8000-000000000005',
+ '22222222-2222-4222-8222-222222222222',
+ 'bbbbbbbb-2222-4222-8222-bbbbbbbbbbbb',
+ '93900000-0000-4000-8000-000000000001',
+ 'event','94000000-0000-4000-8000-000000000002',
+ 'bbbbbbbb-2222-4222-8222-bbbbbbbbbbbb'
+);
+
 INSERT INTO eogp.rsvp_policies(id,organization_id,event_id,code,name)
 VALUES (
  '96300000-0000-4000-8000-000000000001',
