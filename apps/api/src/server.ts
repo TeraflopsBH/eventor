@@ -1413,6 +1413,77 @@ export function buildApi(dependencies: ApiDependencies): FastifyInstance {
     }
   };
 
+  const authorizeBookingCommercialReplay = async (
+    client: PoolClient,
+    principal: StaffPrincipal,
+    permissionCode: "booking.approve" | "booking.manage" | "booking.confirm",
+  ): Promise<void> => {
+    const membership = await client.query(
+      "SELECT 1 FROM eogp.organization_memberships WHERE organization_id=$1 AND id=$2 AND status='active' FOR SHARE",
+      [principal.organizationId, principal.membershipId],
+    );
+    if (membership.rows.length === 0) {
+      throw new ApiError(403, "FORBIDDEN", "The staff membership is no longer active.");
+    }
+    const permission = await client.query(
+      `SELECT 1
+         FROM eogp.user_role_grants user_grant
+         JOIN eogp.role_permissions role_permission
+           ON role_permission.organization_id=user_grant.organization_id
+          AND role_permission.role_id=user_grant.role_id
+        WHERE user_grant.organization_id=$1
+          AND user_grant.membership_id=$2
+          AND user_grant.scope_kind='organization'
+          AND user_grant.revoked_at IS NULL
+          AND (user_grant.expires_at IS NULL OR user_grant.expires_at>clock_timestamp())
+          AND role_permission.permission_code=$3
+        FOR SHARE OF user_grant, role_permission`,
+      [principal.organizationId, principal.membershipId, permissionCode],
+    );
+    if (permission.rows.length === 0) {
+      throw new ApiError(403, "FORBIDDEN", "The required booking permission is no longer granted.");
+    }
+  };
+
+  const authorizeNotificationCampaignSendReplay = async (
+    client: PoolClient,
+    principal: StaffPrincipal,
+    campaignId: string,
+  ): Promise<void> => {
+    const campaign = await client.query<{ event_id: string }>(
+      "SELECT event_id FROM eogp.event_notification_campaigns WHERE organization_id=$1 AND id=$2",
+      [principal.organizationId, campaignId],
+    );
+    const eventId = campaign.rows[0]?.event_id;
+    if (!eventId) throw new ApiError(404, "NOT_FOUND", "The notification campaign was not found.");
+    const membership = await client.query(
+      "SELECT 1 FROM eogp.organization_memberships WHERE organization_id=$1 AND id=$2 AND status='active' FOR SHARE",
+      [principal.organizationId, principal.membershipId],
+    );
+    if (membership.rows.length === 0) {
+      throw new ApiError(403, "FORBIDDEN", "The staff membership is no longer active.");
+    }
+    const permission = await client.query(
+      `SELECT 1
+         FROM eogp.user_role_grants user_grant
+         JOIN eogp.role_permissions role_permission
+           ON role_permission.organization_id=user_grant.organization_id
+          AND role_permission.role_id=user_grant.role_id
+        WHERE user_grant.organization_id=$1
+          AND user_grant.membership_id=$2
+          AND user_grant.revoked_at IS NULL
+          AND (user_grant.expires_at IS NULL OR user_grant.expires_at>clock_timestamp())
+          AND role_permission.permission_code='event.notifications.send'
+          AND (user_grant.scope_kind='organization'
+               OR (user_grant.scope_kind='event' AND user_grant.scope_event_id=$3))
+        FOR SHARE OF user_grant, role_permission`,
+      [principal.organizationId, principal.membershipId, eventId],
+    );
+    if (permission.rows.length === 0) {
+      throw new ApiError(403, "FORBIDDEN", "The event notification send permission is no longer granted.");
+    }
+  };
+
   const withCommand = async (
     request: FastifyRequest,
     reply: FastifyReply,
@@ -2769,6 +2840,9 @@ export function buildApi(dependencies: ApiDependencies): FastifyInstance {
           );
           return result.rows[0]?.result as Record<string, unknown>;
         },
+        async (client) => {
+          await authorizeBookingCommercialReplay(client, principal, "booking.approve");
+        },
       );
     },
   );
@@ -3900,6 +3974,8 @@ export function buildApi(dependencies: ApiDependencies): FastifyInstance {
             [principal.organizationId, request.params.campaignId, principal.membershipId],
           );
           return result.rows[0]?.result as Record<string, unknown>;
+        }, async (client) => {
+          await authorizeNotificationCampaignSendReplay(client, principal, request.params.campaignId);
         });
     },
   );
@@ -4146,6 +4222,8 @@ export function buildApi(dependencies: ApiDependencies): FastifyInstance {
             [principal.organizationId, request.params.campaignId, principal.membershipId],
           );
           return result.rows[0]?.result as Record<string, unknown>;
+        }, async (client) => {
+          await authorizeNotificationCampaignSendReplay(client, principal, request.params.campaignId);
         });
     },
   );
@@ -4168,6 +4246,8 @@ export function buildApi(dependencies: ApiDependencies): FastifyInstance {
             [principal.organizationId, request.params.campaignId, principal.membershipId],
           );
           return result.rows[0]?.result as Record<string, unknown>;
+        }, async (client) => {
+          await authorizeNotificationCampaignSendReplay(client, principal, request.params.campaignId);
         });
     },
   );
