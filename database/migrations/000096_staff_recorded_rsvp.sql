@@ -1,4 +1,8 @@
 -- Staff-recorded RSVP commands with explicit actor/permission checks and append-only corrections.
+INSERT INTO eogp.permissions (code,description,scope_kind,is_sensitive)
+VALUES ('rsvp.override_deadline','Record or correct RSVP after the published response deadline','event',true)
+ON CONFLICT (code) DO NOTHING;
+
 CREATE FUNCTION eogp.record_staff_guest_rsvp(
   p_organization_id uuid,
   p_event_id uuid,
@@ -138,7 +142,7 @@ BEGIN
        AND user_grant.membership_id=p_actor_membership_id
        AND user_grant.revoked_at IS NULL
        AND (user_grant.expires_at IS NULL OR user_grant.expires_at>v_now)
-       AND role_permission.permission_code='event.rsvp.record'
+       AND role_permission.permission_code='rsvp.record'
        AND (user_grant.scope_kind='organization'
          OR (user_grant.scope_kind='event' AND user_grant.scope_event_id=p_event_id))
   ) INTO v_has_record_permission;
@@ -156,6 +160,22 @@ BEGIN
    LIMIT 1;
 
   IF p_correction_of_response_id IS NOT NULL THEN
+    IF NOT EXISTS (
+      SELECT 1
+        FROM eogp.user_role_grants user_grant
+        JOIN eogp.role_permissions role_permission
+          ON role_permission.organization_id=user_grant.organization_id
+         AND role_permission.role_id=user_grant.role_id
+       WHERE user_grant.organization_id=p_organization_id
+         AND user_grant.membership_id=p_actor_membership_id
+         AND user_grant.revoked_at IS NULL
+         AND (user_grant.expires_at IS NULL OR user_grant.expires_at>v_now)
+         AND role_permission.permission_code='rsvp.correct'
+         AND (user_grant.scope_kind='organization'
+           OR (user_grant.scope_kind='event' AND user_grant.scope_event_id=p_event_id))
+    ) THEN
+      RAISE EXCEPTION 'rsvp.correct permission is required to correct RSVP history' USING ERRCODE='42501';
+    END IF;
     IF v_latest_response_id IS DISTINCT FROM p_correction_of_response_id THEN
       RAISE EXCEPTION 'only the current RSVP response can be corrected' USING ERRCODE='55000';
     END IF;
@@ -174,7 +194,7 @@ BEGIN
          AND user_grant.membership_id=p_actor_membership_id
          AND user_grant.revoked_at IS NULL
          AND (user_grant.expires_at IS NULL OR user_grant.expires_at>v_now)
-         AND role_permission.permission_code='event.rsvp.override_deadline'
+         AND role_permission.permission_code='rsvp.override_deadline'
          AND (user_grant.scope_kind='organization'
            OR (user_grant.scope_kind='event' AND user_grant.scope_event_id=p_event_id))
     ) INTO v_has_override_permission;
