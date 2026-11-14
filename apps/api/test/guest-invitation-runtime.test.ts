@@ -152,7 +152,7 @@ test("guest invitation routes reject malformed bearer tokens before database acc
   const response = await mock.app.inject({
     method: "GET",
     url: "/guest/invitation/me",
-    headers: { "x-guest-invitation-token": "not-a-token" },
+    headers: { "x-guest-invitation-token": "A".repeat(42) + "B" },
   });
   assert.equal(response.statusCode, 401);
   assert.equal(mock.calls.length, 0);
