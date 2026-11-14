@@ -2897,6 +2897,36 @@ export function buildApi(dependencies: ApiDependencies): FastifyInstance {
     },
   );
 
+  server.get<{ Params: { invitationId: string } }>(
+    "/invitations/:invitationId/delivery-attempts",
+    {
+      schema: {
+        params: {
+          type: "object", required: ["invitationId"],
+          properties: { invitationId: { type: "string", pattern: uuidPattern } },
+        },
+      },
+    },
+    async (request, reply) => {
+      const principal = request.staffPrincipal!;
+      const client = await dependencies.pool.connect();
+      try {
+        await client.query("BEGIN");
+        await client.query("SELECT set_config('app.organization_id',$1,true)", [principal.organizationId]);
+        await client.query("SELECT set_config('app.actor_membership_id',$1,true)", [principal.membershipId]);
+        const result = await client.query<ResultRow>(
+          "SELECT eogp.list_guest_invitation_delivery_attempts($1::uuid,$2::uuid,$3::uuid) AS result",
+          [principal.organizationId, request.params.invitationId, principal.membershipId],
+        );
+        await client.query("COMMIT");
+        return reply.code(200).send({ data: result.rows[0]?.result ?? [] });
+      } catch (error) {
+        try { await client.query("ROLLBACK"); } catch { /* preserve the read error */ }
+        throw databaseError(error);
+      } finally { client.release(); }
+    },
+  );
+
   server.post<{
     Params: { eventId: string; participationId: string };
     Body: {
