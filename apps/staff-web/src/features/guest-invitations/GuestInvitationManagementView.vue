@@ -75,8 +75,8 @@ async function recordRsvp(person: GuestInvitationParticipation): Promise<void> {
       } : {}),
     });
     recordingParticipationId.value = null;
-    notice.value = t("guestInvitations.rsvpRecorded", { name: person.displayName });
     await loadParticipants();
+    notice.value = t("guestInvitations.rsvpRecorded", { name: person.displayName });
   } catch (cause) {
     error.value = cause instanceof Error ? cause.message : t("guestInvitations.rsvpRecordFailed");
   } finally { loading.value = false; }
