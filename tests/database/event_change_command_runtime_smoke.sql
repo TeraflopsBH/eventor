@@ -2,6 +2,7 @@
 BEGIN;
 SET LOCAL ROLE eventor_owner;
 SELECT set_config('app.organization_id','22222222-2222-4222-8222-222222222222',true);
+SELECT set_config('app.actor_membership_id','bbbbbbbb-2222-4222-8222-bbbbbbbbbbbb',true);
 
 -- This integration fixture grants the actor only the event-scoped permissions
 -- required for these three test events. Event four deliberately has no grant.
@@ -63,6 +64,21 @@ DECLARE
   v_denied boolean := false;
   v_stale boolean := false;
 BEGIN
+  -- A caller-supplied authorized membership cannot override the actor bound to this transaction.
+  PERFORM set_config('app.actor_membership_id','aaaaaaaa-1111-4111-8111-aaaaaaaaaaaa',true);
+  BEGIN
+    PERFORM eogp.submit_event_change_request(
+      '22222222-2222-4222-8222-222222222222',
+      '93000000-0000-4000-8000-000000000001',
+      'bbbbbbbb-2222-4222-8222-bbbbbbbbbbbb',
+      'cancel',1,'actor_context_mismatch',NULL,NULL,NULL
+    );
+    RAISE EXCEPTION 'event command accepted a membership different from the authenticated actor context';
+  EXCEPTION WHEN SQLSTATE '42501' THEN
+    NULL;
+  END;
+  PERFORM set_config('app.actor_membership_id','bbbbbbbb-2222-4222-8222-bbbbbbbbbbbb',true);
+
   BEGIN
     PERFORM eogp.submit_event_change_request(
       '22222222-2222-4222-8222-222222222222',
