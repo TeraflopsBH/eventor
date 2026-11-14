@@ -1,6 +1,4 @@
 -- Align guest RSVP row locks with invitation issuance/reissue to prevent lock-order deadlocks.
-BEGIN;
-
 CREATE OR REPLACE FUNCTION eogp.submit_guest_invitation_rsvp(
   p_token_sha256 text,
   p_idempotency_key_sha256 text,
@@ -222,5 +220,3 @@ REVOKE ALL ON FUNCTION eogp.submit_guest_invitation_rsvp(text, text, text, text,
   FROM PUBLIC, eventor_worker, eventor_auth;
 GRANT EXECUTE ON FUNCTION eogp.submit_guest_invitation_rsvp(text, text, text, text, bytea)
   TO eventor_runtime;
-
-COMMIT;
