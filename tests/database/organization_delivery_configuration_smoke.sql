@@ -177,7 +177,7 @@ BEGIN
      OR v_test ->> 'status' <> 'pending'
      OR v_test ->> 'credentialsCiphertextBase64' IS NULL
      OR decode(v_test ->> 'credentialsCiphertextBase64','base64')
-          IS DISTINCT FROM decode(:'ci_delivery_credentials_ciphertext_base64','base64') THEN
+          IS DISTINCT FROM decode(current_setting('eventor.ci_delivery_credentials_ciphertext_base64'),'base64') THEN
     RAISE EXCEPTION 'SMTP test request did not return only the expected encrypted credential envelope: %',v_test;
   END IF;
 
