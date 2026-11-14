@@ -3253,13 +3253,32 @@ export function buildApi(dependencies: ApiDependencies): FastifyInstance {
                 AND user_grant.membership_id=$2
                 AND user_grant.revoked_at IS NULL
                 AND (user_grant.expires_at IS NULL OR user_grant.expires_at>clock_timestamp())
-                AND role_permission.permission_code='event.rsvp.record'
+                AND role_permission.permission_code='rsvp.record'
                 AND (user_grant.scope_kind='organization'
                   OR (user_grant.scope_kind='event' AND user_grant.scope_event_id=$3))
               FOR SHARE OF user_grant, role_permission`,
             [principal.organizationId, principal.membershipId, request.params.eventId],
           );
           if (permission.rows.length === 0) throw new ApiError(403, "FORBIDDEN", "The event RSVP recording permission is no longer granted.");
+          if (body.correctionOfResponseId) {
+            const correctionPermission = await client.query(
+              `SELECT 1
+                 FROM eogp.user_role_grants user_grant
+                 JOIN eogp.role_permissions role_permission
+                   ON role_permission.organization_id=user_grant.organization_id
+                  AND role_permission.role_id=user_grant.role_id
+                WHERE user_grant.organization_id=$1
+                  AND user_grant.membership_id=$2
+                  AND user_grant.revoked_at IS NULL
+                  AND (user_grant.expires_at IS NULL OR user_grant.expires_at>clock_timestamp())
+                  AND role_permission.permission_code='rsvp.correct'
+                  AND (user_grant.scope_kind='organization'
+                    OR (user_grant.scope_kind='event' AND user_grant.scope_event_id=$3))
+                FOR SHARE OF user_grant, role_permission`,
+              [principal.organizationId, principal.membershipId, request.params.eventId],
+            );
+            if (correctionPermission.rows.length === 0) throw new ApiError(403, "FORBIDDEN", "The RSVP correction permission is no longer granted.");
+          }
         },
       );
     },
