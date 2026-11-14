@@ -471,3 +471,8 @@ Extended `tests/database/organization_delivery_configuration_smoke.sql` to repla
 Both credential replacement matrix items are now checked. The schema constraint matrix records **86 verified assertions and 19 unchecked scenarios**. No production SQL changed.
 
 Exact code/test head `11bca61a059d324faf33af3dbbd1bdfc06c34858` passed the PostgreSQL 18.6 migration/RLS/concurrency, OpenAPI, API and staff-web workflow [#43538091780](https://github.com/TeraflopsBH/eventor/actions/runs/43538091780), with full-history Gitleaks [#43538091860](https://github.com/TeraflopsBH/eventor/actions/runs/43538091860).
+## Schema-matrix evidence reconciliation: distinct resource-unit overlap — 2026-11-14
+
+Reconciled the discrete-unit capacity item against `tests/database/review_regressions.sql`. The test reserves four different individually tracked units from the same pool for the same overlapping interval, verifies all four holds remain active, and rejects a fifth unit against the booking-line quantity limit. A separate assertion in the same file rejects an overlapping reservation on the same discrete unit. This proves concurrent occupancy across distinct units, not simultaneous database transaction scheduling; the matrix wording now makes that scope explicit.
+
+The schema constraint matrix now records **87 verified assertions and 18 unchecked scenarios**. No production code changed.
