@@ -137,9 +137,53 @@ BEGIN
      AND attribute.attnum > 0
      AND NOT attribute.attisdropped
      AND attribute.attnotnull
+     -- These are deliberately global routing/queue indexes: they expose only
+     -- opaque token digests, tenant IDs, or public route identifiers. Their
+     -- direct grants are checked separately below; tenant data stays behind
+     -- tenant-scoped SECURITY DEFINER functions.
+     AND relation.relname NOT IN (
+       'booking_offer_capability_lookup',
+       'booking_offer_email_delivery_tenant_queue',
+       'booking_offer_expiry_tenant_queue',
+       'guest_invitation_capability_lookup',
+       'invitation_delivery_tenant_queue',
+       'public_organization_routes',
+       'resend_webhook_endpoint_routes'
+     )
      AND (NOT relation.relrowsecurity OR NOT relation.relforcerowsecurity);
   IF tenant_tables_without_forced_rls IS NOT NULL THEN
     RAISE EXCEPTION 'tenant-owned eogp tables lack ENABLE and FORCE ROW LEVEL SECURITY: %', tenant_tables_without_forced_rls;
+  END IF;
+
+  -- Global routing and worker-queue indexes intentionally bypass tenant RLS,
+  -- so they must remain inaccessible except for the worker's tenant-key-only
+  -- SELECT on the three queue directories.
+  IF has_table_privilege('public','eogp.booking_offer_capability_lookup','SELECT')
+     OR has_table_privilege('eventor_runtime','eogp.booking_offer_capability_lookup','SELECT')
+     OR has_table_privilege('eventor_worker','eogp.booking_offer_capability_lookup','SELECT')
+     OR has_table_privilege('eventor_auth','eogp.booking_offer_capability_lookup','SELECT')
+     OR has_table_privilege('public','eogp.guest_invitation_capability_lookup','SELECT')
+     OR has_table_privilege('eventor_runtime','eogp.guest_invitation_capability_lookup','SELECT')
+     OR has_table_privilege('eventor_worker','eogp.guest_invitation_capability_lookup','SELECT')
+     OR has_table_privilege('eventor_auth','eogp.guest_invitation_capability_lookup','SELECT')
+     OR has_table_privilege('public','eogp.public_organization_routes','SELECT')
+     OR has_table_privilege('eventor_runtime','eogp.public_organization_routes','SELECT')
+     OR has_table_privilege('eventor_worker','eogp.public_organization_routes','SELECT')
+     OR has_table_privilege('eventor_auth','eogp.public_organization_routes','SELECT')
+     OR has_table_privilege('public','eogp.resend_webhook_endpoint_routes','SELECT')
+     OR has_table_privilege('eventor_runtime','eogp.resend_webhook_endpoint_routes','SELECT')
+     OR has_table_privilege('eventor_worker','eogp.resend_webhook_endpoint_routes','SELECT')
+     OR has_table_privilege('eventor_auth','eogp.resend_webhook_endpoint_routes','SELECT')
+     OR NOT has_table_privilege('eventor_worker','eogp.booking_offer_email_delivery_tenant_queue','SELECT')
+     OR NOT has_table_privilege('eventor_worker','eogp.booking_offer_expiry_tenant_queue','SELECT')
+     OR NOT has_table_privilege('eventor_worker','eogp.invitation_delivery_tenant_queue','SELECT')
+     OR has_table_privilege('eventor_runtime','eogp.booking_offer_email_delivery_tenant_queue','SELECT')
+     OR has_table_privilege('eventor_runtime','eogp.booking_offer_expiry_tenant_queue','SELECT')
+     OR has_table_privilege('eventor_runtime','eogp.invitation_delivery_tenant_queue','SELECT')
+     OR has_table_privilege('eventor_auth','eogp.booking_offer_email_delivery_tenant_queue','SELECT')
+     OR has_table_privilege('eventor_auth','eogp.booking_offer_expiry_tenant_queue','SELECT')
+     OR has_table_privilege('eventor_auth','eogp.invitation_delivery_tenant_queue','SELECT') THEN
+    RAISE EXCEPTION 'global routing/queue index privileges exceed their explicit least-privilege contract';
   END IF;
 
   -- A SECURITY DEFINER routine without a pinned pg_catalog-first search path
