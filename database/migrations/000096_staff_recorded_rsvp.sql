@@ -47,7 +47,10 @@ BEGIN
      OR ((p_correction_of_response_id IS NULL) <> (p_correction_reason IS NULL))
      OR (p_correction_reason IS NOT NULL AND length(btrim(p_correction_reason)) < 3)
      OR (p_source_channel='representative' AND p_respondent_kind<>'representative')
-     OR (p_source_channel='staff_entry' AND p_respondent_kind<>'staff') THEN
+     OR (p_source_channel='staff_entry' AND p_respondent_kind<>'staff')
+     OR (p_notes_restricted_ciphertext IS NOT NULL
+       AND (octet_length(p_notes_restricted_ciphertext)<=32
+         OR substring(p_notes_restricted_ciphertext FROM 1 FOR 4)<>convert_to('ECP1','UTF8'))) THEN
     RAISE EXCEPTION 'invalid staff RSVP values' USING ERRCODE='22023';
   END IF;
 
