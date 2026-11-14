@@ -120,6 +120,20 @@ Before opening public traffic, verify all of the following:
 
 A passing application health check alone does not establish that email delivery, backup recovery or all business workflows are production-ready.
 
+### Guest invitation SMTP ambiguity and recovery
+
+Guest invitation email delivery is **at-most-once after an ambiguous SMTP submission**, not exactly-once. A worker records an attempt as `uncertain` when SMTP may have accepted the message but the worker cannot establish the outcome. The same conservative transition is used when a worker lease expires while the delivery is `sending`. Neither case is automatically retried. This avoids silently sending duplicate personal invitation links.
+
+For an uncertain invitation:
+
+1. Open the invitation's delivery-attempt history in the staff workspace. Record the attempt time, failure code, attempt number and any provider message reference shown there. The history is diagnostic; it does not prove inbox delivery.
+2. Have an operator with access to the configured SMTP provider's message/activity logs check the relevant submission window and recipient. Use the provider's accepted/rejected result, not merely a successful TCP connection or SMTP authentication. Do not copy recipient addresses, invitation URLs, bearer tokens or provider credentials into tickets or application logs.
+3. If the provider confirms acceptance, do not reissue just to clear the uncertain status. The current application has no provider callback/reconciliation path that can safely convert an uncertain guest-invitation attempt to delivered/sent; retain the uncertain audit record and handle guest communication through the approved support process.
+4. If the provider definitively confirms that it did not accept the message, an authorized organizer may reissue the invitation. Reissue rotates the capability and invalidates the previous link; verify the guest's contact readiness and explain that only the newest link is valid.
+5. If the provider cannot determine the outcome, leave the delivery uncertain. Do not manually change its status, reset its attempt count, delete attempt history, or requeue it. Reissuing in this situation can produce duplicate emails and invalidate a link that may already have reached the guest.
+
+**Current limitation:** guest-invitation delivery does not yet have a provider webhook or operator reconciliation command. The attempt history retains a provider reference for confirmed SMTP success, but an ambiguous submission/expired lease may have no usable provider reference. Provider-side investigation may therefore require a tightly controlled search by recipient and approximate submission time. This limitation must be resolved before claiming automated recovery or exactly-once delivery. CI uses fake SMTP and does not validate provider-side lookup behavior.
+
 ## 6. Backup, restore and recovery requirements
 
 A production operator must select and document a PostgreSQL backup method before accepting real data. The repository does not prescribe a tested backup implementation yet.
