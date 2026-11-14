@@ -17,6 +17,7 @@ cp "$ROOT_DIR"/database/migrations/[0-9][0-9][0-9][0-9][0-9][0-9]_*.sql "$pre_di
 rm "$pre_dir/000074_booking_offer_email_worker_fixes.sql"
 rm "$pre_dir/000075_guest_invitation_runtime.sql"
 rm "$pre_dir/000076_guest_invitation_issuance_delivery.sql"
+rm "$pre_dir/000077_guest_invitation_staff_projections.sql"
 
 echo "=== Apply schema through 000073 ==="
 DATABASE_URL="$MIGRATOR_URL" MIGRATIONS_DIR="$pre_dir" \
