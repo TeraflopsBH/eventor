@@ -209,9 +209,6 @@ jobs:
       - name: Verify organizer notification campaign review and confirmation as runtime
         run: psql "$RUNTIME_URL" -X -v ON_ERROR_STOP=1 -f tests/database/event_notification_campaign_confirmation_smoke.sql
 
-      - name: Verify tenant-scoped SMTP configuration versioning and secret boundaries
-        run: psql "$RUNTIME_URL" -X -v ON_ERROR_STOP=1 -f tests/database/organization_delivery_configuration_smoke.sql
-
       - name: Set up Node.js for PostgreSQL-backed worker and browser acceptance
         uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020
         with:
@@ -222,6 +219,19 @@ jobs:
         run: |
           npm ci --no-audit --no-fund
           npm run build
+
+      - name: Generate valid encrypted SMTP credentials for the immutable CI fixture
+        env:
+          EVENTOR_DELIVERY_CREDENTIALS_KEY: ${{ env.EVENTOR_DELIVERY_CREDENTIALS_KEY }}
+        run: |
+          credentials_base64="$(node apps/api/scripts/generate-ci-delivery-credentials.mjs)"
+          echo "CI_DELIVERY_CREDENTIALS_CIPHERTEXT_BASE64=$credentials_base64" >> "$GITHUB_ENV"
+
+      - name: Verify tenant-scoped SMTP configuration versioning and secret boundaries
+        run: |
+          psql "$RUNTIME_URL" -X -v ON_ERROR_STOP=1 \
+            -v ci_delivery_credentials_ciphertext_base64="$CI_DELIVERY_CREDENTIALS_CIPHERTEXT_BASE64" \
+            -f tests/database/organization_delivery_configuration_smoke.sql
 
       - name: Install pinned Playwright and browser engines
         working-directory: apps/api
