@@ -2863,7 +2863,7 @@ export function buildApi(dependencies: ApiDependencies): FastifyInstance {
               request.body.scheduleRevisionId, request.body.rsvpPolicyRevisionId,
               request.body.locale ?? "bs-BA", snapshotCiphertext, capability.tokenSha256,
               capabilityCiphertext, expiresAt,
-              createHash("sha256").update(idempotencyKey, "utf8").digest("hex"),
+              createHash("sha256").update(`eventor:guest-invitation:${request.body.invitationId ? "reissue" : "issue"}:${idempotencyKey}`, "utf8").digest("hex"),
             ],
           );
           return result.rows[0]?.result as Record<string, unknown>;
