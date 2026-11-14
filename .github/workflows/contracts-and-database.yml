@@ -126,6 +126,7 @@ jobs:
           bash -n scripts/db/test_resource_concurrency.sh
           bash -n scripts/db/test_space_expiry_confirmation_race.sh
           bash -n scripts/db/test_space_overlap_concurrency.sh
+          bash -n scripts/db/test_guest_invitation_authorization_revocation_race.sh
           bash -n scripts/db/test-concurrency.sh
           bash -n scripts/db/test-migrations.sh
 
@@ -211,6 +212,12 @@ jobs:
 
       - name: Verify worker lease recovery and attempt history
         run: psql "$MIGRATOR_URL" -X -v ON_ERROR_STOP=1 -f tests/database/guest_invitation_expired_lease_claim_assert.sql
+
+      - name: Prepare guest invitation SMTP authorization race fixture
+        run: psql "$MIGRATOR_URL" -X -v ON_ERROR_STOP=1 -f tests/database/guest_invitation_authorization_race_fixture.sql
+
+      - name: Verify independent worker/runtime SMTP authorization and revocation races
+        run: bash scripts/db/test_guest_invitation_authorization_revocation_race.sh
 
       - name: Verify tenant-safe notification campaign preparation as worker
         run: psql "$WORKER_URL" -X -v ON_ERROR_STOP=1 -f tests/database/event_notification_worker_smoke.sql
