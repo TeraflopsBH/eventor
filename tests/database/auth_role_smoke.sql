@@ -8,6 +8,7 @@ DECLARE
   user_count integer;
   can_bypass boolean;
   public_definer_functions text;
+  tenant_tables_without_forced_rls text;
 BEGIN
   SELECT count(id) INTO organization_count FROM eogp.organizations;
   SELECT count(id) INTO membership_count FROM eogp.organization_memberships;
@@ -125,20 +126,20 @@ BEGIN
   -- Every tenant-owned table with a mandatory organization_id must
   -- enforce RLS even when accessed by its owner or a SECURITY DEFINER routine.
   -- A missing policy fails closed; missing FORCE RLS does not.
-  IF EXISTS (
-    SELECT 1
-      FROM pg_class relation
-      JOIN pg_namespace namespace ON namespace.oid = relation.relnamespace
-      JOIN pg_attribute attribute ON attribute.attrelid = relation.oid
-     WHERE namespace.nspname = 'eogp'
-       AND relation.relkind = 'r'
-       AND attribute.attname = 'organization_id'
-       AND attribute.attnum > 0
-       AND NOT attribute.attisdropped
-       AND attribute.attnotnull
-       AND (NOT relation.relrowsecurity OR NOT relation.relforcerowsecurity)
-  ) THEN
-    RAISE EXCEPTION 'a tenant-owned eogp table lacks ENABLE and FORCE ROW LEVEL SECURITY';
+  SELECT string_agg(format('%I.%I', namespace.nspname, relation.relname), ', ' ORDER BY relation.relname)
+    INTO tenant_tables_without_forced_rls
+    FROM pg_class relation
+    JOIN pg_namespace namespace ON namespace.oid = relation.relnamespace
+    JOIN pg_attribute attribute ON attribute.attrelid = relation.oid
+   WHERE namespace.nspname = 'eogp'
+     AND relation.relkind = 'r'
+     AND attribute.attname = 'organization_id'
+     AND attribute.attnum > 0
+     AND NOT attribute.attisdropped
+     AND attribute.attnotnull
+     AND (NOT relation.relrowsecurity OR NOT relation.relforcerowsecurity);
+  IF tenant_tables_without_forced_rls IS NOT NULL THEN
+    RAISE EXCEPTION 'tenant-owned eogp tables lack ENABLE and FORCE ROW LEVEL SECURITY: %', tenant_tables_without_forced_rls;
   END IF;
 
   -- A SECURITY DEFINER routine without a pinned pg_catalog-first search path
