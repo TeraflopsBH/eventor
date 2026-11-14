@@ -2955,13 +2955,18 @@ export function buildApi(dependencies: ApiDependencies): FastifyInstance {
         presentationSnapshotCiphertext,
         ...safeData
       } = data;
-      if (!Buffer.isBuffer(presentationSnapshotCiphertext)) {
+      if (typeof presentationSnapshotCiphertext !== "string"
+          || !/^(?:[A-Za-z0-9+/]{4})*(?:[A-Za-z0-9+/]{2}==|[A-Za-z0-9+/]{3}=)?$/.test(presentationSnapshotCiphertext)) {
         throw new ApiError(500, "INVITATION_PRESENTATION_MISSING", "The invitation presentation snapshot is unavailable.");
+      }
+      const snapshotEnvelope = Buffer.from(presentationSnapshotCiphertext, "base64");
+      if (snapshotEnvelope.toString("base64") !== presentationSnapshotCiphertext) {
+        throw new ApiError(500, "INVITATION_PRESENTATION_INVALID", "The encrypted invitation presentation is invalid.");
       }
       let presentationSnapshot: unknown;
       try {
         presentationSnapshot = JSON.parse(
-          decryptPrivateText(presentationSnapshotCiphertext, dependencies.privateFieldEncryptionKey),
+          decryptPrivateText(snapshotEnvelope, dependencies.privateFieldEncryptionKey),
         ) as unknown;
       } catch (error) {
         if (error instanceof ApiError) throw error;
