@@ -351,4 +351,38 @@ BEGIN
 END;
 $guest_invitation_staff_schedule_projection$;
 
+
+DO $guest_invitation_review_guards$
+DECLARE
+  v_auth text;
+  v_limit text;
+  v_trigger_count integer;
+BEGIN
+  SELECT pg_get_functiondef('eogp.guard_guest_invitation_manage_permission()'::regprocedure)
+    INTO v_auth;
+  IF strpos(v_auth,'FOR SHARE OF user_grant, role_permission')=0
+     OR strpos(v_auth,'invitation.manage')=0
+     OR NOT EXISTS (
+       SELECT 1 FROM pg_trigger trigger_row
+        WHERE trigger_row.tgrelid='eogp.invitations'::regclass
+          AND trigger_row.tgname='invitations_manage_permission_guard'
+          AND NOT trigger_row.tgisinternal AND trigger_row.tgenabled<>'D'
+     ) THEN
+    RAISE EXCEPTION 'invitation mutation authorization is not serialized against grant revocation';
+  END IF;
+
+  SELECT pg_get_functiondef('eogp.enforce_guest_invitation_rsvp_write_limit()'::regprocedure)
+    INTO v_limit;
+  IF strpos(v_limit,'v_max_guest_responses constant integer := 20')=0
+     OR NOT EXISTS (
+       SELECT 1 FROM pg_trigger trigger_row
+        WHERE trigger_row.tgrelid='eogp.rsvp_responses'::regclass
+          AND trigger_row.tgname='guest_invitation_rsvp_write_limit'
+          AND NOT trigger_row.tgisinternal AND trigger_row.tgenabled<>'D'
+     ) THEN
+    RAISE EXCEPTION 'guest capability RSVP write limit is missing or disabled';
+  END IF;
+END;
+$guest_invitation_review_guards$;
+
 ROLLBACK;
