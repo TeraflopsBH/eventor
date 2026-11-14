@@ -1,5 +1,5 @@
 import Fastify, { type FastifyInstance, type FastifyReply, type FastifyRequest } from "fastify";
-import { createCipheriv, createHash, createHmac, randomBytes, randomUUID } from "node:crypto";
+import { createCipheriv, createDecipheriv, createHash, createHmac, randomBytes, randomUUID } from "node:crypto";
 import type { Pool, PoolClient, QueryResultRow } from "pg";
 import { decryptDeliveryCredentialBundle, decryptDeliveryCredentials, encryptDeliveryCredentialBundle, encryptDeliveryCredentials } from "./delivery-credentials-crypto.js";
 import { decryptContactValue, encryptContactValue } from "./contact-crypto.js";
@@ -676,7 +676,20 @@ const guestInvitationIssueBody = {
     rsvpPolicyRevisionId: { type: "string", pattern: uuidPattern },
     locale: { type: "string", enum: ["bs-BA", "en"], default: "bs-BA" },
     expiresAt: { type: "string", format: "date-time" },
-    presentationSnapshot: { type: "object", maxProperties: 80 },
+    presentationSnapshot: {
+      type: "object",
+      properties: {
+        greeting: { type: "string", maxLength: 500 },
+        venueName: { type: "string", maxLength: 200 },
+        venueAddress: { type: "string", maxLength: 500 },
+        directions: { type: "string", maxLength: 2000 },
+        additionalInfo: { type: "string", maxLength: 4000 },
+        accessibility: { type: "string", maxLength: 2000 },
+        scheduleLabel: { type: "string", maxLength: 200 },
+        hostDisplayName: { type: "string", maxLength: 200 },
+      },
+      additionalProperties: false,
+    },
   },
   additionalProperties: false,
 } as const;
@@ -1131,6 +1144,31 @@ function decryptBookingDraftProjection(
       values,
     },
   };
+}
+
+function decryptPrivateText(envelope: Buffer, key: Buffer | undefined): string {
+  if (!key || key.length !== 32) {
+    throw new ApiError(503, "PRIVATE_FIELD_ENCRYPTION_UNAVAILABLE", "Private invitation presentation decryption is not configured.");
+  }
+  if (!Buffer.isBuffer(envelope) || envelope.length <= 32 || envelope.subarray(0, 3).toString("ascii") !== "EV1") {
+    throw new ApiError(500, "INVITATION_PRESENTATION_INVALID", "The encrypted invitation presentation is invalid.");
+  }
+  const nonceStart = 3;
+  const tagStart = nonceStart + 12;
+  const ciphertextStart = tagStart + 16;
+  const encryptionKey = createHmac("sha256", key)
+    .update("eventor:private-reason-encryption:v1")
+    .digest();
+  try {
+    const decipher = createDecipheriv("aes-256-gcm", encryptionKey, envelope.subarray(nonceStart, tagStart));
+    decipher.setAuthTag(envelope.subarray(tagStart, ciphertextStart));
+    return Buffer.concat([
+      decipher.update(envelope.subarray(ciphertextStart)),
+      decipher.final(),
+    ]).toString("utf8");
+  } catch {
+    throw new ApiError(500, "INVITATION_PRESENTATION_INVALID", "The encrypted invitation presentation could not be authenticated.");
+  }
 }
 
 function encryptPrivateText(value: string, key: Buffer | undefined): Buffer {
@@ -2913,7 +2951,26 @@ export function buildApi(dependencies: ApiDependencies): FastifyInstance {
       await client.query("COMMIT");
       const data = result.rows[0]?.result as Record<string, unknown> | undefined;
       if (!data) throw new ApiError(404, "GUEST_INVITATION_NOT_FOUND", "The guest invitation was not found.");
-      return data;
+      const {
+        presentationSnapshotCiphertext,
+        ...safeData
+      } = data;
+      if (!Buffer.isBuffer(presentationSnapshotCiphertext)) {
+        throw new ApiError(500, "INVITATION_PRESENTATION_MISSING", "The invitation presentation snapshot is unavailable.");
+      }
+      let presentationSnapshot: unknown;
+      try {
+        presentationSnapshot = JSON.parse(
+          decryptPrivateText(presentationSnapshotCiphertext, dependencies.privateFieldEncryptionKey),
+        ) as unknown;
+      } catch (error) {
+        if (error instanceof ApiError) throw error;
+        throw new ApiError(500, "INVITATION_PRESENTATION_INVALID", "The invitation presentation snapshot is invalid.");
+      }
+      if (!presentationSnapshot || typeof presentationSnapshot !== "object" || Array.isArray(presentationSnapshot)) {
+        throw new ApiError(500, "INVITATION_PRESENTATION_INVALID", "The invitation presentation snapshot is invalid.");
+      }
+      return { ...safeData, presentationSnapshot };
     } catch (error) {
       try { await client.query("ROLLBACK"); } catch { /* preserve the resolution error */ }
       throw databaseError(error);
