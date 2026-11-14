@@ -210,6 +210,32 @@ export interface DeliveryAttempt {
   retryScheduled: boolean;
 }
 
+export interface GuestInvitation {
+  invitationId: string;
+  invitationRevisionId: string;
+  eventId: string;
+  eventTitle: string;
+  eventStatus: string;
+  startsAt: string;
+  endsAt: string;
+  timezone: string;
+  locale: "bs-BA" | "en";
+  allowedResponses: Array<"accepted" | "declined" | "tentative">;
+  responseDeadline: string | null;
+  responseChangeAllowed: boolean;
+  currentResponse: "accepted" | "declined" | "tentative" | null;
+  presentationSnapshot: {
+    greeting?: string;
+    venueName?: string;
+    venueAddress?: string;
+    directions?: string;
+    additionalInfo?: string;
+    accessibility?: string;
+    scheduleLabel?: string;
+    hostDisplayName?: string;
+  };
+}
+
 export interface ResendWebhookConfiguration {
   endpointId: string | null;
   configured: boolean;
@@ -1237,6 +1263,28 @@ export const api = {
     request<Envelope<Record<string, unknown>>>(
       `/booking-inquiries/${encodeURIComponent(inquiryId)}/annotations`,
       { method: "POST", body: { annotation }, idempotent: true },
+    ),
+  getGuestInvitation: (token: string) =>
+    request<Envelope<GuestInvitation>>("/guest/invitation/me", {
+      credentials: "omit",
+      extraHeaders: { "X-Guest-Invitation-Token": token },
+    }),
+  submitGuestInvitationRsvp: (
+    token: string,
+    body: { response: "accepted" | "declined" | "tentative"; note?: string },
+    idempotencyKey: string,
+  ) =>
+    request<Envelope<{ responseId: string; response: string; receivedAt: string; replayed: boolean }>>(
+      "/guest/invitation/me/rsvp",
+      {
+        method: "POST",
+        body,
+        idempotent: true,
+        idempotencyKey,
+        credentials: "omit",
+        skipCsrf: true,
+        extraHeaders: { "X-Guest-Invitation-Token": token },
+      },
     ),
   getEmailConfiguration: () => request<Envelope<EmailConfiguration | null>>("/organization/delivery/email/configuration"),
   saveEmailConfiguration: (body: Record<string, unknown>) =>
