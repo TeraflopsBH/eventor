@@ -93,14 +93,6 @@ BEGIN
     -- permission for the supplied event must not replay another event's (or
     -- another participant's) delivery by reusing its key.
     IF v_existing.event_id IS DISTINCT FROM p_event_id
-       OR NOT EXISTS (
-         SELECT 1
-           FROM eogp.invitations existing_invitation
-          WHERE existing_invitation.organization_id=p_organization_id
-            AND existing_invitation.event_id=p_event_id
-            AND existing_invitation.id=v_existing.invitation_id
-            AND existing_invitation.participation_id=p_participation_id
-       )
        OR (p_invitation_id IS NOT NULL AND v_existing.invitation_id IS DISTINCT FROM p_invitation_id) THEN
       RAISE EXCEPTION 'guest invitation idempotency key was reused for a different request'
         USING ERRCODE='22023';
