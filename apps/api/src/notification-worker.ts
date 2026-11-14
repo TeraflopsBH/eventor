@@ -567,7 +567,7 @@ export async function processPendingGuestInvitationEmailDeliveries(
       });
       if (!authorized) {
         outcome = "failed";
-        failureCode = "INVITATION_REVOKED";
+        failureCode = "INVITATION_NOT_SENDABLE";
       } else try {
         const credentials = job.credentials_ciphertext
           ? decryptDeliveryCredentials(job.credentials_ciphertext, deliveryCredentialsEncryptionKey, {
