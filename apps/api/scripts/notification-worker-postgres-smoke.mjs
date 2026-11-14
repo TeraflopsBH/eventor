@@ -90,7 +90,7 @@ try {
   assert.equal(totals.emailFailed, 0);
   assert.equal(totals.emailUncertain, 0);
   assert.equal(submitted.length, 1);
-  assert.match(submitted[0].to, /@example\\.invalid$/);
+  assert.match(submitted[0].to, /@example\.invalid$/);
   assert.match(submitted[0].text, /Notification worker integration event/);
   process.stdout.write(JSON.stringify({
     status: "passed",
