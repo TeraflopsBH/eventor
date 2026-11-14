@@ -281,4 +281,28 @@ BEGIN
 END;
 $guest_invitation_delivery_revocation$;
 
+
+
+DO $guest_invitation_effective_schedule$
+DECLARE
+  v_resolver text;
+  v_history text;
+  v_rsvp text;
+BEGIN
+  SELECT pg_get_functiondef('eogp.resolve_guest_invitation(text)'::regprocedure) INTO v_resolver;
+  SELECT pg_get_functiondef('eogp.get_guest_invitation_rsvp_history(text)'::regprocedure) INTO v_history;
+  SELECT pg_get_functiondef('eogp.submit_guest_invitation_rsvp(text,text,text,text,bytea)'::regprocedure) INTO v_rsvp;
+  IF strpos(v_resolver,'current_event_schedule_revision_id')=0
+     OR strpos(v_history,'current_event_schedule_revision_id')=0
+     OR strpos(v_rsvp,'current_event_schedule_revision_id')=0
+     OR strpos(v_rsvp,'event.status NOT IN')=0
+     OR strpos(v_rsvp,'participation.status = ''eligible''')=0 THEN
+    RAISE EXCEPTION 'guest invitation capabilities must require effective schedule, live event and eligible participation';
+  END IF;
+  IF strpos(v_rsvp,'INTO v_existing_request_sha256') <= strpos(v_rsvp,'current_event_schedule_revision_id') THEN
+    RAISE EXCEPTION 'guest RSVP idempotency replay must follow live capability validation';
+  END IF;
+END;
+$guest_invitation_effective_schedule$;
+
 ROLLBACK;
