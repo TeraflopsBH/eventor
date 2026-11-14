@@ -487,10 +487,7 @@ GRANT EXECUTE ON FUNCTION eogp.submit_guest_invitation_rsvp(text, text, text, te
 END;
 $function$;
 
-REVOKE ALL ON FUNCTION eogp.submit_guest_invitation_rsvp(text, text, text, text)
-  FROM PUBLIC, eventor_worker, eventor_auth;
-GRANT EXECUTE ON FUNCTION eogp.submit_guest_invitation_rsvp(text, text, text, text)
-  TO eventor_runtime;
+
 
 
 CREATE FUNCTION eogp.get_guest_invitation_rsvp_history(
