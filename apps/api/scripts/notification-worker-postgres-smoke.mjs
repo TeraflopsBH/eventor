@@ -2,7 +2,6 @@ import assert from "node:assert/strict";
 import { Pool } from "pg";
 import { processPendingEmailDeliveries } from "../dist/src/notification-worker.js";
 import { encryptContactValue } from "../dist/src/contact-crypto.js";
-import { encryptDeliveryCredentials } from "../dist/src/delivery-credentials-crypto.js";
 
 const organizationId = "22222222-2222-4222-8222-222222222222";
 const contactKey = Buffer.from(process.env.EVENTOR_CONTACT_ENCRYPTION_KEY ?? "", "base64");
@@ -40,22 +39,6 @@ try {
       assert.equal(updated.rowCount, 1, `expected one email contact for fixture person ${personId}`);
     }
 
-    const credentials = encryptDeliveryCredentials(
-      { username: "resend", password: "ci-only-synthetic-provider-token" },
-      deliveryKey,
-      { organizationId, channel: "email" },
-    );
-    const config = await client.query(
-      `UPDATE eogp.organization_delivery_config_revisions revision
-          SET credentials_ciphertext=$2
-         FROM eogp.organization_delivery_config_heads head
-        WHERE head.organization_id=$1
-          AND head.channel='email'
-          AND head.revision_id=revision.id
-          AND revision.organization_id=$1`,
-      [organizationId, credentials],
-    );
-    assert.equal(config.rowCount, 1, "expected one current email-delivery configuration revision");
     await client.query("COMMIT");
   } catch (error) {
     await client.query("ROLLBACK");
