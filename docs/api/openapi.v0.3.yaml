@@ -3783,8 +3783,8 @@ paths:
   "/invitations/{invitationId}/revoke":
     post:
       tags: ["Invitations and RSVP"]
-      operationId: revokeInvitation
-      summary: "Revoke invitation link and stop pending sends"
+      operationId: revokeGuestInvitation
+      summary: "Revoke an invitation and suppress queued email"
       security: [{ StaffSession: [], StaffCsrf: [] }]
       parameters:
         - $ref: '#/components/parameters/PInvitationId'
@@ -3793,7 +3793,16 @@ paths:
         required: true
         content:
           application/json:
-            schema: { $ref: '#/components/schemas/ReasonRequest' }
+            schema:
+              type: object
+              required: [reasonCode]
+              properties:
+                reasonCode:
+                  type: string
+                  minLength: 3
+                  maxLength: 80
+                  pattern: "^[a-z][a-z0-9_.-]*$"
+              additionalProperties: false
       responses:
         '201':
           description: "Successful response."
