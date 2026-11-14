@@ -100,7 +100,10 @@ const staffPrincipal = {
   membershipId: "bbbbbbbb-2222-4222-8222-bbbbbbbbbbbb",
 };
 
-function makeStaffInvitationApi() {
+function makeStaffInvitationApi(
+  authenticateStaff = async () => staffPrincipal,
+  historyError,
+) {
   const calls: Array<{ sql: string; values: unknown[] }> = [];
   const client = {
     async query(sql: string, values: unknown[] = []) {
@@ -140,6 +143,7 @@ function makeStaffInvitationApi() {
         };
       }
       if (normalized.includes("eogp.list_guest_invitation_delivery_attempts(")) {
+        if (historyError) throw historyError;
         return {
           rows: [{
             result: [{
@@ -164,7 +168,7 @@ function makeStaffInvitationApi() {
   const pool = { async connect() { return client; } } as unknown as Pool;
   const app = buildApi({
     pool,
-    authenticateStaff: async () => staffPrincipal,
+    authenticateStaff,
     verifyMutationOrigin: async () => true,
     privateFieldEncryptionKey: Buffer.alloc(32, 7),
     contactEncryptionKey: Buffer.alloc(32, 10),
@@ -315,4 +319,32 @@ test("staff delivery attempt history is read through the tenant- and permission-
   const call = mock.calls.find((item) => item.sql.includes("eogp.list_guest_invitation_delivery_attempts("));
   assert.ok(call);
   assert.deepEqual(call.values, [organizationId, invitationId, staffPrincipal.membershipId]);
+});
+
+test("staff delivery attempt history rejects unauthenticated requests before database access", async (t) => {
+  const mock = makeStaffInvitationApi(async () => null);
+  t.after(async () => mock.app.close());
+
+  const response = await mock.app.inject({
+    method: "GET",
+    url: "/invitations/33333333-3333-4333-8333-333333333333/delivery-attempts",
+  });
+  assert.equal(response.statusCode, 401);
+  assert.equal(response.json<{ code: string }>().code, "UNAUTHENTICATED");
+  assert.equal(mock.calls.length, 0);
+});
+
+test("staff delivery attempt history maps database permission denials to HTTP 403", async (t) => {
+  const permissionError = Object.assign(new Error("permission denied"), { code: "42501" });
+  const mock = makeStaffInvitationApi(undefined, permissionError);
+  t.after(async () => mock.app.close());
+
+  const response = await mock.app.inject({
+    method: "GET",
+    url: "/invitations/33333333-3333-4333-8333-333333333333/delivery-attempts",
+  });
+  assert.equal(response.statusCode, 403);
+  assert.equal(response.json<{ code: string }>().code, "FORBIDDEN");
+  assert.ok(mock.calls.some((call) => call.sql.includes("eogp.list_guest_invitation_delivery_attempts(")));
+  assert.ok(mock.calls.some((call) => call.sql === "ROLLBACK"));
 });
