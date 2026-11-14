@@ -3316,6 +3316,29 @@ export function buildApi(dependencies: ApiDependencies): FastifyInstance {
     },
   );
 
+  server.get<{ Params: { eventId: string; participationId: string } }>(
+    "/events/:eventId/participations/:participationId/rsvp-history",
+    { schema: { params: guestInvitationStaffParams } },
+    async (request, reply) => {
+      const principal = request.staffPrincipal!;
+      const client = await dependencies.pool.connect();
+      try {
+        await client.query("BEGIN");
+        await client.query("SELECT set_config('app.organization_id',$1,true)", [principal.organizationId]);
+        await client.query("SELECT set_config('app.actor_membership_id',$1,true)", [principal.membershipId]);
+        const result = await client.query<ResultRow>(
+          "SELECT eogp.list_staff_guest_rsvp_history($1::uuid,$2::uuid,$3::uuid,$4::uuid) AS result",
+          [principal.organizationId,request.params.eventId,request.params.participationId,principal.membershipId],
+        );
+        await client.query("COMMIT");
+        return reply.code(200).send({ data: result.rows[0]?.result ?? [] });
+      } catch (error) {
+        try { await client.query("ROLLBACK"); } catch { /* preserve the read error */ }
+        throw databaseError(error);
+      } finally { client.release(); }
+    },
+  );
+
   server.get<{ Params: { invitationId: string } }>(
     "/invitations/:invitationId/delivery-attempts",
     {
