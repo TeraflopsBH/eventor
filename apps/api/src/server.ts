@@ -1295,7 +1295,17 @@ function principalIsValid(principal: StaffPrincipal | null): principal is StaffP
 
 export function buildApi(dependencies: ApiDependencies): FastifyInstance {
   const server = Fastify({
-    logger: { redact: ["req.headers.x-external-booking-token", "req.headers.x-guest-invitation-token"] },
+    logger: {
+      redact: [
+        "req.headers.cookie",
+        "req.headers.authorization",
+        'req.headers["x-csrf-token"]',
+        'req.headers["x-external-booking-token"]',
+        'req.headers["x-guest-invitation-token"]',
+        'req.headers["svix-signature"]',
+        'res.headers["set-cookie"]',
+      ],
+    },
     bodyLimit: 64 * 1024,
     trustProxy: dependencies.trustedProxyAddresses?.length
       ? [...dependencies.trustedProxyAddresses]
