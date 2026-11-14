@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 import type { Pool, PoolClient, QueryResultRow } from "pg";
-import { processExpiredBookingOffers, processPendingBookingOfferEmailDeliveries, processPendingEmailDeliveries, processPendingEventChangeNotifications } from "../src/notification-worker.js";
+import { processExpiredBookingOffers, processPendingBookingOfferEmailDeliveries, processPendingEmailDeliveries, processPendingEventChangeNotifications, processPendingGuestInvitationEmailDeliveries } from "../src/notification-worker.js";
 import { encryptContactValue } from "../src/contact-crypto.js";
 import { encryptDeliveryCredentials } from "../src/delivery-credentials-crypto.js";
 import type { SmtpTransportFactory } from "../src/smtp-transport.js";
@@ -80,6 +80,11 @@ test("notification worker sets tenant context and commits one batch per tenant",
     bookingOfferEmailFailed: 0,
     bookingOfferEmailUncertain: 0,
     bookingOfferEmailRetriesScheduled: 0,
+    guestInvitationEmailAttempts: 0,
+    guestInvitationEmailSent: 0,
+    guestInvitationEmailFailed: 0,
+    guestInvitationEmailUncertain: 0,
+    guestInvitationEmailRetriesScheduled: 0,
   });
   assert.equal(mock.released.length, 2);
   assert.equal(
@@ -217,6 +222,100 @@ test("booking offer email worker decrypts the queued capability and sends throug
   ));
   assert.ok(calls.some((sql) => sql === "BEGIN"));
   assert.ok(calls.some((sql) => sql === "COMMIT"));
+});
+
+test("guest invitation email worker decrypts the queued capability and sends a private link", async () => {
+  const organizationId = "22222222-2222-4222-8222-222222222222";
+  const invitationId = "33333333-3333-4333-8333-333333333333";
+  const revisionId = "44444444-4444-4444-8444-444444444444";
+  const deliveryId = "55555555-5555-4555-8555-555555555555";
+  const contactKey = Buffer.alloc(32, 31);
+  const deliveryKey = Buffer.alloc(32, 32);
+  const capability = Buffer.alloc(32, 9).toString("base64url");
+  const recipientCiphertext = encryptContactValue("guest@example.test", contactKey, {
+    organizationId, contactKind: "email",
+  });
+  const capabilityCiphertext = encryptContactValue(capability, contactKey, {
+    organizationId, contactKind: "other",
+  });
+  const calls: string[] = [];
+  let claimCount = 0;
+  const sentMessages: Array<{ to: string; subject: string; text: string }> = [];
+  let closed = false;
+  const job = {
+    delivery_id: deliveryId,
+    invitation_id: invitationId,
+    invitation_revision_id: revisionId,
+    capability_ciphertext: capabilityCiphertext,
+    recipient_ciphertext: recipientCiphertext,
+    credentials_ciphertext: null,
+    smtp_settings: {
+      host: "smtp.example.test",
+      port: 587,
+      transportSecurity: "starttls" as const,
+      authMode: "none" as const,
+      senderEmail: "events@example.test",
+      senderName: "Example Organizer",
+      replyTo: null,
+      connectionTimeoutMs: 15000,
+    },
+    sender_email: "events@example.test",
+    sender_name: "Example Organizer",
+    reply_to: null,
+    event_title: "Community gathering",
+    starts_at: new Date("2027-03-01T17:00:00.000Z"),
+    timezone_name: "Europe/Sarajevo",
+    locale: "bs-BA",
+  };
+  const client = {
+    async query(sql: string, values: unknown[] = []) {
+      const normalized = sql.replace(/\\s+/g, " ").trim();
+      calls.push(normalized);
+      if (normalized.startsWith("SELECT * FROM eogp.claim_invitation_email_delivery")) {
+        claimCount += 1;
+        return { rows: claimCount === 1 ? [job] : [], rowCount: claimCount === 1 ? 1 : 0 };
+      }
+      if (normalized.startsWith("SELECT eogp.complete_invitation_email_delivery")) {
+        assert.deepEqual(values, [organizationId, deliveryId, "sent", null, "smtp-message-id"]);
+        return { rows: [{ result: { retryScheduled: false } }], rowCount: 1 };
+      }
+      return { rows: [], rowCount: 1 };
+    },
+    release() {},
+  };
+  const pool = {
+    async query(sql: string) {
+      calls.push(sql);
+      return { rows: [{ organization_id: organizationId }], rowCount: 1 };
+    },
+    async connect() { return client; },
+  } as unknown as Pool;
+  const factory: SmtpTransportFactory = () => ({
+    async verify() { return true; },
+    async sendMail(message) {
+      sentMessages.push(message);
+      return { messageId: "smtp-message-id", accepted: [message.to] };
+    },
+    close() { closed = true; },
+  });
+
+  const result = await processPendingGuestInvitationEmailDeliveries(
+    pool, contactKey, deliveryKey, "https://eventor.example.test/app", 10, 10, factory,
+  );
+  assert.equal(result.guestInvitationEmailAttempts, 1);
+  assert.equal(result.guestInvitationEmailSent, 1);
+  assert.equal(result.guestInvitationEmailFailed, 0);
+  assert.equal(result.guestInvitationEmailUncertain, 0);
+  assert.equal(closed, true);
+  assert.equal(sentMessages.length, 1);
+  assert.equal(sentMessages[0]?.to, "guest@example.test");
+  assert.equal(sentMessages[0]?.subject, "Pozivnica za događaj");
+  assert.match(sentMessages[0]?.text ?? "", /Community gathering/);
+  assert.match(sentMessages[0]?.text ?? "", new RegExp(
+    `https://eventor\\.example\\.test/app/guest/invitation#token=${capability}`,
+  ));
+  assert.ok(calls.includes("BEGIN"));
+  assert.ok(calls.includes("COMMIT"));
 });
 
 test("booking offer email worker rejects a non-HTTPS public application URL before discovery", async () => {

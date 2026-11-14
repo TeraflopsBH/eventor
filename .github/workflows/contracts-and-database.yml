@@ -8,6 +8,7 @@ on:
       - feat/booking-commercial-workflow
       - feat/booking-allocation-alternatives
       - fix/booking-offer-email-worker-db
+      - feat/guest-invitation-runtime-phase1
       - main
   pull_request:
     branches:
@@ -157,6 +158,9 @@ jobs:
         run: |
           bash -n scripts/db/test-upgrade-000073-to-000074.sh
           bash scripts/db/test-upgrade-000073-to-000074.sh
+
+      - name: Verify guest invitation capability and RSVP database boundary
+        run: psql "$RUNTIME_URL" -X -v ON_ERROR_STOP=1 -f tests/database/guest_invitation_capability_smoke.sql
 
       - name: Verify safe public booking form projection
         run: psql "$MIGRATOR_URL" -X -v ON_ERROR_STOP=1 -f tests/database/public_booking_form_smoke.sql

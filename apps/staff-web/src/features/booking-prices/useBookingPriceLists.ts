@@ -1,5 +1,5 @@
 import { computed, reactive, ref, type ComputedRef, type Ref } from "vue";
-type StaffTab = "delivery" | "campaign" | "inquiries" | "approvals" | "prices" | "cancellations" | "taxes" | "forms" | "settings";
+type StaffTab = "delivery" | "campaign" | "inquiries" | "approvals" | "prices" | "cancellations" | "taxes" | "forms" | "guest-invitations" | "settings";
 import type { BookingPriceList, BookingPriceListItem, BookingTaxProfileRevision } from "../../api";
 type PublishedTaxProfileRevision = BookingTaxProfileRevision & { profileCode: string; profileName: string; profileId: string };
 interface Dependencies {

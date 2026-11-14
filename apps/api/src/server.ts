@@ -1,10 +1,11 @@
 import Fastify, { type FastifyInstance, type FastifyReply, type FastifyRequest } from "fastify";
-import { createCipheriv, createHash, createHmac, randomBytes, randomUUID } from "node:crypto";
+import { createCipheriv, createDecipheriv, createHash, createHmac, randomBytes, randomUUID } from "node:crypto";
 import type { Pool, PoolClient, QueryResultRow } from "pg";
 import { decryptDeliveryCredentialBundle, decryptDeliveryCredentials, encryptDeliveryCredentialBundle, encryptDeliveryCredentials } from "./delivery-credentials-crypto.js";
 import { decryptContactValue, encryptContactValue } from "./contact-crypto.js";
 import { PublicFormAnswersError, PublicFormSchemaError, validatePublicFormAnswers, validatePublicFormSchema } from "./public-form-validation.js";
 import { verifyResendWebhookSignature } from "./resend-webhook.js";
+import { createGuestInvitationCapability, hashGuestInvitationToken } from "./guest-invitation-capability.js";
 import { classifySmtpFailure, sendSmtpTestMessage, type SmtpSettings, type SmtpTransportFactory } from "./smtp-transport.js";
 import type { paths } from "./generated/openapi.js";
 import {
@@ -612,6 +613,92 @@ const publicOfferCapabilityHeaders = {
   },
   additionalProperties: true,
 } as const;
+const guestInvitationCapabilityHeaders = {
+  type: "object",
+  required: ["x-guest-invitation-token"],
+  properties: {
+    "x-guest-invitation-token": { type: "string", pattern: "^[A-Za-z0-9_-]{43}$" },
+  },
+  additionalProperties: true,
+} as const;
+const guestInvitationResolveHeaders = {
+  type: "object",
+  required: ["idempotency-key", "x-guest-invitation-token"],
+  properties: {
+    "idempotency-key": { type: "string", minLength: 8, maxLength: 200 },
+    "x-guest-invitation-token": { type: "string", pattern: "^[A-Za-z0-9_-]{43}$" },
+  },
+  additionalProperties: true,
+} as const;
+const guestInvitationResolveBody = {
+  type: "object",
+  properties: { clientContext: { type: "string", maxLength: 200 } },
+  additionalProperties: false,
+} as const;
+const guestRsvpBody = {
+  type: "object",
+  required: ["response"],
+  properties: {
+    response: { type: "string", enum: ["accepted", "declined", "tentative"] },
+    note: { type: "string", maxLength: 1000 },
+  },
+  additionalProperties: false,
+} as const;
+const guestRsvpHeaders = {
+  type: "object",
+  required: ["idempotency-key", "x-guest-invitation-token"],
+  properties: {
+    "idempotency-key": { type: "string", minLength: 8, maxLength: 200 },
+    "x-guest-invitation-token": { type: "string", pattern: "^[A-Za-z0-9_-]{43}$" },
+  },
+  additionalProperties: true,
+} as const;
+
+const guestInvitationStaffParams = {
+  type: "object", required: ["eventId", "participationId"],
+  properties: {
+    eventId: { type: "string", pattern: uuidPattern },
+    participationId: { type: "string", pattern: uuidPattern },
+  },
+  additionalProperties: false,
+} as const;
+const guestInvitationParams = {
+  type: "object", required: ["invitationId"],
+  properties: { invitationId: { type: "string", pattern: uuidPattern } },
+  additionalProperties: false,
+} as const;
+const guestInvitationIssueBody = {
+  type: "object",
+  required: ["scheduleRevisionId", "rsvpPolicyRevisionId", "expiresAt", "presentationSnapshot"],
+  properties: {
+    invitationId: { type: "string", pattern: uuidPattern },
+    scheduleRevisionId: { type: "string", pattern: uuidPattern },
+    rsvpPolicyRevisionId: { type: "string", pattern: uuidPattern },
+    locale: { type: "string", enum: ["bs-BA", "en"], default: "bs-BA" },
+    expiresAt: { type: "string", format: "date-time" },
+    presentationSnapshot: {
+      type: "object",
+      properties: {
+        greeting: { type: "string", maxLength: 500 },
+        venueName: { type: "string", maxLength: 200 },
+        venueAddress: { type: "string", maxLength: 500 },
+        directions: { type: "string", maxLength: 2000 },
+        additionalInfo: { type: "string", maxLength: 4000 },
+        accessibility: { type: "string", maxLength: 2000 },
+        scheduleLabel: { type: "string", maxLength: 200 },
+        hostDisplayName: { type: "string", maxLength: 200 },
+      },
+      additionalProperties: false,
+    },
+  },
+  additionalProperties: false,
+} as const;
+const guestInvitationRevokeBody = {
+  type: "object", required: ["reasonCode"],
+  properties: { reasonCode: { type: "string", minLength: 3, maxLength: 80, pattern: "^[a-z][a-z0-9_.-]*$" } },
+  additionalProperties: false,
+} as const;
+
 const publicOfferDecisionParams = {
   type: "object", required: ["offerId"],
   properties: { offerId: { type: "string", pattern: uuidPattern } },
@@ -1059,6 +1146,31 @@ function decryptBookingDraftProjection(
   };
 }
 
+function decryptPrivateText(envelope: Buffer, key: Buffer | undefined): string {
+  if (!key || key.length !== 32) {
+    throw new ApiError(503, "PRIVATE_FIELD_ENCRYPTION_UNAVAILABLE", "Private invitation presentation decryption is not configured.");
+  }
+  if (!Buffer.isBuffer(envelope) || envelope.length <= 32 || envelope.subarray(0, 3).toString("ascii") !== "EV1") {
+    throw new ApiError(500, "INVITATION_PRESENTATION_INVALID", "The encrypted invitation presentation is invalid.");
+  }
+  const nonceStart = 3;
+  const tagStart = nonceStart + 12;
+  const ciphertextStart = tagStart + 16;
+  const encryptionKey = createHmac("sha256", key)
+    .update("eventor:private-reason-encryption:v1")
+    .digest();
+  try {
+    const decipher = createDecipheriv("aes-256-gcm", encryptionKey, envelope.subarray(nonceStart, tagStart));
+    decipher.setAuthTag(envelope.subarray(tagStart, ciphertextStart));
+    return Buffer.concat([
+      decipher.update(envelope.subarray(ciphertextStart)),
+      decipher.final(),
+    ]).toString("utf8");
+  } catch {
+    throw new ApiError(500, "INVITATION_PRESENTATION_INVALID", "The encrypted invitation presentation could not be authenticated.");
+  }
+}
+
 function encryptPrivateText(value: string, key: Buffer | undefined): Buffer {
   if (!key || key.length !== 32) {
     throw new ApiError(503, "PRIVATE_FIELD_ENCRYPTION_UNAVAILABLE", "Private event-reason encryption is not configured.");
@@ -1182,7 +1294,7 @@ function principalIsValid(principal: StaffPrincipal | null): principal is StaffP
 
 export function buildApi(dependencies: ApiDependencies): FastifyInstance {
   const server = Fastify({
-    logger: { redact: ["req.headers.x-external-booking-token"] },
+    logger: { redact: ["req.headers.x-external-booking-token", "req.headers.x-guest-invitation-token"] },
     bodyLimit: 64 * 1024,
     trustProxy: dependencies.trustedProxyAddresses?.length
       ? [...dependencies.trustedProxyAddresses]
@@ -1214,7 +1326,14 @@ export function buildApi(dependencies: ApiDependencies): FastifyInstance {
       /^\/booking-offers\/[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}\/(accept|reject)$/.test(pathname);
     const publicOfferView = request.method === "GET" &&
       /^\/public\/booking-offers\/[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}$/.test(pathname);
-    if (publicBookingFormRead || publicBookingInquiryWrite || publicOfferDecision || publicOfferView) {
+    const publicGuestInvitation = (
+      request.method === "GET" &&
+      (pathname === "/guest/invitation/me" || pathname === "/guest/invitation/me/rsvp-history")
+    ) || (
+      request.method === "POST" &&
+      (pathname === "/guest/invitation/resolve" || pathname === "/guest/invitation/me/rsvp")
+    );
+    if (publicBookingFormRead || publicBookingInquiryWrite || publicOfferDecision || publicOfferView || publicGuestInvitation) {
       // Public intake and purpose-bound offer decisions authenticate through their own capability.
       request.staffPrincipal = null;
       return;
@@ -2727,6 +2846,314 @@ export function buildApi(dependencies: ApiDependencies): FastifyInstance {
       },
     },
     async (request, reply) => submitPublicOfferDecision(request, reply, "rejected", request.body),
+  );
+
+  server.get<{ Params: { organizationId: string } }>(
+    "/organizations/:organizationId/guest-invitation-events",
+    { schema: { params: { type: "object", required: ["organizationId"], properties: { organizationId: { type: "string", pattern: uuidPattern } } } } },
+    async (request, reply) => {
+      const principal = request.staffPrincipal!;
+      if (request.params.organizationId !== principal.organizationId) {
+        throw new ApiError(403, "ORGANIZATION_SCOPE_MISMATCH", "The requested organization is not available to this session.");
+      }
+      const client = await dependencies.pool.connect();
+      try {
+        await client.query("BEGIN");
+        await client.query("SELECT set_config('app.organization_id',$1,true)", [principal.organizationId]);
+        await client.query("SELECT set_config('app.actor_membership_id',$1,true)", [principal.membershipId]);
+        const result = await client.query<ResultRow>(
+          "SELECT eogp.list_guest_invitation_events($1::uuid,$2::uuid) AS result",
+          [principal.organizationId, principal.membershipId],
+        );
+        await client.query("COMMIT");
+        return reply.code(200).send({ data: result.rows[0]?.result ?? [] });
+      } catch (error) {
+        try { await client.query("ROLLBACK"); } catch { /* preserve the read error */ }
+        throw databaseError(error);
+      } finally { client.release(); }
+    },
+  );
+
+  server.get<{ Params: { eventId: string } }>(
+    "/events/:eventId/guest-invitation-participations",
+    { schema: { params: eventParams } },
+    async (request, reply) => {
+      const principal = request.staffPrincipal!;
+      const client = await dependencies.pool.connect();
+      try {
+        await client.query("BEGIN");
+        await client.query("SELECT set_config('app.organization_id',$1,true)", [principal.organizationId]);
+        await client.query("SELECT set_config('app.actor_membership_id',$1,true)", [principal.membershipId]);
+        const result = await client.query<ResultRow>(
+          "SELECT eogp.list_guest_invitation_participations($1::uuid,$2::uuid,$3::uuid) AS result",
+          [principal.organizationId, request.params.eventId, principal.membershipId],
+        );
+        await client.query("COMMIT");
+        return reply.code(200).send({ data: result.rows[0]?.result ?? [] });
+      } catch (error) {
+        try { await client.query("ROLLBACK"); } catch { /* preserve the read error */ }
+        throw databaseError(error);
+      } finally { client.release(); }
+    },
+  );
+
+  server.post<{
+    Params: { eventId: string; participationId: string };
+    Body: {
+      invitationId?: string;
+      scheduleRevisionId: string;
+      rsvpPolicyRevisionId: string;
+      locale?: "bs-BA" | "en";
+      expiresAt: string;
+      presentationSnapshot: Record<string, unknown>;
+    };
+  }>(
+    "/events/:eventId/participations/:participationId/invitation",
+    {
+      schema: { params: guestInvitationStaffParams, headers: idempotencyHeaders, body: guestInvitationIssueBody },
+    },
+    async (request, reply) => {
+      const principal = request.staffPrincipal!;
+      const idempotencyKey = request.headers["idempotency-key"];
+      if (typeof idempotencyKey !== "string") {
+        throw new ApiError(400, "IDEMPOTENCY_KEY_REQUIRED", "A valid Idempotency-Key header is required.");
+      }
+      const contactKey = dependencies.contactEncryptionKey;
+      if (!contactKey || contactKey.length !== 32) {
+        throw new ApiError(503, "CONTACT_ENCRYPTION_UNAVAILABLE", "Guest invitation capability encryption is not configured.");
+      }
+      const snapshotJson = JSON.stringify(request.body.presentationSnapshot);
+      if (Buffer.byteLength(snapshotJson, "utf8") > 32768) {
+        throw new ApiError(422, "INVITATION_PRESENTATION_TOO_LARGE", "The invitation presentation snapshot exceeds 32 KiB.");
+      }
+      const expiresAt = new Date(request.body.expiresAt);
+      if (!Number.isFinite(expiresAt.getTime()) || expiresAt.getTime() <= Date.now()
+          || expiresAt.getTime() > Date.now() + 180 * 24 * 60 * 60 * 1000) {
+        throw new ApiError(422, "INVITATION_EXPIRY_INVALID", "Invitation expiry must be within the next 180 days.");
+      }
+      const capability = createGuestInvitationCapability();
+      const capabilityCiphertext = encryptContactValue(
+        capability.token, contactKey,
+        { organizationId: principal.organizationId, contactKind: "other" },
+      );
+      const snapshotCiphertext = encryptPrivateText(snapshotJson, dependencies.privateFieldEncryptionKey);
+      return withCommand(
+        request, reply,
+        request.body.invitationId ? "reissueGuestInvitation" : "issueGuestInvitation",
+        { eventId: request.params.eventId, participationId: request.params.participationId, body: request.body },
+        async (client) => {
+          const result = await client.query<ResultRow>(
+            "SELECT eogp.issue_guest_invitation($1::uuid,$2::uuid,$3::uuid,$4::uuid,$5::uuid,$6::uuid,$7::uuid,$8::text,$9::bytea,$10::text,$11::bytea,$12::timestamptz,$13::text) AS result",
+            [
+              principal.organizationId, request.params.eventId, request.params.participationId,
+              request.body.invitationId ?? null, principal.membershipId,
+              request.body.scheduleRevisionId, request.body.rsvpPolicyRevisionId,
+              request.body.locale ?? "bs-BA", snapshotCiphertext, capability.tokenSha256,
+              capabilityCiphertext, expiresAt,
+              createHash("sha256").update(`eventor:guest-invitation:${request.body.invitationId ? "reissue" : "issue"}:${idempotencyKey}`, "utf8").digest("hex"),
+            ],
+          );
+          return result.rows[0]?.result as Record<string, unknown>;
+        },
+      );
+    },
+  );
+
+  server.post<{ Params: { invitationId: string }; Body: { reasonCode: string } }>(
+    "/invitations/:invitationId/revoke",
+    {
+      schema: { params: guestInvitationParams, headers: idempotencyHeaders, body: guestInvitationRevokeBody },
+    },
+    async (request, reply) => {
+      const principal = request.staffPrincipal!;
+      return withCommand(
+        request, reply, "revokeGuestInvitation",
+        { invitationId: request.params.invitationId, reasonCode: request.body.reasonCode },
+        async (client) => {
+          const result = await client.query<ResultRow>(
+            "SELECT eogp.revoke_guest_invitation($1::uuid,$2::uuid,$3::uuid,$4::text) AS result",
+            [principal.organizationId, request.params.invitationId, principal.membershipId, request.body.reasonCode],
+          );
+          return result.rows[0]?.result as Record<string, unknown>;
+        },
+      );
+    },
+  );
+
+  const getGuestInvitationTokenHash = (request: FastifyRequest): string => {
+    const token = request.headers["x-guest-invitation-token"];
+    const tokenHash = hashGuestInvitationToken(token);
+    if (!tokenHash) {
+      throw new ApiError(401, "GUEST_INVITATION_CAPABILITY_REQUIRED", "A valid guest invitation capability is required.");
+    }
+    return tokenHash;
+  };
+
+  const resolveGuestInvitation = async (tokenHash: string): Promise<Record<string, unknown>> => {
+    const client = await dependencies.pool.connect();
+    try {
+      await client.query("BEGIN");
+      const result = await client.query<ResultRow>(
+        "SELECT eogp.resolve_guest_invitation($1::text) AS result",
+        [tokenHash],
+      );
+      await client.query("COMMIT");
+      const data = result.rows[0]?.result as Record<string, unknown> | undefined;
+      if (!data) throw new ApiError(404, "GUEST_INVITATION_NOT_FOUND", "The guest invitation was not found.");
+      const {
+        presentationSnapshotCiphertext,
+        ...safeData
+      } = data;
+      if (typeof presentationSnapshotCiphertext !== "string"
+          || !/^(?:[A-Za-z0-9+/]{4})*(?:[A-Za-z0-9+/]{2}==|[A-Za-z0-9+/]{3}=)?$/.test(presentationSnapshotCiphertext)) {
+        throw new ApiError(500, "INVITATION_PRESENTATION_MISSING", "The invitation presentation snapshot is unavailable.");
+      }
+      const snapshotEnvelope = Buffer.from(presentationSnapshotCiphertext, "base64");
+      if (snapshotEnvelope.toString("base64") !== presentationSnapshotCiphertext) {
+        throw new ApiError(500, "INVITATION_PRESENTATION_INVALID", "The encrypted invitation presentation is invalid.");
+      }
+      let presentationSnapshot: unknown;
+      try {
+        presentationSnapshot = JSON.parse(
+          decryptPrivateText(snapshotEnvelope, dependencies.privateFieldEncryptionKey),
+        ) as unknown;
+      } catch (error) {
+        if (error instanceof ApiError) throw error;
+        throw new ApiError(500, "INVITATION_PRESENTATION_INVALID", "The invitation presentation snapshot is invalid.");
+      }
+      if (!presentationSnapshot || typeof presentationSnapshot !== "object" || Array.isArray(presentationSnapshot)) {
+        throw new ApiError(500, "INVITATION_PRESENTATION_INVALID", "The invitation presentation snapshot is invalid.");
+      }
+      return { ...safeData, presentationSnapshot };
+    } catch (error) {
+      try { await client.query("ROLLBACK"); } catch { /* preserve the resolution error */ }
+      throw databaseError(error);
+    } finally {
+      client.release();
+    }
+  };
+
+  const sendGuestPrivateResponse = (
+    reply: FastifyReply,
+    status: number,
+    data: unknown,
+  ) => {
+    reply.header("Cache-Control", "no-store, private");
+    reply.header("Referrer-Policy", "no-referrer");
+    reply.header("X-Robots-Tag", "noindex, nofollow, noarchive");
+    return reply.code(status).send({ data });
+  };
+
+  server.get(
+    "/guest/invitation/me",
+    { schema: { headers: guestInvitationCapabilityHeaders } },
+    async (request, reply) => {
+      const tokenHash = getGuestInvitationTokenHash(request);
+      const resolved = await resolveGuestInvitation(tokenHash);
+      const { organizationId: _organizationId, ...data } = resolved;
+      return sendGuestPrivateResponse(reply, 200, data);
+    },
+  );
+
+  server.post<{ Body: { clientContext?: string } }>(
+    "/guest/invitation/resolve",
+    {
+      schema: {
+        headers: guestInvitationResolveHeaders,
+        body: guestInvitationResolveBody,
+      },
+    },
+    async (request, reply) => {
+      const idempotencyKey = request.headers["idempotency-key"];
+      if (typeof idempotencyKey !== "string" || idempotencyKey.length < 8 || idempotencyKey.length > 200) {
+        throw new ApiError(400, "IDEMPOTENCY_KEY_REQUIRED", "A valid Idempotency-Key header is required.");
+      }
+      const tokenHash = getGuestInvitationTokenHash(request);
+      const resolved = await resolveGuestInvitation(tokenHash);
+      const { organizationId: _organizationId, ...data } = resolved;
+      return sendGuestPrivateResponse(reply, 200, data);
+    },
+  );
+
+  server.post<{ Body: { response: "accepted" | "declined" | "tentative"; note?: string } }>(
+    "/guest/invitation/me/rsvp",
+    {
+      schema: {
+        headers: guestRsvpHeaders,
+        body: guestRsvpBody,
+      },
+    },
+    async (request, reply) => {
+      const tokenHash = getGuestInvitationTokenHash(request);
+      const idempotencyKey = request.headers["idempotency-key"];
+      if (typeof idempotencyKey !== "string" || idempotencyKey.length < 8 || idempotencyKey.length > 200) {
+        throw new ApiError(400, "IDEMPOTENCY_KEY_REQUIRED", "A valid Idempotency-Key header is required.");
+      }
+      const resolved = await resolveGuestInvitation(tokenHash);
+      const organizationId = resolved.organizationId;
+      if (typeof organizationId !== "string" || !new RegExp(uuidPattern).test(organizationId)) {
+        throw new ApiError(500, "GUEST_INVITATION_CONTEXT_INVALID", "The guest invitation context is invalid.");
+      }
+      let notesCiphertext: Buffer | null = null;
+      if (request.body.note?.trim()) {
+        const encryptionKey = dependencies.contactEncryptionKey;
+        if (!encryptionKey || encryptionKey.length !== 32) {
+          throw new ApiError(503, "GUEST_RSVP_ENCRYPTION_UNAVAILABLE", "Guest RSVP note encryption is not configured.");
+        }
+        notesCiphertext = encryptContactValue(
+          request.body.note.trim(),
+          encryptionKey,
+          { organizationId, contactKind: "other" },
+        );
+      }
+      const idempotencyHash = createHash("sha256").update(idempotencyKey, "utf8").digest("hex");
+      const payloadHash = requestHash(
+        { response: request.body.response, note: request.body.note?.trim() ?? null },
+        dependencies.contactEncryptionKey,
+      );
+      const client = await dependencies.pool.connect();
+      try {
+        await client.query("BEGIN");
+        const result = await client.query<ResultRow>(
+          "SELECT eogp.submit_guest_invitation_rsvp($1::text,$2::text,$3::text,$4::text,$5::bytea) AS result",
+          [tokenHash, idempotencyHash, payloadHash, request.body.response, notesCiphertext],
+        );
+        await client.query("COMMIT");
+        const data = result.rows[0]?.result as Record<string, unknown> | undefined;
+        if (!data) throw new ApiError(500, "GUEST_RSVP_RESULT_MISSING", "The RSVP response was not recorded.");
+        return sendGuestPrivateResponse(reply, 201, data);
+      } catch (error) {
+        try { await client.query("ROLLBACK"); } catch { /* preserve the RSVP error */ }
+        throw databaseError(error);
+      } finally {
+        client.release();
+      }
+    },
+  );
+
+  server.get(
+    "/guest/invitation/me/rsvp-history",
+    { schema: { headers: guestInvitationCapabilityHeaders } },
+    async (request, reply) => {
+      const tokenHash = getGuestInvitationTokenHash(request);
+      const client = await dependencies.pool.connect();
+      try {
+        await client.query("BEGIN");
+        const result = await client.query<ResultRow>(
+          "SELECT eogp.get_guest_invitation_rsvp_history($1::text) AS result",
+          [tokenHash],
+        );
+        await client.query("COMMIT");
+        const data = result.rows[0]?.result;
+        if (!Array.isArray(data)) throw new ApiError(500, "GUEST_RSVP_HISTORY_MISSING", "The RSVP history could not be loaded.");
+        return sendGuestPrivateResponse(reply, 200, data);
+      } catch (error) {
+        try { await client.query("ROLLBACK"); } catch { /* preserve the history error */ }
+        throw databaseError(error);
+      } finally {
+        client.release();
+      }
+    },
   );
 
   server.post<{ Params: { revisionId: string }; Body: BookingOfferCreateBody }>(

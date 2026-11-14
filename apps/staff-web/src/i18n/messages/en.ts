@@ -35,6 +35,7 @@ export default {
   navigation: {
     delivery: "Email delivery",
     campaigns: "Campaign review",
+    guestInvitations: "Guest invitations",
     inquiries: "Booking inquiries",
     approvals: "Approval policies",
     bookingForms: "Booking forms",
@@ -978,6 +979,23 @@ export default {
       "self_service": "Self-service",
     },
 
+  },
+  guestInvitations: {
+    eyebrow: "EVENT OPERATIONS", title: "Guest invitations",
+    description: "Select an event, review eligible guests and manage secure invitation links and delivery status.",
+    refresh: "Refresh", event: "Event", chooseEvent: "Choose an event", loading: "Loading invitation workspace…",
+    noEvents: "No events are available to this account with invitation-management permission.",
+    eventSummary: "{eligible} eligible participants · {invitations} active or draft invitations",
+    eventNotReady: "This event needs a current schedule and a published RSVP policy before invitations can be issued.",
+    guest: "Guest", participation: "Participation", invitation: "Invitation", delivery: "Delivery", rsvp: "RSVP", actions: "Actions",
+    emailNotReady: "Verified, consented primary email required", notIssued: "Not issued", issue: "Issue", reissue: "Reissue", revoke: "Revoke",
+    noParticipants: "No participants are registered for this event.",
+    confirmIssue: "Issue a guest invitation for {name}?",
+    confirmReissue: "Reissue the guest invitation for {name}? The previous link will be revoked.",
+    confirmRevoke: "Revoke the guest invitation for {name}?",
+    issued: "Invitation queued for {name}.", reissued: "Replacement invitation queued for {name}.",
+    revoked: "Invitation revoked for {name}.", loadFailed: "The invitation workspace could not be loaded.",
+    issueFailed: "The invitation could not be issued.", revokeFailed: "The invitation could not be revoked.",
   },
   publicBookingForm: {
     language: "Language",

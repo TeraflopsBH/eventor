@@ -35,6 +35,7 @@ export default {
   navigation: {
     delivery: "Dostava e-pošte",
     campaigns: "Pregled kampanja",
+    guestInvitations: "Pozivnice za goste",
     inquiries: "Upiti za rezervaciju",
     approvals: "Pravila odobravanja",
     bookingForms: "Obrasci za rezervaciju",
@@ -978,6 +979,24 @@ export default {
       "self_service": "Samostalno otkazivanje",
     },
 
+  },
+  guestInvitations: {
+    eyebrow: "OPERATIVNI RAD DOGAĐAJA", title: "Pozivnice za goste",
+    description: "Odaberite događaj, pregledajte goste koji ispunjavaju uslove i upravljajte sigurnim pozivnicama i statusom dostave.",
+    refresh: "Osvježi", event: "Događaj", chooseEvent: "Odaberite događaj", loading: "Učitavanje pozivnica…",
+    noEvents: "Nema dostupnih događaja za koje ovaj račun ima ovlaštenje za upravljanje pozivnicama.",
+    eventSummary: "{eligible} učesnika ispunjava uslove · {invitations} aktivnih ili nacrt pozivnica",
+    eventNotReady: "Za slanje pozivnica događaj mora imati važeći raspored i objavljena RSVP pravila.",
+    guest: "Gost", participation: "Učešće", invitation: "Pozivnica", delivery: "Dostava", rsvp: "RSVP", actions: "Radnje",
+    emailNotReady: "Potrebna je potvrđena primarna e-mail adresa uz dozvolu za kontakt", notIssued: "Nije izdata",
+    issue: "Izdaj", reissue: "Ponovo izdaj", revoke: "Opozovi", noParticipants: "Za ovaj događaj nisu evidentirani učesnici.",
+    confirmIssue: "Izdati pozivnicu za gosta {name}?",
+    confirmReissue: "Ponovo izdati pozivnicu za gosta {name}? Prethodni link će biti opozvan.",
+    confirmRevoke: "Opozvati pozivnicu za gosta {name}?",
+    issued: "Pozivnica za gosta {name} je stavljena u red za dostavu.",
+    reissued: "Zamjenska pozivnica za gosta {name} je stavljena u red za dostavu.",
+    revoked: "Pozivnica za gosta {name} je opozvana.", loadFailed: "Nije moguće učitati radni prostor za pozivnice.",
+    issueFailed: "Nije moguće izdati pozivnicu.", revokeFailed: "Nije moguće opozvati pozivnicu.",
   },
   publicBookingForm: {
     language: "Jezik",

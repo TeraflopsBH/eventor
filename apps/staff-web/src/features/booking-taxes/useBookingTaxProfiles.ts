@@ -1,5 +1,5 @@
 import { computed, reactive, ref, type Ref } from "vue";
-type StaffTab = "delivery" | "campaign" | "inquiries" | "approvals" | "prices" | "cancellations" | "taxes" | "forms" | "settings";
+type StaffTab = "delivery" | "campaign" | "inquiries" | "approvals" | "prices" | "cancellations" | "taxes" | "forms" | "guest-invitations" | "settings";
 import type { BookingTaxProfile, BookingTaxProfileRevisionInput, BookingTaxCode } from "../../api";
 interface Dependencies {
   api: typeof import("../../api").api; busy: Ref<boolean>; pageError: Ref<string>; pageNotice: Ref<string>;
