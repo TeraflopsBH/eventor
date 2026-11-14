@@ -78,13 +78,13 @@ try {
               latest.provider_name, latest.source
          FROM eogp.event_notification_delivery_attempts attempt
          LEFT JOIN LATERAL (
-           SELECT status,failure_code,provider_name,source
+           SELECT status,failure_code,provider_name,source,created_at
              FROM eogp.event_notification_delivery_attempt_events
             WHERE organization_id=attempt.organization_id AND attempt_id=attempt.id
             ORDER BY created_at DESC,id DESC LIMIT 1
          ) latest ON true
         WHERE attempt.organization_id=$1
-        ORDER BY attempt.created_at DESC LIMIT 1`,
+        ORDER BY latest.created_at DESC NULLS LAST, attempt.id DESC LIMIT 1`,
       [organizationId],
     );
     deliveryDiagnostic = diagnostic.rows[0] ?? null;
