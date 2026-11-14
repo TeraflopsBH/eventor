@@ -60,9 +60,16 @@ BEGIN
   ) VALUES(
     v_expired_hold_id,'11111111-1111-4111-8111-111111111111',v_venue_space_id,
     '89000000-0000-4000-8000-000000000002','draft_hold','held',
-    v_starts_at,v_ends_at,clock_timestamp()-interval '1 minute',
+    v_starts_at,v_ends_at,clock_timestamp()+interval '1 day',
     'ci-space-reuse-expired-hold','aaaaaaaa-1111-4111-8111-aaaaaaaaaaaa'
   );
+
+  -- New holds must have a future deadline. Age the already-valid hold to
+  -- simulate elapsed time, then let the real expiry command transition it.
+  UPDATE eogp.venue_space_time_blocks
+     SET expires_at=clock_timestamp()-interval '1 minute'
+   WHERE organization_id='11111111-1111-4111-8111-111111111111'
+     AND id=v_expired_hold_id AND status='held';
 
   v_expired_count:=eogp.expire_space_holds('11111111-1111-4111-8111-111111111111');
   IF v_expired_count<1 OR NOT EXISTS(
