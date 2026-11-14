@@ -106,6 +106,13 @@ BEGIN
     (v_org,v_creator,v_creator_role,'organization',v_creator),
     (v_org,v_approver,v_approver_role,'organization',v_creator);
   PERFORM set_config('app.actor_membership_id',v_creator::text,true);
+  PERFORM set_config('app.actor_membership_id',v_approver::text,true);
+  BEGIN
+    PERFORM eogp.get_booking_approval_policies(v_org,v_creator);
+    RAISE EXCEPTION 'commercial permission helper accepted a caller-supplied membership different from the actor context';
+  EXCEPTION WHEN SQLSTATE '42501' THEN NULL;
+  END;
+  PERFORM set_config('app.actor_membership_id',v_creator::text,true);
 
   -- Isolated venue space and an exact requested interval for this commercial
   -- booking. The hold lifecycle is exercised below against this real inventory.
