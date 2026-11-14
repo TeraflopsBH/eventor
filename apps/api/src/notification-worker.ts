@@ -591,7 +591,7 @@ export async function processPendingGuestInvitationEmailDeliveries(
           bosnian
             ? "Ova veza je lična. Nemojte je prosljeđivati drugim osobama."
             : "This link is personal. Do not forward it to anyone else.",
-        ].join("\\n");
+        ].join("\n");
         transport = factory(job.smtp_settings, credentials);
         const sent = await transport.sendMail({ to: destination, subject, text });
         if (!sent.accepted.some((address) => address.toLowerCase() === destination.toLowerCase())) {
