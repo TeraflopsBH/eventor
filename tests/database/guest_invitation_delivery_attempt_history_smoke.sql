@@ -553,6 +553,15 @@ BEGIN
   IF NOT v_denied THEN
     RAISE EXCEPTION 'staff RSVP history was mutable';
   END IF;
+  v_denied := false;
+  BEGIN
+    DELETE FROM eogp.rsvp_responses WHERE id=v_response_id;
+  EXCEPTION WHEN SQLSTATE '55000' THEN
+    v_denied := true;
+  END;
+  IF NOT v_denied THEN
+    RAISE EXCEPTION 'staff RSVP history was deletable';
+  END IF;
 END;
 $staff_rsvp_immutability$;
 
