@@ -455,3 +455,11 @@ Added explicit owner-level mutation coverage to `tests/database/event_cancellati
 The schema constraint matrix now records **84 verified assertions and 21 unchecked scenarios**. The new assertion passed in the configured `Verify event cancellation and postponement after invitation delivery` PostgreSQL CI step.
 
 Exact code/test head `7716a91e7f4391c35e163a112c50762969b4602a` passed PostgreSQL 18.6 migrations/RLS/concurrency, OpenAPI 3.1, API and staff-web checks in [#43537639673](https://github.com/TeraflopsBH/eventor/actions/runs/43537639673), with full-history Gitleaks passing in [#43537639689](https://github.com/TeraflopsBH/eventor/actions/runs/43537639689).
+
+## Deployment acceptance preparation — 2026-11-14
+
+Added a dedicated `systemd` CI job to run `systemd-analyze verify` against both service templates after preparing the referenced service identities, working directory, documentation path and environment files. This is repeatable unit-file validation, not target-host startup or operational validation.
+
+Added `docs/operations/EXTERNAL_ACCEPTANCE_EVIDENCE.md` as the execution record for the remaining external gates: browser-driven multi-tenant business workflow acceptance, Resend/SMTP sandbox acceptance, migration upgrade rehearsal from a representative prior schema, backup/restore/PITR drill, and target-host/network acceptance. Linked it from the self-hosted deployment runbook.
+
+No target host, isolated acceptance database, prior-schema snapshot, provider sandbox credentials/non-production sender, backup destination, encryption-key recovery arrangement, or approved RPO/RTO is currently recorded. These activities therefore remain deferred and production remains blocked. No production database, provider account or deployment host was accessed or changed. Do not infer a pass from CI.
