@@ -1,6 +1,6 @@
 -- Serialize staff delivery-attempt history reads with membership and permission revocation.
 
-CREATE FUNCTION eogp.list_guest_invitation_delivery_attempts(
+CREATE OR REPLACE FUNCTION eogp.list_guest_invitation_delivery_attempts(
   p_organization_id uuid,
   p_invitation_id uuid,
   p_actor_membership_id uuid
