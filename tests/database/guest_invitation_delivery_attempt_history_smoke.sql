@@ -321,6 +321,21 @@ BEGIN
 END;
 $attempt_history_authorization$;
 
+-- A successor published policy with an expired deadline exercises the
+-- separate late-recording permission without changing the invitation's pinned
+-- policy revision used by the first participant.
+INSERT INTO eogp.rsvp_policy_revisions (
+  id,organization_id,event_id,policy_id,revision_number,
+  response_deadline,event_timezone,state,published_at,late_change_requires_staff
+) VALUES (
+  '95200000-0000-4000-8000-000000000002',
+  '22222222-2222-4222-8222-222222222222',
+  '94000000-0000-4000-8000-000000000001',
+  '95100000-0000-4000-8000-000000000001',
+  2,clock_timestamp()-interval '1 minute','Europe/Sarajevo',
+  'published',clock_timestamp(),true
+);
+
 -- Staff-recorded RSVP appends an attributed response; corrections append a
 -- successor row and require the dedicated correction permission.
 SET LOCAL ROLE eventor_runtime;
@@ -419,9 +434,72 @@ BEGIN
   IF NOT v_denied THEN
     RAISE EXCEPTION 'staff RSVP accepted a member without rsvp.record';
   END IF;
+
+  -- The supplied actor argument cannot override the transaction-bound actor.
+  PERFORM set_config('app.actor_membership_id','95600000-0000-4000-8000-000000000001',true);
+  v_denied := false;
+  BEGIN
+    PERFORM eogp.record_staff_guest_rsvp(
+      v_org,v_event,'94300000-0000-4000-8000-000000000002',
+      'bbbbbbbb-2222-4222-8222-bbbbbbbbbbbb',
+      'accepted','phone','guest',clock_timestamp()-interval '1 minute',
+      NULL,NULL,NULL,NULL
+    );
+  EXCEPTION WHEN SQLSTATE '42501' THEN
+    v_denied := true;
+  END;
+  IF NOT v_denied THEN
+    RAISE EXCEPTION 'staff RSVP accepted an actor/context mismatch';
+  END IF;
   PERFORM set_config('app.actor_membership_id','bbbbbbbb-2222-4222-8222-bbbbbbbbbbbb',true);
+
+  -- A late staff record is denied without the separate override permission.
+  v_denied := false;
+  BEGIN
+    PERFORM eogp.record_staff_guest_rsvp(
+      v_org,v_event,'94300000-0000-4000-8000-000000000002',
+      'bbbbbbbb-2222-4222-8222-bbbbbbbbbbbb',
+      'accepted','phone','guest',clock_timestamp()-interval '1 minute',
+      NULL,NULL,NULL,NULL
+    );
+  EXCEPTION WHEN SQLSTATE '42501' THEN
+    v_denied := true;
+  END;
+  IF NOT v_denied THEN
+    RAISE EXCEPTION 'late staff RSVP bypassed rsvp.override_deadline';
+  END IF;
 END;
 $staff_rsvp_regression$;
+
+-- Grant the explicit late-response override, then verify the same late record
+-- succeeds for the authorized organizer.
+SET LOCAL ROLE eventor_owner;
+INSERT INTO eogp.role_permissions (organization_id,role_id,permission_code)
+VALUES (
+  '22222222-2222-4222-8222-222222222222',
+  '93900000-0000-4000-8000-000000000001',
+  'rsvp.override_deadline'
+)
+ON CONFLICT DO NOTHING;
+SET LOCAL ROLE eventor_runtime;
+SELECT set_config('app.actor_membership_id','bbbbbbbb-2222-4222-8222-bbbbbbbbbbbb',true);
+DO $staff_rsvp_late_override$
+DECLARE
+  v_result jsonb;
+BEGIN
+  v_result := eogp.record_staff_guest_rsvp(
+    '22222222-2222-4222-8222-222222222222',
+    '94000000-0000-4000-8000-000000000001',
+    '94300000-0000-4000-8000-000000000002',
+    'bbbbbbbb-2222-4222-8222-bbbbbbbbbbbb',
+    'accepted','phone','guest',clock_timestamp()-interval '1 minute',
+    NULL,NULL,NULL,NULL
+  );
+  IF v_result->>'response'<>'accepted' THEN
+    RAISE EXCEPTION 'authorized late RSVP was not recorded: %',v_result;
+  END IF;
+END;
+$staff_rsvp_late_override$;
 
 -- The append-only guard also applies to staff-entered RSVP history.
 DO $staff_rsvp_immutability$
