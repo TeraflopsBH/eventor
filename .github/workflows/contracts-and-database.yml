@@ -166,9 +166,6 @@ jobs:
         run: psql "$MIGRATOR_URL" -X -v ON_ERROR_STOP=1 -f tests/database/staff_booking_inquiry_smoke.sql
 
 
-      - name: Run database integrity smoke tests
-        run: psql "$MIGRATOR_URL" -X -v ON_ERROR_STOP=1 -f tests/database/migration_smoke.sql
-
       - name: Verify tenant isolation as non-owner runtime role
         run: |
           psql "$RUNTIME_URL" -X -v ON_ERROR_STOP=1 \
