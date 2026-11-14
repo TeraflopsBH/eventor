@@ -480,3 +480,7 @@ Exact code/test head `11bca61a059d324faf33af3dbbd1bdfc06c34858` passed the Postg
 Reconciled the discrete-unit capacity item against `tests/database/review_regressions.sql`. The test reserves four different individually tracked units from the same pool for the same overlapping interval, verifies all four holds remain active, and rejects a fifth unit against the booking-line quantity limit. A separate assertion in the same file rejects an overlapping reservation on the same discrete unit. This proves concurrent occupancy across distinct units, not simultaneous database transaction scheduling; the matrix wording now makes that scope explicit.
 
 The schema constraint matrix now records **87 verified assertions and 18 unchecked scenarios**. No production code changed.
+
+## Staff RSVP response history — 2026-11-14
+
+Added a permission-scoped organizer read projection and endpoint for complete append-only RSVP response history per event participation. The projection requires an active membership, trusted actor-context binding and event-scoped or organization-scoped `invitation.manage`; it returns response source, respondent kind, received/recorded timestamps, actor membership attribution, sequence and correction linkage/reason. Restricted note ciphertext is never returned. The organizer workspace can expand each participant's RSVP timeline and formats timestamps in the active staff locale.
