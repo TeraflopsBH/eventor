@@ -41,7 +41,8 @@ BEGIN
      OR to_regprocedure('eogp.revoke_guest_invitation(uuid,uuid,uuid,text)') IS NULL
      OR to_regprocedure('eogp.discover_pending_invitation_delivery_tenants()') IS NULL
      OR to_regprocedure('eogp.claim_invitation_email_delivery(uuid)') IS NULL
-     OR to_regprocedure('eogp.complete_invitation_email_delivery(uuid,uuid,text,text,text)') IS NULL THEN
+     OR to_regprocedure('eogp.complete_invitation_email_delivery(uuid,uuid,text,text,text)') IS NULL
+     OR to_regprocedure('eogp.authorize_invitation_email_submission(uuid,uuid)') IS NULL THEN
     RAISE EXCEPTION 'staff invitation or email worker functions are missing';
   END IF;
 
@@ -61,6 +62,7 @@ BEGIN
        'eogp.discover_pending_invitation_delivery_tenants()', 'EXECUTE')
      OR NOT has_function_privilege('eventor_worker', 'eogp.claim_invitation_email_delivery(uuid)', 'EXECUTE')
      OR NOT has_function_privilege('eventor_worker', 'eogp.complete_invitation_email_delivery(uuid,uuid,text,text,text)', 'EXECUTE')
+     OR NOT has_function_privilege('eventor_worker', 'eogp.authorize_invitation_email_submission(uuid,uuid)', 'EXECUTE')
      OR has_table_privilege('eventor_worker', 'eogp.invitation_deliveries', 'SELECT') THEN
     RAISE EXCEPTION 'worker invitation delivery privileges are not narrowly scoped';
   END IF;
@@ -147,6 +149,30 @@ BEGIN
   END IF;
 END;
 $guest_rsvp_history_capability$;
+
+DO $guest_invitation_send_authorization$
+DECLARE
+  v_definition text;
+  v_invitation_lock integer;
+  v_link_lock integer;
+  v_delivery_lock integer;
+BEGIN
+  SELECT pg_get_functiondef(
+    'eogp.authorize_invitation_email_submission(uuid,uuid)'::regprocedure
+  ) INTO v_definition;
+  v_invitation_lock := strpos(v_definition, 'FOR SHARE;');
+  v_link_lock := v_invitation_lock
+    + strpos(substring(v_definition FROM v_invitation_lock + 1), 'FOR SHARE;');
+  v_delivery_lock := strpos(v_definition, 'FOR UPDATE;');
+  IF v_invitation_lock<=0 OR v_link_lock<=v_invitation_lock
+     OR v_delivery_lock<=v_link_lock
+     OR strpos(v_definition, 'link.revoked_at IS NOT NULL')=0
+     OR strpos(v_definition, 'link.expires_at<=clock_timestamp()')=0
+     OR strpos(v_definition, 'event.status NOT IN')=0 THEN
+    RAISE EXCEPTION 'send authorization must lock invitation, link, delivery and revalidate capability state';
+  END IF;
+END;
+$guest_invitation_send_authorization$;
 
 DO $guest_invitation_delivery_revocation$
 DECLARE
