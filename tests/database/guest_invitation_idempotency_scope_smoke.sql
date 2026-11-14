@@ -22,6 +22,32 @@ BEGIN
     RAISE EXCEPTION 'idempotency fixture invitation is absent from the authorized projection';
   END IF;
 
+  -- The same membership is authorized for a second event. Reusing the
+  -- first event's key there must not return the first event's invitation.
+  BEGIN
+    PERFORM eogp.issue_guest_invitation(
+      '22222222-2222-4222-8222-222222222222',
+      '94000000-0000-4000-8000-000000000002',
+      '94300000-0000-4000-8000-000000000001',
+      NULL,
+      'bbbbbbbb-2222-4222-8222-bbbbbbbbbbbb',
+      '94100000-0000-4000-8000-000000000001',
+      '96400000-0000-4000-8000-000000000001',
+      'en',
+      decode('455631'||repeat('03',40),'hex'),
+      repeat('c',64),
+      decode('45435031'||repeat('03',40),'hex'),
+      clock_timestamp()+interval '2 hours',
+      repeat('e',64)
+    );
+  EXCEPTION WHEN SQLSTATE '22023' THEN
+    v_denied := true;
+  END;
+  IF NOT v_denied THEN
+    RAISE EXCEPTION 'invitation idempotency replay crossed event authorization boundaries';
+  END IF;
+  v_denied := false;
+
   -- Replaying the original request is harmless and returns only its own result.
   v_result := eogp.issue_guest_invitation(
     '22222222-2222-4222-8222-222222222222',
