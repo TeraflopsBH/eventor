@@ -83,6 +83,7 @@ function makePool() {
   let bookingInquiryAnnotationCalls = 0;
   let bookingInquiryConversionCalls = 0;
   let bookingDraftGetCalls = 0;
+  let bookingDraftAccessAllowed = true;
   let bookingDraftAllocationPreviewCalls = 0;
   let bookingDraftRevisionCalls = 0;
   let bookingOfferPrepareCalls = 0;
@@ -222,6 +223,9 @@ function makePool() {
       if (normalized.includes("eogp.get_booking_draft(")) {
         bookingDraftGetCalls += 1;
         commandCalls.push({ sql: normalized, values });
+        if (!bookingDraftAccessAllowed) {
+          throw Object.assign(new Error("booking draft access revoked"), { code: "42501" });
+        }
         return { rows: [{ result: {
           draftId: "15151515-1515-4151-8151-151515151515",
           sourceInquiryId: "14141414-1414-4141-8141-141414141414",
@@ -939,6 +943,7 @@ function makePool() {
     get bookingInquiryAnnotationCalls() { return bookingInquiryAnnotationCalls; },
     get bookingInquiryConversionCalls() { return bookingInquiryConversionCalls; },
     get bookingDraftGetCalls() { return bookingDraftGetCalls; },
+    setBookingDraftAccessAllowed(value: boolean) { bookingDraftAccessAllowed = value; },
     get bookingDraftAllocationPreviewCalls() { return bookingDraftAllocationPreviewCalls; },
     get bookingDraftRevisionCalls() { return bookingDraftRevisionCalls; },
     get bookingOfferPrepareCalls() { return bookingOfferPrepareCalls; },
@@ -1725,6 +1730,18 @@ test("staff inquiry inbox decrypts authorized projections and routes assignment,
   });
   assert.equal(revisionReplay.statusCode, 201);
   assert.deepEqual(revisionReplay.json(), revision.json());
+  assert.equal(mock.bookingDraftRevisionCalls, 1);
+
+  // A previously authorized idempotency key must not bypass current resource
+  // access after the actor's event assignment or permission is revoked.
+  mock.setBookingDraftAccessAllowed(false);
+  const revokedReplay = await app.inject({
+    method: "POST",
+    url: `/booking-drafts/${draftId}/revisions`,
+    headers: { "idempotency-key": "draft-revision-0001" },
+    payload: revisionBody,
+  });
+  assert.equal(revokedReplay.statusCode, 403);
   assert.equal(mock.bookingDraftRevisionCalls, 1);
 
   const convertedInquiry = await app.inject({
