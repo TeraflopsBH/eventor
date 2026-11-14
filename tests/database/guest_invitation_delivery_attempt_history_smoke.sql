@@ -502,6 +502,23 @@ BEGIN
   IF NOT v_denied THEN
     RAISE EXCEPTION 'late staff RSVP bypassed rsvp.override_deadline';
   END IF;
+
+  -- The same actor lacks rsvp.override_deadline. An unknown participation
+  -- must receive the same denial as the valid late participation above.
+  v_denied := false;
+  BEGIN
+    PERFORM eogp.record_staff_guest_rsvp(
+      v_org,v_event,'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa',
+      'bbbbbbbb-2222-4222-8222-bbbbbbbbbbbb',
+      'accepted','phone','guest',clock_timestamp()-interval '1 minute',
+      NULL,NULL,NULL,NULL
+    );
+  EXCEPTION WHEN SQLSTATE '42501' THEN
+    v_denied := true;
+  END;
+  IF NOT v_denied THEN
+    RAISE EXCEPTION 'staff RSVP exposed participation existence without rsvp.override_deadline';
+  END IF;
 END;
 $staff_rsvp_regression$;
 
