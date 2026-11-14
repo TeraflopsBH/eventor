@@ -91,15 +91,15 @@ try {
   assert.equal(totals.emailUncertain, 0);
   assert.equal(submitted.length, 1);
   assert.match(submitted[0].to, /@example\.invalid$/);
-  assert.match(submitted[0].text, /Notification worker integration event/);
-  process.stdout.write(JSON.stringify({
+  assert.match(submitted[0].text, /Događaj je otkazan./);
+  console.log(JSON.stringify({
     status: "passed",
     attempts: totals.emailAttempts,
     sent: totals.emailSent,
     failed: totals.emailFailed,
     uncertain: totals.emailUncertain,
     smtpSubmissions: submitted.length,
-  }) + "\\n");
+  }));
 } finally {
   await Promise.all([migrator.end(), worker.end()]);
 }
