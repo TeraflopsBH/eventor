@@ -197,6 +197,9 @@ jobs:
       - name: Prepare event notification worker fixture
         run: psql "$MIGRATOR_URL" -X -v ON_ERROR_STOP=1 -f tests/database/event_notification_worker_fixture.sql
 
+      - name: Verify guest invitation delivery attempt-history transitions
+        run: psql "$MIGRATOR_URL" -X -v ON_ERROR_STOP=1 -f tests/database/guest_invitation_delivery_attempt_history_smoke.sql
+
       - name: Verify tenant-safe notification campaign preparation as worker
         run: psql "$WORKER_URL" -X -v ON_ERROR_STOP=1 -f tests/database/event_notification_worker_smoke.sql
 
