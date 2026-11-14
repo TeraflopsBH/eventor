@@ -1,0 +1,40 @@
+[Unit]
+Description=Eventor notification worker
+Documentation=file:/opt/eventor/current/docs/operations/SELF_HOSTED_DEPLOYMENT_RUNBOOK.md
+Wants=network-online.target
+After=network-online.target
+
+[Service]
+Type=simple
+User=eventor-worker
+Group=eventor-worker
+WorkingDirectory=/opt/eventor/current/apps/api
+EnvironmentFile=/etc/eventor/worker.env
+ExecStart=/usr/bin/node dist/worker-main.js
+Restart=on-failure
+RestartSec=5s
+KillSignal=SIGTERM
+TimeoutStopSec=120s
+UMask=0077
+
+NoNewPrivileges=true
+PrivateTmp=true
+PrivateDevices=true
+ProtectSystem=strict
+ProtectHome=true
+ProtectKernelTunables=true
+ProtectKernelModules=true
+ProtectControlGroups=true
+RestrictSUIDSGID=true
+RestrictRealtime=true
+LockPersonality=true
+CapabilityBoundingSet=
+AmbientCapabilities=
+RestrictAddressFamilies=AF_UNIX AF_INET AF_INET6
+SystemCallArchitectures=native
+
+StandardOutput=journal
+StandardError=journal
+
+[Install]
+WantedBy=multi-user.target
