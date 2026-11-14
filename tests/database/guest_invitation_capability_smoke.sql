@@ -453,19 +453,28 @@ END;
 $guest_invitation_projection_authorization_lock$;
 
 
-DO $guest_invitation_issue_authorization_lock$
+DO $guest_invitation_command_authorization_lock$
 DECLARE
-  v_definition text;
+  v_issue_definition text;
+  v_revoke_definition text;
 BEGIN
   SELECT pg_get_functiondef(
     'eogp.issue_guest_invitation(uuid,uuid,uuid,uuid,uuid,uuid,uuid,text,bytea,text,bytea,timestamptz,text)'::regprocedure
-  ) INTO v_definition;
-  IF strpos(v_definition, 'FOR SHARE OF user_grant,role_permission') = 0
-     OR strpos(v_definition, 'pg_advisory_xact_lock') <= strpos(v_definition, 'FOR SHARE OF user_grant,role_permission')
-     OR strpos(v_definition, 'idempotency_key_sha256=p_idempotency_key_sha256') <= strpos(v_definition, 'pg_advisory_xact_lock') THEN
+  ) INTO v_issue_definition;
+  IF strpos(v_issue_definition, 'FOR SHARE OF user_grant,role_permission') = 0
+     OR strpos(v_issue_definition, 'pg_advisory_xact_lock') <= strpos(v_issue_definition, 'FOR SHARE OF user_grant,role_permission')
+     OR strpos(v_issue_definition, 'idempotency_key_sha256=p_idempotency_key_sha256') <= strpos(v_issue_definition, 'pg_advisory_xact_lock') THEN
     RAISE EXCEPTION 'guest invitation issuance must lock authorization before idempotency replay lookup';
   END IF;
+
+  SELECT pg_get_functiondef(
+    'eogp.revoke_guest_invitation(uuid,uuid,uuid,text)'::regprocedure
+  ) INTO v_revoke_definition;
+  IF strpos(v_revoke_definition, 'FOR SHARE OF user_grant,role_permission') = 0
+     OR strpos(v_revoke_definition, 'invitation.manage') = 0 THEN
+    RAISE EXCEPTION 'guest invitation revocation must serialize permission revocation, including already-revoked replay results';
+  END IF;
 END;
-$guest_invitation_issue_authorization_lock$;
+$guest_invitation_command_authorization_lock$;
 
 ROLLBACK;
