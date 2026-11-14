@@ -40,7 +40,7 @@ This matrix tracks executable PostgreSQL integration coverage and remaining gaps
 
 ## Venue hierarchy
 - [x] Valid organization → venue → building → level → space accepted.
-- [ ] Space pointing to a building from a different venue rejected.
+- [x] Space pointing to a building from a different venue is rejected by the composite organization/venue/building foreign key; `tests/database/migration_smoke.sql` attempts the cross-venue reference and requires a foreign-key violation.
 - [x] Space pointing to a level from another building rejected.
 - [x] Space with a level but no building rejected.
 - [x] Cross-organization hierarchy reference rejected.
