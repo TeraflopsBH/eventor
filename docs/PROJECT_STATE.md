@@ -463,3 +463,11 @@ Added a dedicated `systemd` CI job to run `systemd-analyze verify` against both 
 Added `docs/operations/EXTERNAL_ACCEPTANCE_EVIDENCE.md` as the execution record for the remaining external gates: browser-driven multi-tenant business workflow acceptance, Resend/SMTP sandbox acceptance, migration upgrade rehearsal from a representative prior schema, backup/restore/PITR drill, and target-host/network acceptance. Linked it from the self-hosted deployment runbook.
 
 No target host, isolated acceptance database, prior-schema snapshot, provider sandbox credentials/non-production sender, backup destination, encryption-key recovery arrangement, or approved RPO/RTO is currently recorded. These activities therefore remain deferred and production remains blocked. No production database, provider account or deployment host was accessed or changed. Do not infer a pass from CI.
+
+## Tenant-scoped delivery credential replacement regressions — 2026-11-14
+
+Extended `tests/database/organization_delivery_configuration_smoke.sql` to replace the SMTP credential envelope with distinct EDC1 payload bytes, then verify the SMTP test command receives the replacement envelope rather than the prior one. The test also attempts replacement for the same organization using an active membership from a different organization and requires SQLSTATE `42501`. The existing revision/audit assertions ensure the rejected cross-tenant call does not create an extra configuration revision.
+
+Both credential replacement matrix items are now checked. The schema constraint matrix records **86 verified assertions and 19 unchecked scenarios**. No production SQL changed.
+
+Exact code/test head `11bca61a059d324faf33af3dbbd1bdfc06c34858` passed the PostgreSQL 18.6 migration/RLS/concurrency, OpenAPI, API and staff-web workflow [#43538091780](https://github.com/TeraflopsBH/eventor/actions/runs/43538091780), with full-history Gitleaks [#43538091860](https://github.com/TeraflopsBH/eventor/actions/runs/43538091860).
