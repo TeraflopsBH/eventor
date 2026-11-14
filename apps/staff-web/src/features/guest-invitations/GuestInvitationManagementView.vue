@@ -244,7 +244,7 @@ onMounted(() => { void loadEvents(); });
                   class="button button-primary"
                   :disabled="loading"
                   @click="issue(person)"
-                >{{ person.invitationId ? t("guestInvitations.reissue") : t("guestInvitations.issue") }}</button>
+                >{{ person.invitationId && ["active", "draft"].includes(person.invitationStatus ?? "") ? t("guestInvitations.reissue") : t("guestInvitations.issue") }}</button>
                 <button
                   v-if="person.invitationId"
                   class="button button-quiet"
