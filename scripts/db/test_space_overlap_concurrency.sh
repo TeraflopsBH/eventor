@@ -27,7 +27,7 @@ trap cleanup EXIT
 
 space_id="$(
   psql "$RUNTIME_URL" -X -v ON_ERROR_STOP=1 -qAt \
-    -c "SELECT set_config('app.organization_id','$org',true)" \
+    -c "SELECT set_config('app.organization_id','$org',false)" \
     -c "SELECT venue_space_id
           FROM eogp.venue_space_time_blocks
          WHERE organization_id='$org'
