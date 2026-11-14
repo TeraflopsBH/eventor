@@ -3234,6 +3234,26 @@ paths:
         '422': { $ref: '#/components/responses/UnprocessableEntity' }
         '429': { $ref: '#/components/responses/TooManyRequests' }
         '500': { $ref: '#/components/responses/InternalServerError' }
+  "/events/{eventId}/participations/{participationId}/rsvp-history":
+    get:
+      tags: ["Invitations and RSVP"]
+      operationId: listStaffGuestRsvpHistory
+      summary: "List append-only RSVP response history for an event participation"
+      description: "Requires active membership and invitation.manage for the event. Restricted RSVP notes are never included."
+      security: [{ StaffSession: [] }]
+      parameters:
+        - $ref: '#/components/parameters/PEventId'
+        - $ref: '#/components/parameters/PParticipationId'
+      responses:
+        '200':
+          description: "Successful response."
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/ListEnvelope' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '404': { $ref: '#/components/responses/NotFound' }
+        '500': { $ref: '#/components/responses/InternalServerError' }
   "/events/{eventId}/participations/{participationId}/rsvp-records":
     post:
       tags: ["Invitations and RSVP"]
