@@ -8,6 +8,7 @@ on:
       - feat/booking-commercial-workflow
       - feat/booking-allocation-alternatives
       - fix/booking-offer-email-worker-db
+      - feat/guest-invitation-runtime-phase1
       - main
   pull_request:
     branches:
