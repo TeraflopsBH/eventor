@@ -13,6 +13,12 @@ INSERT INTO eogp.organization_memberships (id, organization_id, user_id, status,
 VALUES ('30000000-0000-0000-0000-00000000000a',
         '10000000-0000-0000-0000-00000000000a',
         '20000000-0000-0000-0000-00000000000a', 'active', clock_timestamp());
+INSERT INTO eogp.roles(id,organization_id,code,name,scope_kind)
+VALUES ('81000000-0000-4000-8000-00000000000a','10000000-0000-0000-0000-00000000000a','CI-COLLAB-MANAGER-A','CI Collaboration Manager A','organization');
+INSERT INTO eogp.role_permissions(organization_id,role_id,permission_code)
+VALUES ('10000000-0000-0000-0000-00000000000a','81000000-0000-4000-8000-00000000000a','collaboration.manage');
+INSERT INTO eogp.user_role_grants(id,organization_id,membership_id,role_id,scope_kind,granted_by_membership_id)
+VALUES ('82000000-0000-4000-8000-00000000000a','10000000-0000-0000-0000-00000000000a','30000000-0000-0000-0000-00000000000a','81000000-0000-4000-8000-00000000000a','organization','30000000-0000-0000-0000-00000000000a');
 
 INSERT INTO eogp.venues (id, organization_id, code, name)
 VALUES ('40000000-0000-0000-0000-00000000000a',
@@ -471,6 +477,12 @@ INSERT INTO eogp.organization_memberships (id, organization_id, user_id, status,
 VALUES ('30000000-0000-0000-0000-00000000000b',
         '10000000-0000-0000-0000-00000000000b',
         '20000000-0000-0000-0000-00000000000b', 'active', clock_timestamp());
+INSERT INTO eogp.roles(id,organization_id,code,name,scope_kind)
+VALUES ('81000000-0000-4000-8000-00000000000b','10000000-0000-0000-0000-00000000000b','CI-COLLAB-MANAGER-B','CI Collaboration Manager B','organization');
+INSERT INTO eogp.role_permissions(organization_id,role_id,permission_code)
+VALUES ('10000000-0000-0000-0000-00000000000b','81000000-0000-4000-8000-00000000000b','collaboration.manage');
+INSERT INTO eogp.user_role_grants(id,organization_id,membership_id,role_id,scope_kind,granted_by_membership_id)
+VALUES ('82000000-0000-4000-8000-00000000000b','10000000-0000-0000-0000-00000000000b','30000000-0000-0000-0000-00000000000b','81000000-0000-4000-8000-00000000000b','organization','30000000-0000-0000-0000-00000000000b');
 INSERT INTO eogp.venues (id, organization_id, code, name)
 VALUES ('40000000-0000-0000-0000-00000000000b',
         '10000000-0000-0000-0000-00000000000b', 'CI-VENUE-B', 'CI Venue B');
@@ -544,6 +556,7 @@ COMMIT;
 -- Provider A proposes a venue-scoped grant to organizer B.
 BEGIN;
 SELECT set_config('app.organization_id', '10000000-0000-0000-0000-00000000000a', true);
+SELECT set_config('app.actor_membership_id', '30000000-0000-0000-0000-00000000000a', true);
 SELECT eogp.propose_collaboration_grant(
   '61000000-0000-4000-8000-00000000000a',
   '10000000-0000-0000-0000-00000000000b',
@@ -586,6 +599,7 @@ COMMIT;
 -- must be an active membership of that grantee organization.
 BEGIN;
 SELECT set_config('app.organization_id', '10000000-0000-0000-0000-00000000000b', true);
+SELECT set_config('app.actor_membership_id', '30000000-0000-0000-0000-00000000000b', true);
 DO $test$
 DECLARE
   visible_grants integer;
@@ -642,6 +656,7 @@ COMMIT;
 -- the event owner to bind/copy the provider's plan into an event snapshot.
 BEGIN;
 SELECT set_config('app.organization_id', '10000000-0000-0000-0000-00000000000a', true);
+SELECT set_config('app.actor_membership_id', '30000000-0000-0000-0000-00000000000a', true);
 SELECT eogp.propose_collaboration_grant(
   '61000000-0000-4000-8000-00000000000c',
   '10000000-0000-0000-0000-00000000000b',
@@ -660,6 +675,7 @@ COMMIT;
 
 BEGIN;
 SELECT set_config('app.organization_id', '10000000-0000-0000-0000-00000000000b', true);
+SELECT set_config('app.actor_membership_id', '30000000-0000-0000-0000-00000000000b', true);
 SELECT eogp.accept_collaboration_grant(
   '61000000-0000-4000-8000-00000000000c',
   '30000000-0000-0000-0000-00000000000b'
@@ -669,6 +685,7 @@ COMMIT;
 -- A separate booking-scoped grant may link only the exact booking in its scope.
 BEGIN;
 SELECT set_config('app.organization_id', '10000000-0000-0000-0000-00000000000a', true);
+SELECT set_config('app.actor_membership_id', '30000000-0000-0000-0000-00000000000a', true);
 SELECT eogp.propose_collaboration_grant(
   '61000000-0000-4000-8000-00000000000b',
   '10000000-0000-0000-0000-00000000000b',
@@ -687,6 +704,7 @@ COMMIT;
 
 BEGIN;
 SELECT set_config('app.organization_id', '10000000-0000-0000-0000-00000000000b', true);
+SELECT set_config('app.actor_membership_id', '30000000-0000-0000-0000-00000000000b', true);
 SELECT eogp.accept_collaboration_grant(
   '61000000-0000-4000-8000-00000000000b',
   '30000000-0000-0000-0000-00000000000b'
@@ -1203,6 +1221,7 @@ COMMIT;
 
 BEGIN;
 SELECT set_config('app.organization_id', '10000000-0000-0000-0000-00000000000a', true);
+SELECT set_config('app.actor_membership_id', '30000000-0000-0000-0000-00000000000a', true);
 SELECT eogp.revoke_collaboration_grant(
   '61000000-0000-4000-8000-00000000000a',
   '30000000-0000-0000-0000-00000000000a',
