@@ -305,4 +305,17 @@ BEGIN
 END;
 $guest_invitation_effective_schedule$;
 
+
+
+DO $guest_invitation_staff_schedule_projection$
+DECLARE
+  v_definition text;
+BEGIN
+  SELECT pg_get_functiondef('eogp.list_guest_invitation_events(uuid,uuid)'::regprocedure) INTO v_definition;
+  IF strpos(v_definition,'current_event_schedule_revision_id')=0 THEN
+    RAISE EXCEPTION 'staff guest invitation event projection must display the effective schedule revision';
+  END IF;
+END;
+$guest_invitation_staff_schedule_projection$;
+
 ROLLBACK;
