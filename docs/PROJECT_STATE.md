@@ -441,3 +441,9 @@ The exact code head `5b069ace028cacd24682dc6b9d36bdbcbd413547` passed PostgreSQL
 Rechecked the unchecked schema matrix against the existing PostgreSQL smoke tests and found that the cross-venue building-reference case was already covered. `tests/database/migration_smoke.sql` creates two venues and one building for each, then attempts to create a space in Venue A that references Venue B's building; the test requires a foreign-key violation. The workflow runs this file in the `Run database integrity smoke tests` step. No new test or production code was needed.
 
 The matrix now records **83 verified assertions and 22 unchecked scenarios**. This is evidence reconciliation only; it does not add new runtime behavior.
+
+## Self-hosted systemd service templates — 2026-11-14
+
+Added example systemd units for the API and notification worker under `deploy/systemd/`, with separate unprivileged service accounts, separate root-managed environment files, restart/shutdown policies, journal logging and filesystem/kernel hardening. The units resolve Node.js through the system service PATH and use the API/worker entry points defined by `apps/api/package.json`. Installation, release-symlink and environment-file permission guidance is included in `deploy/systemd/README.md`; the self-hosted deployment runbook now links to these templates.
+
+Both unit definitions passed `systemd-analyze verify` in the available validation environment. This is syntax validation only: the environment did not contain the target Eventor release, service accounts, Node.js runtime or PostgreSQL endpoint, so no process-start, network, restart, graceful-shutdown or target-distribution test is claimed. The 120-second worker stop timeout must be checked against the configured maximum in-flight operation timeout. A tested reverse-proxy configuration, target-host validation, automated backups and restore/PITR drill remain outstanding. No production-readiness claim is made.
