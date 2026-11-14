@@ -31,6 +31,29 @@ BEGIN
     RAISE EXCEPTION 'staff RSVP command must not be executable by PUBLIC';
   END IF;
 
+  IF NOT EXISTS (SELECT 1 FROM eogp.permissions WHERE code = 'guest.read') THEN
+    RAISE EXCEPTION 'guest.read permission is missing';
+  END IF;
+
+  IF NOT has_function_privilege(
+    current_user,
+    'eogp.get_participation_rsvp_history(uuid,uuid,uuid)'::regprocedure,
+    'EXECUTE'
+  ) THEN
+    RAISE EXCEPTION 'runtime role cannot execute staff RSVP history projection';
+  END IF;
+
+  IF EXISTS (
+    SELECT 1
+      FROM pg_proc p
+      CROSS JOIN LATERAL aclexplode(coalesce(p.proacl, acldefault('f', p.proowner))) a
+     WHERE p.oid = 'eogp.get_participation_rsvp_history(uuid,uuid,uuid)'::regprocedure
+       AND a.grantee = 0
+       AND a.privilege_type = 'EXECUTE'
+  ) THEN
+    RAISE EXCEPTION 'staff RSVP history projection must not be executable by PUBLIC';
+  END IF;
+
   IF NOT EXISTS (
     SELECT 1 FROM pg_trigger
      WHERE tgrelid = 'eogp.rsvp_responses'::regclass
