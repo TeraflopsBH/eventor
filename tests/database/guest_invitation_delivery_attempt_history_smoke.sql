@@ -567,6 +567,34 @@ $staff_rsvp_immutability$;
 
 SET LOCAL ROLE eventor_owner;
 
+
+-- Staff RSVP history is permission- and actor-bound and never returns restricted note ciphertext.
+SET LOCAL ROLE eventor_runtime;
+SELECT set_config('app.organization_id','22222222-2222-4222-8222-222222222222',true);
+SELECT set_config('app.actor_membership_id','bbbbbbbb-2222-4222-8222-bbbbbbbbbbbb',true);
+DO $staff_rsvp_history_read$
+DECLARE v_history jsonb; v_denied boolean := false;
+BEGIN
+  v_history := eogp.list_staff_guest_rsvp_history(
+    '22222222-2222-4222-8222-222222222222','94000000-0000-4000-8000-000000000001',
+    '94300000-0000-4000-8000-000000000001','bbbbbbbb-2222-4222-8222-bbbbbbbbbbbb');
+  IF jsonb_array_length(v_history)<>2
+     OR NOT (v_history @> '[{"sequenceNumber":2,"sourceChannel":"email","respondentKind":"guest","correctionReason":"Guest confirmed the earlier answer was recorded incorrectly"}]'::jsonb)
+     OR (v_history->0) ? 'notesRestrictedCiphertext'
+     OR NOT (v_history->0 ? 'actorMembershipId') OR NOT (v_history->0 ? 'recordedAt') THEN
+    RAISE EXCEPTION 'staff RSVP history projection omitted evidence or exposed restricted fields: %',v_history;
+  END IF;
+  v_denied := false;
+  BEGIN
+    PERFORM eogp.list_staff_guest_rsvp_history(
+      '22222222-2222-4222-8222-222222222222','94000000-0000-4000-8000-000000000001',
+      '94300000-0000-4000-8000-000000000001','95600000-0000-4000-8000-000000000001');
+  EXCEPTION WHEN SQLSTATE '42501' THEN v_denied := true;
+  END;
+  IF NOT v_denied THEN RAISE EXCEPTION 'RSVP history accepted mismatched actor context'; END IF;
+END;
+$staff_rsvp_history_read$;
+
 ROLLBACK;
 
 \echo 'Guest invitation delivery attempt-history transition regressions passed.'
