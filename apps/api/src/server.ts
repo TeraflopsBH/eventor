@@ -1221,7 +1221,7 @@ async function runIdempotentCommand(
   idempotencyKey: string,
   requestBody: unknown,
   command: Command,
-  authorizeReplay?: (client: PoolClient) => Promise<void>,
+  authorizeReplay: (client: PoolClient) => Promise<void>,
 ): Promise<CommandResponse> {
   const client = await dependencies.pool.connect();
   const hash = requestHash(requestBody, dependencies.privateFieldEncryptionKey);
@@ -1482,6 +1482,110 @@ export function buildApi(dependencies: ApiDependencies): FastifyInstance {
     if (permission.rows.length === 0) {
       throw new ApiError(403, "FORBIDDEN", "The event notification send permission is no longer granted.");
     }
+  };
+
+  const authorizeEventCommandReplay = async (
+    client: PoolClient,
+    principal: StaffPrincipal,
+    eventId: string,
+    permissionCode: string,
+  ): Promise<void> => {
+    await client.query(
+      "SELECT eogp.assert_event_command_permission($1::uuid,$2::uuid,$3::uuid,$4::text)",
+      [principal.organizationId, eventId, principal.membershipId, permissionCode],
+    );
+  };
+
+  const authorizeEventChangeRequestReplay = async (
+    client: PoolClient,
+    principal: StaffPrincipal,
+    requestId: string,
+    action: "approve" | "execute",
+  ): Promise<void> => {
+    const result = await client.query<{ event_id: string; change_kind: string }>(
+      "SELECT event_id,change_kind FROM eogp.event_change_requests WHERE organization_id=$1 AND id=$2 FOR SHARE",
+      [principal.organizationId, requestId],
+    );
+    const request = result.rows[0];
+    if (!request) throw new ApiError(404, "NOT_FOUND", "The event change request was not found.");
+    const permissionCode = request.change_kind === "cancel"
+      ? action === "approve" ? "event.cancellation.approve" : "event.cancellation.execute"
+      : "event.postponement.manage";
+    await authorizeEventCommandReplay(client, principal, request.event_id, permissionCode);
+  };
+
+  const authorizeNotificationDeliveryReplay = async (
+    client: PoolClient,
+    principal: StaffPrincipal,
+    attemptId: string,
+    retry: boolean,
+  ): Promise<void> => {
+    const result = await client.query<{ event_id: string }>(
+      `SELECT campaign.event_id
+         FROM eogp.event_notification_delivery_attempts attempt
+         JOIN eogp.event_notification_campaigns campaign
+           ON campaign.organization_id=attempt.organization_id
+          AND campaign.id=attempt.campaign_id
+        WHERE attempt.organization_id=$1 AND attempt.id=$2
+        FOR SHARE OF campaign`,
+      [principal.organizationId, attemptId],
+    );
+    const eventId = result.rows[0]?.event_id;
+    if (!eventId) throw new ApiError(404, "NOT_FOUND", "The notification delivery attempt was not found.");
+    await authorizeEventCommandReplay(
+      client, principal, eventId, "event.notifications.delivery.manage",
+    );
+    if (retry) {
+      await authorizeEventCommandReplay(client, principal, eventId, "event.notifications.send");
+    }
+  };
+
+  const authorizeBookingReservationReleaseReplay = async (
+    client: PoolClient,
+    principal: StaffPrincipal,
+    bookingId: string,
+  ): Promise<void> => {
+    const booking = await client.query(
+      "SELECT 1 FROM eogp.booking_records WHERE organization_id=$1 AND id=$2 FOR SHARE",
+      [principal.organizationId, bookingId],
+    );
+    if (booking.rows.length === 0) throw new ApiError(404, "NOT_FOUND", "The booking was not found.");
+    const membership = await client.query(
+      "SELECT 1 FROM eogp.organization_memberships WHERE organization_id=$1 AND id=$2 AND status='active' FOR SHARE",
+      [principal.organizationId, principal.membershipId],
+    );
+    if (membership.rows.length === 0) {
+      throw new ApiError(403, "FORBIDDEN", "The staff membership is no longer active.");
+    }
+    const permission = await client.query(
+      `SELECT 1
+         FROM eogp.user_role_grants user_grant
+         JOIN eogp.role_permissions role_permission
+           ON role_permission.organization_id=user_grant.organization_id
+          AND role_permission.role_id=user_grant.role_id
+        WHERE user_grant.organization_id=$1
+          AND user_grant.membership_id=$2
+          AND user_grant.revoked_at IS NULL
+          AND (user_grant.expires_at IS NULL OR user_grant.expires_at>clock_timestamp())
+          AND role_permission.permission_code='booking.cancellation.execute'
+          AND (user_grant.scope_kind='organization'
+               OR (user_grant.scope_kind='booking' AND user_grant.scope_booking_id=$3))
+        FOR SHARE OF user_grant, role_permission`,
+      [principal.organizationId, principal.membershipId, bookingId],
+    );
+    if (permission.rows.length === 0) {
+      throw new ApiError(403, "FORBIDDEN", "The booking cancellation execution permission is no longer granted.");
+    }
+  };
+
+  const authorizeOrganizationDeliveryManageReplay = async (
+    client: PoolClient,
+    principal: StaffPrincipal,
+  ): Promise<void> => {
+    await client.query(
+      "SELECT eogp.assert_event_command_permission($1::uuid,NULL::uuid,$2::uuid,'organization.delivery.manage')",
+      [principal.organizationId, principal.membershipId],
+    );
   };
 
   const withCommand = async (
@@ -3955,6 +4059,8 @@ export function buildApi(dependencies: ApiDependencies): FastifyInstance {
             [principal.organizationId, request.params.attemptId, principal.membershipId, request.body.resolution, request.body.reason],
           );
           return result.rows[0]?.result as Record<string, unknown>;
+        }, async (client) => {
+          await authorizeNotificationDeliveryReplay(client, principal, request.params.attemptId, false);
         });
     },
   );
@@ -3981,6 +4087,8 @@ export function buildApi(dependencies: ApiDependencies): FastifyInstance {
             [principal.organizationId, request.params.attemptId, principal.membershipId, request.body.reason],
           );
           return result.rows[0]?.result as Record<string, unknown>;
+        }, async (client) => {
+          await authorizeNotificationDeliveryReplay(client, principal, request.params.attemptId, true);
         });
     },
   );
@@ -4063,6 +4171,8 @@ export function buildApi(dependencies: ApiDependencies): FastifyInstance {
           releasedCount: Number(result.rows[0]?.released_count ?? 0),
           reservationIds: body.reservationIds,
         };
+      }, async (client) => {
+        await authorizeBookingReservationReleaseReplay(client, principal, request.params.bookingId);
       });
     },
   );
@@ -4091,6 +4201,10 @@ export function buildApi(dependencies: ApiDependencies): FastifyInstance {
           ],
         );
         return result.rows[0]?.result as Record<string, unknown>;
+      }, async (client) => {
+        const permissionCode = body.changeKind === "cancel"
+          ? "event.cancellation.initiate" : "event.postponement.manage";
+        await authorizeEventCommandReplay(client, principal, request.params.eventId, permissionCode);
       });
     },
   );
@@ -4106,6 +4220,8 @@ export function buildApi(dependencies: ApiDependencies): FastifyInstance {
           [principal.organizationId, request.params.requestId, principal.membershipId, request.body.reason],
         );
         return result.rows[0]?.result as Record<string, unknown>;
+      }, async (client) => {
+        await authorizeEventChangeRequestReplay(client, principal, request.params.requestId, "approve");
       });
     },
   );
@@ -4121,6 +4237,8 @@ export function buildApi(dependencies: ApiDependencies): FastifyInstance {
           [principal.organizationId, request.params.requestId, principal.membershipId, request.body.reason],
         );
         return result.rows[0]?.result as Record<string, unknown>;
+      }, async (client) => {
+        await authorizeEventChangeRequestReplay(client, principal, request.params.requestId, "approve");
       });
     },
   );
@@ -4148,6 +4266,8 @@ export function buildApi(dependencies: ApiDependencies): FastifyInstance {
           ],
         );
         return result.rows[0]?.result as Record<string, unknown>;
+      }, async (client) => {
+        await authorizeEventChangeRequestReplay(client, principal, request.params.requestId, "execute");
       });
     },
   );
@@ -4382,6 +4502,8 @@ export function buildApi(dependencies: ApiDependencies): FastifyInstance {
             ],
           );
           return result.rows[0]?.result as Record<string, unknown>;
+        }, async (client) => {
+          await authorizeOrganizationDeliveryManageReplay(client, principal);
         },
       );
     },
@@ -4445,6 +4567,8 @@ export function buildApi(dependencies: ApiDependencies): FastifyInstance {
             ...data,
             callbackUrl: `${dependencies.publicApiBaseUrl}/webhooks/resend/${endpointId}`,
           };
+        }, async (client) => {
+          await authorizeOrganizationDeliveryManageReplay(client, principal);
         });
     },
   );
@@ -4482,6 +4606,8 @@ export function buildApi(dependencies: ApiDependencies): FastifyInstance {
             [principal.organizationId, principal.membershipId, request.body.endpointId, encryptedSecret],
           );
           return result.rows[0]?.result as Record<string, unknown>;
+        }, async (client) => {
+          await authorizeOrganizationDeliveryManageReplay(client, principal);
         });
     },
   );
