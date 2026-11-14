@@ -122,6 +122,25 @@ BEGIN
     RAISE EXCEPTION 'eogp SECURITY DEFINER functions executable by PUBLIC: %', public_definer_functions;
   END IF;
 
+  -- Every tenant-owned table with a mandatory organization_id must
+  -- enforce RLS even when accessed by its owner or a SECURITY DEFINER routine.
+  -- A missing policy fails closed; missing FORCE RLS does not.
+  IF EXISTS (
+    SELECT 1
+      FROM pg_class relation
+      JOIN pg_namespace namespace ON namespace.oid = relation.relnamespace
+      JOIN pg_attribute attribute ON attribute.attrelid = relation.oid
+     WHERE namespace.nspname = 'eogp'
+       AND relation.relkind = 'r'
+       AND attribute.attname = 'organization_id'
+       AND attribute.attnum > 0
+       AND NOT attribute.attisdropped
+       AND attribute.attnotnull
+       AND (NOT relation.relrowsecurity OR NOT relation.relforcerowsecurity)
+  ) THEN
+    RAISE EXCEPTION 'a tenant-owned eogp table lacks ENABLE and FORCE ROW LEVEL SECURITY';
+  END IF;
+
   -- A SECURITY DEFINER routine without a pinned pg_catalog-first search path
   -- is vulnerable to object-shadowing through caller-controlled schemas.
   IF EXISTS (
