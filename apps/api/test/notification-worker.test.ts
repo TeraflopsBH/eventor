@@ -364,7 +364,7 @@ test("guest invitation email worker never opens SMTP when send authorization is 
   assert.equal(result.guestInvitationEmailFailed, 1);
   assert.equal(result.guestInvitationEmailRetriesScheduled, 0);
   assert.equal(factoryCalls, 0);
-  assert.deepEqual(completionCalls, [[organizationId, deliveryId, "failed", "INVITATION_REVOKED", null]]);
+  assert.deepEqual(completionCalls, [[organizationId, deliveryId, "failed", "INVITATION_NOT_SENDABLE", null]]);
 });
 
 test("guest invitation email worker schedules retryable connection failures and preserves ambiguous SMTP outcomes", async (t) => {
