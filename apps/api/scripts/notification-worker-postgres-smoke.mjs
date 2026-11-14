@@ -19,34 +19,6 @@ const recipients = [
 ];
 
 try {
-  const client = await migrator.connect();
-  try {
-    await client.query("BEGIN");
-    await client.query("SET LOCAL ROLE eventor_owner");
-    await client.query("SELECT set_config('app.organization_id',$1,true)", [organizationId]);
-
-    for (const [personId, address] of recipients) {
-      const encrypted = encryptContactValue(address, contactKey, {
-        organizationId,
-        contactKind: "email",
-      });
-      const updated = await client.query(
-        `UPDATE eogp.person_contact_points
-            SET encrypted_value=$3
-          WHERE organization_id=$1 AND person_id=$2::uuid AND contact_kind='email'`,
-        [organizationId, personId, encrypted],
-      );
-      assert.equal(updated.rowCount, 1, `expected one email contact for fixture person ${personId}`);
-    }
-
-    await client.query("COMMIT");
-  } catch (error) {
-    await client.query("ROLLBACK");
-    throw error;
-  } finally {
-    client.release();
-  }
-
   const submitted = [];
   const factoryCalls = [];
   const smtpFactory = (settings, auth) => {
