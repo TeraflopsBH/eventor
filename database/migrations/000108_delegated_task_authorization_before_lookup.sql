@@ -71,15 +71,12 @@ BEGIN
       USING ERRCODE = 'P0002';
   END IF;
 
-  SELECT status INTO v_member_status
-    FROM eogp.organization_memberships
-   WHERE organization_id = v_assignment.performing_organization_id
-     AND id = p_actor_membership_id;
-  IF NOT FOUND OR v_member_status <> 'active'
-     OR (v_assignment.performing_membership_id IS NOT NULL
-         AND v_assignment.performing_membership_id <> p_actor_membership_id) THEN
-    RAISE EXCEPTION 'active assigned performer membership is required'
-      USING ERRCODE = '42501';
+  -- Membership activity is already locked and verified before lookup.
+  -- A task bound to a different individual is not visible to this performer.
+  IF v_assignment.performing_membership_id IS NOT NULL
+     AND v_assignment.performing_membership_id <> p_actor_membership_id THEN
+    RAISE EXCEPTION 'assigned task not found for this performing membership'
+      USING ERRCODE = 'P0002';
   END IF;
 
   IF NOT EXISTS (
@@ -206,16 +203,12 @@ BEGIN
       USING ERRCODE = 'P0002';
   END IF;
 
-  SELECT status INTO v_member_status
-    FROM eogp.organization_memberships
-   WHERE organization_id = v_assignment.performing_organization_id
-     AND id = p_actor_membership_id
-   FOR SHARE;
-  IF NOT FOUND OR v_member_status <> 'active'
-     OR (v_assignment.performing_membership_id IS NOT NULL
-         AND v_assignment.performing_membership_id <> p_actor_membership_id) THEN
-    RAISE EXCEPTION 'active assigned performer membership is required'
-      USING ERRCODE = '42501';
+  -- Membership activity is already locked and verified before lookup.
+  -- A task bound to a different individual is not visible to this performer.
+  IF v_assignment.performing_membership_id IS NOT NULL
+     AND v_assignment.performing_membership_id <> p_actor_membership_id THEN
+    RAISE EXCEPTION 'assigned task not found for this performing membership'
+      USING ERRCODE = 'P0002';
   END IF;
 
   IF p_reason_code IS NULL OR length(btrim(p_reason_code)) = 0
