@@ -92,4 +92,40 @@ BEGIN
 END;
 $guest_capability_validation$;
 
+
+DO $guest_rsvp_lock_order$
+DECLARE
+  v_definition text;
+  v_participation_lock integer;
+  v_invitation_select integer;
+  v_invitation_lock integer;
+  v_link_select integer;
+  v_link_lock integer;
+BEGIN
+  SELECT pg_get_functiondef(
+    'eogp.submit_guest_invitation_rsvp(text,text,text,text,bytea)'::regprocedure
+  ) INTO v_definition;
+
+  v_participation_lock := strpos(v_definition, 'FOR UPDATE;');
+  v_invitation_select := strpos(v_definition, 'INTO v_invitation');
+  v_invitation_lock := v_invitation_select
+    + strpos(substring(v_definition FROM v_invitation_select), 'FOR UPDATE;') - 1;
+  v_link_select := strpos(v_definition, 'INTO v_link');
+  v_link_lock := v_link_select
+    + strpos(substring(v_definition FROM v_link_select), 'FOR UPDATE;') - 1;
+
+  IF v_participation_lock <= 0
+     OR v_invitation_select <= v_participation_lock
+     OR v_invitation_lock <= v_invitation_select
+     OR v_link_select <= v_invitation_lock
+     OR v_link_lock <= v_link_select
+     OR NOT (
+       v_participation_lock < v_invitation_lock
+       AND v_invitation_lock < v_link_lock
+     ) THEN
+    RAISE EXCEPTION 'guest RSVP must lock participation, invitation, then link';
+  END IF;
+END;
+$guest_rsvp_lock_order$;
+
 ROLLBACK;
