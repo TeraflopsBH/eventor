@@ -5,8 +5,8 @@ This matrix tracks executable PostgreSQL integration coverage and remaining gaps
 ## Tenant relationships
 - [x] Same-organization person merge target accepted.
 - [x] Cross-organization person merge target rejected.
-- [ ] Same-organization credential replacement accepted.
-- [ ] Cross-organization credential replacement rejected.
+- [x] Same-organization credential replacement is accepted; the delivery-configuration smoke test replaces the credential envelope with distinct bytes and verifies the new envelope is used by the SMTP test command.
+- [x] Cross-organization credential replacement is rejected with SQLSTATE 42501 when an active membership from another tenant invokes the organization-scoped command.
 - [x] User actor with active membership in owning organization accepted.
 - [ ] User with no membership in owning organization rejected.
 - [ ] Member without operation permission rejected by API authorization.
