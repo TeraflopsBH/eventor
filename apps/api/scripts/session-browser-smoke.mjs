@@ -66,7 +66,7 @@ for (const [name, browserType] of [["chromium", chromium], ["firefox", firefox]]
     const afterLogout = await page.evaluate(async () => (await fetch("/me")).status);
     assert.equal(afterLogout, 401, `${name}: revoked browser session remained usable`);
 
-    process.stdout.write(`${name}: login, cookie persistence, /me, CSRF mutation and logout passed\\n`);
+    console.log(`${name}: login, cookie persistence, /me, CSRF mutation and logout passed`);
     await context.close();
   } finally {
     await browser.close();
