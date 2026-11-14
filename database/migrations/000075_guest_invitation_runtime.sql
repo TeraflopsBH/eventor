@@ -192,7 +192,8 @@ DECLARE
 BEGIN
   IF p_token_sha256 IS NULL OR p_token_sha256 !~ '^[0-9a-f]{64}$'
      OR p_idempotency_key_sha256 IS NULL OR p_idempotency_key_sha256 !~ '^[0-9a-f]{64}$'
-     OR p_request_sha256 IS NULL OR p_request_sha256 !~ '^[0-9a-f]{64}
+     OR p_request_sha256 IS NULL OR p_request_sha256 !~ '^[0-9a-f]{64}$'
+     OR p_response NOT IN ('accepted', 'declined', 'tentative') THEN
     RAISE EXCEPTION 'invalid guest RSVP request' USING ERRCODE = '22023';
   END IF;
   IF p_notes_restricted_ciphertext IS NOT NULL
