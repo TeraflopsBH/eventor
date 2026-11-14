@@ -28,13 +28,15 @@ VALUES (
 );
 
 INSERT INTO eogp.rsvp_policy_revisions(
- id,organization_id,event_id,policy_id,revision_number,event_timezone,state,published_at
+ id,organization_id,event_id,policy_id,revision_number,event_timezone,state,published_at,
+ allowed_responses,response_change_allowed,response_deadline,late_change_requires_staff
 ) VALUES (
  '96400000-0000-4000-8000-000000000001',
  '22222222-2222-4222-8222-222222222222',
  '94000000-0000-4000-8000-000000000001',
  '96300000-0000-4000-8000-000000000001',
- 1,'Europe/Sarajevo','published',clock_timestamp()
+ 1,'Europe/Sarajevo','published',clock_timestamp(),
+ '["accepted"]'::jsonb,true,NULL,false
 );
 
 INSERT INTO eogp.invitation_revisions(
