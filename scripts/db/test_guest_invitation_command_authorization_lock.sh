@@ -51,7 +51,7 @@ SELECT set_config('app.organization_id','$org',true);
 UPDATE eogp.invitation_deliveries
    SET idempotency_key_sha256='$idempotency'
  WHERE organization_id='$org' AND id='$delivery';
-UPDATE eogp.invitations SET status='revoked'
+UPDATE eogp.invitations SET status='revoked',revoked_at=clock_timestamp()
  WHERE organization_id='$org' AND id='$invitation';
 COMMIT;
 SQL
