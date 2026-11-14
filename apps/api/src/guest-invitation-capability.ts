@@ -1,4 +1,4 @@
-import { createHash } from "node:crypto";
+import { createHash, randomBytes } from "node:crypto";
 
 /**
  * Validate and hash an opaque guest invitation bearer token.
@@ -18,4 +18,20 @@ export function hashGuestInvitationToken(token: unknown): string | null {
   }
 
   return createHash("sha256").update(decoded).digest("hex");
+}
+
+/**
+ * Create a new invitation bearer token and its persistence-safe digest.
+ * Persist only tokenSha256; return token once to the caller for link delivery.
+ */
+export function createGuestInvitationCapability(): {
+  readonly token: string;
+  readonly tokenSha256: string;
+} {
+  const token = randomBytes(32).toString("base64url");
+  const tokenSha256 = hashGuestInvitationToken(token);
+  if (!tokenSha256) {
+    throw new Error("Generated guest invitation capability was invalid.");
+  }
+  return { token, tokenSha256 };
 }
