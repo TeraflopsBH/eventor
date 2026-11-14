@@ -38,6 +38,7 @@ rm "$pre_dir/000094_auth_role_column_privileges.sql"
 rm "$pre_dir/000095_revoke_notification_guard_function_execution.sql"
 rm "$pre_dir/000096_staff_recorded_rsvp.sql"
 rm "$pre_dir/000097_guest_rsvp_current_response_projection.sql"
+rm "$pre_dir/000098_staff_guest_rsvp_history.sql"
 
 echo "=== Apply schema through 000073 ==="
 DATABASE_URL="$MIGRATOR_URL" MIGRATIONS_DIR="$pre_dir" \
