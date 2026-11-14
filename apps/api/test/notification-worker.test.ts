@@ -320,6 +320,109 @@ test("guest invitation email worker decrypts the queued capability and sends a p
   assert.ok(calls.includes("COMMIT"));
 });
 
+
+test("guest invitation email worker schedules retryable connection failures and preserves ambiguous SMTP outcomes", async (t) => {
+  const cases = [
+    {
+      name: "connection reset is retryable",
+      error: Object.assign(new Error("connection reset"), { code: "ECONNRESET" }),
+      outcome: "failed",
+      failureCode: "SMTP_CONNECTION",
+      retryScheduled: true,
+    },
+    {
+      name: "connection loss during DATA is uncertain and not retried",
+      error: Object.assign(new Error("connection lost during DATA"), { command: "DATA" }),
+      outcome: "uncertain",
+      failureCode: "SMTP_UNKNOWN",
+      retryScheduled: false,
+    },
+  ] as const;
+
+  for (const scenario of cases) {
+    await t.test(scenario.name, async () => {
+      const organizationId = "22222222-2222-4222-8222-222222222222";
+      const deliveryId = "55555555-5555-4555-8555-555555555555";
+      const contactKey = Buffer.alloc(32, 31);
+      const deliveryKey = Buffer.alloc(32, 32);
+      const recipientCiphertext = encryptContactValue("guest@example.test", contactKey, {
+        organizationId, contactKind: "email",
+      });
+      const capabilityCiphertext = encryptContactValue("A".repeat(43), contactKey, {
+        organizationId, contactKind: "other",
+      });
+      const job = {
+        delivery_id: deliveryId,
+        invitation_id: "33333333-3333-4333-8333-333333333333",
+        invitation_revision_id: "44444444-4444-4444-8444-444444444444",
+        capability_ciphertext: capabilityCiphertext,
+        recipient_ciphertext: recipientCiphertext,
+        credentials_ciphertext: null,
+        smtp_settings: {
+          host: "smtp.example.test",
+          port: 587,
+          transportSecurity: "starttls" as const,
+          authMode: "none" as const,
+          senderEmail: "events@example.test",
+          senderName: "Example Organizer",
+          replyTo: null,
+          connectionTimeoutMs: 15000,
+        },
+        sender_email: "events@example.test",
+        sender_name: "Example Organizer",
+        reply_to: null,
+        event_title: "Community gathering",
+        starts_at: new Date("2027-03-01T17:00:00.000Z"),
+        timezone_name: "Europe/Sarajevo",
+        locale: "en",
+      };
+      const completionCalls: unknown[][] = [];
+      let claimCount = 0;
+      let closed = false;
+      const client = {
+        async query(sql: string, values: unknown[] = []) {
+          const normalized = sql.replace(/\\s+/g, " ").trim();
+          if (normalized.startsWith("SELECT * FROM eogp.claim_invitation_email_delivery")) {
+            claimCount += 1;
+            return { rows: claimCount === 1 ? [job] : [], rowCount: claimCount === 1 ? 1 : 0 };
+          }
+          if (normalized.startsWith("SELECT eogp.complete_invitation_email_delivery")) {
+            completionCalls.push(values);
+            return { rows: [{ result: { retryScheduled: scenario.retryScheduled } }], rowCount: 1 };
+          }
+          return { rows: [], rowCount: 1 };
+        },
+        release() {},
+      };
+      const pool = {
+        async query() {
+          return { rows: [{ organization_id: organizationId }], rowCount: 1 };
+        },
+        async connect() { return client; },
+      } as unknown as Pool;
+      const factory: SmtpTransportFactory = () => ({
+        async verify() { return true; },
+        async sendMail() { throw scenario.error; },
+        close() { closed = true; },
+      });
+
+      const result = await processPendingGuestInvitationEmailDeliveries(
+        pool, contactKey, deliveryKey, "https://eventor.example.test", 10, 10, factory,
+      );
+
+      assert.equal(result.guestInvitationEmailAttempts, 1);
+      assert.equal(result.guestInvitationEmailFailed, scenario.outcome === "failed" ? 1 : 0);
+      assert.equal(result.guestInvitationEmailUncertain, scenario.outcome === "uncertain" ? 1 : 0);
+      assert.equal(result.guestInvitationEmailRetriesScheduled, scenario.retryScheduled ? 1 : 0);
+      assert.deepEqual(completionCalls, [[
+        organizationId, deliveryId, scenario.outcome, scenario.failureCode, null,
+      ]]);
+      assert.equal(closed, true);
+      assert.equal(claimCount, 2);
+    });
+  }
+});
+
 test("booking offer email worker rejects a non-HTTPS public application URL before discovery", async () => {
   const mock = fakePool([]);
   await assert.rejects(
