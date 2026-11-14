@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import { computed, onMounted, ref, watch } from "vue";
 import { useI18n } from "vue-i18n";
-import { api, type GuestInvitationDeliveryAttempt, type GuestInvitationEvent, type GuestInvitationParticipation } from "../../api";
+import { api, type GuestInvitationDeliveryAttempt, type GuestInvitationEvent, type GuestInvitationParticipation, type GuestInvitationRsvpHistoryEntry } from "../../api";
 
 const props = defineProps<{ organizationId: string }>();
 const { t, locale } = useI18n();
@@ -14,6 +14,9 @@ const notice = ref("");
 const expandedInvitationId = ref<string | null>(null);
 const attemptHistory = ref<Record<string, GuestInvitationDeliveryAttempt[]>>({});
 const historyLoading = ref(false);
+const expandedRsvpHistoryId = ref<string | null>(null);
+const rsvpHistory = ref<Record<string, GuestInvitationRsvpHistoryEntry[]>>({});
+const rsvpHistoryLoading = ref(false);
 const selectedEvent = computed(() => events.value.find((event) => event.eventId === selectedEventId.value) ?? null);
 const localeValue = computed<"bs-BA" | "en">(() => locale.value === "en" ? "en" : "bs-BA");
 
@@ -105,6 +108,24 @@ async function loadParticipants(): Promise<void> {
   } catch (cause) {
     error.value = cause instanceof Error ? cause.message : t("guestInvitations.loadFailed");
   } finally { loading.value = false; }
+}
+
+async function toggleRsvpHistory(person: GuestInvitationParticipation): Promise<void> {
+  if (expandedRsvpHistoryId.value === person.participationId) { expandedRsvpHistoryId.value = null; return; }
+  if (!selectedEventId.value) return;
+  expandedRsvpHistoryId.value = person.participationId;
+  rsvpHistoryLoading.value = true; error.value = "";
+  try {
+    const result = await api.getGuestInvitationRsvpHistory(selectedEventId.value, person.participationId);
+    rsvpHistory.value = { ...rsvpHistory.value, [person.participationId]: result.data };
+  } catch (cause) {
+    error.value = cause instanceof Error ? cause.message : "Unable to load RSVP history.";
+    expandedRsvpHistoryId.value = null;
+  } finally { rsvpHistoryLoading.value = false; }
+}
+function formatRsvpTimestamp(value: string): string {
+  const date = new Date(value);
+  return Number.isFinite(date.getTime()) ? new Intl.DateTimeFormat(localeValue.value === "en" ? "en-GB" : "bs-BA", { dateStyle: "medium", timeStyle: "short" }).format(date) : value;
 }
 
 async function toggleAttemptHistory(invitationId: string): Promise<void> {
@@ -230,6 +251,9 @@ onMounted(() => { void loadEvents(); });
                   :disabled="historyLoading"
                   @click="toggleAttemptHistory(person.invitationId)"
                 >{{ expandedInvitationId === person.invitationId ? t("guestInvitations.hideHistory") : t("guestInvitations.showHistory") }}</button>
+                <button class="button button-quiet" :disabled="rsvpHistoryLoading" @click="toggleRsvpHistory(person)">
+                  {{ expandedRsvpHistoryId === person.participationId ? (localeValue === "en" ? "Hide RSVP history" : "Sakrij historiju RSVP-a") : (localeValue === "en" ? "RSVP history" : "Historija RSVP-a") }}
+                </button>
                 <button class="button button-quiet" :disabled="loading" @click="openRsvp(person)">
                   {{ t("guestInvitations.recordRsvp") }}
                 </button>
@@ -245,6 +269,25 @@ onMounted(() => { void loadEvents(); });
                   :disabled="loading"
                   @click="revoke(person)"
                 >{{ t("guestInvitations.revoke") }}</button>
+              </td>
+            </tr>
+            <tr v-if="expandedRsvpHistoryId === person.participationId" :key="`${person.participationId}-rsvp-history`">
+              <td colspan="6">
+                <div class="attempt-history">
+                  <strong>{{ localeValue === "en" ? "RSVP response history" : "Historija RSVP odgovora" }}</strong>
+                  <p v-if="rsvpHistoryLoading" class="muted">{{ t("guestInvitations.loading") }}</p>
+                  <p v-else-if="(rsvpHistory[person.participationId] ?? []).length === 0" class="muted">{{ localeValue === "en" ? "No RSVP responses recorded." : "Nema zabilježenih RSVP odgovora." }}</p>
+                  <ol v-else class="history-list">
+                    <li v-for="entry in rsvpHistory[person.participationId]" :key="entry.responseId">
+                      <strong>#{{ entry.sequenceNumber }} · {{ t(`guestInvitations.${entry.response}`) }}</strong>
+                      <span>{{ localeValue === "en" ? "Source" : "Izvor" }}: {{ entry.sourceChannel }} · {{ localeValue === "en" ? "Respondent" : "Odgovorio" }}: {{ entry.respondentKind }}</span>
+                      <span>{{ localeValue === "en" ? "Received" : "Primljeno" }}: {{ formatRsvpTimestamp(entry.receivedAt) }}</span>
+                      <span>{{ localeValue === "en" ? "Recorded" : "Zabilježeno" }}: {{ formatRsvpTimestamp(entry.recordedAt) }}</span>
+                      <span v-if="entry.actorMembershipId">{{ localeValue === "en" ? "Recorded by membership" : "Zabilježio član" }}: {{ entry.actorMembershipId }}</span>
+                      <span v-if="entry.correctionOfResponseId">{{ localeValue === "en" ? "Corrects prior response" : "Ispravlja prethodni odgovor" }}: {{ entry.correctionReason }}</span>
+                    </li>
+                  </ol>
+                </div>
               </td>
             </tr>
             <tr v-if="recordingParticipationId === person.participationId" :key="`${person.participationId}-rsvp-form`">
