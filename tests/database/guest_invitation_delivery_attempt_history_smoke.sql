@@ -226,6 +226,12 @@ VALUES (
 )
 ON CONFLICT DO NOTHING;
 
+INSERT INTO eogp.role_permissions (organization_id,role_id,permission_code)
+VALUES
+ ('22222222-2222-4222-8222-222222222222','93900000-0000-4000-8000-000000000001','rsvp.record'),
+ ('22222222-2222-4222-8222-222222222222','93900000-0000-4000-8000-000000000001','rsvp.correct')
+ON CONFLICT DO NOTHING;
+
 -- A separate active member with no invitation.manage grant proves that
 -- membership alone is insufficient. All identities are transaction-local.
 INSERT INTO eogp.users (id,email,display_name,status)
@@ -314,6 +320,130 @@ BEGIN
   END IF;
 END;
 $attempt_history_authorization$;
+
+-- Staff-recorded RSVP appends an attributed response; corrections append a
+-- successor row and require the dedicated correction permission.
+SET LOCAL ROLE eventor_runtime;
+SELECT set_config('app.organization_id','22222222-2222-4222-8222-222222222222',true);
+SELECT set_config('app.actor_membership_id','bbbbbbbb-2222-4222-8222-bbbbbbbbbbbb',true);
+
+DO $staff_rsvp_regression$
+DECLARE
+  v_org uuid := '22222222-2222-4222-8222-222222222222';
+  v_event uuid := '94000000-0000-4000-8000-000000000001';
+  v_participation uuid := '94300000-0000-4000-8000-000000000001';
+  v_invitation uuid := '94500000-0000-4000-8000-000000000001';
+  v_first uuid;
+  v_second uuid;
+  v_result jsonb;
+  v_count integer;
+  v_denied boolean;
+BEGIN
+  v_result := eogp.record_staff_guest_rsvp(
+    v_org,v_event,v_participation,
+    'bbbbbbbb-2222-4222-8222-bbbbbbbbbbbb',
+    'accepted','phone','guest',clock_timestamp()-interval '5 minutes',
+    v_invitation,decode('01020304','hex'),NULL,NULL
+  );
+  v_first := (v_result->>'responseId')::uuid;
+  IF v_result->>'response'<>'accepted' OR (v_result->>'sequenceNumber')::integer<>1 THEN
+    RAISE EXCEPTION 'staff RSVP did not create the first response: %',v_result;
+  END IF;
+
+  v_result := eogp.record_staff_guest_rsvp(
+    v_org,v_event,v_participation,
+    'bbbbbbbb-2222-4222-8222-bbbbbbbbbbbb',
+    'declined','email','guest',clock_timestamp()-interval '4 minutes',
+    v_invitation,decode('05060708','hex'),v_first,
+    'Guest confirmed the earlier answer was recorded incorrectly'
+  );
+  v_second := (v_result->>'responseId')::uuid;
+  IF v_result->>'response'<>'declined'
+     OR (v_result->>'sequenceNumber')::integer<>2
+     OR (v_result->>'correctionOfResponseId')::uuid<>v_first THEN
+    RAISE EXCEPTION 'staff RSVP correction was not appended correctly: %',v_result;
+  END IF;
+
+  SELECT count(*) INTO v_count
+    FROM eogp.rsvp_responses
+   WHERE organization_id=v_org AND event_id=v_event
+     AND participation_id=v_participation;
+  IF v_count<>2 THEN
+    RAISE EXCEPTION 'expected both original and corrected RSVP rows, found %',v_count;
+  END IF;
+  IF NOT EXISTS (
+    SELECT 1 FROM eogp.rsvp_responses
+     WHERE organization_id=v_org AND id=v_first
+       AND response='accepted' AND correction_of_response_id IS NULL
+       AND actor_membership_id='bbbbbbbb-2222-4222-8222-bbbbbbbbbbbb'
+       AND notes_restricted_ciphertext=decode('01020304','hex')
+  ) OR NOT EXISTS (
+    SELECT 1 FROM eogp.rsvp_responses
+     WHERE organization_id=v_org AND id=v_second
+       AND response='declined' AND correction_of_response_id=v_first
+       AND correction_reason='Guest confirmed the earlier answer was recorded incorrectly'
+       AND notes_restricted_ciphertext=decode('05060708','hex')
+  ) THEN
+    RAISE EXCEPTION 'staff RSVP actor, source or correction evidence was not preserved';
+  END IF;
+
+  -- A stale correction cannot branch from a response that is no longer current.
+  v_denied := false;
+  BEGIN
+    PERFORM eogp.record_staff_guest_rsvp(
+      v_org,v_event,v_participation,
+      'bbbbbbbb-2222-4222-8222-bbbbbbbbbbbb',
+      'tentative','phone','guest',clock_timestamp()-interval '3 minutes',
+      v_invitation,NULL,v_first,'Attempt to correct a superseded response'
+    );
+  EXCEPTION WHEN SQLSTATE '55000' THEN
+    v_denied := true;
+  END;
+  IF NOT v_denied THEN
+    RAISE EXCEPTION 'staff RSVP accepted a correction against a superseded response';
+  END IF;
+
+  -- An active membership without rsvp.record cannot record a response.
+  PERFORM set_config('app.actor_membership_id','95600000-0000-4000-8000-000000000001',true);
+  v_denied := false;
+  BEGIN
+    PERFORM eogp.record_staff_guest_rsvp(
+      v_org,v_event,'94300000-0000-4000-8000-000000000002',
+      '95600000-0000-4000-8000-000000000001',
+      'accepted','phone','guest',clock_timestamp()-interval '1 minute',
+      NULL,NULL,NULL,NULL
+    );
+  EXCEPTION WHEN SQLSTATE '42501' THEN
+    v_denied := true;
+  END;
+  IF NOT v_denied THEN
+    RAISE EXCEPTION 'staff RSVP accepted a member without rsvp.record';
+  END IF;
+  PERFORM set_config('app.actor_membership_id','bbbbbbbb-2222-4222-8222-bbbbbbbbbbbb',true);
+END;
+$staff_rsvp_regression$;
+
+-- The append-only guard also applies to staff-entered RSVP history.
+DO $staff_rsvp_immutability$
+DECLARE
+  v_response_id uuid;
+  v_denied boolean := false;
+BEGIN
+  SELECT id INTO v_response_id
+    FROM eogp.rsvp_responses
+   WHERE organization_id='22222222-2222-4222-8222-222222222222'
+     AND participation_id='94300000-0000-4000-8000-000000000001'
+   ORDER BY sequence_number LIMIT 1;
+  BEGIN
+    UPDATE eogp.rsvp_responses SET response='tentative' WHERE id=v_response_id;
+  EXCEPTION WHEN SQLSTATE '55000' THEN
+    v_denied := true;
+  END;
+  IF NOT v_denied THEN
+    RAISE EXCEPTION 'staff RSVP history was mutable';
+  END IF;
+END;
+$staff_rsvp_immutability$;
 
 SET LOCAL ROLE eventor_owner;
 
