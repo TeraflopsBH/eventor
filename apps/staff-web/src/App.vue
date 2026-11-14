@@ -4,6 +4,7 @@ import { useI18n } from "vue-i18n";
 import type { SupportedLocale } from "./i18n";
 import PublicBookingOfferPage from "./features/public-booking-offers/PublicBookingOfferPage.vue";
 import PublicBookingFormPage from "./features/public-booking-forms/PublicBookingFormPage.vue";
+import GuestInvitationPage from "./features/guest-invitations/GuestInvitationPage.vue";
 import StaffApplicationShell from "./features/application-shell/StaffApplicationShell.vue";
 import OrganizationLocaleView from "./features/application-shell/OrganizationLocaleView.vue";
 import { useStaffSession } from "./features/application-shell/useStaffSession";
@@ -197,7 +198,7 @@ async function openBookingDraft(): Promise<void> {
 
 
 onMounted(() => {
-  if (!isPublicOfferPage && !isPublicBookingFormPage) void refreshSession();
+  if (!isPublicOfferPage && !isPublicBookingFormPage && !isGuestInvitationPage) void refreshSession();
 });
 
 </script>
@@ -206,6 +207,7 @@ onMounted(() => {
 <template>
   <PublicBookingFormPage v-if="isPublicBookingFormPage" />
   <PublicBookingOfferPage v-else-if="isPublicOfferPage" />
+  <GuestInvitationPage v-else-if="isGuestInvitationPage" />
   <StaffApplicationShell v-else :workspace="staffShellWorkspace">
     <EmailDeliveryView v-if="activeTab === 'delivery'" :workspace="emailDeliveryWorkspace" />
     <BookingInquiryView
