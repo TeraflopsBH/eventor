@@ -401,6 +401,23 @@ BEGIN
   ) THEN
     RAISE EXCEPTION 'staff RSVP actor, source or correction evidence was not preserved';
   END IF;
+  IF NOT EXISTS (
+    SELECT 1 FROM eogp.audit_events
+     WHERE organization_id=v_org
+       AND actor_membership_id='bbbbbbbb-2222-4222-8222-bbbbbbbbbbbb'
+       AND action='guest.rsvp.recorded'
+       AND aggregate_id=v_participation
+       AND safe_metadata->>'responseId'=v_first::text
+  ) OR NOT EXISTS (
+    SELECT 1 FROM eogp.audit_events
+     WHERE organization_id=v_org
+       AND actor_membership_id='bbbbbbbb-2222-4222-8222-bbbbbbbbbbbb'
+       AND action='guest.rsvp.corrected'
+       AND aggregate_id=v_participation
+       AND safe_metadata->>'correctionOfResponseId'=v_first::text
+  ) THEN
+    RAISE EXCEPTION 'staff RSVP record/correction audit events were not written';
+  END IF;
 
   -- A stale correction cannot branch from a response that is no longer current.
   v_denied := false;
