@@ -71,20 +71,36 @@ BEGIN
     RAISE EXCEPTION 'authentication role lacks required credential lookup/password-update privileges';
   END IF;
 
-  IF NOT has_table_privilege(current_user, 'eogp.user_sessions', 'SELECT')
-     OR NOT has_table_privilege(current_user, 'eogp.user_sessions', 'INSERT')
-     OR NOT has_table_privilege(current_user, 'eogp.user_sessions', 'UPDATE')
+  IF NOT has_column_privilege(current_user, 'eogp.user_sessions', 'session_token_sha256', 'SELECT')
+     OR NOT has_column_privilege(current_user, 'eogp.user_sessions', 'csrf_token_sha256', 'SELECT')
+     OR NOT has_column_privilege(current_user, 'eogp.user_sessions', 'last_seen_at', 'UPDATE')
+     OR NOT has_column_privilege(current_user, 'eogp.user_sessions', 'revoked_at', 'UPDATE')
+     OR NOT has_column_privilege(current_user, 'eogp.user_sessions', 'session_token_sha256', 'INSERT')
+     OR has_column_privilege(current_user, 'eogp.user_sessions', 'session_token_sha256', 'UPDATE')
+     OR has_column_privilege(current_user, 'eogp.user_sessions', 'csrf_token_sha256', 'UPDATE')
+     OR has_column_privilege(current_user, 'eogp.user_sessions', 'user_id', 'UPDATE')
+     OR has_column_privilege(current_user, 'eogp.user_sessions', 'revoked_at', 'INSERT')
      OR has_table_privilege(current_user, 'eogp.user_sessions', 'DELETE')
      OR has_table_privilege('eventor_runtime', 'eogp.user_sessions', 'SELECT')
      OR has_table_privilege('eventor_worker', 'eogp.user_sessions', 'SELECT') THEN
-    RAISE EXCEPTION 'session table privileges are not restricted to the authentication service';
+    RAISE EXCEPTION 'session column privileges are broader or narrower than the authentication service requires';
   END IF;
 
   IF NOT has_table_privilege(current_user, 'eogp.auth_login_attempts', 'SELECT')
      OR NOT has_table_privilege(current_user, 'eogp.auth_login_attempts', 'INSERT')
-     OR NOT has_table_privilege(current_user, 'eogp.auth_login_attempts', 'UPDATE')
+     OR NOT has_column_privilege(current_user, 'eogp.auth_login_attempts', 'failed_attempts', 'UPDATE')
+     OR NOT has_column_privilege(current_user, 'eogp.auth_login_attempts', 'blocked_until', 'UPDATE')
+     OR has_column_privilege(current_user, 'eogp.auth_login_attempts', 'email_fingerprint', 'UPDATE')
      OR has_table_privilege(current_user, 'eogp.auth_login_attempts', 'DELETE') THEN
-    RAISE EXCEPTION 'authentication rate-limit table privileges are incorrect';
+    RAISE EXCEPTION 'authentication rate-limit column privileges are incorrect';
+  END IF;
+
+  IF has_column_privilege(current_user, 'eogp.users', 'email', 'UPDATE')
+     OR has_column_privilege(current_user, 'eogp.users', 'status', 'UPDATE')
+     OR has_column_privilege(current_user, 'eogp.users', 'email_verified_at', 'UPDATE')
+     OR NOT has_column_privilege(current_user, 'eogp.users', 'locale_preference', 'UPDATE')
+     OR NOT has_column_privilege(current_user, 'eogp.users', 'password_hash', 'UPDATE') THEN
+    RAISE EXCEPTION 'authentication role can change account identity/state or lacks required password/locale updates';
   END IF;
 
   IF current_setting('app.organization_id', true) IS NOT NULL
