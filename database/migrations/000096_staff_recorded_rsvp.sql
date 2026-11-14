@@ -107,13 +107,13 @@ BEGIN
     IF NOT FOUND THEN
       RAISE EXCEPTION 'invitation does not belong to this participation' USING ERRCODE='P0002';
     END IF;
-    SELECT revision.id, policy
+    SELECT revision.id, rsvp_policy
       INTO v_invitation_revision_id, v_policy
       FROM eogp.invitation_revisions revision
-      JOIN eogp.rsvp_policy_revisions policy
-        ON policy.organization_id=revision.organization_id
-       AND policy.event_id=revision.event_id
-       AND policy.id=revision.rsvp_policy_revision_id
+      JOIN eogp.rsvp_policy_revisions rsvp_policy
+        ON rsvp_policy.organization_id=revision.organization_id
+       AND rsvp_policy.event_id=revision.event_id
+       AND rsvp_policy.id=revision.rsvp_policy_revision_id
      WHERE revision.organization_id=p_organization_id
        AND revision.event_id=p_event_id
        AND revision.invitation_id=p_invitation_id
