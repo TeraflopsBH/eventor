@@ -1305,6 +1305,7 @@ export const api = {
     eventId: string,
     participationId: string,
     body: {
+      invitationId?: string;
       scheduleRevisionId: string;
       rsvpPolicyRevisionId: string;
       locale: "bs-BA" | "en";
