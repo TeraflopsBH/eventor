@@ -9,7 +9,6 @@ SET search_path=pg_catalog,eogp
 AS $function$
 DECLARE
   v_actor uuid;
-  v_authorized boolean := false;
 BEGIN
   -- Migrations and tightly controlled owner maintenance run without a staff
   -- actor context. Application commands always bind this context before
@@ -30,7 +29,7 @@ BEGIN
       USING ERRCODE='42501';
   END IF;
 
-  SELECT true INTO v_authorized
+  PERFORM 1
     FROM eogp.user_role_grants user_grant
     JOIN eogp.role_permissions role_permission
       ON role_permission.organization_id=user_grant.organization_id
@@ -44,11 +43,9 @@ BEGIN
        user_grant.scope_kind='organization'
        OR (user_grant.scope_kind='event' AND user_grant.scope_event_id=NEW.event_id)
      )
-   ORDER BY user_grant.id
-   LIMIT 1
    FOR SHARE OF user_grant,role_permission;
 
-  IF NOT COALESCE(v_authorized,false) THEN
+  IF NOT FOUND THEN
     RAISE EXCEPTION 'invitation.manage permission is required for this event'
       USING ERRCODE='42501';
   END IF;
