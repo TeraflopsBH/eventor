@@ -5,6 +5,7 @@ import type { SupportedLocale } from "./i18n";
 import PublicBookingOfferPage from "./features/public-booking-offers/PublicBookingOfferPage.vue";
 import PublicBookingFormPage from "./features/public-booking-forms/PublicBookingFormPage.vue";
 import GuestInvitationPage from "./features/guest-invitations/GuestInvitationPage.vue";
+import GuestInvitationManagementView from "./features/guest-invitations/GuestInvitationManagementView.vue";
 import StaffApplicationShell from "./features/application-shell/StaffApplicationShell.vue";
 import OrganizationLocaleView from "./features/application-shell/OrganizationLocaleView.vue";
 import { useStaffSession } from "./features/application-shell/useStaffSession";
@@ -40,7 +41,7 @@ const localeOptions: Array<{ value: SupportedLocale; label: string }> = [
 const isPublicOfferPage = /^\/offers\/[0-9a-fA-F-]{36}\/?$/.test(window.location.pathname);
 const isPublicBookingFormPage = /^\/book\/[A-Za-z0-9][A-Za-z0-9-]{1,79}\/[A-Za-z0-9][A-Za-z0-9_-]{1,79}\/?$/.test(window.location.pathname);
 const isGuestInvitationPage = /(?:^|\/)guest\/invitation\/?$/.test(window.location.pathname);
-const activeTab = ref<"delivery" | "campaign" | "inquiries" | "approvals" | "prices" | "cancellations" | "taxes" | "forms" | "settings">("delivery");
+const activeTab = ref<"delivery" | "campaign" | "inquiries" | "approvals" | "prices" | "cancellations" | "taxes" | "forms" | "guest-invitations" | "settings">("delivery");
 const busy = ref(false);
 const pageError = ref("");
 const pageNotice = ref("");
@@ -211,6 +212,7 @@ onMounted(() => {
   <GuestInvitationPage v-else-if="isGuestInvitationPage" />
   <StaffApplicationShell v-else :workspace="staffShellWorkspace">
     <EmailDeliveryView v-if="activeTab === 'delivery'" :workspace="emailDeliveryWorkspace" />
+    <GuestInvitationManagementView v-else-if="activeTab === 'guest-invitations'" :organization-id="principal?.organizationId ?? ''" />
     <BookingInquiryView
         v-else-if="activeTab === 'inquiries'"
         :workspace="bookingInquiryWorkspace"
