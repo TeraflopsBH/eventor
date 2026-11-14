@@ -2349,7 +2349,7 @@ export function buildApi(dependencies: ApiDependencies): FastifyInstance {
           );
           return result.rows[0]?.result as Record<string, unknown>;
         },
-      , async (client) => {
+        async (client) => {
       await authorizeBookingCommercialReplay(client, principal, "booking.manage");
     });
     },
@@ -2385,7 +2385,7 @@ export function buildApi(dependencies: ApiDependencies): FastifyInstance {
           );
           return result.rows[0]?.result as Record<string, unknown>;
         },
-      , async (client) => {
+        async (client) => {
       await authorizeBookingCommercialReplay(client, principal, "booking.manage");
     });
     },
@@ -2406,7 +2406,7 @@ export function buildApi(dependencies: ApiDependencies): FastifyInstance {
           );
           return result.rows[0]?.result as Record<string, unknown>;
         },
-      , async (client) => {
+        async (client) => {
       await authorizeBookingCommercialReplay(client, principal, "booking.manage");
     });
     },
@@ -2457,7 +2457,7 @@ export function buildApi(dependencies: ApiDependencies): FastifyInstance {
           );
           return result.rows[0]?.result as Record<string, unknown>;
         },
-      , async (client) => {
+        async (client) => {
       await authorizeBookingCommercialReplay(client, principal, "booking.manage");
     });
     },
@@ -2487,7 +2487,7 @@ export function buildApi(dependencies: ApiDependencies): FastifyInstance {
           );
           return result.rows[0]?.result as Record<string, unknown>;
         },
-      , async (client) => {
+        async (client) => {
       await authorizeBookingCommercialReplay(client, principal, "booking.manage");
     });
     },
@@ -2527,7 +2527,7 @@ export function buildApi(dependencies: ApiDependencies): FastifyInstance {
           );
           return result.rows[0]?.result as Record<string, unknown>;
         },
-      , async (client) => {
+        async (client) => {
       await authorizeBookingCommercialReplay(client, principal, "booking.manage");
     });
     },
@@ -2553,7 +2553,7 @@ export function buildApi(dependencies: ApiDependencies): FastifyInstance {
           );
           return result.rows[0]?.result as Record<string, unknown>;
         },
-      , async (client) => {
+        async (client) => {
       await authorizeBookingCommercialReplay(client, principal, "booking.manage");
     });
     },
@@ -3427,7 +3427,7 @@ export function buildApi(dependencies: ApiDependencies): FastifyInstance {
           );
           return result.rows[0]?.result as Record<string, unknown>;
         },
-      , async (client) => {
+        async (client) => {
       await authorizeBookingCommercialReplay(client, principal, "booking.manage");
     });
     },
@@ -3461,7 +3461,7 @@ export function buildApi(dependencies: ApiDependencies): FastifyInstance {
           );
           return result.rows[0]?.result as Record<string, unknown>;
         },
-      , async (client) => {
+        async (client) => {
       await authorizeBookingCommercialReplay(client, principal, "booking.manage");
     });
     },
@@ -3675,7 +3675,7 @@ export function buildApi(dependencies: ApiDependencies): FastifyInstance {
           );
           return result.rows[0]?.result as Record<string, unknown>;
         },
-      , async (client) => {
+        async (client) => {
       await authorizeBookingCommercialReplay(client, principal, "booking.manage");
     });
     },
