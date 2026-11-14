@@ -240,7 +240,7 @@ onMounted(() => { void loadEvents(); });
               <td>{{ person.currentResponse ?? "—" }}</td>
               <td class="action-cell">
                 <button
-                  v-if="person.status === 'eligible' && person.emailReady && selectedEvent.scheduleRevisionId && selectedEvent.rsvpPolicyRevisionId && (!person.invitationId || ['active', 'draft'].includes(person.invitationStatus ?? ''))"
+                  v-if="person.status === 'eligible' && person.emailReady && selectedEvent.scheduleRevisionId && selectedEvent.rsvpPolicyRevisionId && (!person.invitationId || ['active', 'draft', 'revoked'].includes(person.invitationStatus ?? ''))"
                   class="button button-primary"
                   :disabled="loading"
                   @click="issue(person)"
