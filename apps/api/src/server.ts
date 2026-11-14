@@ -3219,9 +3219,17 @@ export function buildApi(dependencies: ApiDependencies): FastifyInstance {
       if (!Number.isFinite(receivedAt.getTime()) || receivedAt.getTime() > Date.now()) {
         throw new ApiError(422, "RSVP_RECEIVED_AT_INVALID", "The received time must be a valid time in the past or present.");
       }
-      const notesCiphertext = body.noteRestricted
-        ? encryptPrivateText(body.noteRestricted, dependencies.privateFieldEncryptionKey)
-        : null;
+      let notesCiphertext: Buffer | null = null;
+      if (body.noteRestricted) {
+        const contactKey = dependencies.contactEncryptionKey;
+        if (!contactKey || contactKey.length !== 32) {
+          throw new ApiError(503, "CONTACT_ENCRYPTION_UNAVAILABLE", "Restricted RSVP note encryption is not configured.");
+        }
+        notesCiphertext = encryptContactValue(
+          body.noteRestricted, contactKey,
+          { organizationId: principal.organizationId, contactKind: "other" },
+        );
+      }
       return withCommand(
         request, reply, "recordStaffGuestRsvp",
         { eventId: request.params.eventId, participationId: request.params.participationId, ...body },
