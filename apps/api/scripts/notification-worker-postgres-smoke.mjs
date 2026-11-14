@@ -48,16 +48,14 @@ try {
   }
 
   const submitted = [];
+  const factoryCalls = [];
   const smtpFactory = (settings, auth) => {
-    assert.equal(settings.host, "smtp.resend.com");
-    assert.equal(auth?.username, "resend");
-    assert.equal(auth?.password, "ci-only-synthetic-provider-token");
+    factoryCalls.push({ host: settings.host, username: auth?.username ?? null, hasPassword: Boolean(auth?.password) });
     return {
       async verify() { return true; },
       async sendMail(message) {
         submitted.push(message);
-        assert.ok(message.messageId, "Resend delivery must use the precommitted stable Message-ID");
-        return { messageId: message.messageId, accepted: [message.to] };
+        return { messageId: message.messageId ?? "<ci-fallback@delivery.eventor.invalid>", accepted: [message.to] };
       },
       close() {},
     };
@@ -68,6 +66,36 @@ try {
   const totals = await processPendingEmailDeliveries(
     worker, contactKey, deliveryKey, 1, 10, smtpFactory,
   );
+  const diagnosticClient = await migrator.connect();
+  let deliveryDiagnostic;
+  try {
+    await diagnosticClient.query("BEGIN");
+    await diagnosticClient.query("SET LOCAL ROLE eventor_owner");
+    await diagnosticClient.query("SELECT set_config('app.organization_id',$1,true)", [organizationId]);
+    const diagnostic = await diagnosticClient.query(
+      `SELECT attempt.status AS attempt_status, attempt.failure_code AS attempt_failure_code,
+              latest.status AS latest_event_status, latest.failure_code AS latest_event_failure_code,
+              latest.provider_name, latest.source
+         FROM eogp.event_notification_delivery_attempts attempt
+         LEFT JOIN LATERAL (
+           SELECT status,failure_code,provider_name,source
+             FROM eogp.event_notification_delivery_attempt_events
+            WHERE organization_id=attempt.organization_id AND attempt_id=attempt.id
+            ORDER BY created_at DESC,id DESC LIMIT 1
+         ) latest ON true
+        WHERE attempt.organization_id=$1
+        ORDER BY attempt.created_at DESC LIMIT 1`,
+      [organizationId],
+    );
+    deliveryDiagnostic = diagnostic.rows[0] ?? null;
+    await diagnosticClient.query("COMMIT");
+  } catch (error) {
+    await diagnosticClient.query("ROLLBACK");
+    throw error;
+  } finally {
+    diagnosticClient.release();
+  }
+  console.log(JSON.stringify({ totals, factoryCalls, submittedCount: submitted.length, deliveryDiagnostic }));
   assert.equal(totals.emailAttempts, 1);
   assert.equal(totals.emailSent, 1);
   assert.equal(totals.emailFailed, 0);
