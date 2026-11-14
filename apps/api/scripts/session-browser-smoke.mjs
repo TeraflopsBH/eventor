@@ -40,7 +40,7 @@ for (const [name, browserType] of [["chromium", chromium], ["firefox", firefox]]
       return { status: response.status, body: await response.json() };
     });
     assert.equal(me.status, 200, `${name}: browser did not restore the session: ${JSON.stringify(me.body)}`);
-    assert.equal(me.body.data.assert.equal(me.body.data.organizationId, "11111111-1111-4111-8111-111111111111");
+    assert.equal(me.body.data.organizationId, "11111111-1111-4111-8111-111111111111");
 
     const csrfToken = login.body?.data?.csrfToken;
     assert.equal(typeof csrfToken, "string");
