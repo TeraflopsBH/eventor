@@ -3,6 +3,13 @@ BEGIN;
 SET LOCAL ROLE eventor_owner;
 SET LOCAL app.organization_id='22222222-2222-4222-8222-222222222222';
 
+-- The shared worker fixture marks this event cancelled. Temporarily restore
+-- its lifecycle state so the invitation revision guard accepts this test row.
+UPDATE eogp.events
+   SET status='scheduled',updated_at=clock_timestamp()
+ WHERE organization_id='22222222-2222-4222-8222-222222222222'
+   AND id='94000000-0000-4000-8000-000000000001';
+
 INSERT INTO eogp.rsvp_policies (id,organization_id,event_id,code,name)
 VALUES (
  '95700000-0000-4000-8000-000000000001',
@@ -55,4 +62,8 @@ UPDATE eogp.invitation_deliveries
        lease_expires_at=clock_timestamp()-interval '1 second'
  WHERE organization_id='22222222-2222-4222-8222-222222222222'
    AND id='96000000-0000-4000-8000-000000000001';
+UPDATE eogp.events
+   SET status='cancelled',updated_at=clock_timestamp()
+ WHERE organization_id='22222222-2222-4222-8222-222222222222'
+   AND id='94000000-0000-4000-8000-000000000001';
 COMMIT;
