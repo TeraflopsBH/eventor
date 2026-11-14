@@ -1,17 +1,19 @@
 #!/usr/bin/env bash
 set -Eeuo pipefail
-
 : "${RUNTIME_URL:?Set RUNTIME_URL to the eventor_runtime PostgreSQL login}"
 : "${MIGRATOR_URL:?Set MIGRATOR_URL to the eventor_migrator PostgreSQL login}"
-
 org="11111111-1111-4111-8111-111111111111"
 draft_revision="89000000-0000-4000-8000-000000000002"
 actor="aaaaaaaa-1111-4111-8111-aaaaaaaaaaaa"
 key_a="ci-space-overlap-concurrent-a"
 key_b="ci-space-overlap-concurrent-b"
 tmp="$(mktemp -d)"
-
+winner_pid=""
 cleanup() {
+  if [[ -n "$winner_pid" ]]; then
+    kill "$winner_pid" 2>/dev/null || true
+    wait "$winner_pid" 2>/dev/null || true
+  fi
   psql "$MIGRATOR_URL" -X -v ON_ERROR_STOP=1 -qAt >/dev/null 2>&1 <<SQL || true
 BEGIN;
 SET LOCAL ROLE eventor_owner;
@@ -34,25 +36,22 @@ space_id="$(
            AND id='15000000-0000-4000-8000-000000000002'" | tail -n1
 )"
 if [[ ! "$space_id" =~ ^[0-9a-fA-F-]{36}$ ]]; then
-  echo "Could not resolve the active venue space from the committed booking fixture." >&2
+  echo "Could not resolve the venue space from the committed booking fixture." >&2
   exit 1
 fi
 
-run_attempt() {
-  local key="$1"
-  psql "$RUNTIME_URL" -X -v ON_ERROR_STOP=1 -v VERBOSITY=verbose -qAt \
-    >"$tmp/$key.log" 2>&1 <<SQL
+# Transaction A inserts the active hold but deliberately keeps it uncommitted.
+# The marker is created only after PostgreSQL has accepted the insert.
+psql "$RUNTIME_URL" -X -v ON_ERROR_STOP=1 -qAt >"$tmp/winner.log" 2>&1 <<SQL &
 BEGIN;
 SELECT set_config('app.organization_id','$org',true);
 DO \$login\$
 BEGIN
   IF session_user <> 'eventor_runtime' THEN
-    RAISE EXCEPTION 'space overlap attempt must use eventor_runtime, got %',session_user;
+    RAISE EXCEPTION 'space overlap winner must use eventor_runtime, got %',session_user;
   END IF;
 END;
 \$login\$;
--- Keep both independent transactions open briefly before they contend.
-SELECT pg_sleep(0.5);
 INSERT INTO eogp.venue_space_time_blocks(
   organization_id,venue_space_id,booking_draft_revision_id,
   reservation_kind,status,starts_at,ends_at,expires_at,
@@ -62,31 +61,73 @@ INSERT INTO eogp.venue_space_time_blocks(
   'draft_hold','held',
   '2038-01-01 10:00:00+00','2038-01-01 11:00:00+00',
   clock_timestamp()+interval '1 day',
-  '$key','$actor'
+  '$key_a','$actor'
 );
+\! touch "$tmp/winner-ready"
+SELECT pg_sleep(2);
 COMMIT;
 SQL
-}
+winner_pid=$!
 
-run_attempt "$key_a" &
-pid_a=$!
-run_attempt "$key_b" &
-pid_b=$!
-
-if wait "$pid_a"; then status_a=0; else status_a=1; fi
-if wait "$pid_b"; then status_b=0; else status_b=1; fi
-
-successes=$(( (status_a == 0) + (status_b == 0) ))
-failures=$(( (status_a != 0) + (status_b != 0) ))
-if [[ "$successes" -ne 1 || "$failures" -ne 1 ]]; then
-  echo "Expected exactly one concurrent space hold insert to commit and one to fail."
-  cat "$tmp"/*.log
+for _ in $(seq 1 100); do
+  [[ -e "$tmp/winner-ready" ]] && break
+  if ! kill -0 "$winner_pid" 2>/dev/null; then
+    cat "$tmp/winner.log"
+    echo "First runtime transaction failed before inserting its hold." >&2
+    exit 1
+  fi
+  sleep 0.05
+done
+if [[ ! -e "$tmp/winner-ready" ]]; then
+  cat "$tmp/winner.log"
+  echo "Timed out waiting for the first runtime transaction to hold its inserted row." >&2
   exit 1
 fi
 
-if ! grep -q '23P01' "$tmp/$key_a.log" && ! grep -q '23P01' "$tmp/$key_b.log"; then
-  echo "The losing transaction did not fail with the expected exclusion SQLSTATE 23P01."
-  cat "$tmp"/*.log
+runtime_started_ns="$(date +%s%N)"
+if psql "$RUNTIME_URL" -X -v ON_ERROR_STOP=1 -v VERBOSITY=verbose -qAt \
+  >"$tmp/loser.log" 2>&1 <<SQL
+BEGIN;
+SELECT set_config('app.organization_id','$org',true);
+DO \$login\$
+BEGIN
+  IF session_user <> 'eventor_runtime' THEN
+    RAISE EXCEPTION 'space overlap contender must use eventor_runtime, got %',session_user;
+  END IF;
+END;
+\$login\$;
+INSERT INTO eogp.venue_space_time_blocks(
+  organization_id,venue_space_id,booking_draft_revision_id,
+  reservation_kind,status,starts_at,ends_at,expires_at,
+  idempotency_key,actor_membership_id
+) VALUES(
+  '$org','$space_id','$draft_revision',
+  'draft_hold','held',
+  '2038-01-01 10:00:00+00','2038-01-01 11:00:00+00',
+  clock_timestamp()+interval '1 day',
+  '$key_b','$actor'
+);
+COMMIT;
+SQL
+then
+  loser_status=0
+else
+  loser_status=1
+fi
+runtime_finished_ns="$(date +%s%N)"
+runtime_wait_ms="$(( (runtime_finished_ns - runtime_started_ns) / 1000000 ))"
+
+wait "$winner_pid"
+winner_pid=""
+
+if [[ "$loser_status" -ne 1 ]] || ! grep -q '23P01' "$tmp/loser.log"; then
+  echo "The overlapping runtime transaction did not fail with exclusion SQLSTATE 23P01."
+  cat "$tmp/winner.log" "$tmp/loser.log"
+  exit 1
+fi
+if (( runtime_wait_ms < 1500 )); then
+  echo "The second transaction did not wait for the first transaction to commit (${runtime_wait_ms} ms)." >&2
+  cat "$tmp/winner.log" "$tmp/loser.log"
   exit 1
 fi
 
@@ -110,4 +151,4 @@ END;
 COMMIT;
 SQL
 
-echo "Independent-connection space overlap test passed: exactly one runtime transaction committed; the other received exclusion SQLSTATE 23P01."
+echo "Independent-connection space overlap test passed: the second runtime transaction waited ${runtime_wait_ms} ms, then received exclusion SQLSTATE 23P01; exactly one active hold remained."
