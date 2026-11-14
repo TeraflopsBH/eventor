@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import { computed, onMounted, ref, watch } from "vue";
 import { useI18n } from "vue-i18n";
-import { api, type GuestInvitationEvent, type GuestInvitationParticipation } from "../../api";
+import { api, type GuestInvitationDeliveryAttempt, type GuestInvitationEvent, type GuestInvitationParticipation } from "../../api";
 
 const props = defineProps<{ organizationId: string }>();
 const { t, locale } = useI18n();
@@ -11,6 +11,9 @@ const selectedEventId = ref("");
 const loading = ref(false);
 const error = ref("");
 const notice = ref("");
+const expandedInvitationId = ref<string | null>(null);
+const attemptHistory = ref<Record<string, GuestInvitationDeliveryAttempt[]>>({});
+const historyLoading = ref(false);
 const selectedEvent = computed(() => events.value.find((event) => event.eventId === selectedEventId.value) ?? null);
 const localeValue = computed<"bs-BA" | "en">(() => locale.value === "en" ? "en" : "bs-BA");
 
@@ -37,6 +40,24 @@ async function loadParticipants(): Promise<void> {
   } catch (cause) {
     error.value = cause instanceof Error ? cause.message : t("guestInvitations.loadFailed");
   } finally { loading.value = false; }
+}
+
+async function toggleAttemptHistory(invitationId: string): Promise<void> {
+  if (expandedInvitationId.value === invitationId) {
+    expandedInvitationId.value = null;
+    return;
+  }
+  expandedInvitationId.value = invitationId;
+  if (attemptHistory.value[invitationId]) return;
+  historyLoading.value = true;
+  error.value = "";
+  try {
+    const result = await api.getGuestInvitationDeliveryAttempts(invitationId);
+    attemptHistory.value = { ...attemptHistory.value, [invitationId]: result.data };
+  } catch (cause) {
+    error.value = cause instanceof Error ? cause.message : t("guestInvitations.historyFailed");
+    expandedInvitationId.value = null;
+  } finally { historyLoading.value = false; }
 }
 
 async function issue(participation: GuestInvitationParticipation): Promise<void> {
@@ -139,11 +160,37 @@ onMounted(() => { void loadEvents(); });
                   @click="issue(person)"
                 >{{ person.invitationId ? t("guestInvitations.reissue") : t("guestInvitations.issue") }}</button>
                 <button
+                  v-if="person.invitationId"
+                  class="button button-quiet"
+                  :disabled="historyLoading"
+                  @click="toggleAttemptHistory(person.invitationId)"
+                >{{ expandedInvitationId === person.invitationId ? t("guestInvitations.hideHistory") : t("guestInvitations.showHistory") }}</button>
+                <button
                   v-if="person.invitationId && ['active', 'draft'].includes(person.invitationStatus ?? '')"
                   class="button button-quiet"
                   :disabled="loading"
                   @click="revoke(person)"
                 >{{ t("guestInvitations.revoke") }}</button>
+              </td>
+            </tr>
+            <tr v-if="person.invitationId && expandedInvitationId === person.invitationId" :key="`${person.participationId}-attempts`">
+              <td colspan="6">
+                <div class="attempt-history">
+                  <strong>{{ t("guestInvitations.attemptHistory") }}</strong>
+                  <p v-if="historyLoading" class="muted">{{ t("guestInvitations.loading") }}</p>
+                  <p v-else-if="(attemptHistory[person.invitationId] ?? []).length === 0" class="muted">{{ t("guestInvitations.noAttempts") }}</p>
+                  <ol v-else>
+                    <li v-for="attempt in attemptHistory[person.invitationId]" :key="attempt.attemptId">
+                      <strong>{{ t("guestInvitations.attemptNumber", { number: attempt.attemptNumber }) }}</strong>
+                      · {{ attempt.status }}
+                      · {{ new Date(attempt.startedAt).toLocaleString(localeValue) }}
+                      <span v-if="attempt.failureCode"> · {{ attempt.failureCode }}</span>
+                      <span v-if="attempt.retryScheduled"> · {{ t("guestInvitations.retryScheduled") }}</span>
+                      <span v-if="attempt.providerMessageReference"> · {{ t("guestInvitations.providerReference") }}: {{ attempt.providerMessageReference }}</span>
+                      <span v-if="attempt.completedAt"> · {{ new Date(attempt.completedAt).toLocaleString(localeValue) }}</span>
+                    </li>
+                  </ol>
+                </div>
               </td>
             </tr>
             <tr v-if="participants.length === 0"><td colspan="6" class="muted">{{ t("guestInvitations.noParticipants") }}</td></tr>
