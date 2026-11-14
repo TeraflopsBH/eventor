@@ -74,7 +74,7 @@ This matrix tracks executable PostgreSQL integration coverage and remaining gaps
 
 - [ ] A space-time block has exactly one typed, tenant-safe origin reference.
 - [ ] A hold-to-booking conversion retains continuous exclusion protection under concurrent confirmation/expiry.
-- [ ] Expiry worker and reservation command serialize on the same space lock; no stale held row can block indefinitely.
+- [x] Expiry worker and runtime reservation conversion serialize on the same hold row; an independent-login worker-first regression proves conversion waits for expiry commit and cannot convert the terminal hold.
 
 ## Equipment/personnel
 - [x] Same discrete unit cannot be reserved for overlapping time.
