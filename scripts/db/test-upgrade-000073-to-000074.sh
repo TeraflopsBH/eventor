@@ -31,6 +31,7 @@ rm "$pre_dir/000087_guest_invitation_revoke_actor_binding.sql"
 rm "$pre_dir/000088_guest_invitation_capability_effective_schedule.sql"
 rm "$pre_dir/000089_guest_invitation_effective_schedule_projection.sql"
 rm "$pre_dir/000090_bind_staff_actor_context.sql"
+rm "$pre_dir/000091_bind_remaining_staff_actor_context.sql"
 
 echo "=== Apply schema through 000073 ==="
 DATABASE_URL="$MIGRATOR_URL" MIGRATIONS_DIR="$pre_dir" \
