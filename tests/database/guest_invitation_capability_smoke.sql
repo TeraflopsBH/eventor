@@ -412,6 +412,7 @@ DO $guest_invitation_projection_authorization_lock$
 DECLARE
   v_definition text;
   v_event_definition text;
+  v_attempt_definition text;
 BEGIN
   SELECT pg_get_functiondef(
     'eogp.list_guest_invitation_participations(uuid,uuid,uuid)'::regprocedure
@@ -435,6 +436,18 @@ BEGIN
      OR strpos(v_event_definition, 'FOR SHARE OF user_grant,role_permission') = 0
      OR strpos(v_event_definition, 'invitation.manage') = 0 THEN
     RAISE EXCEPTION 'guest invitation event projection must serialize authorization with membership and permission revocation';
+  END IF;
+
+  SELECT pg_get_functiondef(
+    'eogp.list_guest_invitation_delivery_attempts(uuid,uuid,uuid)'::regprocedure
+  ) INTO v_attempt_definition;
+
+  IF strpos(v_attempt_definition, 'organization_memberships membership') = 0
+     OR strpos(v_attempt_definition, 'membership.status=''active''') = 0
+     OR strpos(v_attempt_definition, 'FOR SHARE;') = 0
+     OR strpos(v_attempt_definition, 'FOR SHARE OF user_grant,role_permission') = 0
+     OR strpos(v_attempt_definition, 'invitation.manage') = 0 THEN
+    RAISE EXCEPTION 'guest invitation delivery-history projection must serialize authorization with membership and permission revocation';
   END IF;
 END;
 $guest_invitation_projection_authorization_lock$;
