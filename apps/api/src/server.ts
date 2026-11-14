@@ -236,6 +236,32 @@ const inquiryParams = {
   properties: { inquiryId: { type: "string", pattern: uuidPattern } },
   additionalProperties: false,
 } as const;
+const participationOnlyParams = {
+  type: "object", required: ["participationId"],
+  properties: { participationId: { type: "string", pattern: uuidPattern } },
+  additionalProperties: false,
+} as const;
+const eventParticipationParams = {
+  type: "object", required: ["eventId", "participationId"],
+  properties: {
+    eventId: { type: "string", pattern: uuidPattern },
+    participationId: { type: "string", pattern: uuidPattern },
+  },
+  additionalProperties: false,
+} as const;
+const staffRsvpRecordBody = {
+  type: "object",
+  required: ["response", "sourceChannel", "respondentKind", "receivedAt"],
+  properties: {
+    response: { type: "string", enum: ["accepted", "declined", "tentative"] },
+    sourceChannel: { type: "string", enum: ["phone", "in_person", "email", "written", "representative", "staff_entry", "other"] },
+    respondentKind: { type: "string", enum: ["guest", "representative", "staff"] },
+    receivedAt: { type: "string", format: "date-time" },
+    invitationId: { type: "string", pattern: uuidPattern },
+    noteRestricted: { type: "string", maxLength: 4000 },
+  },
+  additionalProperties: false,
+} as const;
 const bookingOfferParams = {
   type: "object", required: ["offerId"],
   properties: { offerId: { type: "string", pattern: uuidPattern } },
@@ -3355,6 +3381,74 @@ export function buildApi(dependencies: ApiDependencies): FastifyInstance {
           reservationIds: body.reservationIds,
         };
       });
+    },
+  );
+
+  server.get<{ Params: { participationId: string } }>(
+    "/participations/:participationId/rsvp-history",
+    { schema: { params: participationOnlyParams } },
+    async (request, reply) => {
+      const principal = request.staffPrincipal!;
+      const client = await dependencies.pool.connect();
+      try {
+        await client.query("BEGIN");
+        await client.query("SELECT set_config('app.organization_id',$1,true)", [principal.organizationId]);
+        const result = await client.query<ResultRow>(
+          "SELECT eogp.get_participation_rsvp_history($1::uuid,$2::uuid,$3::uuid) AS result",
+          [principal.organizationId, request.params.participationId, principal.membershipId],
+        );
+        await client.query("COMMIT");
+        return reply.code(200).send({
+          data: result.rows[0]?.result ?? { participationId: request.params.participationId, responses: [] },
+        });
+      } catch (error) {
+        try { await client.query("ROLLBACK"); } catch { /* preserve the original read error */ }
+        throw databaseError(error);
+      } finally {
+        client.release();
+      }
+    },
+  );
+
+  server.post<{
+    Params: { eventId: string; participationId: string };
+    Body: {
+      response: "accepted" | "declined" | "tentative";
+      sourceChannel: "phone" | "in_person" | "email" | "written" | "representative" | "staff_entry" | "other";
+      respondentKind: "guest" | "representative" | "staff";
+      receivedAt: string;
+      invitationId?: string;
+      noteRestricted?: string;
+    };
+  }>(
+    "/events/:eventId/participations/:participationId/rsvp-records",
+    {
+      schema: {
+        params: eventParticipationParams,
+        headers: idempotencyHeaders,
+        body: staffRsvpRecordBody,
+      },
+    },
+    async (request, reply) => {
+      const principal = request.staffPrincipal!;
+      const body = request.body;
+      const encryptedNote = body.noteRestricted
+        ? encryptPrivateText(body.noteRestricted, dependencies.privateFieldEncryptionKey) : null;
+      return withCommand(
+        request, reply, "recordStaffRsvp",
+        { eventId: request.params.eventId, participationId: request.params.participationId, ...body },
+        async (client) => {
+          const result = await client.query<ResultRow>(
+            "SELECT eogp.record_staff_rsvp_response($1::uuid,$2::uuid,$3::uuid,$4::uuid,$5::text,$6::text,$7::text,$8::timestamptz,$9::uuid,$10::bytea) AS result",
+            [
+              principal.organizationId, request.params.eventId, request.params.participationId,
+              principal.membershipId, body.response, body.sourceChannel, body.respondentKind,
+              body.receivedAt, body.invitationId ?? null, encryptedNote,
+            ],
+          );
+          return result.rows[0]?.result as Record<string, unknown>;
+        },
+      );
     },
   );
 

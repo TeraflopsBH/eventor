@@ -896,6 +896,36 @@ function makePool() {
         commandCalls.push({ sql: normalized, values });
         return { rows: [{ result: { formId: values[1], revisionId: values[2], revisionNumber: 2, state: "published", publishedAt: "2026-11-12T12:00:00.000Z" } }], rowCount: 1 };
       }
+      if (normalized.includes("eogp.record_staff_rsvp_response(")) {
+        commandCalls.push({ sql: normalized, values });
+        return { rows: [{ result: {
+          id: "abababab-abab-4bab-8bab-abababababab",
+          eventId: values[1],
+          participationId: values[2],
+          response: values[4],
+          sourceChannel: values[5],
+          respondentKind: values[6],
+          receivedAt: values[7],
+          recordedAt: "2026-11-14T12:00:00.000Z",
+          sequenceNumber: 1,
+        } }], rowCount: 1 };
+      }
+      if (normalized.includes("eogp.get_participation_rsvp_history(")) {
+        commandCalls.push({ sql: normalized, values });
+        return { rows: [{ result: {
+          eventId: "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa",
+          participationId: values[1],
+          responses: [{
+            id: "abababab-abab-4bab-8bab-abababababab",
+            sequenceNumber: 1,
+            response: "accepted",
+            sourceChannel: "phone",
+            respondentKind: "guest",
+            receivedAt: "2026-11-14T11:45:00.000Z",
+            recordedAt: "2026-11-14T12:00:00.000Z",
+          }],
+        } }], rowCount: 1 };
+      }
       throw new Error("Unexpected SQL in route test: " + normalized);
     },
     release() { /* no-op for the test pool */ },
@@ -2750,4 +2780,68 @@ test("queued notification campaign can be cancelled before delivery starts", asy
   });
   assert.equal(replay.statusCode, 201);
   assert.equal(mock.campaignCancelCalls, 1);
+});
+
+
+test("staff RSVP recording validates input, encrypts restricted notes and uses the authorized event command", async (t) => {
+  const mock = makePool();
+  const app = makeApi(mock.pool);
+  t.after(async () => app.close());
+  const eventId = "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa";
+  const participationId = "bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb";
+  const headers = { "idempotency-key": "rsvp-test-recording-01" };
+  const payload = {
+    response: "accepted",
+    sourceChannel: "phone",
+    respondentKind: "representative",
+    receivedAt: "2026-11-14T11:45:00.000Z",
+    noteRestricted: "Guest confirmed by telephone.",
+  };
+  const response = await app.inject({
+    method: "POST",
+    url: `/events/${eventId}/participations/${participationId}/rsvp-records`,
+    headers,
+    payload,
+  });
+  assert.equal(response.statusCode, 201);
+  const data = response.json<{ data: Record<string, unknown> }>().data;
+  assert.equal(data.response, "accepted");
+  assert.equal(data.sourceChannel, "phone");
+  assert.equal(data.respondentKind, "representative");
+  const command = mock.commandCalls.find((call) => call.sql.includes("eogp.record_staff_rsvp_response("));
+  assert.ok(command);
+  assert.deepEqual(command?.values.slice(0, 9), [
+    principal.organizationId, eventId, participationId, principal.membershipId,
+    "accepted", "phone", "representative", "2026-11-14T11:45:00.000Z", null,
+  ]);
+  assert.ok(Buffer.isBuffer(command?.values[9]));
+  assert.equal((command?.values[9] as Buffer).includes(Buffer.from(payload.noteRestricted)), false);
+
+  const invalid = await app.inject({
+    method: "POST",
+    url: `/events/${eventId}/participations/${participationId}/rsvp-records`,
+    headers: { "idempotency-key": "rsvp-test-invalid-01" },
+    payload: { ...payload, response: "maybe" },
+  });
+  assert.equal(invalid.statusCode, 400);
+  assert.equal(mock.commandCalls.filter((call) => call.sql.includes("eogp.record_staff_rsvp_response(")).length, 1);
+});
+
+
+test("staff RSVP history is returned through the tenant-scoped permission-checked projection", async (t) => {
+  const mock = makePool();
+  const app = makeApi(mock.pool);
+  t.after(async () => app.close());
+  const participationId = "bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb";
+  const response = await app.inject({
+    method: "GET",
+    url: `/participations/${participationId}/rsvp-history`,
+  });
+  assert.equal(response.statusCode, 200);
+  const data = response.json<{ data: { participationId: string; responses: Array<Record<string, unknown>> } }>().data;
+  assert.equal(data.participationId, participationId);
+  assert.equal(data.responses.length, 1);
+  assert.equal(data.responses[0]?.response, "accepted");
+  const command = mock.commandCalls.find((call) => call.sql.includes("eogp.get_participation_rsvp_history("));
+  assert.deepEqual(command?.values, [principal.organizationId, participationId, principal.membershipId]);
 });

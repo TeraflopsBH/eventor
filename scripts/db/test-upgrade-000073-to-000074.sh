@@ -15,6 +15,8 @@ trap 'rm -rf "$pre_dir" "$post_dir"' EXIT
 # same committed synthetic CI fixture used by the normal database suite.
 cp "$ROOT_DIR"/database/migrations/[0-9][0-9][0-9][0-9][0-9][0-9]_*.sql "$pre_dir/"
 rm "$pre_dir/000074_booking_offer_email_worker_fixes.sql"
+rm "$pre_dir/000075_staff_rsvp_recording.sql"
+rm "$pre_dir/000076_staff_rsvp_history_read.sql"
 
 echo "=== Apply schema through 000073 ==="
 DATABASE_URL="$MIGRATOR_URL" MIGRATIONS_DIR="$pre_dir" \
