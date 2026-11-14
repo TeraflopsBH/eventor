@@ -3523,11 +3523,6 @@ export function buildApi(dependencies: ApiDependencies): FastifyInstance {
       const encryptedToken = encryptContactValue(token, encryptionKey, {
         organizationId: request.staffPrincipal!.organizationId,
         contactKind: "other",
-      }, async (client) => {
-        await client.query<ResultRow>(
-          "SELECT eogp.get_booking_offer_approval_status($1::uuid,$2::uuid,$3::uuid) AS result",
-          [principal.organizationId, request.params.offerId, principal.membershipId],
-        );
       });
       const principal = request.staffPrincipal!;
       return withCommand(
@@ -3928,11 +3923,6 @@ export function buildApi(dependencies: ApiDependencies): FastifyInstance {
           releasedCount: Number(result.rows[0]?.released_count ?? 0),
           reservationIds: body.reservationIds,
         };
-      }, async (client) => {
-        await client.query<ResultRow>(
-          "SELECT eogp.get_event_notification_campaign_review($1::uuid,$2::uuid,$3::uuid) AS result",
-          [principal.organizationId, request.params.campaignId, principal.membershipId],
-        );
       });
     },
   );
@@ -4277,16 +4267,6 @@ export function buildApi(dependencies: ApiDependencies): FastifyInstance {
             : null,
           updatedAt: data?.updatedAt ?? null,
         },
-      }, async (client) => {
-        await client.query<ResultRow>(
-          "SELECT eogp.get_event_notification_campaign_review($1::uuid,$2::uuid,$3::uuid) AS result",
-          [principal.organizationId, request.params.campaignId, principal.membershipId],
-        );
-      }, async (client) => {
-        await client.query<ResultRow>(
-          "SELECT eogp.get_event_notification_campaign_review($1::uuid,$2::uuid,$3::uuid) AS result",
-          [principal.organizationId, request.params.campaignId, principal.membershipId],
-        );
       });
     } catch (error) {
       try { await client.query("ROLLBACK"); } catch { /* preserve the original error */ }
