@@ -319,8 +319,8 @@ jobs:
         working-directory: apps/api
         run: |
           password_hash="$(node --input-type=module -e 'import argon2 from "argon2"; process.stdout.write(await argon2.hash("CI-only-password-2026", { type: argon2.argon2id }));')"
-          psql "$AUTH_URL" -X -v ON_ERROR_STOP=1 -v password_hash="$password_hash" \
-            -c "UPDATE eogp.users SET password_hash = :'password_hash' WHERE email = 'ci-a@example.invalid';"
+          psql "$AUTH_URL" -X -v ON_ERROR_STOP=1 \
+            -c "UPDATE eogp.users SET password_hash = '$password_hash' WHERE email = 'ci-a@example.invalid';"
           test "$(psql "$AUTH_URL" -X -qAt -v ON_ERROR_STOP=1 -c "SELECT count(*) FROM eogp.users WHERE email='ci-a@example.invalid' AND password_hash IS NOT NULL;")" = "1"
 
       - name: Start the API with isolated CI database roles
