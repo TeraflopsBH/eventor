@@ -132,13 +132,19 @@ test("booking-offer worker sends a queued PostgreSQL delivery through fake SMTP 
       await client.query(
         `INSERT INTO eogp.booking_price_list_revisions(
            id,organization_id,price_list_id,revision_number,currency,tax_basis,state,published_at
-         ) VALUES($1,$2,$3,1,'USD','not_applicable','published',clock_timestamp())`,
+         ) VALUES($1,$2,$3,1,'USD','not_applicable','draft',NULL)`,
         [priceRevisionId, organizationId, priceListId],
       );
       await client.query(
         `INSERT INTO eogp.booking_price_items(
            organization_id,price_list_revision_id,item_code,label,unit,unit_amount
          ) VALUES($1,$2,'ROOM','Meeting room','hour',50)`,
+        [organizationId, priceRevisionId],
+      );
+      await client.query(
+        `UPDATE eogp.booking_price_list_revisions
+            SET state='published',published_at=clock_timestamp()
+          WHERE organization_id=$1 AND id=$2`,
         [organizationId, priceRevisionId],
       );
 
