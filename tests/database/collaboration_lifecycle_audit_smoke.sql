@@ -97,29 +97,37 @@ BEGIN
     (v_user_a,'ci-collaboration-unprivileged-a@example.invalid','CI Collaboration Member A','active'),
     (v_user_b,'ci-collaboration-unprivileged-b@example.invalid','CI Collaboration Member B','active')
   ON CONFLICT (id) DO NOTHING;
+  PERFORM set_config('app.organization_id',v_org_a::text,true);
   INSERT INTO eogp.organization_memberships(id,organization_id,user_id,status,joined_at)
-  VALUES
-    (v_member_a,v_org_a,v_user_a,'active',clock_timestamp()),
-    (v_member_b,v_org_b,v_user_b,'active',clock_timestamp())
+  VALUES (v_member_a,v_org_a,v_user_a,'active',clock_timestamp())
   ON CONFLICT (id) DO NOTHING;
-
   INSERT INTO eogp.roles(id,organization_id,code,name,scope_kind)
-  VALUES
-    (v_role_a,v_org_a,'CI_COLLAB_MANAGE_A','CI collaboration manager A','organization'),
-    (v_role_b,v_org_b,'CI_COLLAB_MANAGE_B','CI collaboration manager B','organization')
+  VALUES (v_role_a,v_org_a,'CI_COLLAB_MANAGE_A','CI collaboration manager A','organization')
   ON CONFLICT (id) DO NOTHING;
   INSERT INTO eogp.role_permissions(organization_id,role_id,permission_code)
-  VALUES
-    (v_org_a,v_role_a,'collaboration.manage'),
-    (v_org_b,v_role_b,'collaboration.manage')
+  VALUES (v_org_a,v_role_a,'collaboration.manage')
   ON CONFLICT DO NOTHING;
   INSERT INTO eogp.user_role_grants(
     organization_id,membership_id,role_id,scope_kind,granted_by_membership_id
-  ) VALUES
-    (v_org_a,v_admin_a,v_role_a,'organization',v_admin_a),
-    (v_org_b,v_admin_b,v_role_b,'organization',v_admin_b)
+  ) VALUES (v_org_a,v_admin_a,v_role_a,'organization',v_admin_a)
   ON CONFLICT DO NOTHING;
 
+  PERFORM set_config('app.organization_id',v_org_b::text,true);
+  INSERT INTO eogp.organization_memberships(id,organization_id,user_id,status,joined_at)
+  VALUES (v_member_b,v_org_b,v_user_b,'active',clock_timestamp())
+  ON CONFLICT (id) DO NOTHING;
+  INSERT INTO eogp.roles(id,organization_id,code,name,scope_kind)
+  VALUES (v_role_b,v_org_b,'CI_COLLAB_MANAGE_B','CI collaboration manager B','organization')
+  ON CONFLICT (id) DO NOTHING;
+  INSERT INTO eogp.role_permissions(organization_id,role_id,permission_code)
+  VALUES (v_org_b,v_role_b,'collaboration.manage')
+  ON CONFLICT DO NOTHING;
+  INSERT INTO eogp.user_role_grants(
+    organization_id,membership_id,role_id,scope_kind,granted_by_membership_id
+  ) VALUES (v_org_b,v_admin_b,v_role_b,'organization',v_admin_b)
+  ON CONFLICT DO NOTHING;
+
+  PERFORM set_config('app.organization_id',v_org_a::text,true);
   SELECT scope_kind,scope_venue_id,scope_space_id,scope_booking_id,allowed_actions,projection
     INTO v_scope_kind,v_venue_id,v_space_id,v_booking_id,v_allowed_actions,v_projection
     FROM eogp.collaboration_grants
@@ -171,6 +179,7 @@ BEGIN
 
   PERFORM set_config('app.actor_membership_id',v_admin_b::text,true);
   PERFORM eogp.accept_collaboration_grant(v_grant_id,v_admin_b);
+  PERFORM set_config('app.organization_id',v_org_a::text,true);
   IF (SELECT status FROM eogp.collaboration_grants WHERE organization_id=v_org_a AND id=v_grant_id)<>'active' THEN
     RAISE EXCEPTION 'authorized grantee did not activate collaboration grant';
   END IF;
