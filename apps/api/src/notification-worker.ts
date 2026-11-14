@@ -71,6 +71,23 @@ interface BookingOfferEmailJobRow extends QueryResultRow {
   customer_locale?: string | null;
 }
 
+interface GuestInvitationEmailJobRow extends QueryResultRow {
+  delivery_id: string;
+  invitation_id: string;
+  invitation_revision_id: string;
+  capability_ciphertext: Buffer;
+  recipient_ciphertext: Buffer;
+  credentials_ciphertext: Buffer | null;
+  smtp_settings: SmtpSettings;
+  sender_email: string;
+  sender_name: string;
+  reply_to: string | null;
+  event_title: string;
+  starts_at: Date | string;
+  timezone_name: string;
+  locale: string;
+}
+
 export interface NotificationWorkerTotals {
   readonly tenantsVisited: number;
   readonly processed: number;
@@ -88,6 +105,11 @@ export interface NotificationWorkerTotals {
   readonly bookingOfferEmailFailed: number;
   readonly bookingOfferEmailUncertain: number;
   readonly bookingOfferEmailRetriesScheduled: number;
+  readonly guestInvitationEmailAttempts: number;
+  readonly guestInvitationEmailSent: number;
+  readonly guestInvitationEmailFailed: number;
+  readonly guestInvitationEmailUncertain: number;
+  readonly guestInvitationEmailRetriesScheduled: number;
 }
 export interface NotificationWorkerOptions {
   readonly batchSize?: number;
@@ -120,6 +142,11 @@ function emptyTotals(): NotificationWorkerTotals {
     bookingOfferEmailFailed: 0,
     bookingOfferEmailUncertain: 0,
     bookingOfferEmailRetriesScheduled: 0,
+    guestInvitationEmailAttempts: 0,
+    guestInvitationEmailSent: 0,
+    guestInvitationEmailFailed: 0,
+    guestInvitationEmailUncertain: 0,
+    guestInvitationEmailRetriesScheduled: 0,
   };
 }
 
@@ -487,6 +514,120 @@ export async function processPendingBookingOfferEmailDeliveries(
   return totals;
 }
 
+export async function processPendingGuestInvitationEmailDeliveries(
+  pool: Pool,
+  contactEncryptionKey: Buffer,
+  deliveryCredentialsEncryptionKey: Buffer,
+  publicAppBaseUrl: string,
+  batchSize = 20,
+  maxTenantsPerPoll = 100,
+  factory: SmtpTransportFactory = createSmtpTransport,
+): Promise<NotificationWorkerTotals> {
+  if (!Buffer.isBuffer(contactEncryptionKey) || contactEncryptionKey.length !== 32
+      || !Buffer.isBuffer(deliveryCredentialsEncryptionKey) || deliveryCredentialsEncryptionKey.length !== 32) {
+    throw new TypeError("Guest invitation email delivery requires separate 32-byte contact and delivery-credential keys.");
+  }
+  if (!Number.isInteger(batchSize) || batchSize < 1 || batchSize > 100) {
+    throw new RangeError("batchSize must be an integer between 1 and 100.");
+  }
+  if (!Number.isInteger(maxTenantsPerPoll) || maxTenantsPerPoll < 1 || maxTenantsPerPoll > 1000) {
+    throw new RangeError("maxTenantsPerPoll must be an integer between 1 and 1000.");
+  }
+  const appUrl = new URL(publicAppBaseUrl);
+  if (appUrl.protocol !== "https:" || appUrl.username || appUrl.password || appUrl.search || appUrl.hash) {
+    throw new TypeError("The public application base URL must be HTTPS and contain no credentials, query or fragment.");
+  }
+  const baseUrl = appUrl.toString().replace(/\\/+$/, "");
+  const tenants = await pool.query<PendingTenantRow>(
+    "SELECT organization_id FROM eogp.discover_pending_invitation_delivery_tenants()",
+  );
+  const totals = { ...emptyTotals() };
+  for (const tenant of tenants.rows.slice(0, maxTenantsPerPoll)) {
+    let tenantAttempts = 0;
+    while (tenantAttempts < batchSize) {
+      const job = await inTenantTransaction(pool, tenant.organization_id, async (client) => {
+        const claimed = await client.query<GuestInvitationEmailJobRow>(
+          "SELECT * FROM eogp.claim_invitation_email_delivery($1::uuid)",
+          [tenant.organization_id],
+        );
+        return claimed.rows[0] ?? null;
+      });
+      if (!job) break;
+
+      let outcome: "sent" | "failed" | "uncertain" = "failed";
+      let failureCode: string | null = null;
+      let messageReference: string | null = null;
+      let transport: ReturnType<SmtpTransportFactory> | null = null;
+      try {
+        const credentials = job.credentials_ciphertext
+          ? decryptDeliveryCredentials(job.credentials_ciphertext, deliveryCredentialsEncryptionKey, {
+              organizationId: tenant.organization_id, channel: "email",
+            })
+          : null;
+        const destination = decryptContactValue(job.recipient_ciphertext, contactEncryptionKey, {
+          organizationId: tenant.organization_id, contactKind: "email",
+        });
+        const capability = decryptContactValue(job.capability_ciphertext, contactEncryptionKey, {
+          organizationId: tenant.organization_id, contactKind: "other",
+        });
+        if (!/^[A-Za-z0-9_-]{43}$/.test(capability)) {
+          throw new TypeError("Encrypted guest invitation capability is invalid.");
+        }
+        const invitationUrl = `${baseUrl}/guest/invitation#token=${encodeURIComponent(capability)}`;
+        const startsAt = formatDate(job.starts_at);
+        const bosnian = job.locale === "bs-BA";
+        const subject = bosnian ? "Pozivnica za događaj" : "Event invitation";
+        const text = [
+          bosnian ? "Pozvani ste na događaj:" : "You are invited to:",
+          job.event_title,
+          "",
+          `${bosnian ? "Početak" : "Starts"}: ${startsAt} (${job.timezone_name})`,
+          "",
+          bosnian
+            ? "Otvorite svoju sigurnu pozivnicu i odgovorite na poziv putem ove lične veze:"
+            : "Open your secure invitation and respond using this personal link:",
+          invitationUrl,
+          "",
+          bosnian
+            ? "Ova veza je lična. Nemojte je prosljeđivati drugim osobama."
+            : "This link is personal. Do not forward it to anyone else.",
+        ].join("\\n");
+        transport = factory(job.smtp_settings, credentials);
+        const sent = await transport.sendMail({ to: destination, subject, text });
+        if (!sent.accepted.some((address) => address.toLowerCase() === destination.toLowerCase())) {
+          const error = new Error("SMTP server did not accept the invitation recipient.") as Error & { responseCode: number };
+          error.responseCode = 550;
+          throw error;
+        }
+        outcome = "sent";
+        messageReference = sent.messageId || null;
+      } catch (error) {
+        const classification = classifySmtpFailure(error);
+        outcome = classification.outcome;
+        failureCode = classification.code;
+      } finally {
+        try { transport?.close(); } catch { /* preserve SMTP outcome */ }
+      }
+
+      const completion = await inTenantTransaction(pool, tenant.organization_id, async (client) => {
+        const result = await client.query<DeliveryCompletionRow>(
+          "SELECT eogp.complete_invitation_email_delivery($1::uuid,$2::uuid,$3::text,$4::text,$5::text) AS result",
+          [tenant.organization_id, job.delivery_id, outcome, failureCode, messageReference],
+        );
+        return result.rows[0]?.result;
+      });
+      totals.guestInvitationEmailAttempts += 1;
+      if (outcome === "sent") totals.guestInvitationEmailSent += 1;
+      else if (outcome === "uncertain") totals.guestInvitationEmailUncertain += 1;
+      else totals.guestInvitationEmailFailed += 1;
+      if (completion?.retryScheduled) totals.guestInvitationEmailRetriesScheduled += 1;
+      tenantAttempts += 1;
+    }
+    if (tenantAttempts > 0) totals.tenantsVisited += 1;
+  }
+  return totals;
+}
+
 export async function processExpiredBookingOffers(
   pool: Pool,
   batchSize = 100,
@@ -579,6 +720,12 @@ export async function runEventNotificationWorker(
               batchSize, maxTenantsPerPoll, options.smtpTransportFactory,
             )
           : { ...emptyTotals() };
+        const guestInvitationEmails = options.publicAppBaseUrl
+          ? await processPendingGuestInvitationEmailDeliveries(
+              pool, contactKey, deliveryKey, options.publicAppBaseUrl,
+              batchSize, maxTenantsPerPoll, options.smtpTransportFactory,
+            )
+          : { ...emptyTotals() };
         const expiries = await processExpiredBookingOffers(pool, 100, maxTenantsPerPoll);
         const totals: NotificationWorkerTotals = {
           tenantsVisited: previews.tenantsVisited + deliveries.tenantsVisited + expiries.tenantsVisited,
@@ -597,9 +744,14 @@ export async function runEventNotificationWorker(
           bookingOfferEmailFailed: offerEmails.bookingOfferEmailFailed,
           bookingOfferEmailUncertain: offerEmails.bookingOfferEmailUncertain,
           bookingOfferEmailRetriesScheduled: offerEmails.bookingOfferEmailRetriesScheduled,
+          guestInvitationEmailAttempts: guestInvitationEmails.guestInvitationEmailAttempts,
+          guestInvitationEmailSent: guestInvitationEmails.guestInvitationEmailSent,
+          guestInvitationEmailFailed: guestInvitationEmails.guestInvitationEmailFailed,
+          guestInvitationEmailUncertain: guestInvitationEmails.guestInvitationEmailUncertain,
+          guestInvitationEmailRetriesScheduled: guestInvitationEmails.guestInvitationEmailRetriesScheduled,
         };
-        if (totals.processed > 0 || totals.emailAttempts > 0 || totals.bookingOffersExpired > 0 || totals.bookingOfferEmailAttempts > 0) options.onBatch?.(totals);
-        if (totals.processed === 0 && totals.emailAttempts === 0 && totals.bookingOffersExpired === 0 && totals.bookingOfferEmailAttempts === 0) await waitBeforeNextPoll(idlePollMs);
+        if (totals.processed > 0 || totals.emailAttempts > 0 || totals.bookingOffersExpired > 0 || totals.bookingOfferEmailAttempts > 0 || totals.guestInvitationEmailAttempts > 0) options.onBatch?.(totals);
+        if (totals.processed === 0 && totals.emailAttempts === 0 && totals.bookingOffersExpired === 0 && totals.bookingOfferEmailAttempts === 0 && totals.guestInvitationEmailAttempts === 0) await waitBeforeNextPoll(idlePollMs);
       } catch (error) {
         options.onError?.(error);
         await waitBeforeNextPoll(errorPollMs);
