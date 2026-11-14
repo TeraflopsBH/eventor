@@ -264,6 +264,130 @@ test("booking-offer worker sends a queued PostgreSQL delivery through fake SMTP 
     } finally {
       verification.release();
     }
+
+    const resetDelivery = async (attemptCount: number) => {
+      const reset = await owner.connect();
+      try {
+        await reset.query("BEGIN");
+        await reset.query("SET LOCAL ROLE eventor_owner");
+        await reset.query("SELECT set_config('app.organization_id',$1,true)", [organizationId]);
+        await reset.query(
+          `UPDATE eogp.booking_offer_email_deliveries
+              SET status='queued',attempt_count=$3,next_attempt_at=clock_timestamp(),
+                  lease_expires_at=NULL,last_failure_code=NULL,
+                  provider_message_reference=NULL,sent_at=NULL,updated_at=clock_timestamp()
+            WHERE organization_id=$1 AND id=$2`,
+          [organizationId, deliveryId, attemptCount],
+        );
+        await reset.query(
+          `INSERT INTO eogp.booking_offer_email_delivery_tenant_queue(organization_id,available_at)
+           VALUES($1,clock_timestamp())
+           ON CONFLICT (organization_id) DO UPDATE
+             SET available_at=EXCLUDED.available_at,updated_at=clock_timestamp()`,
+          [organizationId],
+        );
+        await reset.query("COMMIT");
+      } catch (error) {
+        await reset.query("ROLLBACK");
+        throw error;
+      } finally {
+        reset.release();
+      }
+    };
+
+    const connectionFailure: SmtpTransportFactory = () => ({
+      async verify() { return true; },
+      async sendMail() {
+        throw Object.assign(new Error("synthetic SMTP connection reset"), { code: "ECONNRESET" });
+      },
+      close() {},
+    });
+    await resetDelivery(0);
+    const retryTotals = await processPendingBookingOfferEmailDeliveries(
+      worker, contactKey, credentialsKey, "https://app.example.invalid",
+      5, 100, connectionFailure,
+    );
+    assert.equal(retryTotals.bookingOfferEmailAttempts, 1);
+    assert.equal(retryTotals.bookingOfferEmailFailed, 1);
+    assert.equal(retryTotals.bookingOfferEmailRetriesScheduled, 1);
+
+    const retryCheck = await owner.connect();
+    try {
+      await retryCheck.query("BEGIN");
+      await retryCheck.query("SET LOCAL ROLE eventor_owner");
+      await retryCheck.query("SELECT set_config('app.organization_id',$1,true)", [organizationId]);
+      const row = await retryCheck.query(
+        `SELECT status,attempt_count,last_failure_code,next_attempt_at,lease_expires_at
+           FROM eogp.booking_offer_email_deliveries WHERE organization_id=$1 AND id=$2`,
+        [organizationId, deliveryId],
+      );
+      assert.equal(row.rows[0].status, "queued");
+      assert.equal(row.rows[0].attempt_count, 1);
+      assert.equal(row.rows[0].last_failure_code, "SMTP_CONNECTION");
+      assert.ok(new Date(row.rows[0].next_attempt_at).getTime() > Date.now());
+      assert.equal(row.rows[0].lease_expires_at, null);
+      await retryCheck.query("COMMIT");
+    } catch (error) {
+      await retryCheck.query("ROLLBACK");
+      throw error;
+    } finally {
+      retryCheck.release();
+    }
+
+    const ambiguousFailure: SmtpTransportFactory = () => ({
+      async verify() { return true; },
+      async sendMail() {
+        throw Object.assign(new Error("synthetic disconnect during DATA"), { command: "DATA" });
+      },
+      close() {},
+    });
+    await resetDelivery(1);
+    const uncertainTotals = await processPendingBookingOfferEmailDeliveries(
+      worker, contactKey, credentialsKey, "https://app.example.invalid",
+      5, 100, ambiguousFailure,
+    );
+    assert.equal(uncertainTotals.bookingOfferEmailAttempts, 1);
+    assert.equal(uncertainTotals.bookingOfferEmailUncertain, 1);
+    assert.equal(uncertainTotals.bookingOfferEmailRetriesScheduled, 0);
+
+    const uncertainCheck = await owner.connect();
+    try {
+      await uncertainCheck.query("BEGIN");
+      await uncertainCheck.query("SET LOCAL ROLE eventor_owner");
+      await uncertainCheck.query("SELECT set_config('app.organization_id',$1,true)", [organizationId]);
+      const row = await uncertainCheck.query(
+        `SELECT status,attempt_count,last_failure_code,provider_message_reference,
+                sent_at,lease_expires_at
+           FROM eogp.booking_offer_email_deliveries WHERE organization_id=$1 AND id=$2`,
+        [organizationId, deliveryId],
+      );
+      assert.equal(row.rows[0].status, "uncertain");
+      assert.equal(row.rows[0].attempt_count, 2);
+      assert.equal(row.rows[0].last_failure_code, "SMTP_UNKNOWN");
+      assert.equal(row.rows[0].provider_message_reference, null);
+      assert.equal(row.rows[0].sent_at, null);
+      assert.equal(row.rows[0].lease_expires_at, null);
+      const audit = await uncertainCheck.query(
+        `SELECT actor_kind,actor_service_principal_id,action FROM eogp.audit_events
+          WHERE organization_id=$1 AND aggregate_id=$2
+            AND action IN ('booking.offer.email_failed','booking.offer.email_uncertain')`,
+        [organizationId, (await uncertainCheck.query(
+          "SELECT offer_id FROM eogp.booking_offer_email_deliveries WHERE id=$1", [deliveryId],
+        )).rows[0].offer_id],
+      );
+      assert.ok(audit.rows.some((entry) =>
+        entry.action === "booking.offer.email_failed" &&
+        entry.actor_kind === "service_principal" && entry.actor_service_principal_id !== null));
+      assert.ok(audit.rows.some((entry) =>
+        entry.action === "booking.offer.email_uncertain" &&
+        entry.actor_kind === "service_principal" && entry.actor_service_principal_id !== null));
+      await uncertainCheck.query("COMMIT");
+    } catch (error) {
+      await uncertainCheck.query("ROLLBACK");
+      throw error;
+    } finally {
+      uncertainCheck.release();
+    }
   } finally {
     await owner.end();
     await worker.end();
