@@ -2773,7 +2773,7 @@ test("staff RSVP recording validates input, encrypts restricted notes and uses t
   t.after(async () => app.close());
   const eventId = "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa";
   const participationId = "bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb";
-  const headers = { "idempotency-key": "staff-rsvp-record-0001" };
+  const headers = { "idempotency-key": "rsvp-test-recording-01" };
   const payload = {
     response: "accepted",
     sourceChannel: "phone",
@@ -2804,7 +2804,7 @@ test("staff RSVP recording validates input, encrypts restricted notes and uses t
   const invalid = await app.inject({
     method: "POST",
     url: `/events/${eventId}/participations/${participationId}/rsvp-records`,
-    headers: { "idempotency-key": "staff-rsvp-invalid-0001" },
+    headers: { "idempotency-key": "rsvp-test-invalid-01" },
     payload: { ...payload, response: "maybe" },
   });
   assert.equal(invalid.statusCode, 400);
