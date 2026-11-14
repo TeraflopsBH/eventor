@@ -142,6 +142,33 @@ function makeStaffInvitationApi(
           rowCount: 1,
         };
       }
+      if (normalized.startsWith("SELECT 1 FROM eogp.organization_memberships")) {
+        return { rows: [{ "?column?": 1 }], rowCount: 1 };
+      }
+      if (normalized.includes("FROM eogp.user_role_grants user_grant")
+          && normalized.includes("role_permission.permission_code='rsvp.record'")) {
+        return { rows: [{ "?column?": 1 }], rowCount: 1 };
+      }
+      if (normalized.includes("role_permission.permission_code='rsvp.correct'")) {
+        return { rows: [{ "?column?": 1 }], rowCount: 1 };
+      }
+      if (normalized.includes("eogp.record_staff_guest_rsvp(")) {
+        return {
+          rows: [{
+            result: {
+              responseId: "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa",
+              participationId: "bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb",
+              response: values[4],
+              sourceChannel: values[5],
+              respondentKind: values[6],
+              receivedAt: values[7],
+              sequenceNumber: 1,
+              correctionOfResponseId: values[10],
+            },
+          }],
+          rowCount: 1,
+        };
+      }
       if (normalized.includes("eogp.list_guest_invitation_delivery_attempts(")) {
         if (historyError) throw historyError;
         return {
@@ -302,6 +329,63 @@ test("staff invitation revocation calls the audited tenant-scoped database comma
   assert.deepEqual(call.values, [organizationId, invitationId, staffPrincipal.membershipId, "guest_request"]);
 });
 
+
+test("staff RSVP recording encrypts restricted notes and submits actor-bound evidence", async (t) => {
+  const mock = makeStaffInvitationApi();
+  t.after(async () => mock.app.close());
+
+  const response = await mock.app.inject({
+    method: "POST",
+    url: "/events/55555555-5555-4555-8555-555555555555/participations/aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa/rsvp-records",
+    headers: { "idempotency-key": "staff-rsvp-0001" },
+    payload: {
+      response: "accepted",
+      sourceChannel: "phone",
+      respondentKind: "guest",
+      receivedAt: new Date(Date.now() - 60_000).toISOString(),
+      invitationId,
+      noteRestricted: "Guest confirmed by telephone.",
+    },
+  });
+  assert.equal(response.statusCode, 201);
+  assert.equal(response.json<{ data: { response: string } }>().data.response, "accepted");
+  const call = mock.calls.find((item) => item.sql.includes("eogp.record_staff_guest_rsvp("));
+  assert.ok(call);
+  assert.deepEqual(call.values.slice(0, 7), [
+    organizationId,
+    "55555555-5555-4555-8555-555555555555",
+    "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa",
+    staffPrincipal.membershipId,
+    "accepted",
+    "phone",
+    "guest",
+  ]);
+  const encryptedNote = call.values[9] as Buffer;
+  assert.ok(Buffer.isBuffer(encryptedNote));
+  assert.equal(encryptedNote.subarray(0, 3).toString("ascii"), "EV1");
+  assert.equal(encryptedNote.toString("utf8").includes("Guest confirmed"), false);
+});
+
+test("staff RSVP corrections require both the response reference and reason", async (t) => {
+  const mock = makeStaffInvitationApi();
+  t.after(async () => mock.app.close());
+
+  const response = await mock.app.inject({
+    method: "POST",
+    url: "/events/55555555-5555-4555-8555-555555555555/participations/aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa/rsvp-records",
+    headers: { "idempotency-key": "staff-rsvp-invalid-0001" },
+    payload: {
+      response: "declined",
+      sourceChannel: "phone",
+      respondentKind: "guest",
+      receivedAt: new Date(Date.now() - 60_000).toISOString(),
+      correctionOfResponseId: "cccccccc-cccc-4ccc-8ccc-cccccccccccc",
+    },
+  });
+  assert.equal(response.statusCode, 400);
+  assert.equal(response.json<{ code: string }>().code, "RSVP_CORRECTION_INVALID");
+  assert.equal(mock.calls.length, 0);
+});
 
 test("staff delivery attempt history is read through the tenant- and permission-scoped projection", async (t) => {
   const mock = makeStaffInvitationApi();
