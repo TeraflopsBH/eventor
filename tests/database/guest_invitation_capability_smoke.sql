@@ -213,18 +213,55 @@ $guest_invitation_send_authorization$;
 DO $guest_invitation_delivery_revocation$
 DECLARE
   v_definition text;
+  v_claim_definition text;
+  v_authorize_definition text;
+  v_complete_definition text;
+  v_revoke_definition text;
   v_trigger_enabled boolean;
 BEGIN
   SELECT pg_get_functiondef(
     'eogp.suppress_revoked_guest_invitation_delivery()'::regprocedure
   ) INTO v_definition;
+  SELECT pg_get_functiondef(
+    'eogp.claim_invitation_email_delivery(uuid)'::regprocedure
+  ) INTO v_claim_definition;
+  SELECT pg_get_functiondef(
+    'eogp.authorize_invitation_email_submission(uuid,uuid)'::regprocedure
+  ) INTO v_authorize_definition;
+  SELECT pg_get_functiondef(
+    'eogp.complete_invitation_email_delivery(uuid,uuid,text,text,text)'::regprocedure
+  ) INTO v_complete_definition;
+  SELECT pg_get_functiondef(
+    'eogp.revoke_guest_invitation(uuid,uuid,uuid,text)'::regprocedure
+  ) INTO v_revoke_definition;
 
   IF strpos(v_definition, 'OLD.revoked_at IS NULL AND NEW.revoked_at IS NOT NULL') = 0
      OR strpos(v_definition, 'delivery.invitation_revision_id=NEW.invitation_revision_id') = 0
      OR strpos(v_definition, 'delivery.status=''queued''') = 0
      OR strpos(v_definition, 'INVITATION_SUPERSEDED') = 0
-     OR strpos(v_definition, 'INVITATION_REVOKED') = 0 THEN
-    RAISE EXCEPTION 'revoked or superseded invitation links must suppress their queued delivery';
+     OR strpos(v_definition, 'INVITATION_REVOKED') = 0
+     OR strpos(v_definition, 'delivery.status=''sending''') > 0 THEN
+    RAISE EXCEPTION 'link revocation must suppress queued deliveries without rewriting claimed sends';
+  END IF;
+
+  -- A claimed message is checked again after invitation and link locks. If
+  -- revocation/reissue committed first, authorization must reject it; if
+  -- authorization committed first, SMTP is already considered in-flight.
+  IF strpos(v_authorize_definition, 'v_delivery.status<>''sending''') = 0
+     OR strpos(v_authorize_definition, 'v_delivery.lease_expires_at<=clock_timestamp()') = 0
+     OR strpos(v_authorize_definition, 'link.revoked_at IS NOT NULL') = 0
+     OR strpos(v_authorize_definition, 'FOR UPDATE;') = 0 THEN
+    RAISE EXCEPTION 'SMTP authorization must reject stale leases and revoked links after capability locking';
+  END IF;
+
+  -- Expired in-flight attempts are terminally uncertain, never silently
+  -- requeued. A stale worker cannot later overwrite the expired attempt.
+  IF strpos(v_claim_definition, 'status=''sending''') = 0
+     OR strpos(v_claim_definition, 'status=''uncertain''') = 0
+     OR strpos(v_claim_definition, 'failure_code=''SMTP_UNKNOWN''') = 0
+     OR strpos(v_complete_definition, 'v_delivery.lease_expires_at<=clock_timestamp()') = 0
+     OR strpos(v_revoke_definition, 'AND status=''queued''') = 0 THEN
+    RAISE EXCEPTION 'expired sends must become uncertain and stale completions must be rejected';
   END IF;
 
   SELECT trigger_row.tgenabled <> 'D'
