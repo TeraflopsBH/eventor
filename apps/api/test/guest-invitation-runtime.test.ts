@@ -34,7 +34,7 @@ function makeGuestApi() {
     timezone: "Europe/Sarajevo",
     venueSummary: { name: "Main hall" },
     locale: "bs-BA",
-    presentationSnapshotCiphertext: encryptPresentation({ greeting: "Welcome to the gathering" }),
+    presentationSnapshotCiphertext: encryptPresentation({ greeting: "Welcome to the gathering" }).toString("base64"),
     allowedResponses: ["accepted", "declined", "tentative"],
     responseDeadline: null,
     responseChangeAllowed: true,
