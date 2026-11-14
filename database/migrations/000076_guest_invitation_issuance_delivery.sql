@@ -114,6 +114,25 @@ BEGIN
     RAISE EXCEPTION 'active staff membership is required' USING ERRCODE='42501';
   END IF;
 
+  IF NOT EXISTS (
+    SELECT 1
+      FROM eogp.user_role_grants user_grant
+      JOIN eogp.role_permissions role_permission
+        ON role_permission.organization_id=user_grant.organization_id
+       AND role_permission.role_id=user_grant.role_id
+     WHERE user_grant.organization_id=p_organization_id
+       AND user_grant.membership_id=p_actor_membership_id
+       AND user_grant.revoked_at IS NULL
+       AND (user_grant.expires_at IS NULL OR user_grant.expires_at>clock_timestamp())
+       AND role_permission.permission_code='invitation.manage'
+       AND (
+         user_grant.scope_kind='organization'
+         OR (user_grant.scope_kind='event' AND user_grant.scope_event_id=p_event_id)
+       )
+  ) THEN
+    RAISE EXCEPTION 'invitation.manage permission is required for this event' USING ERRCODE='42501';
+  END IF;
+
   SELECT * INTO v_existing
     FROM eogp.invitation_deliveries
    WHERE organization_id=p_organization_id
@@ -308,6 +327,27 @@ BEGIN
    FOR SHARE;
   IF NOT FOUND OR v_member_status<>'active' THEN
     RAISE EXCEPTION 'active staff membership is required' USING ERRCODE='42501';
+  END IF;
+  IF NOT EXISTS (
+    SELECT 1
+      FROM eogp.user_role_grants user_grant
+      JOIN eogp.role_permissions role_permission
+        ON role_permission.organization_id=user_grant.organization_id
+       AND role_permission.role_id=user_grant.role_id
+     WHERE user_grant.organization_id=p_organization_id
+       AND user_grant.membership_id=p_actor_membership_id
+       AND user_grant.revoked_at IS NULL
+       AND (user_grant.expires_at IS NULL OR user_grant.expires_at>clock_timestamp())
+       AND role_permission.permission_code='invitation.manage'
+       AND (
+         user_grant.scope_kind='organization'
+         OR (user_grant.scope_kind='event' AND user_grant.scope_event_id=(
+           SELECT invitation.event_id FROM eogp.invitations invitation
+            WHERE invitation.organization_id=p_organization_id AND invitation.id=p_invitation_id
+         ))
+       )
+  ) THEN
+    RAISE EXCEPTION 'invitation.manage permission is required for this invitation' USING ERRCODE='42501';
   END IF;
   SELECT * INTO v_invitation
     FROM eogp.invitations
