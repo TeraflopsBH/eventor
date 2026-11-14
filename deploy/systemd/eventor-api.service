@@ -1,0 +1,40 @@
+[Unit]
+Description=Eventor API
+Documentation=file:/opt/eventor/current/docs/operations/SELF_HOSTED_DEPLOYMENT_RUNBOOK.md
+Wants=network-online.target
+After=network-online.target
+
+[Service]
+Type=simple
+User=eventor-api
+Group=eventor-api
+WorkingDirectory=/opt/eventor/current/apps/api
+EnvironmentFile=/etc/eventor/api.env
+ExecStart=/usr/bin/node dist/main.js
+Restart=on-failure
+RestartSec=5s
+KillSignal=SIGTERM
+TimeoutStopSec=45s
+UMask=0077
+
+NoNewPrivileges=true
+PrivateTmp=true
+PrivateDevices=true
+ProtectSystem=strict
+ProtectHome=true
+ProtectKernelTunables=true
+ProtectKernelModules=true
+ProtectControlGroups=true
+RestrictSUIDSGID=true
+RestrictRealtime=true
+LockPersonality=true
+CapabilityBoundingSet=
+AmbientCapabilities=
+RestrictAddressFamilies=AF_UNIX AF_INET AF_INET6
+SystemCallArchitectures=native
+
+StandardOutput=journal
+StandardError=journal
+
+[Install]
+WantedBy=multi-user.target
