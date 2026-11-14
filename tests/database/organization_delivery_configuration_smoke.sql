@@ -5,6 +5,7 @@
 \endif
 BEGIN;
 SET LOCAL app.organization_id = '22222222-2222-4222-8222-222222222222';
+SELECT set_config('eventor.ci_delivery_credentials_ciphertext_base64', :'ci_delivery_credentials_ciphertext_base64', true);
 
 DO $delivery$
 DECLARE
@@ -90,7 +91,7 @@ BEGIN
       'replyTo','',
       'connectionTimeoutMs',15000
     ),
-    decode(:'ci_delivery_credentials_ciphertext_base64','base64'),
+    decode(current_setting('eventor.ci_delivery_credentials_ciphertext_base64'),'base64'),
     true,
     false
   );
