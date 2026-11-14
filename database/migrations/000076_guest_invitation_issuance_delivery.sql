@@ -330,11 +330,6 @@ BEGIN
     IF NOT FOUND THEN
       RAISE EXCEPTION 'active invitation to reissue was not found' USING ERRCODE='P0002';
     END IF;
-    UPDATE eogp.invitation_links
-       SET revoked_at=clock_timestamp()
-     WHERE organization_id=p_organization_id
-       AND event_id=p_event_id AND invitation_id=p_invitation_id
-       AND revoked_at IS NULL;
   END IF;
 
   SELECT COALESCE(max(revision_number),0)+1 INTO v_revision_number
@@ -358,6 +353,14 @@ BEGIN
     p_organization_id,p_event_id,v_invitation.id,v_revision_id,
     p_token_sha256,p_expires_at
   ) RETURNING id INTO v_link_id;
+
+  IF p_invitation_id IS NOT NULL THEN
+    UPDATE eogp.invitation_links
+       SET revoked_at=clock_timestamp(),replaced_by_link_id=v_link_id
+     WHERE organization_id=p_organization_id
+       AND event_id=p_event_id AND invitation_id=v_invitation.id
+       AND id<>v_link_id AND revoked_at IS NULL;
+  END IF;
 
   UPDATE eogp.invitations
      SET status='active',current_revision_number=v_revision_number,
