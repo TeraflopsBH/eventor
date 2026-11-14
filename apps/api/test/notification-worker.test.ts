@@ -271,6 +271,7 @@ test("guest invitation email worker decrypts the queued capability and sends a p
     async query(sql: string, values: unknown[] = []) {
       const normalized = sql.replace(/\\s+/g, " ").trim();
       calls.push(normalized);
+      if (normalized.includes("authorize_invitation_email_submission")) return { rows: [{ authorized: true }], rowCount: 1 };
       if (normalized.startsWith("SELECT * FROM eogp.claim_invitation_email_delivery")) {
         claimCount += 1;
         return { rows: claimCount === 1 ? [job] : [], rowCount: claimCount === 1 ? 1 : 0 };
@@ -382,7 +383,8 @@ test("guest invitation email worker schedules retryable connection failures and 
       const client = {
         async query(sql: string, values: unknown[] = []) {
           const normalized = sql.replace(/\\s+/g, " ").trim();
-          if (normalized.startsWith("SELECT * FROM eogp.claim_invitation_email_delivery")) {
+          if (normalized.includes("authorize_invitation_email_submission")) return { rows: [{ authorized: true }], rowCount: 1 };
+      if (normalized.startsWith("SELECT * FROM eogp.claim_invitation_email_delivery")) {
             claimCount += 1;
             return { rows: claimCount === 1 ? [job] : [], rowCount: claimCount === 1 ? 1 : 0 };
           }
