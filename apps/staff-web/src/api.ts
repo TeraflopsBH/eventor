@@ -252,6 +252,13 @@ export interface GuestInvitationParticipation {
   responseReceivedAt: string | null;
 }
 
+export interface GuestInvitationRsvpHistoryEntry {
+  responseId: string; sequenceNumber: number; response: "accepted" | "declined" | "tentative";
+  sourceChannel: string; respondentKind: string; receivedAt: string; recordedAt: string;
+  actorMembershipId: string | null; correctionOfResponseId: string | null; correctionReason: string | null;
+  invitationId: string | null; scheduleRevisionId: string | null;
+}
+
 export interface GuestInvitation {
   invitationId: string;
   invitationRevisionId: string;
@@ -1334,6 +1341,10 @@ export const api = {
     request<Envelope<Record<string, unknown>>>(
       `/invitations/${encodeURIComponent(invitationId)}/revoke`,
       { method: "POST", body: { reasonCode }, idempotent: true },
+    ),
+  getGuestInvitationRsvpHistory: (eventId: string, participationId: string) =>
+    request<Envelope<GuestInvitationRsvpHistoryEntry[]>>(
+      `/events/${encodeURIComponent(eventId)}/participations/${encodeURIComponent(participationId)}/rsvp-history`,
     ),
   getGuestInvitationDeliveryAttempts: (invitationId: string) =>
     request<Envelope<GuestInvitationDeliveryAttempt[]>>(
