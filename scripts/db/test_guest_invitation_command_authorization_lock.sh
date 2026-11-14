@@ -20,7 +20,7 @@ SET LOCAL ROLE eventor_owner;
 SELECT set_config('app.organization_id','$org',true);
 INSERT INTO eogp.role_permissions(organization_id,role_id,permission_code)
 VALUES ('$org','$role','invitation.manage') ON CONFLICT DO NOTHING;
-UPDATE eogp.invitations SET status='active'
+UPDATE eogp.invitations SET status='active',revoked_at=NULL
  WHERE organization_id='$org' AND id='$invitation';
 UPDATE eogp.invitation_deliveries SET idempotency_key_sha256=NULL
  WHERE organization_id='$org' AND id='$delivery';
