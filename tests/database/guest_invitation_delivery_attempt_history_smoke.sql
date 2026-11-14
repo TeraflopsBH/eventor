@@ -486,6 +486,7 @@ SELECT set_config('app.actor_membership_id','bbbbbbbb-2222-4222-8222-bbbbbbbbbbb
 DO $staff_rsvp_late_override$
 DECLARE
   v_result jsonb;
+  v_projection jsonb;
 BEGIN
   v_result := eogp.record_staff_guest_rsvp(
     '22222222-2222-4222-8222-222222222222',
@@ -497,6 +498,19 @@ BEGIN
   );
   IF v_result->>'response'<>'accepted' THEN
     RAISE EXCEPTION 'authorized late RSVP was not recorded: %',v_result;
+  END IF;
+  v_projection := eogp.list_guest_invitation_participations(
+    '22222222-2222-4222-8222-222222222222',
+    '94000000-0000-4000-8000-000000000001',
+    'bbbbbbbb-2222-4222-8222-bbbbbbbbbbbb'
+  );
+  IF NOT EXISTS (
+    SELECT 1 FROM jsonb_array_elements(v_projection) participant
+     WHERE participant->>'participationId'='94300000-0000-4000-8000-000000000002'
+       AND participant->>'currentResponseId'=v_result->>'responseId'
+       AND participant->>'currentResponse'='accepted'
+  ) THEN
+    RAISE EXCEPTION 'staff participation projection did not expose the current RSVP response ID: %',v_projection;
   END IF;
 END;
 $staff_rsvp_late_override$;
