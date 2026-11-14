@@ -61,6 +61,11 @@ BEGIN
       JOIN eogp.event_schedule_revisions schedule
         ON schedule.organization_id=event.organization_id
        AND schedule.event_id=event.id
+      JOIN eogp.invitation_revisions revision
+        ON revision.organization_id=event.organization_id
+       AND revision.event_id=event.id
+       AND revision.id=v_delivery.invitation_revision_id
+       AND revision.invitation_id=v_invitation.id
       JOIN eogp.rsvp_policy_revisions policy
         ON policy.organization_id=revision.organization_id
        AND policy.event_id=revision.event_id
