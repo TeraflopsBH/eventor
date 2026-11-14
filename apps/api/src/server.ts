@@ -2769,12 +2769,6 @@ export function buildApi(dependencies: ApiDependencies): FastifyInstance {
           );
           return result.rows[0]?.result as Record<string, unknown>;
         },
-        async (client) => {
-          await client.query<ResultRow>(
-            "SELECT eogp.get_booking_offer_approval_status($1::uuid,$2::uuid,$3::uuid) AS result",
-            [principal.organizationId, request.params.offerId, principal.membershipId],
-          );
-        },
       );
     },
   );
@@ -3906,11 +3900,6 @@ export function buildApi(dependencies: ApiDependencies): FastifyInstance {
             [principal.organizationId, request.params.campaignId, principal.membershipId],
           );
           return result.rows[0]?.result as Record<string, unknown>;
-        }, async (client) => {
-          await client.query<ResultRow>(
-            "SELECT eogp.get_event_notification_campaign_review($1::uuid,$2::uuid,$3::uuid) AS result",
-            [principal.organizationId, request.params.campaignId, principal.membershipId],
-          );
         });
     },
   );
@@ -4157,11 +4146,6 @@ export function buildApi(dependencies: ApiDependencies): FastifyInstance {
             [principal.organizationId, request.params.campaignId, principal.membershipId],
           );
           return result.rows[0]?.result as Record<string, unknown>;
-        }, async (client) => {
-          await client.query<ResultRow>(
-            "SELECT eogp.get_event_notification_campaign_review($1::uuid,$2::uuid,$3::uuid) AS result",
-            [principal.organizationId, request.params.campaignId, principal.membershipId],
-          );
         });
     },
   );
@@ -4184,11 +4168,6 @@ export function buildApi(dependencies: ApiDependencies): FastifyInstance {
             [principal.organizationId, request.params.campaignId, principal.membershipId],
           );
           return result.rows[0]?.result as Record<string, unknown>;
-        }, async (client) => {
-          await client.query<ResultRow>(
-            "SELECT eogp.get_event_notification_campaign_review($1::uuid,$2::uuid,$3::uuid) AS result",
-            [principal.organizationId, request.params.campaignId, principal.membershipId],
-          );
         });
     },
   );
