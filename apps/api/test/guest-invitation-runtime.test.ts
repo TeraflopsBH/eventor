@@ -80,6 +80,66 @@ function makeGuestApi() {
   return { app, calls, invitation };
 }
 
+const staffPrincipal = {
+  userId: "bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb",
+  organizationId,
+  membershipId: "bbbbbbbb-2222-4222-8222-bbbbbbbbbbbb",
+};
+
+function makeStaffInvitationApi() {
+  const calls: Array<{ sql: string; values: unknown[] }> = [];
+  const client = {
+    async query(sql: string, values: unknown[] = []) {
+      const normalized = sql.replace(/\\s+/g, " ").trim();
+      calls.push({ sql: normalized, values });
+      if (["BEGIN", "COMMIT", "ROLLBACK"].includes(normalized)
+          || normalized.startsWith("SELECT set_config")
+          || normalized.startsWith("DELETE FROM eogp.idempotency_records")
+          || normalized.startsWith("UPDATE eogp.idempotency_records")) {
+        return { rows: [], rowCount: 1 };
+      }
+      if (normalized.startsWith("SELECT request_sha256,response_status,response_body FROM eogp.idempotency_records")) {
+        return { rows: [], rowCount: 0 };
+      }
+      if (normalized.startsWith("INSERT INTO eogp.idempotency_records")) {
+        return { rows: [{ id: "77777777-7777-4777-8777-777777777777" }], rowCount: 1 };
+      }
+      if (normalized.includes("eogp.issue_guest_invitation(")) {
+        return {
+          rows: [{
+            result: {
+              invitationId,
+              invitationRevisionId: "44444444-4444-4444-8444-444444444444",
+              linkId: "88888888-8888-4888-8888-888888888888",
+              deliveryId: "99999999-9999-4999-8999-999999999999",
+              status: "queued",
+              created: true,
+            },
+          }],
+          rowCount: 1,
+        };
+      }
+      if (normalized.includes("eogp.revoke_guest_invitation(")) {
+        return {
+          rows: [{ result: { invitationId, status: "revoked", revokedLinks: 1 } }],
+          rowCount: 1,
+        };
+      }
+      throw new Error("Unexpected staff invitation SQL: " + normalized);
+    },
+    release() {},
+  };
+  const pool = { async connect() { return client; } } as unknown as Pool;
+  const app = buildApi({
+    pool,
+    authenticateStaff: async () => staffPrincipal,
+    verifyMutationOrigin: async () => true,
+    privateFieldEncryptionKey: Buffer.alloc(32, 7),
+    contactEncryptionKey: Buffer.alloc(32, 10),
+  });
+  return { app, calls };
+}
+
 test("guest invitation resolution is capability-authenticated and returns no tenant identifier", async (t) => {
   const mock = makeGuestApi();
   t.after(async () => mock.app.close());
@@ -156,4 +216,51 @@ test("guest invitation routes reject malformed bearer tokens before database acc
   });
   assert.equal(response.statusCode, 401);
   assert.equal(mock.calls.length, 0);
+});
+
+
+test("staff invitation issuance encrypts the bearer capability and queues delivery without returning it", async (t) => {
+  const mock = makeStaffInvitationApi();
+  t.after(async () => mock.app.close());
+
+  const response = await mock.app.inject({
+    method: "POST",
+    url: "/events/55555555-5555-4555-8555-555555555555/participations/aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa/invitation",
+    headers: { "idempotency-key": "guest-issue-0001" },
+    payload: {
+      scheduleRevisionId: "11111111-1111-4111-8111-111111111112",
+      rsvpPolicyRevisionId: "11111111-1111-4111-8111-111111111113",
+      locale: "bs-BA",
+      expiresAt: new Date(Date.now() + 7 * 86400000).toISOString(),
+      presentationSnapshot: { greeting: "Dobro došli", venueName: "Main hall" },
+    },
+  });
+  assert.equal(response.statusCode, 201);
+  const data = response.json<{ data: Record<string, unknown> }>().data;
+  assert.equal(data.status, "queued");
+  assert.equal(data.deliveryId, "99999999-9999-4999-8999-999999999999");
+  assert.equal("token" in data, false);
+  const issue = mock.calls.find((call) => call.sql.includes("eogp.issue_guest_invitation("));
+  assert.ok(issue);
+  assert.match(String(issue.values[9]), /^[0-9a-f]{64}$/);
+  assert.equal((issue.values[10] as Buffer).subarray(0, 4).toString("ascii"), "ECP1");
+  assert.equal((issue.values[8] as Buffer).subarray(0, 3).toString("ascii"), "EV1");
+  assert.equal(JSON.stringify(data).includes(token), false);
+});
+
+test("staff invitation revocation calls the audited tenant-scoped database command", async (t) => {
+  const mock = makeStaffInvitationApi();
+  t.after(async () => mock.app.close());
+
+  const response = await mock.app.inject({
+    method: "POST",
+    url: "/invitations/33333333-3333-4333-8333-333333333333/revoke",
+    headers: { "idempotency-key": "guest-revoke-0001" },
+    payload: { reasonCode: "guest_request" },
+  });
+  assert.equal(response.statusCode, 201);
+  assert.equal(response.json<{ data: { status: string; revokedLinks: number } }>().data.status, "revoked");
+  const call = mock.calls.find((item) => item.sql.includes("eogp.revoke_guest_invitation("));
+  assert.ok(call);
+  assert.deepEqual(call.values, [organizationId, invitationId, staffPrincipal.membershipId, "guest_request"]);
 });
