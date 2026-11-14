@@ -484,3 +484,6 @@ The schema constraint matrix now records **87 verified assertions and 18 uncheck
 ## Staff RSVP response history — 2026-11-14
 
 Added a permission-scoped organizer read projection and endpoint for complete append-only RSVP response history per event participation. The projection requires an active membership, trusted actor-context binding and event-scoped or organization-scoped `invitation.manage`; it returns response source, respondent kind, received/recorded timestamps, actor membership attribution, sequence and correction linkage/reason. Restricted note ciphertext is never returned. The organizer workspace can expand each participant's RSVP timeline and formats timestamps in the active staff locale.
+
+
+The staff RSVP response-history slice at commit `e19449ffac52dfdc4b0a0d06deb9bc83c77a2ac3` passed both required PR workflows: [Contracts and PostgreSQL migrations #43641739115](https://github.com/TeraflopsBH/eventor/actions/runs/43641739115) and [Secret history scan #43641739117](https://github.com/TeraflopsBH/eventor/actions/runs/43641739117). Verification included OpenAPI 3.1 validation, PostgreSQL 18.6 full migration chain and RSVP history smoke assertions, staff-web type-check/production build, systemd unit validation and full-history secret scanning. PR #81 remains a draft and is not merged.
