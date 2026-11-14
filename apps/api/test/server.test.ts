@@ -54,6 +54,8 @@ interface StoredIdempotency {
 function makePool() {
   const idempotency = new Map<string, StoredIdempotency>();
   const commandCalls: Array<{ sql: string; values: unknown[] }> = [];
+  let eventPermissionAllowed = true;
+  let eventReplayAuthorizationCalls = 0;
   let reservationCalls = 0;
   let changeCalls = 0;
   let campaignReviewCalls = 0;
@@ -118,6 +120,10 @@ function makePool() {
       // Replay authorization queries are deliberately handled separately from
       // commandCalls so route assertions continue to describe actual mutations.
       if (normalized.startsWith("SELECT eogp.assert_event_command_permission(")) {
+        eventReplayAuthorizationCalls += 1;
+        if (!eventPermissionAllowed) {
+          throw Object.assign(new Error("event permission revoked"), { code: "42501" });
+        }
         return { rows: [], rowCount: 1 };
       }
       if (normalized.startsWith("SELECT 1 FROM eogp.organization_memberships")) {
@@ -938,6 +944,8 @@ function makePool() {
   return {
     pool,
     commandCalls,
+    setEventPermissionAllowed(value: boolean) { eventPermissionAllowed = value; },
+    get eventReplayAuthorizationCalls() { return eventReplayAuthorizationCalls; },
     get reservationCalls() { return reservationCalls; },
     get changeCalls() { return changeCalls; },
     get campaignReviewCalls() { return campaignReviewCalls; },
@@ -2303,6 +2311,26 @@ test("custom notification audience requires explicit participation IDs", async (
   assert.equal(response.statusCode, 422);
   assert.equal(response.json<{ code: string }>().code, "CUSTOM_AUDIENCE_REQUIRED");
   assert.equal(mock.changeCalls, 0);
+});
+
+test("idempotency replay rechecks the exact event-scoped permission after revocation", async (t) => {
+  const mock = makePool();
+  const app = makeApi(mock.pool);
+  t.after(async () => app.close());
+  const url = "/event-change-requests/91500000-0000-4000-8000-000000000001/approve";
+  const headers = { "idempotency-key": "event-approve-replay-01" };
+  const payload = { reason: "Reviewed and approved the cancellation request." };
+
+  const original = await app.inject({ method: "POST", url, headers, payload });
+  assert.equal(original.statusCode, 201);
+  assert.equal(mock.changeCalls, 1);
+  assert.equal(mock.eventReplayAuthorizationCalls, 0);
+
+  mock.setEventPermissionAllowed(false);
+  const replay = await app.inject({ method: "POST", url, headers, payload });
+  assert.equal(replay.statusCode, 403);
+  assert.equal(mock.changeCalls, 1);
+  assert.equal(mock.eventReplayAuthorizationCalls, 1);
 });
 
 test("staff mutations fail closed without a verified session or accepted origin", async (t) => {
