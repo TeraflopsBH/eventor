@@ -4,7 +4,7 @@ set -Eeuo pipefail
 : "${RUNTIME_URL:?Set RUNTIME_URL to the eventor_runtime PostgreSQL login}"
 : "${MIGRATOR_URL:?Set MIGRATOR_URL to the eventor_migrator PostgreSQL login}"
 org="22222222-2222-4222-8222-222222222222"
-invitation="94500000-0000-4000-8000-000000000001"
+invitation="94500000-0000-4000-8000-000000000005"
 delivery="96700000-0000-4000-8000-000000000001"
 actor="bbbbbbbb-2222-4222-8222-bbbbbbbbbbbb"
 tmp="$(mktemp -d)"
