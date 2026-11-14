@@ -35,12 +35,17 @@ CREATE TRIGGER guest_invitation_capability_lookup_insert
   AFTER INSERT ON eogp.invitation_links
   FOR EACH ROW EXECUTE FUNCTION eogp.index_guest_invitation_capability();
 
+-- The migration owner normally obeys FORCE RLS on tenant tables. Temporarily
+-- remove FORCE (not ENABLE) only inside this transaction to index pre-existing
+-- links; the tenant policy remains installed and FORCE is restored immediately.
+ALTER TABLE eogp.invitation_links NO FORCE ROW LEVEL SECURITY;
 INSERT INTO eogp.guest_invitation_capability_lookup (
   token_sha256, organization_id, invitation_link_id
 )
 SELECT link.token_sha256, link.organization_id, link.id
   FROM eogp.invitation_links link
 ON CONFLICT (token_sha256) DO NOTHING;
+ALTER TABLE eogp.invitation_links FORCE ROW LEVEL SECURITY;
 
 REVOKE ALL ON FUNCTION eogp.index_guest_invitation_capability()
   FROM PUBLIC, eventor_runtime, eventor_worker, eventor_auth;
