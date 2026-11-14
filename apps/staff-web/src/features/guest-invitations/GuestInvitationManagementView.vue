@@ -143,7 +143,8 @@ onMounted(() => { void loadEvents(); });
             </tr>
           </thead>
           <tbody>
-            <tr v-for="person in participants" :key="person.participationId">
+            <template v-for="person in participants" :key="person.participationId">
+            <tr>
               <td>
                 <strong>{{ person.displayName }}</strong>
                 <small v-if="!person.emailReady" class="muted">{{ t("guestInvitations.emailNotReady") }}</small>
@@ -193,6 +194,7 @@ onMounted(() => { void loadEvents(); });
                 </div>
               </td>
             </tr>
+            </template>
             <tr v-if="participants.length === 0"><td colspan="6" class="muted">{{ t("guestInvitations.noParticipants") }}</td></tr>
           </tbody>
         </table>
