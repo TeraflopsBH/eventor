@@ -374,6 +374,8 @@ BEGIN
   SELECT pg_get_functiondef('eogp.enforce_guest_invitation_rsvp_write_limit()'::regprocedure)
     INTO v_limit;
   IF strpos(v_limit,'v_max_guest_responses constant integer := 20')=0
+     OR strpos(v_limit,'guest invitation response limit reached')=0
+     OR strpos(v_limit,'54000')=0
      OR NOT EXISTS (
        SELECT 1 FROM pg_trigger trigger_row
         WHERE trigger_row.tgrelid='eogp.rsvp_responses'::regclass
