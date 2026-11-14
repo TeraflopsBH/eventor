@@ -281,6 +281,16 @@ BEGIN
     RAISE EXCEPTION 'RSVP response is not allowed by the published policy'
       USING ERRCODE = '55000';
   END IF;
+  PERFORM 1
+    FROM eogp.event_participations participation
+   WHERE participation.organization_id = v_organization_id
+     AND participation.event_id = v_invitation.event_id
+     AND participation.id = v_invitation.participation_id
+   FOR UPDATE;
+  IF NOT FOUND THEN
+    RAISE EXCEPTION 'guest participation not found' USING ERRCODE = 'P0002';
+  END IF;
+
   SELECT response.response
     INTO v_previous_response
     FROM eogp.rsvp_responses response
@@ -298,16 +308,6 @@ BEGIN
      AND v_previous_response IS NOT NULL
      AND v_policy.late_change_requires_staff THEN
     RAISE EXCEPTION 'late RSVP changes require staff assistance' USING ERRCODE = '55000';
-  END IF;
-
-  PERFORM 1
-    FROM eogp.event_participations participation
-   WHERE participation.organization_id = v_organization_id
-     AND participation.event_id = v_invitation.event_id
-     AND participation.id = v_invitation.participation_id
-   FOR UPDATE;
-  IF NOT FOUND THEN
-    RAISE EXCEPTION 'guest participation not found' USING ERRCODE = 'P0002';
   END IF;
 
   SELECT COALESCE(max(response.sequence_number), 0) + 1
