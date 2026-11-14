@@ -35,6 +35,7 @@ export default {
   navigation: {
     delivery: "Dostava e-pošte",
     campaigns: "Pregled kampanja",
+    guestInvitations: "Pozivnice za goste",
     inquiries: "Upiti za rezervaciju",
     approvals: "Pravila odobravanja",
     bookingForms: "Obrasci za rezervaciju",
