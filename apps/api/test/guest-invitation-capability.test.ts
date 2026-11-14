@@ -16,7 +16,7 @@ test("rejects malformed, non-canonical and wrong-length invitation tokens", () =
   assert.equal(hashGuestInvitationToken(undefined), null);
   assert.equal(hashGuestInvitationToken(""), null);
   assert.equal(hashGuestInvitationToken("short"), null);
-  assert.equal(hashGuestInvitationToken("A".repeat(43)), null);
+  assert.equal(hashGuestInvitationToken("A".repeat(42) + "B"), null);
   assert.equal(hashGuestInvitationToken("A".repeat(42) + "!"), null);
   assert.equal(hashGuestInvitationToken("A".repeat(44)), null);
 });
