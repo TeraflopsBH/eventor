@@ -72,6 +72,7 @@ DECLARE
   v_suppressed_delivery uuid := '95400000-0000-4000-8000-000000000004';
   v_attempt record;
   v_count integer;
+  v_denied boolean;
 BEGIN
   -- A queued delivery has no SMTP attempt until it enters sending.
   SELECT count(*) INTO v_count
@@ -129,6 +130,33 @@ BEGIN
    WHERE organization_id=v_org AND delivery_id=v_retry_delivery;
   IF v_count<>2 THEN
     RAISE EXCEPTION 'retry delivery should have exactly two attempt rows, got %',v_count;
+  END IF;
+
+  -- Completed attempt history is immutable even to a direct owner-level DML
+  -- statement. Only the nested delivery-status trigger may finalize sending.
+  v_denied := false;
+  BEGIN
+    UPDATE eogp.invitation_delivery_attempts
+       SET failure_code='OWNER_TAMPER'
+     WHERE organization_id=v_org AND delivery_id=v_retry_delivery
+       AND attempt_number=1;
+  EXCEPTION WHEN SQLSTATE '55000' THEN
+    v_denied := true;
+  END;
+  IF NOT v_denied THEN
+    RAISE EXCEPTION 'owner-level UPDATE rewrote completed invitation attempt history';
+  END IF;
+
+  v_denied := false;
+  BEGIN
+    DELETE FROM eogp.invitation_delivery_attempts
+     WHERE organization_id=v_org AND delivery_id=v_retry_delivery
+       AND attempt_number=1;
+  EXCEPTION WHEN SQLSTATE '55000' THEN
+    v_denied := true;
+  END;
+  IF NOT v_denied THEN
+    RAISE EXCEPTION 'owner-level DELETE removed invitation attempt history';
   END IF;
 
   -- An ambiguous SMTP outcome is terminal and is never marked retryable.
