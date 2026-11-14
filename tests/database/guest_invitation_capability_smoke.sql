@@ -446,8 +446,10 @@ BEGIN
      OR strpos(v_attempt_definition, 'membership.status=''active''') = 0
      OR strpos(v_attempt_definition, 'FOR SHARE;') = 0
      OR strpos(v_attempt_definition, 'FOR SHARE OF user_grant,role_permission') = 0
-     OR strpos(v_attempt_definition, 'invitation.manage') = 0 THEN
-    RAISE EXCEPTION 'guest invitation delivery-history projection must serialize authorization with membership and permission revocation';
+     OR strpos(v_attempt_definition, 'invitation.manage permission is required') > 0
+     OR (length(v_attempt_definition)-length(replace(v_attempt_definition,'guest invitation not found','')))
+          / length('guest invitation not found') < 2 THEN
+    RAISE EXCEPTION 'guest invitation delivery-history projection must serialize authorization and hide invitation existence from unauthorized members';
   END IF;
 END;
 $guest_invitation_projection_authorization_lock$;
