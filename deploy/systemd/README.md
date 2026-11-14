@@ -25,8 +25,8 @@ Run once as an administrator:
 ```sh
 sudo useradd --system --home-dir /nonexistent --shell /usr/sbin/nologin eventor-api
 sudo useradd --system --home-dir /nonexistent --shell /usr/sbin/nologin eventor-worker
-sudo install -d -o root -g root -m 0750 /opt/eventor /opt/eventor/releases
-sudo install -d -o root -g root -m 0750 /etc/eventor
+sudo install -d -o root -g root -m 0755 /opt/eventor /opt/eventor/releases
+sudo install -d -o root -g root -m 0755 /etc/eventor
 ```
 
 Install a built release under `/opt/eventor/releases/<release-id>`, owned by
