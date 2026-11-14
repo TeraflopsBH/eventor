@@ -68,14 +68,14 @@ INSERT INTO eogp.invitation_links(
 
 INSERT INTO eogp.invitation_deliveries(
  id,organization_id,event_id,invitation_id,invitation_revision_id,
- channel,destination_ciphertext,destination_hash,status
+ channel,destination_ciphertext,destination_hash,status,idempotency_key_sha256
 ) VALUES (
  '96700000-0000-4000-8000-000000000001',
  '22222222-2222-4222-8222-222222222222',
  '94000000-0000-4000-8000-000000000001',
  '94500000-0000-4000-8000-000000000005',
  '96500000-0000-4000-8000-000000000001',
- 'email',decode('45435031010203','hex'),repeat('d',64),'queued'
+ 'email',decode('45435031010203','hex'),repeat('d',64),'queued',repeat('e',64)
 );
 
 UPDATE eogp.invitation_deliveries
