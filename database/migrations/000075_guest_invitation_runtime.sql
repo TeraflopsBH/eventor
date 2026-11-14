@@ -108,6 +108,7 @@ BEGIN
     'endsAt', schedule.ends_at,
     'timezone', schedule.timezone_name,
     'locale', revision.locale,
+    'presentationSnapshotCiphertext', revision.presentation_snapshot_ciphertext,
     'allowedResponses', policy.allowed_responses,
     'responseDeadline', policy.response_deadline,
     'responseChangeAllowed', policy.response_change_allowed,
