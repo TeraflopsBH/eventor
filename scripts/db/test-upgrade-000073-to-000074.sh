@@ -34,6 +34,7 @@ rm "$pre_dir/000090_bind_staff_actor_context.sql"
 rm "$pre_dir/000091_bind_remaining_staff_actor_context.sql"
 rm "$pre_dir/000092_collaboration_grant_authorization.sql"
 rm "$pre_dir/000093_booking_draft_actor_context.sql"
+rm "$pre_dir/000094_auth_role_column_privileges.sql"
 
 echo "=== Apply schema through 000073 ==="
 DATABASE_URL="$MIGRATOR_URL" MIGRATIONS_DIR="$pre_dir" \
