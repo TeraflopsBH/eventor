@@ -1397,9 +1397,15 @@ export function buildApi(dependencies: ApiDependencies): FastifyInstance {
     inquiryId: string,
     capability: "canConvert" | "canAssign" | "canManage" | "canAnnotate",
   ): Promise<void> => {
-    const result = await client.query<ResultRow>(
-      "SELECT eogp.get_booking_inquiry_capabilities($1::uuid,$2::uuid,$3::uuid) AS result",
+    // Resolve the specific inquiry first so a replay cannot use organization-
+    // level capability flags to bypass its current tenant/resource visibility.
+    await client.query<ResultRow>(
+      "SELECT eogp.get_booking_inquiry($1::uuid,$2::uuid,$3::uuid) AS result",
       [principal.organizationId, inquiryId, principal.membershipId],
+    );
+    const result = await client.query<ResultRow>(
+      "SELECT eogp.get_booking_inquiry_capabilities($1::uuid,$2::uuid) AS result",
+      [principal.organizationId, principal.membershipId],
     );
     const capabilities = result.rows[0]?.result as Record<string, unknown> | undefined;
     if (capabilities?.[capability] !== true) {
