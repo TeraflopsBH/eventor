@@ -4,6 +4,7 @@ BEGIN;
 SET LOCAL ROLE eventor_owner;
 
 SELECT set_config('app.organization_id','a7000000-0000-4000-8000-000000000001',true);
+SELECT set_config('app.actor_membership_id','a7200000-0000-4000-8000-000000000001',true);
 INSERT INTO eogp.organizations (id,slug,name,status,default_timezone)
 VALUES (
   'a7000000-0000-4000-8000-000000000001',
@@ -690,6 +691,7 @@ BEGIN
     RAISE EXCEPTION 'membership without inquiry permission accessed the inbox';
   END IF;
 
+  PERFORM set_config('app.actor_membership_id','a7200000-0000-4000-8000-000000000001',true);
   BEGIN
     PERFORM eogp.assign_booking_inquiry(
       'a7000000-0000-4000-8000-000000000001',
