@@ -18,3 +18,6 @@ c3d021642d0f1ffd510641b7f8b54a3ce8fa8fd0:apps/api/test/server.test.ts:generic-ap
 c3d021642d0f1ffd510641b7f8b54a3ce8fa8fd0:apps/api/test/server.test.ts:generic-api-key:2807
 94e1aabe125acf41673a19cd3440ead1eb22a9a8:apps/api/test/server.test.ts:generic-api-key:2776
 94e1aabe125acf41673a19cd3440ead1eb22a9a8:apps/api/test/server.test.ts:generic-api-key:2807
+
+# Synthetic invalid-correction idempotency key fixture, not a credential.
+6fb4101b070709e86964936fb7b0a0becb1f81fb:apps/api/test/guest-invitation-runtime.test.ts:376
