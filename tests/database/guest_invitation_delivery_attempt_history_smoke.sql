@@ -391,13 +391,13 @@ BEGIN
      WHERE organization_id=v_org AND id=v_first
        AND response='accepted' AND correction_of_response_id IS NULL
        AND actor_membership_id='bbbbbbbb-2222-4222-8222-bbbbbbbbbbbb'
-       AND notes_restricted_ciphertext=decode('01020304','hex')
+       AND notes_restricted_ciphertext=decode('45435031'||repeat('01',40),'hex')
   ) OR NOT EXISTS (
     SELECT 1 FROM eogp.rsvp_responses
      WHERE organization_id=v_org AND id=v_second
        AND response='declined' AND correction_of_response_id=v_first
        AND correction_reason='Guest confirmed the earlier answer was recorded incorrectly'
-       AND notes_restricted_ciphertext=decode('05060708','hex')
+       AND notes_restricted_ciphertext=decode('45435031'||repeat('02',40),'hex')
   ) THEN
     RAISE EXCEPTION 'staff RSVP actor, source or correction evidence was not preserved';
   END IF;
