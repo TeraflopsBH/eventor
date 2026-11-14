@@ -153,8 +153,10 @@ jobs:
             *) echo "Expected PostgreSQL 18.x" >&2; exit 1 ;;
           esac
 
-      - name: Apply checksum-verified migrations
-        run: bash scripts/db/migrate.sh
+      - name: Rehearse populated schema upgrade from 000073 to 000074
+        run: |
+          bash -n scripts/db/test-upgrade-000073-to-000074.sh
+          bash scripts/db/test-upgrade-000073-to-000074.sh
 
       - name: Verify safe public booking form projection
         run: psql "$MIGRATOR_URL" -X -v ON_ERROR_STOP=1 -f tests/database/public_booking_form_smoke.sql
@@ -163,9 +165,6 @@ jobs:
       - name: Verify permissioned staff booking inquiry workflow
         run: psql "$MIGRATOR_URL" -X -v ON_ERROR_STOP=1 -f tests/database/staff_booking_inquiry_smoke.sql
 
-
-      - name: Seed synthetic identities through authentication role
-        run: psql "$AUTH_URL" -X -v ON_ERROR_STOP=1 -f tests/database/seed_auth_test_users.sql
 
       - name: Run database integrity smoke tests
         run: psql "$MIGRATOR_URL" -X -v ON_ERROR_STOP=1 -f tests/database/migration_smoke.sql
