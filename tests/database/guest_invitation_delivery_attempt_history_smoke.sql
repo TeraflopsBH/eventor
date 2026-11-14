@@ -189,6 +189,106 @@ BEGIN
 END;
 $attempt_history_regression$;
 
+-- Add the precise event-scoped permission for the fixture organizer.
+INSERT INTO eogp.role_permissions (organization_id,role_id,permission_code)
+VALUES (
+  '22222222-2222-4222-8222-222222222222',
+  '93900000-0000-4000-8000-000000000001',
+  'invitation.manage'
+)
+ON CONFLICT DO NOTHING;
+
+-- A separate active member with no invitation.manage grant proves that
+-- membership alone is insufficient. All identities are transaction-local.
+INSERT INTO eogp.users (id,email,display_name,status)
+VALUES (
+  '95500000-0000-4000-8000-000000000001',
+  'ci-guest-history-unauthorized@example.invalid',
+  'CI Guest History Unauthorized','active'
+);
+INSERT INTO eogp.organization_memberships (
+  id,organization_id,user_id,status,joined_at
+) VALUES (
+  '95600000-0000-4000-8000-000000000001',
+  '22222222-2222-4222-8222-222222222222',
+  '95500000-0000-4000-8000-000000000001',
+  'active',clock_timestamp()
+);
+
+-- Exercise the SECURITY DEFINER projection through the actual runtime role.
+SET LOCAL ROLE eventor_runtime;
+SELECT set_config('app.organization_id','22222222-2222-4222-8222-222222222222',true);
+SELECT set_config('app.actor_membership_id','bbbbbbbb-2222-4222-8222-bbbbbbbbbbbb',true);
+
+DO $attempt_history_authorization$
+DECLARE
+  v_result jsonb;
+  v_denied boolean;
+BEGIN
+  -- Correct tenant, active event-scoped manager and actor context.
+  v_result := eogp.list_guest_invitation_delivery_attempts(
+    '22222222-2222-4222-8222-222222222222',
+    '94500000-0000-4000-8000-000000000001',
+    'bbbbbbbb-2222-4222-8222-bbbbbbbbbbbb'
+  );
+  IF jsonb_typeof(v_result)<>'array' OR jsonb_array_length(v_result)<>2
+     OR NOT (v_result @> '[{"attemptNumber":1,"status":"failed","retryScheduled":true}]'::jsonb)
+     OR NOT (v_result @> '[{"attemptNumber":2,"status":"sent","retryScheduled":false}]'::jsonb) THEN
+    RAISE EXCEPTION 'authorized event manager received an incomplete attempt history: %',v_result;
+  END IF;
+
+  -- Supplied actor must match the actor bound to the DB session.
+  v_denied := false;
+  BEGIN
+    PERFORM eogp.list_guest_invitation_delivery_attempts(
+      '22222222-2222-4222-8222-222222222222',
+      '94500000-0000-4000-8000-000000000001',
+      '95600000-0000-4000-8000-000000000001'
+    );
+  EXCEPTION WHEN SQLSTATE '42501' THEN
+    v_denied := true;
+  END;
+  IF NOT v_denied THEN
+    RAISE EXCEPTION 'history projection accepted an actor/context mismatch';
+  END IF;
+
+  -- A different tenant context cannot request the original tenant's history.
+  PERFORM set_config('app.organization_id','33333333-3333-4333-8333-333333333333',true);
+  v_denied := false;
+  BEGIN
+    PERFORM eogp.list_guest_invitation_delivery_attempts(
+      '22222222-2222-4222-8222-222222222222',
+      '94500000-0000-4000-8000-000000000001',
+      'bbbbbbbb-2222-4222-8222-bbbbbbbbbbbb'
+    );
+  EXCEPTION WHEN SQLSTATE '42501' THEN
+    v_denied := true;
+  END;
+  IF NOT v_denied THEN
+    RAISE EXCEPTION 'history projection accepted a cross-tenant request';
+  END IF;
+  PERFORM set_config('app.organization_id','22222222-2222-4222-8222-222222222222',true);
+
+  -- An active member without the event-scoped permission is not authorized.
+  PERFORM set_config('app.actor_membership_id','95600000-0000-4000-8000-000000000001',true);
+  v_denied := false;
+  BEGIN
+    PERFORM eogp.list_guest_invitation_delivery_attempts(
+      '22222222-2222-4222-8222-222222222222',
+      '94500000-0000-4000-8000-000000000001',
+      '95600000-0000-4000-8000-000000000001'
+    );
+  EXCEPTION WHEN SQLSTATE '42501' THEN
+    v_denied := true;
+  END;
+  IF NOT v_denied THEN
+    RAISE EXCEPTION 'history projection accepted an active member without invitation.manage';
+  END IF;
+END;
+$attempt_history_authorization$;
+
+SET LOCAL ROLE eventor_owner;
+
 ROLLBACK;
 
 \echo 'Guest invitation delivery attempt-history transition regressions passed.'
