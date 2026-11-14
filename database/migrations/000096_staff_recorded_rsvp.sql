@@ -30,6 +30,7 @@ DECLARE
   v_latest_response_id uuid;
   v_sequence_number integer;
   v_response_id uuid;
+  v_recorded_at timestamptz;
   v_now timestamptz := clock_timestamp();
 BEGIN
   IF eogp.current_organization_id() IS DISTINCT FROM p_organization_id
@@ -218,7 +219,26 @@ BEGIN
     v_invitation_revision_id,v_schedule_revision_id,v_sequence_number,p_response,
     p_source_channel,p_respondent_kind,p_received_at,p_actor_membership_id,
     p_correction_of_response_id,p_correction_reason,p_notes_restricted_ciphertext
-  ) RETURNING id INTO v_response_id;
+  ) RETURNING id, recorded_at INTO v_response_id, v_recorded_at;
+
+  INSERT INTO eogp.audit_events (
+    organization_id,actor_organization_id,actor_membership_id,actor_kind,
+    action,aggregate_type,aggregate_id,reason_code,safe_metadata,occurred_at
+  ) VALUES (
+    p_organization_id,p_organization_id,p_actor_membership_id,'membership',
+    CASE WHEN p_correction_of_response_id IS NULL
+      THEN 'guest.rsvp.recorded' ELSE 'guest.rsvp.corrected' END,
+    'event_participation',p_participation_id,
+    CASE WHEN p_correction_of_response_id IS NULL
+      THEN 'staff_recorded' ELSE 'staff_correction' END,
+    jsonb_build_object(
+      'responseId',v_response_id,'response',p_response,
+      'sourceChannel',p_source_channel,'respondentKind',p_respondent_kind,
+      'sequenceNumber',v_sequence_number,
+      'correctionOfResponseId',p_correction_of_response_id
+    ),
+    v_recorded_at
+  );
 
   RETURN jsonb_build_object(
     'responseId',v_response_id,
@@ -227,7 +247,7 @@ BEGIN
     'sourceChannel',p_source_channel,
     'respondentKind',p_respondent_kind,
     'receivedAt',p_received_at,
-    'recordedAt',v_now,
+    'recordedAt',v_recorded_at,
     'sequenceNumber',v_sequence_number,
     'correctionOfResponseId',p_correction_of_response_id
   );
