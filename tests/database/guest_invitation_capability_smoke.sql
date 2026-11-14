@@ -148,4 +148,34 @@ BEGIN
 END;
 $guest_rsvp_history_capability$;
 
+DO $guest_invitation_delivery_revocation$
+DECLARE
+  v_definition text;
+  v_trigger_enabled boolean;
+BEGIN
+  SELECT pg_get_functiondef(
+    'eogp.suppress_revoked_guest_invitation_delivery()'::regprocedure
+  ) INTO v_definition;
+
+  IF strpos(v_definition, 'OLD.revoked_at IS NULL AND NEW.revoked_at IS NOT NULL') = 0
+     OR strpos(v_definition, 'delivery.invitation_revision_id=NEW.invitation_revision_id') = 0
+     OR strpos(v_definition, 'delivery.status=''queued''') = 0
+     OR strpos(v_definition, 'INVITATION_SUPERSEDED') = 0
+     OR strpos(v_definition, 'INVITATION_REVOKED') = 0 THEN
+    RAISE EXCEPTION 'revoked or superseded invitation links must suppress their queued delivery';
+  END IF;
+
+  SELECT trigger_row.tgenabled <> 'D'
+    INTO v_trigger_enabled
+    FROM pg_trigger trigger_row
+   WHERE trigger_row.tgrelid='eogp.invitation_links'::regclass
+     AND trigger_row.tgname='invitation_link_suppress_queued_delivery'
+     AND NOT trigger_row.tgisinternal;
+
+  IF NOT COALESCE(v_trigger_enabled,false) THEN
+    RAISE EXCEPTION 'invitation-link revocation delivery guard trigger is missing or disabled';
+  END IF;
+END;
+$guest_invitation_delivery_revocation$;
+
 ROLLBACK;
