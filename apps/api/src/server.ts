@@ -1221,6 +1221,7 @@ async function runIdempotentCommand(
   idempotencyKey: string,
   requestBody: unknown,
   command: Command,
+  authorizeReplay?: (client: PoolClient) => Promise<void>,
 ): Promise<CommandResponse> {
   const client = await dependencies.pool.connect();
   const hash = requestHash(requestBody, dependencies.privateFieldEncryptionKey);
@@ -1246,6 +1247,7 @@ async function runIdempotentCommand(
       if (row.response_status === null || row.response_body === null) {
         throw new ApiError(409, "REQUEST_IN_PROGRESS", "A request with this idempotency key is still being processed.");
       }
+      if (authorizeReplay) await authorizeReplay(client);
       await client.query("COMMIT");
       return { status: row.response_status, body: parseStoredBody(row.response_body) };
     }
@@ -1266,6 +1268,7 @@ async function runIdempotentCommand(
       if (row.response_status === null || row.response_body === null) {
         throw new ApiError(409, "REQUEST_IN_PROGRESS", "The request is still being processed.");
       }
+      if (authorizeReplay) await authorizeReplay(client);
       await client.query("COMMIT");
       return { status: row.response_status, body: parseStoredBody(row.response_body) };
     }
@@ -1394,6 +1397,7 @@ export function buildApi(dependencies: ApiDependencies): FastifyInstance {
     operationId: string,
     body: unknown,
     command: Command,
+    authorizeReplay?: (client: PoolClient) => Promise<void>,
   ) => {
     const principal = request.staffPrincipal;
     if (!principal) throw new ApiError(401, "UNAUTHENTICATED", "Authentication is required.");
@@ -1401,7 +1405,7 @@ export function buildApi(dependencies: ApiDependencies): FastifyInstance {
     if (typeof key !== "string" || key.length < 8 || key.length > 200) {
       throw new ApiError(400, "IDEMPOTENCY_KEY_REQUIRED", "A valid Idempotency-Key header is required.");
     }
-    const response = await runIdempotentCommand(dependencies, principal, operationId, key, body, command);
+    const response = await runIdempotentCommand(dependencies, principal, operationId, key, body, command, authorizeReplay);
     return reply.code(response.status).send(response.body);
   };
 
@@ -2046,6 +2050,12 @@ export function buildApi(dependencies: ApiDependencies): FastifyInstance {
           );
           return result.rows[0]?.result as Record<string, unknown>;
         },
+        async (client) => {
+          // A stored response remains subject to current resource authorization.
+          await client.query<ResultRow>(
+            "SELECT eogp.get_booking_draft($1::uuid,$2::uuid,$3::uuid) AS result",
+            [principal.organizationId, request.params.draftId, principal.membershipId],
+          );,
       );
     },
   );
