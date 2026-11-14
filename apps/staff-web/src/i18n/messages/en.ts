@@ -35,6 +35,7 @@ export default {
   navigation: {
     delivery: "Email delivery",
     campaigns: "Campaign review",
+    guestInvitations: "Guest invitations",
     inquiries: "Booking inquiries",
     approvals: "Approval policies",
     bookingForms: "Booking forms",
