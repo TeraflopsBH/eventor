@@ -93,6 +93,7 @@ BEGIN
   PERFORM set_config('app.organization_id', v_organization_id::text, true);
 
   SELECT jsonb_build_object(
+    'organizationId', invitation.organization_id,
     'invitationId', invitation.id,
     'invitationRevisionId', revision.id,
     'eventId', event.id,
