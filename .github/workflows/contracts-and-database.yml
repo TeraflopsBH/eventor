@@ -7,6 +7,7 @@ on:
       - fix/pr26-high-risk-integrity-review
       - feat/booking-commercial-workflow
       - feat/booking-allocation-alternatives
+      - fix/booking-offer-email-worker-db
       - main
   pull_request:
     branches:
