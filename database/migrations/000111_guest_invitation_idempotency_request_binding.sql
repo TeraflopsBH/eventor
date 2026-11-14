@@ -89,9 +89,10 @@ BEGIN
    WHERE organization_id=p_organization_id
      AND idempotency_key_sha256=p_idempotency_key_sha256;
   IF FOUND THEN
-    -- Idempotency keys are unique per tenant, not per event. A caller with
-    -- permission for the supplied event must not replay another event's (or
-    -- another participant's) delivery by reusing its key.
+    -- Idempotency keys are unique per tenant, not per event. The API digest
+    -- binds the key to membership, event and participation; this database
+    -- guard independently prevents cross-event replay and explicit reissue
+    -- requests for a different invitation.
     IF v_existing.event_id IS DISTINCT FROM p_event_id
        OR (p_invitation_id IS NOT NULL AND v_existing.invitation_id IS DISTINCT FROM p_invitation_id) THEN
       RAISE EXCEPTION 'guest invitation idempotency key was reused for a different request'
