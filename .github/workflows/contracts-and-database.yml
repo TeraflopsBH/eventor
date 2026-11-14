@@ -121,6 +121,7 @@ jobs:
           bash -n scripts/db/migrate.sh
           bash -n scripts/db/test_resource_concurrency.sh
           bash -n scripts/db/test_space_expiry_confirmation_race.sh
+          bash -n scripts/db/test_space_overlap_concurrency.sh
           bash -n scripts/db/test-concurrency.sh
           bash -n scripts/db/test-migrations.sh
 
@@ -246,6 +247,9 @@ jobs:
 
       - name: Verify runtime can reserve a released, cancelled and expired space interval
         run: psql "$RUNTIME_URL" -X -v ON_ERROR_STOP=1 -f tests/database/booking_space_reuse_runtime_smoke.sql
+
+      - name: Verify independent concurrent space holds cannot overlap
+        run: bash scripts/db/test_space_overlap_concurrency.sh
 
       - name: Verify booking commercial workflow schema and runtime boundaries
         run: psql "$RUNTIME_URL" -X -v ON_ERROR_STOP=1 -f tests/database/booking_commercial_schema_smoke.sql
