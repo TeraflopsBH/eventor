@@ -39,6 +39,7 @@ const localeOptions: Array<{ value: SupportedLocale; label: string }> = [
 
 const isPublicOfferPage = /^\/offers\/[0-9a-fA-F-]{36}\/?$/.test(window.location.pathname);
 const isPublicBookingFormPage = /^\/book\/[A-Za-z0-9][A-Za-z0-9-]{1,79}\/[A-Za-z0-9][A-Za-z0-9_-]{1,79}\/?$/.test(window.location.pathname);
+const isGuestInvitationPage = /(?:^|\/)guest\/invitation\/?$/.test(window.location.pathname);
 const activeTab = ref<"delivery" | "campaign" | "inquiries" | "approvals" | "prices" | "cancellations" | "taxes" | "forms" | "settings">("delivery");
 const busy = ref(false);
 const pageError = ref("");
