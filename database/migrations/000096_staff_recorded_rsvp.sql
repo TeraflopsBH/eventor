@@ -26,6 +26,7 @@ DECLARE
   v_policy eogp.rsvp_policy_revisions%ROWTYPE;
   v_invitation eogp.invitations%ROWTYPE;
   v_invitation_revision_id uuid;
+  v_policy_revision_id uuid;
   v_schedule_revision_id uuid;
   v_latest_response_id uuid;
   v_sequence_number integer;
@@ -107,19 +108,24 @@ BEGIN
     IF NOT FOUND THEN
       RAISE EXCEPTION 'invitation does not belong to this participation' USING ERRCODE='P0002';
     END IF;
-    SELECT revision.id, rsvp_policy
-      INTO v_invitation_revision_id, v_policy
+    SELECT revision.id, revision.rsvp_policy_revision_id
+      INTO v_invitation_revision_id, v_policy_revision_id
       FROM eogp.invitation_revisions revision
-      JOIN eogp.rsvp_policy_revisions rsvp_policy
-        ON rsvp_policy.organization_id=revision.organization_id
-       AND rsvp_policy.event_id=revision.event_id
-       AND rsvp_policy.id=revision.rsvp_policy_revision_id
      WHERE revision.organization_id=p_organization_id
        AND revision.event_id=p_event_id
        AND revision.invitation_id=p_invitation_id
        AND revision.revision_number=v_invitation.current_revision_number
      ORDER BY revision.revision_number DESC
      LIMIT 1;
+    IF NOT FOUND THEN
+      RAISE EXCEPTION 'current invitation revision not found' USING ERRCODE='55000';
+    END IF;
+    SELECT policy.*
+      INTO v_policy
+      FROM eogp.rsvp_policy_revisions policy
+     WHERE policy.organization_id=p_organization_id
+       AND policy.event_id=p_event_id
+       AND policy.id=v_policy_revision_id;
   ELSE
     SELECT policy.*
       INTO v_policy
