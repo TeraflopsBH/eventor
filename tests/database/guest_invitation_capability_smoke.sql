@@ -128,4 +128,24 @@ BEGIN
 END;
 $guest_rsvp_lock_order$;
 
+DO $guest_rsvp_history_capability$
+DECLARE
+  v_definition text;
+BEGIN
+  SELECT pg_get_functiondef(
+    'eogp.get_guest_invitation_rsvp_history(text)'::regprocedure
+  ) INTO v_definition;
+
+  IF strpos(v_definition, 'link.revoked_at IS NULL') = 0
+     OR strpos(v_definition, 'link.expires_at > clock_timestamp()') = 0
+     OR strpos(v_definition, 'invitation.status = ''active''') = 0
+     OR strpos(v_definition, 'invitation.current_revision_number = revision.revision_number') = 0
+     OR strpos(v_definition, 'revision.issued_at IS NOT NULL') = 0
+     OR strpos(v_definition, 'policy.state = ''published''') = 0
+     OR strpos(v_definition, 'event.status NOT IN (''completed'', ''cancelled'', ''archived'')') = 0 THEN
+    RAISE EXCEPTION 'guest RSVP history must enforce the same live capability state as invitation resolution';
+  END IF;
+END;
+$guest_rsvp_history_capability$;
+
 ROLLBACK;
