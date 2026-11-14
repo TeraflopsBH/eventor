@@ -556,11 +556,21 @@ BEGIN
           AND link.event_id=revision.event_id
           AND link.invitation_id=revision.invitation_id
           AND link.invitation_revision_id=revision.id
+         JOIN eogp.events event
+           ON event.organization_id=invitation.organization_id
+          AND event.id=invitation.event_id
         WHERE invitation.organization_id=delivery.organization_id
           AND invitation.id=delivery.invitation_id
           AND invitation.status='active'
           AND invitation.current_revision_number=revision.revision_number
           AND revision.id=delivery.invitation_revision_id
+          AND event.status NOT IN ('completed','cancelled','archived')
+          AND revision.schedule_revision_id=(
+            SELECT schedule.id FROM eogp.event_schedule_revisions schedule
+             WHERE schedule.organization_id=event.organization_id
+               AND schedule.event_id=event.id
+             ORDER BY schedule.revision_number DESC LIMIT 1
+          )
           AND link.revoked_at IS NULL
           AND link.expires_at>clock_timestamp()
           AND EXISTS (
@@ -592,6 +602,9 @@ BEGIN
       ON link.organization_id=delivery.organization_id
      AND link.invitation_id=invitation.id
      AND link.invitation_revision_id=revision.id
+    JOIN eogp.events event
+      ON event.organization_id=invitation.organization_id
+     AND event.id=invitation.event_id
     JOIN eogp.event_participations participation
       ON participation.organization_id=delivery.organization_id
      AND participation.event_id=delivery.event_id
@@ -607,6 +620,13 @@ BEGIN
      AND delivery.status='queued' AND delivery.next_attempt_at<=clock_timestamp()
      AND invitation.status='active'
      AND invitation.current_revision_number=revision.revision_number
+     AND event.status NOT IN ('completed','cancelled','archived')
+     AND revision.schedule_revision_id=(
+       SELECT schedule.id FROM eogp.event_schedule_revisions schedule
+        WHERE schedule.organization_id=event.organization_id
+          AND schedule.event_id=event.id
+        ORDER BY schedule.revision_number DESC LIMIT 1
+     )
      AND link.revoked_at IS NULL AND link.expires_at>clock_timestamp()
    ORDER BY delivery.next_attempt_at,delivery.queued_at,delivery.id
    FOR UPDATE OF delivery SKIP LOCKED LIMIT 1;
