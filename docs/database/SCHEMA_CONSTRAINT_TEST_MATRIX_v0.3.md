@@ -69,7 +69,7 @@ This matrix tracks executable PostgreSQL integration coverage and remaining gaps
 - [x] Released/cancelled/expired interval no longer blocks a new reservation (CI releases a cancelled booking's selected space reservation, expires an overdue draft hold through `expire_space_holds`, retains a cancelled draft hold, then verifies the runtime role can create a new overlapping hold).
 - [ ] Hold extension that creates a conflict is rejected atomically.
 - [x] Booking with multiple spaces/times commits all or none (the commercial end-to-end fixture verifies incomplete two-space confirmation leaves the existing hold untouched, then confirms both space/time reservations together).
-- [ ] Concurrent overlapping transactions using separate database connections result in at most one active reservation.
+- [x] Concurrent overlapping space-hold transactions on separate runtime connections result in at most one active reservation; the second transaction waits for the first commit and then receives exclusion SQLSTATE 23P01.
 - [ ] Reschedule conflict leaves the prior confirmed schedule unchanged.
 
 - [ ] A space-time block has exactly one typed, tenant-safe origin reference.
