@@ -53,6 +53,9 @@ This roadmap tracks the accepted Eventor product direction and implementation ga
 
 ## Phase 3 — Guest registry, invitations and RSVP
 
+**Implemented slice in draft PR #81:** capability-protected guest invitation resolution, personal invitation view and policy-checked RSVP/history endpoints; organizer issue/reissue/revoke operations; encrypted invitation email delivery with worker authorization, retries/uncertain outcomes and immutable attempt history; event schedule and lifecycle checks; and a permission-scoped organizer invitation workspace. This is not completion of the full phase: persistent guest registry management, imports/deduplication/merge, invitation batching/reminders, staff-recorded RSVP, broader guest portal, and full attendance/check-in workflows still require implementation and acceptance. See the exact-head CI and scope summary in `docs/PROJECT_STATE.md`.
+
+
 Cancellation/postponement behavior is proposed in `docs/implementation-design/v0.3/CANCELLATION_AND_EVENT_DISRUPTION_DESIGN_v0.3.md`; design review and contract alignment are tracked in [Issue #21](https://github.com/TeraflopsBH/eventor/issues/21).
 
 The domain design is documented in `docs/implementation-design/v0.3/RSVP_AND_INVITATION_DESIGN_v0.3.md`; schema/API implementation is tracked in [Issue #10](https://github.com/TeraflopsBH/eventor/issues/10).
