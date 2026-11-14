@@ -234,6 +234,12 @@ jobs:
       - name: Verify selected booking reservation release as runtime
         run: psql "$RUNTIME_URL" -X -v ON_ERROR_STOP=1 -f tests/database/booking_reservation_release_runtime_smoke.sql
 
+      - name: Prepare terminal space reservation reuse fixture and expire overdue hold
+        run: psql "$MIGRATOR_URL" -X -v ON_ERROR_STOP=1 -f tests/database/booking_space_reuse_fixture_smoke.sql
+
+      - name: Verify runtime can reserve a released, cancelled and expired space interval
+        run: psql "$RUNTIME_URL" -X -v ON_ERROR_STOP=1 -f tests/database/booking_space_reuse_runtime_smoke.sql
+
       - name: Verify booking commercial workflow schema and runtime boundaries
         run: psql "$RUNTIME_URL" -X -v ON_ERROR_STOP=1 -f tests/database/booking_commercial_schema_smoke.sql
       - name: Verify booking form authoring commands and runtime boundaries
