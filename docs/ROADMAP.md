@@ -64,9 +64,9 @@ The domain design is documented in `docs/implementation-design/v0.3/RSVP_AND_INV
 - [ ] Imports, duplicate detection and supervised merge.
 - [ ] Invitation batches, secure links and delivery tracking.
 - [ ] Guest self-service RSVP and response-change rules.
-- [ ] Staff-recorded RSVP with source/operator/time/notes.
+- [x] Staff-recorded RSVP with source/operator/time/notes and append-only correction history.
 
-Staff-recorded RSVP and correction slice is implemented in draft PR #81 but remains pending exact-head CI acceptance. It uses `rsvp.record`, `rsvp.correct` and `rsvp.override_deadline`, stores encrypted restricted notes, binds the authenticated actor, and appends corrections without mutating prior responses. The organizer workspace now exposes the current response ID and provides English/Bosnian capture controls.
+Staff-recorded RSVP and correction slice is implemented and exact-head CI-verified in draft PR #81. It uses `rsvp.record`, `rsvp.correct` and `rsvp.override_deadline`, stores encrypted restricted notes, binds the authenticated actor, and appends corrections without mutating prior responses. The organizer workspace now exposes the current response ID and provides English/Bosnian capture controls.
 - [ ] Guest portal and privacy-safe personal view.
 - [ ] Event cancellation/postponement, RSVP reconfirmation, notification audiences and tracked cancellation campaigns ([Issue #21](https://github.com/TeraflopsBH/eventor/issues/21)).
 
