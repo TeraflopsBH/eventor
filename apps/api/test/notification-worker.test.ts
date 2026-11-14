@@ -80,6 +80,11 @@ test("notification worker sets tenant context and commits one batch per tenant",
     bookingOfferEmailFailed: 0,
     bookingOfferEmailUncertain: 0,
     bookingOfferEmailRetriesScheduled: 0,
+    guestInvitationEmailAttempts: 0,
+    guestInvitationEmailSent: 0,
+    guestInvitationEmailFailed: 0,
+    guestInvitationEmailUncertain: 0,
+    guestInvitationEmailRetriesScheduled: 0,
   });
   assert.equal(mock.released.length, 2);
   assert.equal(
