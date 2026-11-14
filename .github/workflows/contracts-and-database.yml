@@ -213,6 +213,26 @@ jobs:
       - name: Verify booking-offer email worker SQL contract as worker
         run: psql "$WORKER_URL" -X -v ON_ERROR_STOP=1 -f tests/database/booking_offer_email_worker_sql_smoke.sql
 
+      - name: Set up Node.js for PostgreSQL-backed worker integration
+        uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020
+        with:
+          node-version: "22.16.0"
+
+      - name: Install API dependencies for worker integration
+        working-directory: apps/api
+        run: npm ci --no-audit --no-fund
+
+      - name: Build API worker integration test
+        working-directory: apps/api
+        run: npm run build
+
+      - name: Verify booking-offer email delivery through PostgreSQL and fake SMTP
+        working-directory: apps/api
+        env:
+          MIGRATOR_URL: ${{ env.MIGRATOR_URL }}
+          WORKER_URL: ${{ env.WORKER_URL }}
+        run: node --test dist/test/booking-offer-email-worker.integration.test.js
+
       - name: Verify delivery result under forced-RLS owner
         run: psql "$MIGRATOR_URL" -X -v ON_ERROR_STOP=1 -c "SET ROLE eventor_owner" -f tests/database/event_notification_delivery_result_smoke.sql
       - name: Verify authenticated Resend webhook endpoint, correlation and idempotency
