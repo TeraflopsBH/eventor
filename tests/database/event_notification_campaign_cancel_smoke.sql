@@ -1,6 +1,7 @@
 \set ON_ERROR_STOP on
 BEGIN;
 SET LOCAL app.organization_id='22222222-2222-4222-8222-222222222222';
+SET LOCAL app.actor_membership_id='bbbbbbbb-2222-4222-8222-bbbbbbbbbbbb';
 
 DO $cancel$
 DECLARE
