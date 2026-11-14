@@ -66,7 +66,7 @@ This matrix tracks executable PostgreSQL integration coverage and remaining gaps
 - [x] Accepted draft resource and space holds are converted atomically to confirmed booking reservations through a permission-gated command; retries do not duplicate occupancy or audit history.
 - [x] Cancelled booking reservations are released only by caller-selected IDs (resource and/or space rows); mixed invalid IDs are rejected atomically, partial release leaves unselected rows intact, and retries emit no duplicate audit.
 - [x] Overlap is rejected even when one claim originated as a temporary hold and the other as a booking reservation (the commercial end-to-end fixture attempts a new overlapping draft hold after confirming the booking and asserts SQLSTATE 23P01 plus no persisted hold).
-- [ ] Released/cancelled/expired interval no longer blocks a new reservation.
+- [x] Released/cancelled/expired interval no longer blocks a new reservation (CI releases a cancelled booking's selected space reservation, expires an overdue draft hold through `expire_space_holds`, retains a cancelled draft hold, then verifies the runtime role can create a new overlapping hold).
 - [ ] Hold extension that creates a conflict is rejected atomically.
 - [x] Booking with multiple spaces/times commits all or none (the commercial end-to-end fixture verifies incomplete two-space confirmation leaves the existing hold untouched, then confirms both space/time reservations together).
 - [ ] Concurrent overlapping transactions using separate database connections result in at most one active reservation.
