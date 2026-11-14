@@ -96,7 +96,7 @@ The worker process requires:
 - `EVENTOR_CONTACT_ENCRYPTION_KEY`
 - `EVENTOR_DELIVERY_CREDENTIALS_KEY`
 
-Offer email delivery additionally requires worker-only `EVENTOR_PUBLIC_APP_BASE_URL`. Provider callback URL display requires API-side `EVENTOR_PUBLIC_API_BASE_URL`. Optional pool and worker tuning variables are documented in `apps/api/.env.example`.
+Booking-offer and guest-invitation email delivery additionally require worker-only `EVENTOR_PUBLIC_APP_BASE_URL`; set it to the HTTPS public web-app base URL (including any deployment path prefix) so invitation links resolve to the guest portal. Provider callback URL display requires API-side `EVENTOR_PUBLIC_API_BASE_URL`. Optional pool and worker tuning variables are documented in `apps/api/.env.example`.
 
 Generate six independent cryptographically random 32-byte keys and base64-encode each one. Never reuse a key across purposes or place keys in source control, command-line arguments, logs or deployment artifacts. Keep the booking-capability key stable while issued links remain valid. Encryption-key rotation requires an explicit re-encryption procedure; replacing a key alone makes existing ciphertext unreadable.
 
