@@ -32,6 +32,31 @@ BEGIN
      OR NOT has_function_privilege(current_user, 'eogp.get_guest_invitation_rsvp_history(text)', 'EXECUTE') THEN
     RAISE EXCEPTION 'runtime role is missing guest invitation command execution';
   END IF;
+
+  IF to_regprocedure('eogp.issue_guest_invitation(uuid,uuid,uuid,uuid,uuid,uuid,uuid,text,bytea,text,bytea,timestamptz,text)') IS NULL
+     OR to_regprocedure('eogp.revoke_guest_invitation(uuid,uuid,uuid,text)') IS NULL
+     OR to_regprocedure('eogp.discover_pending_invitation_delivery_tenants()') IS NULL
+     OR to_regprocedure('eogp.claim_invitation_email_delivery(uuid)') IS NULL
+     OR to_regprocedure('eogp.complete_invitation_email_delivery(uuid,uuid,text,text,text)') IS NULL THEN
+    RAISE EXCEPTION 'staff invitation or email worker functions are missing';
+  END IF;
+
+  IF has_table_privilege(current_user, 'eogp.invitation_deliveries', 'SELECT')
+     OR has_table_privilege(current_user, 'eogp.invitation_delivery_tenant_queue', 'SELECT') THEN
+    RAISE EXCEPTION 'runtime role has direct access to invitation delivery internals';
+  END IF;
+  IF NOT has_function_privilege(current_user,
+       'eogp.issue_guest_invitation(uuid,uuid,uuid,uuid,uuid,uuid,uuid,text,bytea,text,bytea,timestamptz,text)', 'EXECUTE')
+     OR NOT has_function_privilege(current_user, 'eogp.revoke_guest_invitation(uuid,uuid,uuid,text)', 'EXECUTE') THEN
+    RAISE EXCEPTION 'runtime role is missing staff invitation commands';
+  END IF;
+  IF NOT has_function_privilege('eventor_worker',
+       'eogp.discover_pending_invitation_delivery_tenants()', 'EXECUTE')
+     OR NOT has_function_privilege('eventor_worker', 'eogp.claim_invitation_email_delivery(uuid)', 'EXECUTE')
+     OR NOT has_function_privilege('eventor_worker', 'eogp.complete_invitation_email_delivery(uuid,uuid,text,text,text)', 'EXECUTE')
+     OR has_table_privilege('eventor_worker', 'eogp.invitation_deliveries', 'SELECT') THEN
+    RAISE EXCEPTION 'worker invitation delivery privileges are not narrowly scoped';
+  END IF;
 END;
 $guest_capability_acl$;
 
