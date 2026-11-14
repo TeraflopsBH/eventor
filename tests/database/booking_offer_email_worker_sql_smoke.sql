@@ -34,6 +34,8 @@ BEGIN
   );
   IF position('service_principal' IN v_claim_definition)=0
      OR position('service_principal' IN v_completion_definition)=0
+     OR position('actor_service_principal_id' IN v_claim_definition)=0
+     OR position('actor_service_principal_id' IN v_completion_definition)=0
      OR position('''system''' IN v_claim_definition)>0
      OR position('''system''' IN v_completion_definition)>0 THEN
     RAISE EXCEPTION 'booking-offer worker audit attribution must use service_principal';
