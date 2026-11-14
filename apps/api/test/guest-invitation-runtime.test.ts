@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import { createHash } from "node:crypto";
 import test from "node:test";
-import type { Pool, PoolClient } from "pg";
+import type { Pool } from "pg";
 import { buildApi } from "../src/server.js";
 
 const organizationId = "22222222-2222-4222-8222-222222222222";
