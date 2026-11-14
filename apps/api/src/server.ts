@@ -2073,11 +2073,20 @@ export function buildApi(dependencies: ApiDependencies): FastifyInstance {
           return result.rows[0]?.result as Record<string, unknown>;
         },
         async (client) => {
-          // A stored response remains subject to current resource authorization.
+          // Re-check both draft visibility and the stronger write permission;
+          // read access alone must not authorize replay of a revision command.
           await client.query<ResultRow>(
             "SELECT eogp.get_booking_draft($1::uuid,$2::uuid,$3::uuid) AS result",
             [principal.organizationId, request.params.draftId, principal.membershipId],
           );
+          const permissionResult = await client.query<ResultRow>(
+            "SELECT eogp.get_booking_inquiry_capabilities($1::uuid,$2::uuid) AS result",
+            [principal.organizationId, principal.membershipId],
+          );
+          const capabilities = permissionResult.rows[0]?.result as Record<string, unknown> | undefined;
+          if (capabilities?.canManageDraft !== true) {
+            throw new ApiError(403, "FORBIDDEN", "You are not permitted to revise this booking draft.");
+          }
         },
       );
     },
