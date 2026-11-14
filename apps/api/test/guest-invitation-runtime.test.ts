@@ -1,5 +1,5 @@
 import assert from "node:assert/strict";
-import { createHash } from "node:crypto";
+import { createCipheriv, createHash, createHmac, randomBytes } from "node:crypto";
 import test from "node:test";
 import type { Pool } from "pg";
 import { buildApi } from "../src/server.js";
@@ -7,6 +7,18 @@ import { buildApi } from "../src/server.js";
 const organizationId = "22222222-2222-4222-8222-222222222222";
 const invitationId = "33333333-3333-4333-8333-333333333333";
 const token = Buffer.alloc(32, 21).toString("base64url");
+
+const privateFieldEncryptionKey = Buffer.alloc(32, 7);
+function encryptPresentation(value: unknown): Buffer {
+  const iv = randomBytes(12);
+  const key = createHmac("sha256", privateFieldEncryptionKey)
+    .update("eventor:private-reason-encryption:v1")
+    .digest();
+  const cipher = createCipheriv("aes-256-gcm", key, iv);
+  const encrypted = Buffer.concat([cipher.update(JSON.stringify(value), "utf8"), cipher.final()]);
+  return Buffer.concat([Buffer.from("EV1", "ascii"), iv, cipher.getAuthTag(), encrypted]);
+}
+
 
 function makeGuestApi() {
   const calls: Array<{ sql: string; values: unknown[] }> = [];
@@ -22,6 +34,7 @@ function makeGuestApi() {
     timezone: "Europe/Sarajevo",
     venueSummary: { name: "Main hall" },
     locale: "bs-BA",
+    presentationSnapshotCiphertext: encryptPresentation({ greeting: "Welcome to the gathering" }),
     allowedResponses: ["accepted", "declined", "tentative"],
     responseDeadline: null,
     responseChangeAllowed: true,
@@ -76,6 +89,7 @@ function makeGuestApi() {
     authenticateStaff: async () => null,
     verifyMutationOrigin: async () => false,
     contactEncryptionKey: Buffer.alloc(32, 10),
+    privateFieldEncryptionKey,
   });
   return { app, calls, invitation };
 }
@@ -159,6 +173,7 @@ test("guest invitation resolution is capability-authenticated and returns no ten
   assert.equal(response.headers["x-robots-tag"], "noindex, nofollow, noarchive");
   const data = response.json<{ data: Record<string, unknown> }>().data;
   assert.equal(data.eventTitle, "Community gathering");
+  assert.deepEqual(data.presentationSnapshot, { greeting: "Welcome to the gathering" });
   assert.equal(data.organizationId, undefined);
   assert.equal(
     mock.calls.find((call) => call.sql.includes("eogp.resolve_guest_invitation("))?.values[0],
