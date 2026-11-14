@@ -105,6 +105,7 @@ BEGIN
   ) VALUES
     (v_org,v_creator,v_creator_role,'organization',v_creator),
     (v_org,v_approver,v_approver_role,'organization',v_creator);
+  PERFORM set_config('app.actor_membership_id',v_creator::text,true);
 
   -- Isolated venue space and an exact requested interval for this commercial
   -- booking. The hold lifecycle is exercised below against this real inventory.
@@ -336,6 +337,7 @@ BEGIN
   END;
 
   -- Only the independent approver may satisfy the pinned one-approval rule.
+  PERFORM set_config('app.actor_membership_id',v_approver::text,true);
   v_result:=eogp.decide_booking_offer_approval(
     v_org,v_offer_id,v_offer_revision_id,v_approver,
     'commercial-review','approved','CI independent approval'
@@ -343,6 +345,7 @@ BEGIN
   IF v_result->>'satisfied'<>'true' THEN
     RAISE EXCEPTION 'pinned approval requirement was not satisfied: %',v_result;
   END IF;
+  PERFORM set_config('app.actor_membership_id',v_creator::text,true);
 
   -- A missing hold must block commercial confirmation without partially
   -- creating a booking or changing the accepted offer.
