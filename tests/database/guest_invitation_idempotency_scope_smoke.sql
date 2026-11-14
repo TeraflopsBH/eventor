@@ -7,12 +7,26 @@ DO $invitation_idempotency_scope$
 DECLARE
   v_result jsonb;
   v_denied boolean := false;
+  v_participation_id uuid;
+  v_projection jsonb;
 BEGIN
+  v_projection := eogp.list_guest_invitation_participations(
+    '22222222-2222-4222-8222-222222222222',
+    '94000000-0000-4000-8000-000000000001',
+    'bbbbbbbb-2222-4222-8222-bbbbbbbbbbbb'
+  );
+  SELECT (participant->>'participationId')::uuid INTO v_participation_id
+    FROM jsonb_array_elements(v_projection) participant
+   WHERE participant->>'invitationId'='94500000-0000-4000-8000-000000000005';
+  IF v_participation_id IS NULL THEN
+    RAISE EXCEPTION 'idempotency fixture invitation is absent from the authorized projection';
+  END IF;
+
   -- Replaying the original request is harmless and returns only its own result.
   v_result := eogp.issue_guest_invitation(
     '22222222-2222-4222-8222-222222222222',
     '94000000-0000-4000-8000-000000000001',
-    '94300000-0000-4000-8000-000000000004',
+    v_participation_id,
     NULL,
     'bbbbbbbb-2222-4222-8222-bbbbbbbbbbbb',
     '94100000-0000-4000-8000-000000000001',
