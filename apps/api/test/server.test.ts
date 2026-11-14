@@ -2841,7 +2841,7 @@ test("staff RSVP history is returned through the tenant-scoped permission-checke
   const data = response.json<{ data: { participationId: string; responses: Array<Record<string, unknown>> } }>().data;
   assert.equal(data.participationId, participationId);
   assert.equal(data.responses.length, 1);
-  assert.equal(data.responses[0].response, "accepted");
+  assert.equal(data.responses[0]?.response, "accepted");
   const command = mock.commandCalls.find((call) => call.sql.includes("eogp.get_participation_rsvp_history("));
   assert.deepEqual(command?.values, [principal.organizationId, participationId, principal.membershipId]);
 });
