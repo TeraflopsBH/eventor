@@ -910,6 +910,22 @@ function makePool() {
           sequenceNumber: 1,
         } }], rowCount: 1 };
       }
+      if (normalized.includes("eogp.get_participation_rsvp_history(")) {
+        commandCalls.push({ sql: normalized, values });
+        return { rows: [{ result: {
+          eventId: "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa",
+          participationId: values[1],
+          responses: [{
+            id: "abababab-abab-4bab-8bab-abababababab",
+            sequenceNumber: 1,
+            response: "accepted",
+            sourceChannel: "phone",
+            respondentKind: "guest",
+            receivedAt: "2026-11-14T11:45:00.000Z",
+            recordedAt: "2026-11-14T12:00:00.000Z",
+          }],
+        } }], rowCount: 1 };
+      }
       throw new Error("Unexpected SQL in route test: " + normalized);
     },
     release() { /* no-op for the test pool */ },
@@ -2809,4 +2825,23 @@ test("staff RSVP recording validates input, encrypts restricted notes and uses t
   });
   assert.equal(invalid.statusCode, 400);
   assert.equal(mock.commandCalls.filter((call) => call.sql.includes("eogp.record_staff_rsvp_response(")).length, 1);
+});
+
+
+test("staff RSVP history is returned through the tenant-scoped permission-checked projection", async (t) => {
+  const mock = makePool();
+  const app = makeApi(mock.pool);
+  t.after(async () => app.close());
+  const participationId = "bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb";
+  const response = await app.inject({
+    method: "GET",
+    url: `/participations/${participationId}/rsvp-history`,
+  });
+  assert.equal(response.statusCode, 200);
+  const data = response.json<{ data: { participationId: string; responses: Array<Record<string, unknown>> } }>().data;
+  assert.equal(data.participationId, participationId);
+  assert.equal(data.responses.length, 1);
+  assert.equal(data.responses[0].response, "accepted");
+  const command = mock.commandCalls.find((call) => call.sql.includes("eogp.get_participation_rsvp_history("));
+  assert.deepEqual(command?.values, [principal.organizationId, participationId, principal.membershipId]);
 });
