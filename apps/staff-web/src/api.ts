@@ -210,6 +210,35 @@ export interface DeliveryAttempt {
   retryScheduled: boolean;
 }
 
+export interface GuestInvitationEvent {
+  eventId: string;
+  eventCode: string;
+  title: string;
+  status: string;
+  startsAt: string | null;
+  endsAt: string | null;
+  timezone: string;
+  scheduleRevisionId: string | null;
+  rsvpPolicyRevisionId: string | null;
+  eligibleParticipationCount: number;
+  invitationCount: number;
+}
+
+export interface GuestInvitationParticipation {
+  participationId: string;
+  displayName: string;
+  participationCode: string | null;
+  categoryCode: string | null;
+  status: string;
+  emailReady: boolean;
+  invitationId: string | null;
+  invitationStatus: string | null;
+  invitationRevisionNumber: number | null;
+  deliveryStatus: string | null;
+  currentResponse: "accepted" | "declined" | "tentative" | null;
+  responseReceivedAt: string | null;
+}
+
 export interface GuestInvitation {
   invitationId: string;
   invitationRevisionId: string;
@@ -1263,6 +1292,34 @@ export const api = {
     request<Envelope<Record<string, unknown>>>(
       `/booking-inquiries/${encodeURIComponent(inquiryId)}/annotations`,
       { method: "POST", body: { annotation }, idempotent: true },
+    ),
+  getGuestInvitationEvents: (organizationId: string) =>
+    request<Envelope<GuestInvitationEvent[]>>(
+      `/organizations/${encodeURIComponent(organizationId)}/guest-invitation-events`,
+    ),
+  getGuestInvitationParticipations: (eventId: string) =>
+    request<Envelope<GuestInvitationParticipation[]>>(
+      `/events/${encodeURIComponent(eventId)}/guest-invitation-participations`,
+    ),
+  issueGuestInvitation: (
+    eventId: string,
+    participationId: string,
+    body: {
+      scheduleRevisionId: string;
+      rsvpPolicyRevisionId: string;
+      locale: "bs-BA" | "en";
+      expiresAt: string;
+      presentationSnapshot: Record<string, string>;
+    },
+  ) =>
+    request<Envelope<{ invitationId: string; deliveryId: string; status: string; created: boolean }>>(
+      `/events/${encodeURIComponent(eventId)}/participations/${encodeURIComponent(participationId)}/invitation`,
+      { method: "POST", body, idempotent: true },
+    ),
+  revokeGuestInvitation: (invitationId: string, reasonCode: string) =>
+    request<Envelope<Record<string, unknown>>>(
+      `/invitations/${encodeURIComponent(invitationId)}/revoke`,
+      { method: "POST", body: { reasonCode }, idempotent: true },
     ),
   getGuestInvitation: (token: string) =>
     request<Envelope<GuestInvitation>>("/guest/invitation/me", {
