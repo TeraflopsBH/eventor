@@ -177,8 +177,9 @@ DECLARE
   v_member_status text;
   v_existing eogp.invitation_deliveries%ROWTYPE;
 BEGIN
-  IF eogp.current_organization_id() IS DISTINCT FROM p_organization_id THEN
-    RAISE EXCEPTION 'organization context mismatch' USING ERRCODE='42501';
+  IF eogp.current_organization_id() IS DISTINCT FROM p_organization_id
+     OR nullif(current_setting('app.actor_membership_id',true),'')::uuid IS DISTINCT FROM p_actor_membership_id THEN
+    RAISE EXCEPTION 'organization or staff actor context mismatch' USING ERRCODE='42501';
   END IF;
   IF p_token_sha256 IS NULL OR p_token_sha256 !~ '^[0-9a-f]{64}$'
      OR p_idempotency_key_sha256 IS NULL OR p_idempotency_key_sha256 !~ '^[0-9a-f]{64}$'
