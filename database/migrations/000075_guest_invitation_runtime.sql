@@ -107,7 +107,6 @@ BEGIN
     'startsAt', schedule.starts_at,
     'endsAt', schedule.ends_at,
     'timezone', schedule.timezone_name,
-    'venueSummary', schedule.venue_summary,
     'locale', revision.locale,
     'allowedResponses', policy.allowed_responses,
     'responseDeadline', policy.response_deadline,
@@ -198,7 +197,7 @@ BEGIN
   IF p_token_sha256 IS NULL OR p_token_sha256 !~ '^[0-9a-f]{64}$'
      OR p_idempotency_key_sha256 IS NULL OR p_idempotency_key_sha256 !~ '^[0-9a-f]{64}$'
      OR p_request_sha256 IS NULL OR p_request_sha256 !~ '^[0-9a-f]{64}$'
-     OR p_response NOT IN ('accepted', 'declined', 'tentative') THEN
+     OR p_response IS NULL OR p_response NOT IN ('accepted', 'declined', 'tentative') THEN
     RAISE EXCEPTION 'invalid guest RSVP request' USING ERRCODE = '22023';
   END IF;
   IF p_notes_restricted_ciphertext IS NOT NULL
@@ -282,10 +281,6 @@ BEGIN
     RAISE EXCEPTION 'RSVP response is not allowed by the published policy'
       USING ERRCODE = '55000';
   END IF;
-  IF v_policy.response_deadline IS NOT NULL AND v_policy.response_deadline <= v_now THEN
-    RAISE EXCEPTION 'RSVP response deadline has passed' USING ERRCODE = '55000';
-  END IF;
-
   SELECT response.response
     INTO v_previous_response
     FROM eogp.rsvp_responses response
@@ -297,6 +292,22 @@ BEGIN
   IF FOUND AND NOT v_policy.response_change_allowed THEN
     RAISE EXCEPTION 'RSVP changes are not allowed by the published policy'
       USING ERRCODE = '55000';
+  END IF;
+  IF v_policy.response_deadline IS NOT NULL
+     AND v_policy.response_deadline <= v_now
+     AND v_previous_response IS NOT NULL
+     AND v_policy.late_change_requires_staff THEN
+    RAISE EXCEPTION 'late RSVP changes require staff assistance' USING ERRCODE = '55000';
+  END IF;
+
+  PERFORM 1
+    FROM eogp.event_participations participation
+   WHERE participation.organization_id = v_organization_id
+     AND participation.event_id = v_invitation.event_id
+     AND participation.id = v_invitation.participation_id
+   FOR UPDATE;
+  IF NOT FOUND THEN
+    RAISE EXCEPTION 'guest participation not found' USING ERRCODE = 'P0002';
   END IF;
 
   SELECT COALESCE(max(response.sequence_number), 0) + 1
@@ -388,6 +399,11 @@ BEGIN
       ON invitation.organization_id = link.organization_id
      AND invitation.event_id = link.event_id
      AND invitation.id = link.invitation_id
+    JOIN eogp.invitation_revisions revision
+      ON revision.organization_id = link.organization_id
+     AND revision.event_id = link.event_id
+     AND revision.invitation_id = link.invitation_id
+     AND revision.id = link.invitation_revision_id
     JOIN eogp.rsvp_responses response
       ON response.organization_id = invitation.organization_id
      AND response.event_id = invitation.event_id
@@ -397,7 +413,9 @@ BEGIN
      AND link.token_sha256 = p_token_sha256
      AND link.revoked_at IS NULL
      AND link.expires_at > clock_timestamp()
-     AND invitation.status = 'active';
+     AND invitation.status = 'active'
+     AND revision.issued_at IS NOT NULL
+     AND revision.revision_number = invitation.current_revision_number;
 
   RETURN v_result;
 END;
