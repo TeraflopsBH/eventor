@@ -188,6 +188,10 @@ BEGIN
   v_issue_link_revoke := strpos(v_issue_definition,'UPDATE eogp.invitation_links');
   v_revoke_invitation_lock := strpos(v_revoke_definition,'FOR UPDATE;');
   v_revoke_link_update := strpos(v_revoke_definition,'UPDATE eogp.invitation_links');
+  IF strpos(v_revoke_definition, 'app.actor_membership_id')=0
+     OR strpos(v_revoke_definition, 'IS DISTINCT FROM p_actor_membership_id')=0 THEN
+    RAISE EXCEPTION 'invitation revocation must bind actor identity to the authenticated membership context';
+  END IF;
   IF v_invitation_lock<=0 OR v_link_lock<=v_invitation_lock
      OR v_delivery_lock<=v_link_lock
      OR strpos(v_definition, 'link.revoked_at IS NOT NULL')=0
