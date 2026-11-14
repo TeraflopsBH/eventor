@@ -169,6 +169,21 @@ BEGIN
   EXCEPTION WHEN SQLSTATE '42501' THEN
     NULL;
   END;
+
+  -- A caller from another tenant must be rejected before an unknown booking
+  -- is inspected, just as it is for the real booking above.
+  BEGIN
+    PERFORM eogp.release_booking_reservations(
+      '11111111-1111-4111-8111-111111111111',
+      'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa',
+      ARRAY[v_unselected_resource_id],
+      'bbbbbbbb-2222-4222-8222-bbbbbbbbbbbb',
+      'ci_wrong_actor_unknown_booking'
+    );
+    RAISE EXCEPTION 'reservation release did not authorize before unknown-booking lookup';
+  EXCEPTION WHEN SQLSTATE '42501' THEN
+    NULL;
+  END;
 END;
 $test$;
 
