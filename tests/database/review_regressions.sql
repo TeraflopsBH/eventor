@@ -477,20 +477,20 @@ $test$;
 -- Collaboration lifecycle commands require an explicit organization manager.
 INSERT INTO eogp.roles(id,organization_id,code,name,scope_kind)
 VALUES
- ('78000000-0000-4000-8000-000000000001','11111111-1111-4111-8111-111111111111','CI-COLLAB-MANAGER-A','CI Collaboration Manager A','organization');
+ ('e8400000-0000-4000-8000-000000000001','11111111-1111-4111-8111-111111111111','CI-COLLAB-MANAGER-A','CI Collaboration Manager A','organization');
 INSERT INTO eogp.role_permissions(organization_id,role_id,permission_code)
-VALUES ('11111111-1111-4111-8111-111111111111','78000000-0000-4000-8000-000000000001','collaboration.manage');
+VALUES ('11111111-1111-4111-8111-111111111111','e8400000-0000-4000-8000-000000000001','collaboration.manage');
 INSERT INTO eogp.user_role_grants(id,organization_id,membership_id,role_id,scope_kind,granted_by_membership_id)
-VALUES ('78100000-0000-4000-8000-000000000001','11111111-1111-4111-8111-111111111111','aaaaaaaa-1111-4111-8111-aaaaaaaaaaaa','78000000-0000-4000-8000-000000000001','organization','aaaaaaaa-1111-4111-8111-aaaaaaaaaaaa');
+VALUES ('e8500000-0000-4000-8000-000000000001','11111111-1111-4111-8111-111111111111','aaaaaaaa-1111-4111-8111-aaaaaaaaaaaa','e8400000-0000-4000-8000-000000000001','organization','aaaaaaaa-1111-4111-8111-aaaaaaaaaaaa');
 
 SELECT set_config('app.organization_id','22222222-2222-4222-8222-222222222222',true);
 INSERT INTO eogp.roles(id,organization_id,code,name,scope_kind)
 VALUES
- ('78000000-0000-4000-8000-000000000002','22222222-2222-4222-8222-222222222222','CI-COLLAB-MANAGER-B','CI Collaboration Manager B','organization');
+ ('e8400000-0000-4000-8000-000000000002','22222222-2222-4222-8222-222222222222','CI-COLLAB-MANAGER-B','CI Collaboration Manager B','organization');
 INSERT INTO eogp.role_permissions(organization_id,role_id,permission_code)
-VALUES ('22222222-2222-4222-8222-222222222222','78000000-0000-4000-8000-000000000002','collaboration.manage');
+VALUES ('22222222-2222-4222-8222-222222222222','e8400000-0000-4000-8000-000000000002','collaboration.manage');
 INSERT INTO eogp.user_role_grants(id,organization_id,membership_id,role_id,scope_kind,granted_by_membership_id)
-VALUES ('78100000-0000-4000-8000-000000000002','22222222-2222-4222-8222-222222222222','bbbbbbbb-2222-4222-8222-bbbbbbbbbbbb','78000000-0000-4000-8000-000000000002','organization','bbbbbbbb-2222-4222-8222-bbbbbbbbbbbb');
+VALUES ('e8500000-0000-4000-8000-000000000002','22222222-2222-4222-8222-222222222222','bbbbbbbb-2222-4222-8222-bbbbbbbbbbbb','e8400000-0000-4000-8000-000000000002','organization','bbbbbbbb-2222-4222-8222-bbbbbbbbbbbb');
 
 SELECT set_config('app.organization_id','11111111-1111-4111-8111-111111111111',true);
 
