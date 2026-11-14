@@ -152,6 +152,12 @@ BEGIN
   IF v_postpone_schedule IS NULL THEN
     RAISE EXCEPTION 'postponement request did not create a replacement schedule';
   END IF;
+  IF eogp.current_event_schedule_revision_id(
+       '22222222-2222-4222-8222-222222222222',
+       '93000000-0000-4000-8000-000000000002'
+     ) IS DISTINCT FROM '93100000-0000-4000-8000-000000000002'::uuid THEN
+    RAISE EXCEPTION 'a submitted but unexecuted postponement changed the effective event schedule';
+  END IF;
   PERFORM eogp.decide_event_change_request(
     '22222222-2222-4222-8222-222222222222',
     v_postpone_request,
@@ -171,6 +177,12 @@ BEGIN
   IF v_result ->> 'status' <> 'postponed'
      OR v_result ->> 'notificationState' <> 'not_requested' THEN
     RAISE EXCEPTION 'postponement command returned unexpected result: %',v_result;
+  END IF;
+  IF eogp.current_event_schedule_revision_id(
+       '22222222-2222-4222-8222-222222222222',
+       '93000000-0000-4000-8000-000000000002'
+     ) IS DISTINCT FROM v_postpone_schedule THEN
+    RAISE EXCEPTION 'executed postponement did not advance the effective event schedule';
   END IF;
 
   v_reschedule_request := (eogp.submit_event_change_request(
