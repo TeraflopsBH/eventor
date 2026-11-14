@@ -1391,6 +1391,22 @@ export function buildApi(dependencies: ApiDependencies): FastifyInstance {
     return reply.code(500).send(safeProblem(request.id, 500, "INTERNAL_ERROR", "An unexpected error occurred."));
   });
 
+  const authorizeBookingInquiryReplay = async (
+    client: PoolClient,
+    principal: StaffPrincipal,
+    inquiryId: string,
+    capability: "canConvert" | "canAssign" | "canManage" | "canAnnotate",
+  ): Promise<void> => {
+    const result = await client.query<ResultRow>(
+      "SELECT eogp.get_booking_inquiry_capabilities($1::uuid,$2::uuid,$3::uuid) AS result",
+      [principal.organizationId, inquiryId, principal.membershipId],
+    );
+    const capabilities = result.rows[0]?.result as Record<string, unknown> | undefined;
+    if (capabilities?.[capability] !== true) {
+      throw new ApiError(403, "FORBIDDEN", "You are not permitted to access this booking inquiry operation.");
+    }
+  };
+
   const withCommand = async (
     request: FastifyRequest,
     reply: FastifyReply,
@@ -3531,6 +3547,9 @@ export function buildApi(dependencies: ApiDependencies): FastifyInstance {
           );
           return result.rows[0]?.result as Record<string, unknown>;
         },
+        async (client) => {
+          await authorizeBookingInquiryReplay(client, principal, request.params.inquiryId, "canConvert");
+        },
       );
     },
   );
@@ -3587,6 +3606,9 @@ export function buildApi(dependencies: ApiDependencies): FastifyInstance {
           );
           return result.rows[0]?.result as Record<string, unknown>;
         },
+        async (client) => {
+          await authorizeBookingInquiryReplay(client, principal, request.params.inquiryId, "canAssign");
+        },
       );
     },
   );
@@ -3615,6 +3637,9 @@ export function buildApi(dependencies: ApiDependencies): FastifyInstance {
           );
           return result.rows[0]?.result as Record<string, unknown>;
         },
+        async (client) => {
+          await authorizeBookingInquiryReplay(client, principal, request.params.inquiryId, "canManage");
+        },
       );
     },
   );
@@ -3642,6 +3667,9 @@ export function buildApi(dependencies: ApiDependencies): FastifyInstance {
             [principal.organizationId, request.params.inquiryId, principal.membershipId, request.body.annotation],
           );
           return result.rows[0]?.result as Record<string, unknown>;
+        },
+        async (client) => {
+          await authorizeBookingInquiryReplay(client, principal, request.params.inquiryId, "canAnnotate");
         },
       );
     },
