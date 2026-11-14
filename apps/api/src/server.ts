@@ -3424,7 +3424,7 @@ export function buildApi(dependencies: ApiDependencies): FastifyInstance {
               request.body.scheduleRevisionId, request.body.rsvpPolicyRevisionId,
               request.body.locale ?? "bs-BA", snapshotCiphertext, capability.tokenSha256,
               capabilityCiphertext, expiresAt,
-              guestInvitationIssuanceIdempotencyDigest(principal.membershipId, request.body.invitationId ?? null, idempotencyKey),
+              guestInvitationIssuanceIdempotencyDigest(principal.membershipId, request.params.eventId, request.params.participationId, request.body.invitationId ?? null, idempotencyKey),
             ],
           );
           return result.rows[0]?.result as Record<string, unknown>;
