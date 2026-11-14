@@ -595,6 +595,27 @@ BEGIN
 END;
 $staff_rsvp_history_read$;
 
+
+-- Guard the production recovery path itself: the worker claim function must
+-- atomically convert expired sending leases to terminal uncertain attempts.
+-- The transition fixture above checks the attempt-history trigger semantics;
+-- this assertion prevents the real claim path from silently losing recovery.
+DO $expired_lease_claim_path$
+DECLARE
+  v_definition text;
+BEGIN
+  SELECT pg_get_functiondef(
+    'eogp.claim_invitation_email_delivery(uuid)'::regprocedure
+  ) INTO v_definition;
+  IF strpos(v_definition, 'status=''uncertain''')=0
+     OR strpos(v_definition, 'status=''sending''')=0
+     OR strpos(v_definition, 'lease_expires_at<=clock_timestamp()')=0
+     OR strpos(v_definition, 'failure_code=''SMTP_UNKNOWN''')=0 THEN
+    RAISE EXCEPTION 'real invitation delivery claim function no longer recovers expired leases as uncertain';
+  END IF;
+END;
+$expired_lease_claim_path$;
+
 ROLLBACK;
 
 \echo 'Guest invitation delivery attempt-history transition regressions passed.'
