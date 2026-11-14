@@ -7,6 +7,11 @@ import { setLocale } from "../../i18n";
 
 const { locale } = useI18n();
 const token = ref(new URLSearchParams(window.location.hash.slice(1)).get("token") ?? "");
+// The fragment is a bearer credential. Capture it in memory, then immediately
+// replace the current history entry so it is not retained in the address bar.
+if (/^[A-Za-z0-9_-]{43}$/.test(token.value)) {
+  window.history.replaceState(window.history.state, "", `${window.location.pathname}${window.location.search}`);
+}
 const invitation = ref<GuestInvitation | null>(null);
 const loading = ref(true);
 const busy = ref(false);
