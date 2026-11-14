@@ -479,4 +479,21 @@ BEGIN
 END;
 $guest_invitation_command_authorization_lock$;
 
+
+DO $staff_rsvp_authorization_precedes_lookup$
+DECLARE
+  v_definition text;
+BEGIN
+  SELECT pg_get_functiondef(
+    'eogp.record_staff_guest_rsvp(uuid,uuid,uuid,uuid,text,text,text,timestamptz,uuid,bytea,uuid,text)'::regprocedure
+  ) INTO v_definition;
+  IF strpos(v_definition, 'role_permission.permission_code=''rsvp.record''') = 0
+     OR strpos(v_definition, 'FOR SHARE OF user_grant, role_permission') = 0
+     OR strpos(v_definition, 'role_permission.permission_code=''rsvp.record''')
+          > strpos(v_definition, 'FROM eogp.event_participations participation') THEN
+    RAISE EXCEPTION 'staff RSVP must lock rsvp.record authorization before looking up participation state';
+  END IF;
+END;
+$staff_rsvp_authorization_precedes_lookup$;
+
 ROLLBACK;
