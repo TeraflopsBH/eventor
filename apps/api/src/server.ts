@@ -1255,7 +1255,7 @@ export function buildApi(dependencies: ApiDependencies): FastifyInstance {
     const publicOfferDecision = request.method === "POST" &&
       /^\/booking-offers\/[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}\/(accept|reject)$/.test(pathname);
     const publicOfferView = request.method === "GET" &&
-      /^\\/public\\/booking-offers\\/[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}$/.test(pathname);
+      /^\/public\/booking-offers\/[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}$/.test(pathname);
     const publicGuestInvitation = (
       request.method === "GET" &&
       (pathname === "/guest/invitation/me" || pathname === "/guest/invitation/me/rsvp-history")
