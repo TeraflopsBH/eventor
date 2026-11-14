@@ -217,6 +217,9 @@ jobs:
       - name: Prepare guest invitation SMTP authorization race fixture
         run: psql "$MIGRATOR_URL" -X -v ON_ERROR_STOP=1 -f tests/database/guest_invitation_authorization_race_fixture.sql
 
+      - name: Verify guest invitation idempotency replay is request-bound
+        run: psql "$RUNTIME_URL" -X -v ON_ERROR_STOP=1 -f tests/database/guest_invitation_idempotency_scope_smoke.sql
+
       - name: Verify guest invitation RSVP per-link write limit
         run: psql "$RUNTIME_URL" -X -v ON_ERROR_STOP=1 -f tests/database/guest_invitation_rsvp_write_limit_smoke.sql
 
