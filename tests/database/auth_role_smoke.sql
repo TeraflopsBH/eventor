@@ -103,6 +103,43 @@ BEGIN
     RAISE EXCEPTION 'authentication role can change account identity/state or lacks required password/locale updates';
   END IF;
 
+  -- SECURITY DEFINER routines must never inherit PostgreSQL's default
+  -- PUBLIC EXECUTE grant. Internal helpers are callable only through their
+  -- explicitly granted application command functions.
+  IF EXISTS (
+    SELECT 1
+      FROM pg_proc routine
+      JOIN pg_namespace namespace ON namespace.oid = routine.pronamespace
+      CROSS JOIN LATERAL aclexplode(
+        coalesce(routine.proacl, acldefault('f', routine.proowner))
+      ) privilege
+     WHERE namespace.nspname = 'eogp'
+       AND routine.prosecdef
+       AND privilege.grantee = 0
+       AND privilege.privilege_type = 'EXECUTE'
+  ) THEN
+    RAISE EXCEPTION 'an eogp SECURITY DEFINER function is executable by PUBLIC';
+  END IF;
+
+  -- A SECURITY DEFINER routine without a pinned pg_catalog-first search path
+  -- is vulnerable to object-shadowing through caller-controlled schemas.
+  IF EXISTS (
+    SELECT 1
+      FROM pg_proc routine
+      JOIN pg_namespace namespace ON namespace.oid = routine.pronamespace
+     WHERE namespace.nspname = 'eogp'
+       AND routine.prosecdef
+       AND NOT coalesce(routine.proconfig, ARRAY[]::text[])
+                    @> ARRAY['search_path=pg_catalog, eogp']
+       AND NOT EXISTS (
+         SELECT 1
+           FROM unnest(coalesce(routine.proconfig, ARRAY[]::text[])) setting
+          WHERE setting = 'search_path=pg_catalog'
+       )
+  ) THEN
+    RAISE EXCEPTION 'an eogp SECURITY DEFINER function lacks a pinned pg_catalog-first search_path';
+  END IF;
+
   IF current_setting('app.organization_id', true) IS NOT NULL
      AND current_setting('app.organization_id', true) <> '' THEN
     RAISE EXCEPTION 'authentication smoke test must not rely on tenant GUC context';
