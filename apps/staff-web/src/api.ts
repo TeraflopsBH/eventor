@@ -247,6 +247,7 @@ export interface GuestInvitationParticipation {
   invitationStatus: string | null;
   invitationRevisionNumber: number | null;
   deliveryStatus: string | null;
+  currentResponseId: string | null;
   currentResponse: "accepted" | "declined" | "tentative" | null;
   responseReceivedAt: string | null;
 }
@@ -1337,6 +1338,24 @@ export const api = {
   getGuestInvitationDeliveryAttempts: (invitationId: string) =>
     request<Envelope<GuestInvitationDeliveryAttempt[]>>(
       `/invitations/${encodeURIComponent(invitationId)}/delivery-attempts`,
+    ),
+  recordStaffGuestRsvp: (
+    eventId: string,
+    participationId: string,
+    body: {
+      response: "accepted" | "declined" | "tentative";
+      sourceChannel: "phone" | "in_person" | "email" | "written" | "representative" | "staff_entry" | "other";
+      respondentKind: "guest" | "representative" | "staff";
+      receivedAt: string;
+      invitationId?: string;
+      noteRestricted?: string;
+      correctionOfResponseId?: string;
+      correctionReason?: string;
+    },
+  ) =>
+    request<Envelope<{ responseId: string; participationId: string; response: string; sequenceNumber: number }>>(
+      `/events/${encodeURIComponent(eventId)}/participations/${encodeURIComponent(participationId)}/rsvp-records`,
+      { method: "POST", body, idempotent: true },
     ),
   getGuestInvitation: (token: string) =>
     request<Envelope<GuestInvitation>>("/guest/invitation/me", {
