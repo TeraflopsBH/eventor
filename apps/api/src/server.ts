@@ -1594,7 +1594,7 @@ export function buildApi(dependencies: ApiDependencies): FastifyInstance {
     operationId: string,
     body: unknown,
     command: Command,
-    authorizeReplay?: (client: PoolClient) => Promise<void>,
+    authorizeReplay: (client: PoolClient) => Promise<void>,
   ) => {
     const principal = request.staffPrincipal;
     if (!principal) throw new ApiError(401, "UNAUTHENTICATED", "Authentication is required.");
@@ -3734,6 +3734,9 @@ export function buildApi(dependencies: ApiDependencies): FastifyInstance {
             [principal.organizationId, request.params.offerId, principal.membershipId, tokenHash],
           );
           return result.rows[0]?.result as Record<string, unknown>;
+        },
+        async (client) => {
+          await authorizeBookingCommercialReplay(client, principal, "booking.manage");
         },
       );
       const data = command.body.data as Record<string, unknown>;
