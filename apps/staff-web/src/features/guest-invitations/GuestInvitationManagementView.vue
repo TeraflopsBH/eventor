@@ -17,6 +17,71 @@ const historyLoading = ref(false);
 const selectedEvent = computed(() => events.value.find((event) => event.eventId === selectedEventId.value) ?? null);
 const localeValue = computed<"bs-BA" | "en">(() => locale.value === "en" ? "en" : "bs-BA");
 
+const recordingParticipationId = ref<string | null>(null);
+const rsvpResponse = ref<"accepted" | "declined" | "tentative">("accepted");
+const rsvpSourceChannel = ref<"phone" | "in_person" | "email" | "written" | "representative" | "staff_entry" | "other">("phone");
+const rsvpRespondentKind = ref<"guest" | "representative" | "staff">("guest");
+const rsvpReceivedAt = ref(localDateTimeValue());
+const rsvpNote = ref("");
+const correctionMode = ref(false);
+const correctionReason = ref("");
+
+function localDateTimeValue(): string {
+  const value = new Date();
+  const pad = (part: number) => String(part).padStart(2, "0");
+  return `${value.getFullYear()}-${pad(value.getMonth() + 1)}-${pad(value.getDate())}T${pad(value.getHours())}:${pad(value.getMinutes())}`;
+}
+
+function openRsvp(person: GuestInvitationParticipation, correction = false): void {
+  recordingParticipationId.value = person.participationId;
+  correctionMode.value = correction;
+  rsvpResponse.value = person.currentResponse ?? "accepted";
+  rsvpSourceChannel.value = "phone";
+  rsvpRespondentKind.value = "guest";
+  rsvpReceivedAt.value = localDateTimeValue();
+  rsvpNote.value = "";
+  correctionReason.value = "";
+}
+
+function setRsvpSource(value: string): void {
+  rsvpSourceChannel.value = value as typeof rsvpSourceChannel.value;
+  if (value === "representative") rsvpRespondentKind.value = "representative";
+  else if (value === "staff_entry") rsvpRespondentKind.value = "staff";
+  else rsvpRespondentKind.value = "guest";
+}
+
+async function recordRsvp(person: GuestInvitationParticipation): Promise<void> {
+  if (!selectedEventId.value || !rsvpReceivedAt.value) return;
+  if (correctionMode.value && (!person.currentResponseId || correctionReason.value.trim().length < 3)) {
+    error.value = t("guestInvitations.correctionReasonRequired");
+    return;
+  }
+  loading.value = true; error.value = ""; notice.value = "";
+  try {
+    const receivedAt = new Date(rsvpReceivedAt.value);
+    if (!Number.isFinite(receivedAt.getTime()) || receivedAt.getTime() > Date.now()) {
+      throw new Error(t("guestInvitations.receivedAt"));
+    }
+    await api.recordStaffGuestRsvp(selectedEventId.value, person.participationId, {
+      response: rsvpResponse.value,
+      sourceChannel: rsvpSourceChannel.value,
+      respondentKind: rsvpRespondentKind.value,
+      receivedAt: receivedAt.toISOString(),
+      ...(person.invitationId ? { invitationId: person.invitationId } : {}),
+      ...(rsvpNote.value.trim() ? { noteRestricted: rsvpNote.value.trim() } : {}),
+      ...(correctionMode.value && person.currentResponseId ? {
+        correctionOfResponseId: person.currentResponseId,
+        correctionReason: correctionReason.value.trim(),
+      } : {}),
+    });
+    recordingParticipationId.value = null;
+    notice.value = t("guestInvitations.rsvpRecorded", { name: person.displayName });
+    await loadParticipants();
+  } catch (cause) {
+    error.value = cause instanceof Error ? cause.message : t("guestInvitations.rsvpRecordFailed");
+  } finally { loading.value = false; }
+}
+
 async function loadEvents(): Promise<void> {
   if (!props.organizationId) return;
   loading.value = true; error.value = ""; notice.value = "";
@@ -165,12 +230,79 @@ onMounted(() => { void loadEvents(); });
                   :disabled="historyLoading"
                   @click="toggleAttemptHistory(person.invitationId)"
                 >{{ expandedInvitationId === person.invitationId ? t("guestInvitations.hideHistory") : t("guestInvitations.showHistory") }}</button>
+                <button class="button button-quiet" :disabled="loading" @click="openRsvp(person)">
+                  {{ t("guestInvitations.recordRsvp") }}
+                </button>
+                <button
+                  v-if="person.currentResponseId"
+                  class="button button-quiet"
+                  :disabled="loading"
+                  @click="openRsvp(person, true)"
+                >{{ t("guestInvitations.correctRsvp") }}</button>
                 <button
                   v-if="person.invitationId && ['active', 'draft'].includes(person.invitationStatus ?? '')"
                   class="button button-quiet"
                   :disabled="loading"
                   @click="revoke(person)"
                 >{{ t("guestInvitations.revoke") }}</button>
+              </td>
+            </tr>
+            <tr v-if="recordingParticipationId === person.participationId" :key="`${person.participationId}-rsvp-form`">
+              <td colspan="6">
+                <form class="attempt-history" @submit.prevent="recordRsvp(person)">
+                  <strong>{{ correctionMode ? t("guestInvitations.correctRsvp") : t("guestInvitations.recordRsvp") }}</strong>
+                  <p v-if="correctionMode" class="muted">{{ t("guestInvitations.correctionHelp") }}</p>
+                  <div class="rsvp-entry-grid">
+                    <label class="field-label">
+                      {{ t("guestInvitations.rsvpResponse") }}
+                      <select v-model="rsvpResponse" :disabled="loading">
+                        <option value="accepted">{{ t("guestInvitations.accepted") }}</option>
+                        <option value="declined">{{ t("guestInvitations.declined") }}</option>
+                        <option value="tentative">{{ t("guestInvitations.tentative") }}</option>
+                      </select>
+                    </label>
+                    <label class="field-label">
+                      {{ t("guestInvitations.rsvpSource") }}
+                      <select :value="rsvpSourceChannel" :disabled="loading" @change="setRsvpSource(($event.target as HTMLSelectElement).value)">
+                        <option value="phone">{{ t("guestInvitations.sourcePhone") }}</option>
+                        <option value="in_person">{{ t("guestInvitations.sourceInPerson") }}</option>
+                        <option value="email">{{ t("guestInvitations.sourceEmail") }}</option>
+                        <option value="written">{{ t("guestInvitations.sourceWritten") }}</option>
+                        <option value="representative">{{ t("guestInvitations.sourceRepresentative") }}</option>
+                        <option value="staff_entry">{{ t("guestInvitations.sourceStaff") }}</option>
+                        <option value="other">{{ t("guestInvitations.sourceOther") }}</option>
+                      </select>
+                    </label>
+                    <label class="field-label">
+                      {{ t("guestInvitations.respondent") }}
+                      <select v-model="rsvpRespondentKind" :disabled="loading || ['representative', 'staff_entry'].includes(rsvpSourceChannel)">
+                        <option value="guest">{{ t("guestInvitations.respondentGuest") }}</option>
+                        <option value="representative">{{ t("guestInvitations.respondentRepresentative") }}</option>
+                        <option value="staff">{{ t("guestInvitations.respondentStaff") }}</option>
+                      </select>
+                    </label>
+                    <label class="field-label">
+                      {{ t("guestInvitations.receivedAt") }}
+                      <input v-model="rsvpReceivedAt" type="datetime-local" required :disabled="loading" />
+                    </label>
+                  </div>
+                  <label class="field-label">
+                    {{ t("guestInvitations.restrictedNote") }}
+                    <textarea v-model="rsvpNote" rows="2" maxlength="4000" :disabled="loading"></textarea>
+                  </label>
+                  <label v-if="correctionMode" class="field-label">
+                    {{ t("guestInvitations.correctionReason") }}
+                    <textarea v-model="correctionReason" rows="2" minlength="3" maxlength="2000" required :disabled="loading"></textarea>
+                  </label>
+                  <div class="action-cell">
+                    <button class="button button-primary" type="submit" :disabled="loading">
+                      {{ t("guestInvitations.submitRsvp") }}
+                    </button>
+                    <button class="button button-quiet" type="button" :disabled="loading" @click="recordingParticipationId = null">
+                      {{ t("guestInvitations.hideHistory") }}
+                    </button>
+                  </div>
+                </form>
               </td>
             </tr>
             <tr v-if="person.invitationId && expandedInvitationId === person.invitationId" :key="`${person.participationId}-attempts`">
