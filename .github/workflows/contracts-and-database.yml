@@ -120,6 +120,7 @@ jobs:
           sudo apt-get install --yes postgresql-client
           bash -n scripts/db/migrate.sh
           bash -n scripts/db/test_resource_concurrency.sh
+          bash -n scripts/db/test_space_expiry_confirmation_race.sh
           bash -n scripts/db/test-concurrency.sh
           bash -n scripts/db/test-migrations.sh
 
@@ -227,6 +228,12 @@ jobs:
 
       - name: Verify permission-gated booking reservation conversion as runtime
         run: psql "$RUNTIME_URL" -X -v ON_ERROR_STOP=1 -f tests/database/booking_confirmation_runtime_smoke.sql
+
+      - name: Prepare independent space expiry and confirmation race fixture
+        run: psql "$MIGRATOR_URL" -X -v ON_ERROR_STOP=1 -f tests/database/booking_expiry_confirmation_race_fixture.sql
+
+      - name: Verify independent worker/runtime space expiry and confirmation race
+        run: bash scripts/db/test_space_expiry_confirmation_race.sh
 
       - name: Prepare cancelled booking fixture for selected reservation release
         run: psql "$MIGRATOR_URL" -X -v ON_ERROR_STOP=1 -f tests/database/booking_release_fixture_smoke.sql
