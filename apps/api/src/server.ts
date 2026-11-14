@@ -6,6 +6,7 @@ import { decryptContactValue, encryptContactValue } from "./contact-crypto.js";
 import { PublicFormAnswersError, PublicFormSchemaError, validatePublicFormAnswers, validatePublicFormSchema } from "./public-form-validation.js";
 import { verifyResendWebhookSignature } from "./resend-webhook.js";
 import { createGuestInvitationCapability, hashGuestInvitationToken } from "./guest-invitation-capability.js";
+import { guestInvitationIssuanceIdempotencyDigest } from "./guest-invitation-idempotency.js";
 import { classifySmtpFailure, sendSmtpTestMessage, type SmtpSettings, type SmtpTransportFactory } from "./smtp-transport.js";
 import type { paths } from "./generated/openapi.js";
 import {
@@ -3423,7 +3424,7 @@ export function buildApi(dependencies: ApiDependencies): FastifyInstance {
               request.body.scheduleRevisionId, request.body.rsvpPolicyRevisionId,
               request.body.locale ?? "bs-BA", snapshotCiphertext, capability.tokenSha256,
               capabilityCiphertext, expiresAt,
-              createHash("sha256").update(`eventor:guest-invitation:${principal.membershipId}:${request.body.invitationId ? "reissue" : "issue"}:${idempotencyKey}`, "utf8").digest("hex"),
+              guestInvitationIssuanceIdempotencyDigest(principal.membershipId, request.body.invitationId ?? null, idempotencyKey),
             ],
           );
           return result.rows[0]?.result as Record<string, unknown>;
