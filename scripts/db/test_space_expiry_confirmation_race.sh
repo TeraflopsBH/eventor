@@ -52,6 +52,7 @@ runtime_started_ns="$(date +%s%N)"
 psql "$RUNTIME_URL" -X -v ON_ERROR_STOP=1 -qAt <<SQL
 BEGIN;
 SELECT set_config('app.organization_id','$org',true);
+SELECT set_config('app.actor_membership_id','$actor',true);
 DO \$race\$
 DECLARE
   v_result jsonb;
