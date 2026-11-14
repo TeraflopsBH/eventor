@@ -316,6 +316,7 @@ jobs:
         run: psql "$AUTH_URL" -X -v ON_ERROR_STOP=1 -f tests/database/auth_role_smoke.sql
 
       - name: Seed a synthetic staff password for browser authentication
+        working-directory: apps/api
         run: |
           password_hash="$(node --input-type=module -e 'import argon2 from "argon2"; process.stdout.write(await argon2.hash("CI-only-password-2026", { type: argon2.argon2id }));')"
           psql "$AUTH_URL" -X -v ON_ERROR_STOP=1 -v password_hash="$password_hash" \
