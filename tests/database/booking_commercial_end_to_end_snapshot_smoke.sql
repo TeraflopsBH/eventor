@@ -20,6 +20,17 @@ DECLARE
   v_draft_revision_id uuid := gen_random_uuid();
   v_venue_id uuid := gen_random_uuid();
   v_space_id uuid := gen_random_uuid();
+  v_confirmation_space_id uuid := gen_random_uuid();
+  v_alternative_space_id uuid := gen_random_uuid();
+  v_held_alternative_space_id uuid := gen_random_uuid();
+  v_expired_alternative_space_id uuid := gen_random_uuid();
+  v_small_alternative_space_id uuid := gen_random_uuid();
+  v_proposed_alternative_space_id uuid := gen_random_uuid();
+  v_second_resource_pool_id uuid := gen_random_uuid();
+  v_preview jsonb;
+  v_before_reservation_count integer;
+  v_after_reservation_count integer;
+  v_tenant_denied boolean := false;
   v_resource_type_id uuid := gen_random_uuid();
   v_resource_pool_id uuid := gen_random_uuid();
   v_resource_unit_id uuid := gen_random_uuid();
@@ -51,6 +62,8 @@ DECLARE
   v_confirmation jsonb;
   v_snapshot eogp.booking_confirmed_snapshots%ROWTYPE;
   v_expected_snapshot_sha256 text;
+  v_approval_error_message text;
+  v_hold_error_message text;
   v_tax_codes_v1 jsonb := '[{"taxCode":"STANDARD","label":"Standard rate","treatment":"percentage","rate":20}]'::jsonb;
   v_tax_codes_v2 jsonb := '[{"taxCode":"STANDARD","label":"Standard rate","treatment":"percentage","rate":30}]'::jsonb;
   v_approval_rules_v1 jsonb := '[{"code":"commercial-review","condition":{"kind":"always"},"requiredApprovals":1,"permission":"booking.approve","separationOfDuties":true}]'::jsonb;
@@ -83,6 +96,7 @@ BEGIN
   INSERT INTO eogp.role_permissions(organization_id,role_id,permission_code)
   VALUES
     (v_org,v_creator_role,'booking.manage'),
+    (v_org,v_creator_role,'booking.draft.manage'),
     (v_org,v_creator_role,'booking.approve'),
     (v_org,v_creator_role,'booking.confirm'),
     (v_org,v_approver_role,'booking.approve');
@@ -97,7 +111,9 @@ BEGIN
   INSERT INTO eogp.venues(id,organization_id,code,name,timezone_name)
   VALUES(v_venue_id,v_org,'CI-E2E-'||substr(gen_random_uuid()::text,1,8),'CI E2E Venue','Europe/Sarajevo');
   INSERT INTO eogp.venue_spaces(id,organization_id,venue_id,code,name,space_kind,capacity,status)
-  VALUES(v_space_id,v_org,v_venue_id,'CI-ROOM','CI E2E Room','room',50,'active');
+  VALUES
+    (v_space_id,v_org,v_venue_id,'CI-ROOM','CI E2E Room','room',50,'active'),
+    (v_confirmation_space_id,v_org,v_venue_id,'CI-ROOM-2','CI E2E Room 2','room',30,'active');
 
   INSERT INTO eogp.booking_drafts(
     id,organization_id,created_by_membership_id,status,current_revision_number
@@ -109,7 +125,9 @@ BEGIN
     'Europe/Sarajevo','End-to-end commercial snapshot fixture',v_creator);
   INSERT INTO eogp.booking_draft_space_lines(
     organization_id,draft_revision_id,venue_space_id,block_kind,starts_at,ends_at,requested_capacity
-  ) VALUES(v_org,v_draft_revision_id,v_space_id,'event_use',v_space_starts_at,v_space_ends_at,20);
+  ) VALUES
+    (v_org,v_draft_revision_id,v_space_id,'event_use',v_space_starts_at,v_space_ends_at,20),
+    (v_org,v_draft_revision_id,v_confirmation_space_id,'event_use',v_space_starts_at,v_space_ends_at,10);
 
   -- One resource type is represented by both pooled inventory and a tracked
   -- discrete unit. The requested pooled quantity is intentionally split over
@@ -118,7 +136,8 @@ BEGIN
   VALUES(v_resource_type_id,v_org,'CI-CHAIR','CI E2E Chair','chair',true);
   INSERT INTO eogp.resource_pools(
     id,organization_id,venue_id,resource_type_id,code,name,capacity,status
-  ) VALUES(v_resource_pool_id,v_org,v_venue_id,'CI-CHAIR-POOL','CI Chairs','CI E2E Chairs',10,'active');
+  ) VALUES(v_resource_pool_id,v_org,v_venue_id,v_resource_type_id,
+           'CI-CHAIR-POOL','CI E2E Chairs',10,'active');
   INSERT INTO eogp.resource_units(id,organization_id,resource_pool_id,unit_code,status)
   VALUES(v_resource_unit_id,v_org,v_resource_pool_id,'CI-CHAIR-UNIT-01','available');
   INSERT INTO eogp.booking_resource_lines(
@@ -129,6 +148,20 @@ BEGIN
      'Pooled chairs',3,'{"fixture":"pooled-resource"}'::jsonb),
     (v_discrete_line_id,v_org,v_draft_revision_id,v_resource_type_id,'CHAIR-UNIT',
      'Tracked chair',1,'{"fixture":"discrete-resource"}'::jsonb);
+
+  -- Unassigned holds remain permissible during draft allocation; they
+  -- are rejected only if confirmation would convert them to booking stock.
+  INSERT INTO eogp.resource_reservations(
+    organization_id,resource_pool_id,booking_draft_revision_id,
+    quantity,starts_at,ends_at,status,expires_at,idempotency_key
+  ) VALUES(
+    v_org,v_resource_pool_id,v_draft_revision_id,1,
+    v_space_starts_at,v_space_ends_at,'held',
+    clock_timestamp()+interval '1 day','ci-e2e-unlinked-draft-hold'
+  );
+  DELETE FROM eogp.resource_reservations
+   WHERE organization_id=v_org
+     AND idempotency_key='ci-e2e-unlinked-draft-hold';
 
   -- Publish tax profile revision 1 at 20%.
   v_result:=eogp.create_booking_tax_profile(v_org,v_creator,
@@ -295,7 +328,11 @@ BEGIN
     );
     RAISE EXCEPTION 'offer creator unexpectedly approved their own offer';
   EXCEPTION WHEN insufficient_privilege THEN
-    NULL;
+    GET STACKED DIAGNOSTICS v_approval_error_message = MESSAGE_TEXT;
+    IF v_approval_error_message IS DISTINCT FROM
+       'offer creator cannot approve this offer under its separation-of-duties rule' THEN
+      RAISE;
+    END IF;
   END;
 
   -- Only the independent approver may satisfy the pinned one-approval rule.
@@ -353,7 +390,37 @@ BEGIN
     'ci-e2e-live-space-hold',v_creator
   );
 
-  -- With the space hold now valid, missing resource holds must independently
+  -- One live hold is not enough for a two-space draft. The first hold must
+  -- remain held and no booking may be created when the second is missing.
+  BEGIN
+    PERFORM eogp.confirm_booking_from_offer(
+      v_org,v_draft_revision_id,v_creator,'Expected incomplete multi-space hold rejection'
+    );
+    RAISE EXCEPTION 'commercial confirmation unexpectedly succeeded with only one of two space holds';
+  EXCEPTION WHEN SQLSTATE '23P01' THEN
+    NULL;
+  END;
+  IF EXISTS (
+    SELECT 1 FROM eogp.booking_records
+     WHERE organization_id=v_org AND source_offer_revision_id=v_offer_revision_id
+  ) OR (
+    SELECT count(*) FROM eogp.venue_space_time_blocks
+     WHERE organization_id=v_org AND booking_draft_revision_id=v_draft_revision_id
+       AND reservation_kind='draft_hold' AND status='held'
+  ) <> 1 THEN
+    RAISE EXCEPTION 'incomplete multi-space confirmation left a partial booking or changed the valid hold';
+  END IF;
+
+  INSERT INTO eogp.venue_space_time_blocks(
+    organization_id,venue_space_id,booking_draft_revision_id,reservation_kind,status,
+    starts_at,ends_at,expires_at,idempotency_key,actor_membership_id
+  ) VALUES(
+    v_org,v_confirmation_space_id,v_draft_revision_id,'draft_hold','held',
+    v_space_starts_at,v_space_ends_at,clock_timestamp()+interval '1 day',
+    'ci-e2e-live-alternative-space-hold',v_creator
+  );
+
+  -- With both space holds now valid, missing resource holds must independently
   -- block confirmation and must not leave a partially created booking.
   BEGIN
     PERFORM eogp.confirm_booking_from_offer(
@@ -414,6 +481,35 @@ BEGIN
     RAISE EXCEPTION 'failed partial-resource confirmation left a partial booking';
   END IF;
 
+  -- The reservation write boundary now rejects aggregate over-allocation
+  -- before an invalid second hold can be persisted. Assert the exact guard
+  -- diagnostic; the later confirmation preflight remains defence in depth
+  -- for rows created by privileged maintenance or legacy paths.
+  BEGIN
+    PERFORM eogp.reserve_pooled_resource(
+      v_org,v_resource_pool_id,v_draft_revision_id,NULL,v_pooled_line_id,
+      v_space_starts_at,v_space_ends_at,2,clock_timestamp()+interval '1 day',
+      'ci-e2e-pooled-hold-over-allocation'
+    );
+    RAISE EXCEPTION 'resource reservation unexpectedly accepted aggregate over-allocation';
+  EXCEPTION WHEN OTHERS THEN
+    GET STACKED DIAGNOSTICS v_hold_error_message = MESSAGE_TEXT;
+    IF v_hold_error_message IS DISTINCT FROM 'booking resource line quantity exceeded' THEN
+      RAISE;
+    END IF;
+  END;
+  IF EXISTS (
+    SELECT 1 FROM eogp.resource_reservations
+     WHERE organization_id=v_org
+       AND booking_draft_revision_id=v_draft_revision_id
+       AND idempotency_key='ci-e2e-pooled-hold-over-allocation'
+  ) THEN
+    RAISE EXCEPTION 'rejected over-allocation unexpectedly persisted a resource hold';
+  END IF;
+  IF EXISTS (SELECT 1 FROM eogp.booking_records WHERE organization_id=v_org AND source_offer_revision_id=v_offer_revision_id) THEN
+    RAISE EXCEPTION 'rejected over-allocation unexpectedly created a booking';
+  END IF;
+
   -- Complete the pooled quantity with a second hold and reserve the discrete
   -- unit separately. Both must convert against their matching booking lines.
   PERFORM eogp.reserve_pooled_resource(
@@ -427,6 +523,36 @@ BEGIN
     'ci-e2e-discrete-unit-hold'
   );
 
+  -- A privileged/internal writer can create an unassigned draft hold.
+  -- It must not be converted into confirmed occupancy by the commercial path.
+  INSERT INTO eogp.resource_reservations(
+    organization_id,resource_pool_id,booking_draft_revision_id,
+    quantity,starts_at,ends_at,status,expires_at,idempotency_key
+  ) VALUES(
+    v_org,v_resource_pool_id,v_draft_revision_id,1,
+    v_space_starts_at,v_space_ends_at,'held',
+    clock_timestamp()+interval '1 day','ci-e2e-unlinked-confirmation-guard'
+  );
+  BEGIN
+    PERFORM eogp.confirm_booking_from_offer(
+      v_org,v_draft_revision_id,v_creator,'Expected unlinked resource hold rejection'
+    );
+    RAISE EXCEPTION 'commercial confirmation unexpectedly converted an unlinked resource hold';
+  EXCEPTION WHEN SQLSTATE '23P01' THEN
+    IF SQLERRM <> 'an active resource hold is not represented by a booking resource line' THEN
+      RAISE EXCEPTION 'confirmation failed for an unexpected reason instead of the unlinked-hold guard: %',SQLERRM;
+    END IF;
+  END;
+  IF EXISTS (
+    SELECT 1 FROM eogp.booking_records
+     WHERE organization_id=v_org AND source_offer_revision_id=v_offer_revision_id
+  ) THEN
+    RAISE EXCEPTION 'failed unlinked-hold confirmation left a partial booking';
+  END IF;
+  DELETE FROM eogp.resource_reservations
+   WHERE organization_id=v_org
+     AND idempotency_key='ci-e2e-unlinked-confirmation-guard';
+
   -- Confirmation uses the accepted revision and pinned one-approval rule,
   -- even though policy revision 2 now asks for two approvals.
   v_confirmation:=eogp.confirm_booking_from_offer(
@@ -435,25 +561,49 @@ BEGIN
   v_booking_id:=(v_confirmation->>'bookingId')::uuid;
   IF v_confirmation->>'status'<>'confirmed'
      OR coalesce((v_confirmation->>'replayed')::boolean,true)
-     OR (v_confirmation->>'spaceReservationsConfirmed')::integer<>1
+     OR (v_confirmation->>'spaceReservationsConfirmed')::integer<>2
      OR (v_confirmation->>'resourceReservationsConfirmed')::integer<>3 THEN
     RAISE EXCEPTION 'accepted offer did not produce a new confirmed booking: %',v_confirmation;
   END IF;
 
-  IF NOT EXISTS (
-    SELECT 1 FROM eogp.venue_space_time_blocks block
-     WHERE block.organization_id=v_org AND block.venue_space_id=v_space_id
+  IF (
+    SELECT count(*) FROM eogp.venue_space_time_blocks block
+     WHERE block.organization_id=v_org
+       AND block.venue_space_id IN (v_space_id,v_confirmation_space_id)
        AND block.booking_id=v_booking_id AND block.booking_draft_revision_id IS NULL
        AND block.reservation_kind='booking' AND block.status='confirmed'
        AND block.starts_at=v_space_starts_at AND block.ends_at=v_space_ends_at
        AND block.expires_at IS NULL
-  ) THEN
-    RAISE EXCEPTION 'the exact live space hold was not converted to confirmed booking occupancy';
+  ) <> 2 THEN
+    RAISE EXCEPTION 'both exact live space holds were not converted to confirmed booking occupancy';
   END IF;
   IF (SELECT count(*) FROM eogp.venue_space_time_blocks block
        WHERE block.organization_id=v_org AND block.booking_draft_revision_id=v_draft_revision_id
          AND block.status='held')<>0 THEN
     RAISE EXCEPTION 'draft space hold remained active after booking confirmation';
+  END IF;
+
+  -- The exclusion boundary is shared across reservation origins: a new
+  -- temporary hold cannot overlap an already-confirmed booking reservation.
+  BEGIN
+    INSERT INTO eogp.venue_space_time_blocks(
+      organization_id,venue_space_id,booking_draft_revision_id,reservation_kind,status,
+      starts_at,ends_at,expires_at,idempotency_key,actor_membership_id
+    ) VALUES(
+      v_org,v_space_id,v_draft_revision_id,'draft_hold','held',
+      v_space_starts_at,v_space_ends_at,clock_timestamp()+interval '1 day',
+      'ci-e2e-draft-hold-vs-confirmed-booking',v_creator
+    );
+    RAISE EXCEPTION 'overlapping draft hold unexpectedly coexisted with confirmed booking';
+  EXCEPTION WHEN SQLSTATE '23P01' THEN
+    NULL;
+  END;
+  IF EXISTS (
+    SELECT 1 FROM eogp.venue_space_time_blocks
+     WHERE organization_id=v_org
+       AND idempotency_key='ci-e2e-draft-hold-vs-confirmed-booking'
+  ) THEN
+    RAISE EXCEPTION 'cross-origin overlapping draft hold was persisted';
   END IF;
 
   IF (SELECT count(*) FROM eogp.resource_reservations reservation
@@ -496,7 +646,7 @@ BEGIN
      OR v_snapshot.price_snapshot->'terms'->>'cancellationTerms'<>'Cancellation terms version 1'
      OR (v_snapshot.price_snapshot->'terms'->'taxCalculation'->>'taxAmount')::numeric<>20.00
      OR v_snapshot.price_snapshot->'terms'->'adjustments'->0->'taxAllocations'->0->>'taxCode'<>'STANDARD'
-     OR v_snapshot.price_snapshot->'terms'->'adjustments'->1->'allocationMethod'<>'proportional_to_lines' THEN
+     OR v_snapshot.price_snapshot->'terms'->'adjustments'->1->>'allocationMethod'<>'proportional_to_lines' THEN
     RAISE EXCEPTION 'confirmed price snapshot does not preserve the exact accepted financial terms: %',v_snapshot.price_snapshot;
   END IF;
 
@@ -557,6 +707,156 @@ BEGIN
      OR (SELECT (price_snapshot->>'totalAmount')::numeric FROM eogp.booking_confirmed_snapshots
        WHERE organization_id=v_org AND booking_id=v_booking_id)<>120.00 THEN
     RAISE EXCEPTION 'offer or confirmed snapshot changed after attempted mutation';
+  END IF;
+
+  -- The advisory allocation preview must identify usable same-venue space
+  -- alternatives without treating active holds as free or expired holds as
+  -- occupancy. A smaller-capacity space is not a valid alternative.
+  INSERT INTO eogp.venue_spaces(
+    id,organization_id,venue_id,code,name,space_kind,capacity,status
+  ) VALUES
+    (v_alternative_space_id,v_org,v_venue_id,'CI-ALT-FREE','CI Alternative Free','room',40,'active'),
+    (v_held_alternative_space_id,v_org,v_venue_id,'CI-ALT-HELD','CI Alternative Held','room',40,'active'),
+    (v_expired_alternative_space_id,v_org,v_venue_id,'CI-ALT-EXPIRED','CI Alternative Expired Hold','room',40,'active'),
+    (v_small_alternative_space_id,v_org,v_venue_id,'CI-ALT-SMALL','CI Alternative Too Small','room',10,'active'),
+    (v_proposed_alternative_space_id,v_org,v_venue_id,'CI-ALT-PROPOSED','CI Alternative Already Proposed','room',40,'active');
+
+  INSERT INTO eogp.venue_space_time_blocks(
+    organization_id,venue_space_id,booking_draft_revision_id,reservation_kind,status,
+    starts_at,ends_at,expires_at,idempotency_key,actor_membership_id
+  ) VALUES
+    (v_org,v_held_alternative_space_id,v_draft_revision_id,'draft_hold','held',
+     v_space_starts_at,v_space_ends_at,v_space_ends_at+interval '1 day',
+     'ci-preview-active-alternative-hold',v_creator),
+    (v_org,v_expired_alternative_space_id,v_draft_revision_id,'draft_hold','expired',
+     v_space_starts_at,v_space_ends_at,clock_timestamp()-interval '1 minute',
+     'ci-preview-expired-alternative-hold',v_creator);
+
+  -- The first pool already has four confirmed units in use. The expired hold
+  -- must not reduce its six remaining units; the second pool is fully held.
+  INSERT INTO eogp.resource_pools(
+    id,organization_id,venue_id,resource_type_id,code,name,capacity,status
+  ) VALUES(v_second_resource_pool_id,v_org,v_venue_id,v_resource_type_id,
+           'CI-CHAIR-POOL-2','CI E2E Chairs Pool 2',2,'active');
+
+  INSERT INTO eogp.resource_reservations(
+    organization_id,resource_pool_id,booking_draft_revision_id,quantity,
+    starts_at,ends_at,status,expires_at,idempotency_key
+  ) VALUES
+    (v_org,v_resource_pool_id,v_draft_revision_id,2,
+     v_space_starts_at,v_space_ends_at,'expired',clock_timestamp()-interval '1 minute',
+     'ci-preview-expired-resource-hold'),
+    (v_org,v_second_resource_pool_id,v_draft_revision_id,2,
+     v_space_starts_at,v_space_ends_at,'held',v_space_ends_at+interval '1 day',
+     'ci-preview-active-resource-hold');
+
+  SELECT count(*) INTO v_before_reservation_count
+    FROM eogp.resource_reservations
+   WHERE organization_id=v_org;
+
+  v_preview:=eogp.preview_booking_draft_allocation_availability(
+    v_org,v_draft_id,v_creator,
+    jsonb_build_array(jsonb_build_object(
+      'venueSpaceId',v_space_id,
+      'startsAt',v_space_starts_at,
+      'endsAt',v_space_ends_at,
+      'requestedCapacity',20
+    ),jsonb_build_object(
+      'venueSpaceId',v_proposed_alternative_space_id,
+      'startsAt',v_space_starts_at,
+      'endsAt',v_space_ends_at,
+      'requestedCapacity',20
+    )),
+    jsonb_build_array(jsonb_build_object(
+      'resourceTypeId',v_resource_type_id,
+      'requestedQuantity',7
+    )),
+    v_space_starts_at,v_space_ends_at
+  );
+
+  IF coalesce((v_preview->>'advisoryOnly')::boolean,false) IS NOT TRUE
+     OR coalesce((v_preview->'spaces'->0->>'available')::boolean,true) IS NOT FALSE
+     OR v_preview->'spaces'->0->>'reason'<>'space_conflict' THEN
+    RAISE EXCEPTION 'preview did not report the occupied requested space as unavailable: %',v_preview;
+  END IF;
+
+  IF NOT EXISTS (
+       SELECT 1
+         FROM jsonb_array_elements(v_preview->'spaceAlternatives'->0->'alternatives') alternative
+        WHERE alternative->>'venueSpaceId'=v_alternative_space_id::text
+     )
+     OR NOT EXISTS (
+       SELECT 1
+         FROM jsonb_array_elements(v_preview->'spaceAlternatives'->0->'alternatives') alternative
+        WHERE alternative->>'venueSpaceId'=v_expired_alternative_space_id::text
+     )
+     OR EXISTS (
+       SELECT 1
+         FROM jsonb_array_elements(v_preview->'spaceAlternatives'->0->'alternatives') alternative
+        WHERE alternative->>'venueSpaceId' IN (
+          v_held_alternative_space_id::text,v_small_alternative_space_id::text,
+          v_proposed_alternative_space_id::text
+        )
+     ) THEN
+    RAISE EXCEPTION 'space alternatives did not respect live holds, expired holds and requested capacity: %',v_preview->'spaceAlternatives';
+  END IF;
+
+  IF coalesce((v_preview->'resources'->0->>'availableQuantity')::numeric,-1)<>6
+     OR coalesce((v_preview->'resources'->0->>'available')::boolean,true) IS NOT FALSE THEN
+    RAISE EXCEPTION 'resource capacity preview did not exclude expired holds or aggregate active pool usage: %',v_preview->'resources';
+  END IF;
+
+  IF coalesce((v_preview->'resourcePools'->0->'pools'->0->>'availableQuantity')::numeric,-1)<>6
+     OR NOT EXISTS (
+       SELECT 1
+         FROM jsonb_array_elements(v_preview->'resourcePools'->0->'pools') pool
+        WHERE pool->>'resourcePoolId'=v_second_resource_pool_id::text
+          AND (pool->>'availableQuantity')::numeric=0
+     ) THEN
+    RAISE EXCEPTION 'per-pool breakdown did not report remaining capacity accurately: %',v_preview->'resourcePools';
+  END IF;
+
+  -- An invalid resource interval must be reported as unchecked, not as
+  -- available. Space alternatives remain advisory and independently useful.
+  v_preview:=eogp.preview_booking_draft_allocation_availability(
+    v_org,v_draft_id,v_creator,
+    jsonb_build_array(jsonb_build_object(
+      'venueSpaceId',v_space_id,
+      'startsAt',v_space_starts_at,
+      'endsAt',v_space_ends_at,
+      'requestedCapacity',20
+    )),
+    jsonb_build_array(jsonb_build_object(
+      'resourceTypeId',v_resource_type_id,
+      'requestedQuantity',1
+    )),
+    NULL,NULL
+  );
+  IF coalesce((v_preview->>'resourceIntervalChecked')::boolean,true) IS NOT FALSE
+     OR coalesce((v_preview->'resources'->0->>'checked')::boolean,true) IS NOT FALSE
+     OR v_preview->'resourcePools'<>'[]'::jsonb THEN
+    RAISE EXCEPTION 'invalid resource interval was not reported as unchecked: %',v_preview;
+  END IF;
+
+  SELECT count(*) INTO v_after_reservation_count
+    FROM eogp.resource_reservations
+   WHERE organization_id=v_org;
+  IF v_after_reservation_count<>v_before_reservation_count THEN
+    RAISE EXCEPTION 'read-only allocation preview mutated resource reservations';
+  END IF;
+
+  -- A caller cannot use a valid membership from this tenant while naming a
+  -- different organization, even when the draft and actor IDs are known.
+  BEGIN
+    PERFORM eogp.preview_booking_draft_allocation_availability(
+      '22222222-2222-4222-8222-222222222222',v_draft_id,v_creator,
+      '[]'::jsonb,'[]'::jsonb,v_space_starts_at,v_space_ends_at
+    );
+  EXCEPTION WHEN SQLSTATE '42501' THEN
+    v_tenant_denied:=true;
+  END;
+  IF NOT v_tenant_denied THEN
+    RAISE EXCEPTION 'allocation preview unexpectedly accepted a cross-tenant organization context';
   END IF;
 END;
 $test$;

@@ -1,5 +1,5 @@
 import { computed, reactive, ref, type ComputedRef, type Ref } from "vue";
-type StaffTab = "delivery" | "campaign" | "inquiries" | "approvals" | "prices" | "cancellations" | "taxes";
+type StaffTab = "delivery" | "campaign" | "inquiries" | "approvals" | "prices" | "cancellations" | "taxes" | "forms" | "settings";
 import type { BookingPriceList, BookingPriceListItem, BookingTaxProfileRevision } from "../../api";
 type PublishedTaxProfileRevision = BookingTaxProfileRevision & { profileCode: string; profileName: string; profileId: string };
 interface Dependencies {
@@ -8,7 +8,7 @@ interface Dependencies {
   publishedTaxProfileRevisions: ComputedRef<PublishedTaxProfileRevision[]>;
   loadBookingTaxProfiles: () => Promise<void>;
 }
-export function useBookingPriceLists({ api, busy, pageError, pageNotice, activeTab, clearMessages, showError, publishedTaxProfileRevisions, loadBookingTaxProfiles }: Dependencies) {
+export function useBookingPriceLists({ api, busy, pageError, pageNotice, activeTab, clearMessages, showError, translate, publishedTaxProfileRevisions, loadBookingTaxProfiles }: Dependencies) {
 const bookingPriceLists = ref<BookingPriceList[]>([]);
 const selectedPriceListId = ref("");
 const priceListCreateForm = reactive({ code: "", name: "", currency: "", taxBasis: "to_be_confirmed" as "inclusive" | "exclusive" | "not_applicable" | "to_be_confirmed" });
@@ -95,7 +95,7 @@ async function createBookingPriceListRevision(): Promise<void> {
       effectiveUntil: priceListRevisionForm.effectiveUntil ? new Date(priceListRevisionForm.effectiveUntil).toISOString() : null,
     });
     await loadBookingPriceLists();
-    pageNotice.value = translate("commercialConfiguration.priceRevisionCreated", { revision: result.data.revisionNumber });
+    pageNotice.value = translate("commercialConfiguration.priceRevisionCreated", { revision: result.data.revisionNumber ?? 0 });
   } catch (error) { showError(error); }
   finally { busy.value = false; }
 }
@@ -149,7 +149,7 @@ async function publishBookingPriceListRevision(): Promise<void> {
   try {
     const result = await api.publishBookingPriceListRevision(priceList.priceListId, revision.revisionId);
     await loadBookingPriceLists();
-    pageNotice.value = translate("commercialConfiguration.pricePublished", { revision: result.data.revisionNumber });
+    pageNotice.value = translate("commercialConfiguration.pricePublished", { revision: result.data.revisionNumber ?? 0 });
   } catch (error) { showError(error); }
   finally { busy.value = false; }
 }

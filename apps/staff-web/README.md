@@ -8,7 +8,7 @@ Use Node.js 22.16.0 or a compatible Node 22 release.
 
 ```sh
 cd apps/staff-web
-npm install
+npm ci
 npm run dev
 ```
 
@@ -25,7 +25,7 @@ cd apps/staff-web
 npm test
 ```
 
-The focused suites cover booking-form schema validation, field ordering, translation-key migration, canonical/base-language editing, translation read purity, completeness counts, save/publication validation gates, and the public booking workflow: translated content with per-field fallback, translation completeness warnings, multi-select initialization/toggling/bounds, number normalization, requester cleanup, and submission pinned to the exact loaded published revision. Schema-aware draft coverage verifies required fields, text lengths, numeric bounds/integer constraints, checkbox acceptance, select/multi-select option membership, multi-select bounds, numeric normalization and retention of unknown legacy answer keys. Conversion coverage verifies that decrypted draft values are presented with labels and select-option text from the exact source form revision, including visibility of unknown legacy answer keys. They import feature modules directly, so they do not require a browser or running API. API-side answer validation, stale-revision rejection and encrypted inquiry persistence are covered separately by the API test suite.
+The focused suites cover booking-form schema validation, field ordering, translation-key migration, canonical/base-language editing, translation read purity, completeness counts, save/publication validation gates, and the public booking workflow: translated content with per-field fallback, translation completeness warnings, multi-select initialization/toggling/bounds, number normalization, requester cleanup, and submission pinned to the exact loaded published revision. Schema-aware draft coverage verifies required fields, text lengths, numeric bounds/integer constraints, checkbox acceptance, select/multi-select option membership, multi-select bounds, numeric normalization and retention of unknown legacy answer keys. Conversion coverage verifies that decrypted draft values are presented with labels and select-option text from the exact source form revision, including visibility of unknown legacy answer keys. Allocation-preview composable tests verify that input changes invalidate in-flight responses and older overlapping requests cannot overwrite the newest result. They import feature modules directly, so they do not require a browser or running API. API-side answer validation, stale-revision rejection and encrypted inquiry persistence are covered separately by the API test suite.
 
 ## Implemented UI
 
@@ -64,3 +64,6 @@ Run the focused helper tests with npm test from apps/staff-web; the new booking-
 The booking-draft allocation editor includes an explicit availability check. It reports overlapping active space holds, confirmed bookings and maintenance blocks for each proposed space interval, and estimates available pooled-resource quantities over the overall requested booking interval. Results are invalidated when the draft, dates or allocation rows change. Resource capacity is not checked until both overall booking dates are supplied.
 
 The preview is read-only and advisory. It does not reserve inventory and cannot guarantee that availability remains unchanged; the existing server-side revision and final booking-confirmation checks remain authoritative. API route coverage is included in apps/api/test/server.test.ts.
+
+
+When a space conflicts, the preview can offer other conflict-free spaces in the same venue that meet the line's requested capacity. Staff explicitly apply an alternative; doing so invalidates the prior preview and requires another check. Resource results also show estimated available quantity per active pool, helping staff understand where supply exists. Pool rows are informational rather than assignments: the current booking resource-line model allocates by resource type, not by a pinned pool.

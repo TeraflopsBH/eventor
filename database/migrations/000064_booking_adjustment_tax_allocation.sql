@@ -215,7 +215,7 @@ BEGIN
     ||'    v_tax_lines:=v_lines||(v_adjustment_tax->''taxLines'');'||E'\n'
     ||'    v_adjustments:=v_adjustment_tax->''adjustments'';'||E'\n'
     ||'  END IF;'||E'\n'
-    ||v_old;
+    ||'  IF v_subtotal < 0 OR v_subtotal > 999999999999.99 THEN';
   IF position(v_old in v_definition)=0 THEN
     RAISE EXCEPTION 'offer adjustment allocation insertion anchor not found';
   END IF;

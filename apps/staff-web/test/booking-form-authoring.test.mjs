@@ -208,7 +208,7 @@ test("base-language edits update canonical fields while secondary edits stay in 
 test("translation reads do not create or mutate translation state", async () => {
   const { workspace } = createWorkspace();
   await workspace.load();
-  const before = structuredClone(workspace.schema.value);
+  const before = JSON.parse(JSON.stringify(workspace.schema.value));
   assert.equal(workspace.fieldText("en", workspace.schema.value.fields[0], "label"), "Contact name");
   assert.deepEqual(workspace.translation("en"), { formName: "", fields: {} });
   assert.deepEqual(workspace.schema.value, before);

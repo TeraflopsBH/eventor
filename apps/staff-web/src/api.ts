@@ -6,18 +6,20 @@ export interface ApiProblem {
 }
 
 export class ApiError extends Error {
-  constructor(
-    message: string,
-    readonly status: number,
-    readonly code: string,
-    readonly requestId?: string,
-  ) {
+  readonly status: number;
+  readonly code: string;
+  readonly requestId?: string;
+
+  constructor(message: string, status: number, code: string, requestId?: string) {
     super(message);
     this.name = "ApiError";
+    this.status = status;
+    this.code = code;
+    this.requestId = requestId;
   }
 }
 
-const apiBase = (import.meta.env.VITE_API_BASE_URL || "/api").replace(/\/$/, "");
+const apiBase = (import.meta.env?.VITE_API_BASE_URL || "/api").replace(/\/$/, "");
 const csrfCookieName = "__Host-eventor_csrf";
 
 function readCookie(name: string): string | null {
@@ -41,7 +43,7 @@ function idempotencyKey(): string {
 async function request<T>(
   path: string,
   options: {
-    method?: "GET" | "POST" | "PUT" | "DELETE";
+    method?: "GET" | "POST" | "PUT" | "PATCH" | "DELETE";
     body?: unknown;
     idempotent?: boolean;
     idempotencyKey?: string;
@@ -352,6 +354,24 @@ export interface BookingDraftSpaceAvailabilityResult {
   conflicts: BookingDraftAllocationSpaceConflict[];
 }
 
+export interface BookingDraftSpaceAlternative {
+  venueSpaceId: string;
+  venueId: string;
+  venueName: string;
+  code: string;
+  name: string;
+  capacity: number | null;
+}
+
+export interface BookingDraftResourcePoolAvailability {
+  resourcePoolId: string;
+  code: string;
+  name: string;
+  venueName: string;
+  capacity: number;
+  availableQuantity: number;
+}
+
 export interface BookingDraftResourceAvailabilityResult {
   index: number;
   resourceTypeId: string;
@@ -367,6 +387,8 @@ export interface BookingDraftAllocationAvailabilityPreview {
   spaces: BookingDraftSpaceAvailabilityResult[];
   resources: BookingDraftResourceAvailabilityResult[];
   resourceIntervalChecked: boolean;
+  spaceAlternatives: Array<{ index: number; alternatives: BookingDraftSpaceAlternative[] }>;
+  resourcePools: Array<{ index: number; pools: BookingDraftResourcePoolAvailability[] }>;
   advisoryOnly: true;
   checkedAt: string;
 }
@@ -962,6 +984,7 @@ export const api = {
         startsAt: string;
         endsAt: string;
         blockKind: "setup" | "rehearsal" | "event_use" | "teardown" | "buffer";
+        requestedCapacity?: number | null;
       }>;
       resourceLines: Array<{ resourceTypeId: string; requestedQuantity: number }>;
       resourceStartsAt: string | null;
@@ -1178,7 +1201,7 @@ export const api = {
         startsAt: string;
         endsAt: string;
         blockKind: "setup" | "rehearsal" | "event_use" | "teardown" | "buffer";
-        requestedCapacity?: number;
+        requestedCapacity?: number | null;
       }>;
       resourceLines: Array<{
         resourceTypeId: string;

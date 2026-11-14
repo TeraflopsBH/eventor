@@ -46,9 +46,9 @@ const canManageBookingOffer = computed(() =>
 );
 const bookingOfferApprovalsSatisfied = computed(() => {
   const requirements = bookingOfferApprovalStatus.value?.requirements;
-  return Boolean(requirements) && requirements.every((item) =>
+  return requirements?.every((item) =>
     !item.blocked && item.approvedCount >= item.requiredApprovals,
-  );
+  ) ?? false;
 });
 const canConfirmBookingOffer = computed(() => {
   const revision = bookingOffer.value?.currentRevision;

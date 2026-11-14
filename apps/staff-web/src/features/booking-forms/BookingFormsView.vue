@@ -21,7 +21,7 @@ function setType(type: string): void {
 <section class="workspace-section">
   <div class="section-heading">
     <div><p class="eyebrow">{{ t("bookingForms.eyebrow") }}</p><h2>{{ t("bookingForms.title") }}</h2><p class="muted">{{ t("bookingForms.description") }}</p></div>
-    <button class="button button-quiet" :disabled="w.busy" @click="w.open">{{ t("bookingForms.refresh") }}</button>
+    <button class="button button-quiet" :disabled="w.busy.value" @click="w.open">{{ t("bookingForms.refresh") }}</button>
   </div>
   <div class="panel booking-form-create">
     <h3>{{ t("bookingForms.createTitle") }}</h3>
@@ -30,7 +30,7 @@ function setType(type: string): void {
       <label>{{ t("bookingForms.name") }}<input v-model="w.createForm.name" maxlength="250" /></label>
       <label>{{ t("bookingForms.baseLanguage") }}<select v-model="w.createForm.locale"><option v-for="item in locales" :key="item.value" :value="item.value">{{ item.label }}</option></select></label>
     </div>
-    <button class="button button-primary" :disabled="w.busy" @click="w.create">{{ t("bookingForms.create") }}</button>
+    <button class="button button-primary" :disabled="w.busy.value" @click="w.create">{{ t("bookingForms.create") }}</button>
   </div>
   <div class="booking-form-layout">
     <aside class="panel booking-form-list">
@@ -43,7 +43,7 @@ function setType(type: string): void {
     <div v-if="w.selectedForm" class="booking-form-editor">
       <section class="panel">
         <div class="section-heading compact"><div><p class="eyebrow">{{ w.selectedForm.formCode }}</p><h3>{{ w.selectedForm.name }}</h3><p class="muted">{{ t("bookingForms.revision", { number: w.latestRevision?.revisionNumber ?? 0 }) }} · {{ w.latestRevision?.state }}</p></div>
-          <button v-if="!w.editable" class="button button-secondary" :disabled="w.busy" @click="w.createRevision">{{ t("bookingForms.newRevision") }}</button>
+          <button v-if="!w.editable" class="button button-secondary" :disabled="w.busy.value" @click="w.createRevision">{{ t("bookingForms.newRevision") }}</button>
         </div>
         <div class="form-grid">
           <label>{{ t("bookingForms.baseLanguage") }}<select v-model="w.baseLocale" :disabled="!w.editable" @change="w.markDirty"><option v-for="item in locales" :key="item.value" :value="item.value">{{ item.label }}</option></select></label>
@@ -51,8 +51,8 @@ function setType(type: string): void {
         </div>
         <div class="booking-form-actions">
           <span class="muted">{{ w.dirty ? t("bookingForms.unsaved") : t("bookingForms.savedState") }}</span>
-          <button class="button button-primary" :disabled="w.busy || !w.editable || !w.dirty" @click="w.save">{{ t("bookingForms.saveDraft") }}</button>
-          <button class="button button-secondary" :disabled="w.busy || !w.editable || w.dirty || !w.schema.fields.length" @click="w.publish">{{ t("bookingForms.publish") }}</button>
+          <button class="button button-primary" :disabled="w.busy.value || !w.editable || !w.dirty" @click="w.save">{{ t("bookingForms.saveDraft") }}</button>
+          <button class="button button-secondary" :disabled="w.busy.value || !w.editable || w.dirty || !w.schema.fields.length" @click="w.publish">{{ t("bookingForms.publish") }}</button>
         </div>
       </section>
       <section class="panel">
@@ -98,7 +98,7 @@ function setType(type: string): void {
           <template v-for="field in w.schema.fields" :key="field.code">
             <div class="form-grid">
               <label>{{ field.code }} · {{ t("bookingForms.label") }}<input :value="w.fieldText(locale.value, field, 'label')" :disabled="!w.editable" @input="w.setFieldText(locale.value,field,'label',($event.target as HTMLInputElement).value)" /></label>
-              <label>{{ t("bookingForms.description") }}<input :value="w.fieldText(locale.value, field, 'description')" :disabled="!w.editable" @input="w.setFieldText(locale.value,field,'description',($event.target as HTMLInputElement).value)" /></label>
+              <label>{{ t("bookingForms.fieldDescription") }}<input :value="w.fieldText(locale.value, field, 'description')" :disabled="!w.editable" @input="w.setFieldText(locale.value,field,'description',($event.target as HTMLInputElement).value)" /></label>
               <label>{{ t("bookingForms.helpText") }}<input :value="w.fieldText(locale.value, field, 'helpText')" :disabled="!w.editable" @input="w.setFieldText(locale.value,field,'helpText',($event.target as HTMLInputElement).value)" /></label>
               <label>{{ t("bookingForms.placeholder") }}<input :value="w.fieldText(locale.value, field, 'placeholder')" :disabled="!w.editable" @input="w.setFieldText(locale.value,field,'placeholder',($event.target as HTMLInputElement).value)" /></label>
               <template v-for="option in field.options || []" :key="option.value"><label>{{ option.value }}<input :value="w.optionText(locale.value,field,option.value,'')" :disabled="!w.editable" @input="w.setOptionText(locale.value,field,option.value,($event.target as HTMLInputElement).value)" /></label></template>

@@ -5,8 +5,8 @@ This matrix tracks executable PostgreSQL integration coverage and remaining gaps
 ## Tenant relationships
 - [x] Same-organization person merge target accepted.
 - [x] Cross-organization person merge target rejected.
-- [ ] Same-organization credential replacement accepted.
-- [ ] Cross-organization credential replacement rejected.
+- [x] Same-organization credential replacement is accepted; the delivery-configuration smoke test replaces the credential envelope with distinct bytes and verifies the new envelope is used by the SMTP test command.
+- [x] Cross-organization credential replacement is rejected with SQLSTATE 42501 when an active membership from another tenant invokes the organization-scoped command.
 - [x] User actor with active membership in owning organization accepted.
 - [ ] User with no membership in owning organization rejected.
 - [ ] Member without operation permission rejected by API authorization.
@@ -40,7 +40,7 @@ This matrix tracks executable PostgreSQL integration coverage and remaining gaps
 
 ## Venue hierarchy
 - [x] Valid organization → venue → building → level → space accepted.
-- [ ] Space pointing to a building from a different venue rejected.
+- [x] Space pointing to a building from a different venue is rejected by the composite organization/venue/building foreign key; `tests/database/migration_smoke.sql` attempts the cross-venue reference and requires a foreign-key violation.
 - [x] Space pointing to a level from another building rejected.
 - [x] Space with a level but no building rejected.
 - [x] Cross-organization hierarchy reference rejected.
@@ -65,26 +65,26 @@ This matrix tracks executable PostgreSQL integration coverage and remaining gaps
 - [x] Runtime and worker roles cannot UPDATE/DELETE space-time block rows directly; lifecycle changes use controlled commands.
 - [x] Accepted draft resource and space holds are converted atomically to confirmed booking reservations through a permission-gated command; retries do not duplicate occupancy or audit history.
 - [x] Cancelled booking reservations are released only by caller-selected IDs (resource and/or space rows); mixed invalid IDs are rejected atomically, partial release leaves unselected rows intact, and retries emit no duplicate audit.
-- [ ] Overlap is rejected even when one claim originated as a temporary hold and the other as a booking reservation.
-- [ ] Released/cancelled/expired interval no longer blocks a new reservation.
+- [x] Overlap is rejected even when one claim originated as a temporary hold and the other as a booking reservation (the commercial end-to-end fixture attempts a new overlapping draft hold after confirming the booking and asserts SQLSTATE 23P01 plus no persisted hold).
+- [x] Released/cancelled/expired interval no longer blocks a new reservation (CI releases a cancelled booking's selected space reservation, expires an overdue draft hold through `expire_space_holds`, retains a cancelled draft hold, then verifies the runtime role can create a new overlapping hold).
 - [ ] Hold extension that creates a conflict is rejected atomically.
-- [ ] Booking with multiple spaces/times commits all or none.
-- [ ] Concurrent overlapping transactions using separate database connections result in at most one active reservation.
+- [x] Booking with multiple spaces/times commits all or none (the commercial end-to-end fixture verifies incomplete two-space confirmation leaves the existing hold untouched, then confirms both space/time reservations together).
+- [x] Concurrent overlapping space-hold transactions on separate runtime connections result in at most one active reservation; the second transaction waits for the first commit and then receives exclusion SQLSTATE 23P01.
 - [ ] Reschedule conflict leaves the prior confirmed schedule unchanged.
 
 - [ ] A space-time block has exactly one typed, tenant-safe origin reference.
 - [ ] A hold-to-booking conversion retains continuous exclusion protection under concurrent confirmation/expiry.
-- [ ] Expiry worker and reservation command serialize on the same space lock; no stale held row can block indefinitely.
+- [x] Expiry worker and runtime reservation conversion serialize on the same hold row; an independent-login worker-first regression proves conversion waits for expiry commit and cannot convert the terminal hold.
 
 ## Equipment/personnel
-- [ ] Same discrete unit cannot be reserved for overlapping time.
-- [ ] Different units in a pool can be reserved concurrently when capacity allows.
+- [x] Same discrete unit cannot be reserved for overlapping time.
+- [x] Different discrete units in one pool can hold overlapping intervals within the booking-line quantity; `review_regressions.sql` reserves four distinct units for the same interval and rejects a fifth.
 - [x] Pooled capacity is never exceeded under concurrent requests.
 - [x] A booking resource line’s peak simultaneous quantity cannot be exceeded across separate pools.
 - [x] Individually tracked unit reservations are included in the booking resource line quantity limit; a fifth overlapping unit is rejected when the requested quantity is four.
 - [x] Pooled and individually tracked reservations share one aggregate pool-capacity invariant.
 - [x] Pooled reservation idempotency compares the booking resource line as part of the payload.
-- [ ] Disjoint sub-interval reservations that both intersect a long requested interval are evaluated by peak simultaneous quantity, not incorrectly summed across the entire interval.
+- [x] Disjoint sub-interval reservations that both intersect a long requested interval are evaluated by peak simultaneous quantity, not incorrectly summed across the entire interval.
 - [x] Adjacent half-open pool intervals do not count as simultaneous.
 - [x] Expired pooled and individually tracked holds are expired by the worker; pool capacity is reclaimed and the same discrete unit can be reserved again.
 - [ ] Resource line request/approval/delivery values remain separate from actual reservation records.
@@ -113,7 +113,7 @@ This matrix tracks executable PostgreSQL integration coverage and remaining gaps
 - [x] Runtime role lacks UPDATE/DELETE privileges on append-only history tables.
 - [x] Table triggers also reject UPDATE/DELETE when executed by the table owner.
 - [x] Booking draft revisions reject UPDATE/DELETE.
-- [ ] Invitation revisions reject UPDATE/DELETE in a dedicated regression test.
+- [x] Invitation revisions reject UPDATE/DELETE under owner-level access; `event_cancellation_postponement_smoke.sql` uses a fixture revision and requires SQLSTATE 55000 for both operations.
 - [x] Issued offer terms reject mutation; only one terminal offer decision transition is permitted.
 - [x] Booking-event link grant provenance is written to audit history and substantive link fields cannot be rewritten.
 - [x] Booking-event link and venue snapshot share lifecycle transitions are one-way and auditable.

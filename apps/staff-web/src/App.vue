@@ -57,6 +57,7 @@ const { principal, showError, refreshSession } = staffSessionState;
 function applyOrganizationDefaultLocale(value: SupportedLocale): void {
   if (principal.value?.userLocale === null) locale.value = value;
 }
+const organizationLocaleWorkspace = { busy, pageNotice };
 
 
 const canReadBookingDraft = computed(() =>
@@ -79,6 +80,7 @@ const bookingInquiryState = useBookingInquiries({
   principal, busy, activeTab, pageError, pageNotice, api,
   clearMessages, showError, clearBookingDraftState, translate,
 });
+const bookingInquiryWorkspace = { ...bookingInquiryState, principal, busy, canReadBookingDraft };
 const {
   inquiryDetail, inquiryCapabilities, refreshInquiryDetailData, openInquiryWorkspace,
   reset: resetBookingInquiries,
@@ -109,24 +111,29 @@ const commercialBookingWorkspace = { ...bookingDraftState, ...bookingOfferState,
 const bookingTaxProfileState = useBookingTaxProfiles({
   api, busy, pageError, pageNotice, activeTab, clearMessages, showError, translate,
 });
+const bookingTaxProfilesWorkspace = { ...bookingTaxProfileState, busy };
 const { publishedTaxProfileRevisions, loadBookingTaxProfiles } = bookingTaxProfileState;
 
 const bookingPriceListState = useBookingPriceLists({
   api, busy, pageError, pageNotice, activeTab, clearMessages, showError,
   publishedTaxProfileRevisions, loadBookingTaxProfiles, translate,
 });
+const bookingPriceListsWorkspace = { ...bookingPriceListState, busy };
 
 
 const bookingApprovalPolicyState = useBookingApprovalPolicies({
   api, busy, pageError, pageNotice, activeTab, clearMessages, showError, translate,
 });
+const bookingApprovalPoliciesWorkspace = { ...bookingApprovalPolicyState, busy };
 
 
 const bookingFormState = useBookingForms({ api, busy, pageError, pageNotice, clearMessages, showError, translate });
+const bookingFormsWorkspace = { ...bookingFormState, busy };
 
 const bookingCancellationPolicyState = useBookingCancellationPolicies({
   api, busy, pageError, pageNotice, activeTab, clearMessages, showError, translate,
 });
+const bookingCancellationPoliciesWorkspace = { ...bookingCancellationPolicyState, busy };
 
 const campaignState = useCampaigns({
   api, busy, pageError, pageNotice, clearMessages, showError, translate,
@@ -203,7 +210,7 @@ onMounted(() => {
     <EmailDeliveryView v-if="activeTab === 'delivery'" :workspace="emailDeliveryWorkspace" />
     <BookingInquiryView
         v-else-if="activeTab === 'inquiries'"
-        :workspace="{ ...bookingInquiryState, principal, busy, canReadBookingDraft }"
+        :workspace="bookingInquiryWorkspace"
         @open-booking-draft="openBookingDraft"
       >
         <template #booking-draft-editor>
@@ -215,17 +222,17 @@ onMounted(() => {
       </BookingInquiryView>
 
 
-      <BookingFormsView v-else-if="activeTab === 'forms'" :workspace="{ ...bookingFormState, busy }" />
+      <BookingFormsView v-else-if="activeTab === 'forms'" :workspace="bookingFormsWorkspace" />
 
-      <BookingPriceListsView v-else-if="activeTab === 'prices'" :workspace="{ ...bookingPriceListState, busy }" />
+      <BookingPriceListsView v-else-if="activeTab === 'prices'" :workspace="bookingPriceListsWorkspace" />
 
-      <BookingApprovalPoliciesView v-else-if="activeTab === 'approvals'" :workspace="{ ...bookingApprovalPolicyState, busy }" />
+      <BookingApprovalPoliciesView v-else-if="activeTab === 'approvals'" :workspace="bookingApprovalPoliciesWorkspace" />
 
-      <BookingTaxProfilesView v-else-if="activeTab === 'taxes'" :workspace="{ ...bookingTaxProfileState, busy }" />
+      <BookingTaxProfilesView v-else-if="activeTab === 'taxes'" :workspace="bookingTaxProfilesWorkspace" />
 
-      <BookingCancellationPoliciesView v-else-if="activeTab === 'cancellations'" :workspace="{ ...bookingCancellationPolicyState, busy }" />
+      <BookingCancellationPoliciesView v-else-if="activeTab === 'cancellations'" :workspace="bookingCancellationPoliciesWorkspace" />
 
-      <OrganizationLocaleView v-else-if="activeTab === 'settings'" :busy="busy" :page-notice="pageNotice" :show-error="showError" :translate="translate" :on-default-locale-changed="applyOrganizationDefaultLocale" />
+      <OrganizationLocaleView v-else-if="activeTab === 'settings'" :busy="organizationLocaleWorkspace.busy" :page-notice="organizationLocaleWorkspace.pageNotice" :show-error="showError" :translate="translate" :on-default-locale-changed="applyOrganizationDefaultLocale" />
 
       <CampaignWorkspaceView v-else :workspace="campaignWorkspace" />
     

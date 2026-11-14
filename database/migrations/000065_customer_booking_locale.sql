@@ -395,12 +395,6 @@ BEGIN
 END;
 $function$;
 
-CREATE FUNCTION eogp.complete_booking_offer_email_delivery(
-  p_organization_id uuid,
-  p_delivery_id uuid,
-  p_outcome text,
-
-
 REVOKE ALL ON FUNCTION eogp.claim_booking_offer_email_delivery(uuid)
   FROM PUBLIC,eventor_runtime,eventor_auth;
 GRANT EXECUTE ON FUNCTION eogp.claim_booking_offer_email_delivery(uuid)

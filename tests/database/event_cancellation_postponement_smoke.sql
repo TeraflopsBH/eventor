@@ -617,4 +617,39 @@ BEGIN
 END;
 $postpone_assertions$;
 
+-- Invitation revisions are append-only even for the table owner. Exercise both
+-- mutation operations against a real revision from this transaction's fixture.
+DO $invitation_revision_append_only$
+DECLARE
+  v_rejected boolean;
+BEGIN
+  v_rejected := false;
+  BEGIN
+    UPDATE eogp.invitation_revisions
+       SET presentation_snapshot_ciphertext=decode('aabbccdd','hex')
+     WHERE organization_id='22222222-2222-4222-8222-222222222222'
+       AND id='90800000-0000-4000-8000-000000000001';
+    RAISE EXCEPTION 'invitation revision UPDATE unexpectedly succeeded';
+  EXCEPTION WHEN SQLSTATE '55000' THEN
+    v_rejected := true;
+  END;
+  IF NOT v_rejected THEN
+    RAISE EXCEPTION 'invitation revision UPDATE was not rejected';
+  END IF;
+
+  v_rejected := false;
+  BEGIN
+    DELETE FROM eogp.invitation_revisions
+     WHERE organization_id='22222222-2222-4222-8222-222222222222'
+       AND id='90800000-0000-4000-8000-000000000001';
+    RAISE EXCEPTION 'invitation revision DELETE unexpectedly succeeded';
+  EXCEPTION WHEN SQLSTATE '55000' THEN
+    v_rejected := true;
+  END;
+  IF NOT v_rejected THEN
+    RAISE EXCEPTION 'invitation revision DELETE was not rejected';
+  END IF;
+END;
+$invitation_revision_append_only$;
+
 ROLLBACK;

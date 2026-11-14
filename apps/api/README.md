@@ -195,7 +195,7 @@ When behind a reverse proxy, configure `EVENTOR_TRUST_PROXY_CIDRS` with only pro
 Build and start the API:
 
 ```sh
-npm install
+npm ci
 npm run build
 npm start
 ```
@@ -214,7 +214,7 @@ The API requires `EVENTOR_RUNTIME_DATABASE_URL`, `EVENTOR_AUTH_DATABASE_URL`, `E
 From this directory:
 
 ```sh
-npm install --no-package-lock
+npm ci
 npm test
 ```
 
@@ -233,3 +233,6 @@ CI regenerates OpenAPI TypeScript declarations, runs strict TypeScript compilati
 ## Booking allocation availability preview
 
 The authenticated POST /booking-drafts/{draftId}/allocation-availability-preview endpoint returns a read-only advisory preview for proposed space and resource lines. Space intervals are checked against active holds, confirmed bookings and maintenance blocks. Resource quantities are checked against the estimated remaining capacity across active pools over the requested overall booking interval. The preview requires booking.draft.read (or booking.draft.manage), is tenant-scoped, and never creates holds. Results can become stale immediately; draft revision writes and final booking confirmation retain the authoritative reservation checks.
+
+
+The allocation availability preview also returns conflict-free alternative spaces from the same venue (respecting the line's requested capacity) and a per-pool resource-capacity breakdown for the requested interval. These are advisory suggestions only. Applying a space alternative changes the draft editor selection and requires a fresh preview; resource-pool breakdowns are informational because resource-type lines do not pin a particular pool. No suggestion creates a hold or reservation.

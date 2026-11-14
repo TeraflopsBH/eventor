@@ -10,7 +10,6 @@ const props = defineProps<{ workspace: Workspace }>();
 const { formatDate } = useInquiryPresentation();
 const { t } = useI18n();
 const statusLabel = (value: string) => { const key = `commercialConfiguration.viewValues.${value}`; const translated = t(key as never) as string; return translated === key ? value : translated; };
-const enumLabel = (value: string) => statusLabel(value);
 
 const {
   approvalPolicies,

@@ -39,7 +39,7 @@ function optionalPublicAppBaseUrl(): string | undefined {
   if (parsed.protocol !== "https:" || parsed.username || parsed.password || parsed.search || parsed.hash) {
     throw new Error("EVENTOR_PUBLIC_APP_BASE_URL must use HTTPS and must not contain credentials, query parameters or a fragment.");
   }
-  return parsed.toString().replace(/\\/+$/, "");
+  return parsed.toString().replace(/\/+$/, "");
 }
 const publicAppBaseUrl = optionalPublicAppBaseUrl();
 
@@ -56,14 +56,6 @@ pool.on("error", (error) => {
     message: error.message,
   }) + "\n");
 });
-
-async function shutdown(signal: string): Promise<void> {
-  process.stdout.write(JSON.stringify({ level: "info", event: "worker_shutdown", signal }) + "\n");
-  await pool.end();
-  process.exit(0);
-}
-process.once("SIGINT", () => { void shutdown("SIGINT"); });
-process.once("SIGTERM", () => { void shutdown("SIGTERM"); });
 
 try {
   await runEventNotificationWorker(pool, {
@@ -89,6 +81,9 @@ try {
       }) + "\n");
     },
   });
+  // runEventNotificationWorker owns signal handling and exits its loop only
+  // after the current processing cycle completes. Close the pool afterwards.
+  await pool.end();
 } catch (error) {
   process.stderr.write(JSON.stringify({
     level: "fatal",

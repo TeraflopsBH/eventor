@@ -466,3 +466,22 @@ textarea:focus { border-color: var(--accent); box-shadow: 0 0 0 3px #f5863420; }
 .draft-allocation-preview .inquiry-card-heading { align-items: center; }
 .allocation-preview-result { display: grid; grid-template-columns: minmax(100px, 1fr) auto; gap: 6px 12px; align-items: center; padding: 10px 0; border-top: 1px solid var(--border); }
 .allocation-preview-result p { grid-column: 1 / -1; margin: 0; }
+
+
+/* Advisory booking allocation alternatives */
+.allocation-alternatives,
+.allocation-pool-breakdown {
+  display: grid;
+  gap: 0.4rem;
+  margin-top: 0.65rem;
+}
+.allocation-alternatives .button {
+  justify-self: start;
+  text-align: left;
+}
+.allocation-pool-breakdown ul {
+  display: grid;
+  gap: 0.25rem;
+  margin: 0.25rem 0 0;
+  padding-left: 1.25rem;
+}

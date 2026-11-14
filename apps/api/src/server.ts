@@ -702,6 +702,7 @@ const bookingDraftAllocationAvailabilityPreviewBody = {
           startsAt: { type: "string", format: "date-time" },
           endsAt: { type: "string", format: "date-time" },
           blockKind: { type: "string", enum: ["setup", "rehearsal", "event_use", "teardown", "buffer"] },
+          requestedCapacity: { type: "integer", minimum: 1 },
         },
         additionalProperties: true,
       },
@@ -1795,6 +1796,8 @@ export function buildApi(dependencies: ApiDependencies): FastifyInstance {
             spaces: [],
             resources: [],
             resourceIntervalChecked: false,
+            spaceAlternatives: [],
+            resourcePools: [],
             advisoryOnly: true,
           },
         });

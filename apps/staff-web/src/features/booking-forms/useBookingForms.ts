@@ -1,6 +1,6 @@
 import { computed, reactive, ref, type Ref } from "vue";
 import type { BookingForm, BookingFormField, BookingFormSchema, BookingFormTranslation } from "../../api";
-import { moveBookingFormField, validateBookingFormDraft } from "./validateBookingFormDraft";
+import { moveBookingFormField, validateBookingFormDraft } from "./validateBookingFormDraft.ts";
 
 type Locale = "bs-BA" | "en";
 type Translate = (key: string, params?: Record<string, string | number>) => string;

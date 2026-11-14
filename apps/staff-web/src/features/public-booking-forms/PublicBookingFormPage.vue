@@ -205,7 +205,7 @@ onMounted(() => { void loadForm(); });
           <template v-for="field in form.fieldSchema.fields" :key="field.code">
             <label v-if="field.type === 'textarea'">
               {{ fieldLabel(field) }}{{ field.required ? " *" : "" }}
-              <textarea v-model="answers[field.code]" :name="field.code" :required="field.required" :minlength="field.minLength" :maxlength="field.maxLength" :placeholder="fieldPlaceholder(field)" rows="4" />
+              <textarea :value="String(answers[field.code] ?? '')" :name="field.code" :required="field.required" :minlength="field.minLength" :maxlength="field.maxLength" :placeholder="fieldPlaceholder(field)" rows="4" @input="answers[field.code] = ($event.target as HTMLTextAreaElement).value" />
               <small v-if="fieldDescription(field) || fieldHelpText(field)" class="muted">{{ fieldDescription(field) || fieldHelpText(field) }}</small>
             </label>
             <label v-else-if="field.type === 'select'">

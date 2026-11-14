@@ -51,7 +51,8 @@ DECLARE
     'eogp.create_booking_tax_profile_revision(uuid,uuid,uuid,text,text,text,text,text,integer,timestamptz,timestamptz)',
     'eogp.update_booking_tax_profile_draft_revision(uuid,uuid,uuid,uuid,text,text,text,text,text,integer,timestamptz,timestamptz,jsonb)',
     'eogp.publish_booking_tax_profile_revision(uuid,uuid,uuid,uuid)',
-    'eogp.set_booking_price_list_tax_profile_revision(uuid,uuid,uuid,uuid,uuid)'
+    'eogp.set_booking_price_list_tax_profile_revision(uuid,uuid,uuid,uuid,uuid)',
+  'eogp.preview_booking_draft_allocation_availability(uuid,uuid,uuid,jsonb,jsonb,timestamptz,timestamptz)'
   ];
 BEGIN
   FOREACH v_name IN ARRAY v_required_tables LOOP
@@ -74,25 +75,26 @@ BEGIN
     END IF;
   END LOOP;
 
-  IF has_table_privilege(current_user,'eogp.booking_offers','SELECT')
-     OR has_table_privilege(current_user,'eogp.booking_offer_revisions','SELECT')
-     OR has_table_privilege(current_user,'eogp.external_action_capabilities','SELECT')
-     OR has_table_privilege(current_user,'eogp.booking_offer_capability_lookup','SELECT')
-     OR has_table_privilege(current_user,'eogp.booking_offer_decision_history','SELECT')
-     OR has_table_privilege(current_user,'eogp.booking_offer_approval_decisions','SELECT')
-     OR has_table_privilege(current_user,'eogp.booking_approval_policies','SELECT')
-     OR has_table_privilege(current_user,'eogp.booking_approval_policy_revisions','SELECT')
-     OR has_table_privilege(current_user,'eogp.booking_offer_expiry_tenant_queue','SELECT')
-     OR has_table_privilege(current_user,'eogp.booking_offer_email_deliveries','SELECT')
-     OR has_table_privilege(current_user,'eogp.booking_offer_email_delivery_tenant_queue','SELECT')
-     OR has_table_privilege(current_user,'eogp.booking_price_lists','SELECT')
-     OR has_table_privilege(current_user,'eogp.booking_price_list_revisions','SELECT')
-     OR has_table_privilege(current_user,'eogp.booking_price_items','SELECT')
-     OR has_table_privilege(current_user,'eogp.cancellation_policies','SELECT')
-     OR has_table_privilege(current_user,'eogp.cancellation_policy_revisions','SELECT')
-     OR has_table_privilege(current_user,'eogp.booking_tax_profiles','SELECT')
-     OR has_table_privilege(current_user,'eogp.booking_tax_profile_revisions','SELECT') THEN
-    RAISE EXCEPTION 'runtime role has direct table read access to protected commercial data';
+  SELECT string_agg(table_name, ', ' ORDER BY table_name)
+    INTO v_name
+    FROM unnest(ARRAY[
+      'booking_offers','booking_offer_revisions','external_action_capabilities',
+      'booking_offer_capability_lookup','booking_offer_decision_history',
+      'booking_offer_approval_decisions','booking_approval_policies',
+      'booking_approval_policy_revisions','booking_offer_expiry_tenant_queue',
+      'booking_offer_email_deliveries','booking_offer_email_delivery_tenant_queue',
+      'booking_price_lists','booking_price_list_revisions','booking_price_items',
+      'cancellation_policies','cancellation_policy_revisions',
+      'booking_tax_profiles','booking_tax_profile_revisions'
+    ]) AS protected(table_name)
+   WHERE has_table_privilege(current_user,format('eogp.%I',table_name),'SELECT');
+  IF v_name IS NOT NULL THEN
+    RAISE EXCEPTION 'runtime role has direct table read access to protected commercial data: %',v_name;
+  END IF;
+
+  IF has_function_privilege(current_user,
+       'eogp.preview_booking_draft_allocation_availability_base(uuid,uuid,uuid,jsonb,jsonb,timestamptz,timestamptz)','EXECUTE') THEN
+    RAISE EXCEPTION 'runtime role must not execute the internal base allocation preview helper directly';
   END IF;
 
   IF to_regprocedure('eogp.allocate_booking_offer_adjustment_tax(uuid,uuid,jsonb,jsonb,text)') IS NULL THEN
@@ -312,6 +314,43 @@ BEGIN
       AND t.tgname='booking_price_items_published_parent_guard' AND NOT t.tgisinternal
   ) THEN
     RAISE EXCEPTION 'price-list revision and item immutability guards are missing';
+  END IF;
+
+  -- Migration 000072 must keep bearer capability records opaque to both
+  -- application roles, and keep its trigger helper outside every app role.
+  IF EXISTS (
+    SELECT 1
+      FROM (VALUES ('eventor_runtime'), ('eventor_worker')) AS roles(role_name)
+      CROSS JOIN (VALUES
+        ('SELECT'), ('INSERT'), ('UPDATE'), ('DELETE'),
+        ('TRUNCATE'), ('REFERENCES'), ('TRIGGER')
+      ) AS privileges(privilege_name)
+     WHERE has_table_privilege(
+       role_name, 'eogp.external_action_capabilities', privilege_name
+     )
+  ) THEN
+    RAISE EXCEPTION 'runtime or worker role has direct privileges on bearer capability records';
+  END IF;
+
+  IF to_regprocedure('eogp.assert_revision_parent_mutable(text,jsonb)') IS NULL
+     OR has_function_privilege('eventor_runtime',
+       'eogp.assert_revision_parent_mutable(text,jsonb)', 'EXECUTE')
+     OR has_function_privilege('eventor_worker',
+       'eogp.assert_revision_parent_mutable(text,jsonb)', 'EXECUTE')
+     OR has_function_privilege('eventor_auth',
+       'eogp.assert_revision_parent_mutable(text,jsonb)', 'EXECUTE')
+     OR EXISTS (
+       SELECT 1
+         FROM pg_catalog.pg_proc function
+         CROSS JOIN LATERAL aclexplode(coalesce(
+           function.proacl,
+           acldefault('f', function.proowner)
+         )) privilege
+        WHERE function.oid = to_regprocedure('eogp.assert_revision_parent_mutable(text,jsonb)')
+          AND privilege.grantee = 0
+          AND privilege.privilege_type = 'EXECUTE'
+     ) THEN
+    RAISE EXCEPTION 'internal revision-parent trigger helper is missing or executable by an application role/PUBLIC';
   END IF;
 
 END;

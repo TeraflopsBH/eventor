@@ -1,14 +1,14 @@
 import { computed, ref, watch, type ComputedRef, type Ref } from "vue";
-import { ApiError, api, type BookingDraftAllocationAvailabilityPreview, type BookingDraftAllocationOptions, type BookingDraftDetail, type BookingDraftSpaceLine, type PublicBookingFormField } from "../../api";
-import { initializePublicBookingAnswers, mergePublicBookingAnswers, validatePublicBookingAnswers } from "../public-booking-forms/publicBookingForm";
-import { formatBookingAnswerItems } from "../booking-inquiries/presentation";
+import { ApiError, api, type BookingDraftAllocationAvailabilityPreview, type BookingDraftAllocationOptions, type BookingDraftDetail, type BookingDraftSpaceLine, type PublicBookingFormField } from "../../api.ts";
+import { initializePublicBookingAnswers, mergePublicBookingAnswers, validatePublicBookingAnswers } from "../public-booking-forms/publicBookingForm.ts";
+import { formatBookingAnswerItems } from "../booking-inquiries/presentation.ts";
 import {
   formatBookingDraftResourceLines,
   formatBookingDraftSpaceLines,
   validateBookingDraftAllocations,
   type BookingDraftResourceAllocationInput,
   type BookingDraftSpaceAllocationInput,
-} from "./bookingDraftAllocations";
+} from "./bookingDraftAllocations.ts";
 
 type BookingDraftApi = typeof api;
 
@@ -64,13 +64,22 @@ export function useBookingDraft(dependencies: BookingDraftDependencies) {
     allocationAvailabilityPreview.value !== null
     && allocationAvailabilityPreviewKey.value === allocationPreviewInputKey.value
   );
+  let allocationPreviewRequestSequence = 0;
   watch(allocationPreviewInputKey, () => {
+    allocationPreviewRequestSequence += 1;
     allocationAvailabilityPreviewKey.value = "";
+    allocationAvailabilityPreviewBusy.value = false;
   }, { flush: "sync" });
 
   const sourceAnswerItems = computed(() => {
     const revision = detail.value?.currentRevision;
-    return formatBookingAnswerItems(revision?.fieldSchema, revision?.values?.answers);
+    const answers = revision?.values?.answers;
+    return formatBookingAnswerItems(
+      revision?.fieldSchema,
+      answers && typeof answers === "object" && !Array.isArray(answers)
+        ? answers as Record<string, unknown>
+        : null,
+    );
   });
 
   const canManage = computed(() =>
@@ -80,6 +89,8 @@ export function useBookingDraft(dependencies: BookingDraftDependencies) {
   );
 
   function populateEditor(draft: BookingDraftDetail): void {
+    allocationPreviewRequestSequence += 1;
+    allocationAvailabilityPreviewBusy.value = false;
     allocationAvailabilityPreview.value = null;
     allocationAvailabilityPreviewKey.value = "";
     const revision = draft.currentRevision;
@@ -100,6 +111,7 @@ export function useBookingDraft(dependencies: BookingDraftDependencies) {
   }
 
   function reset(): void {
+    allocationPreviewRequestSequence += 1;
     detail.value = null;
     editorOpen.value = false;
     valuesJson.value = "{}";
@@ -166,11 +178,14 @@ export function useBookingDraft(dependencies: BookingDraftDependencies) {
 
     clearMessages();
     allocationAvailabilityPreviewBusy.value = true;
+    const requestSequence = ++allocationPreviewRequestSequence;
     const requestedKey = allocationPreviewInputKey.value;
     try {
       const result = await bookingApi.previewBookingDraftAllocationAvailability(draft.draftId, {
-        spaceLines: spaceLines.value.map(({ venueSpaceId, startsAt, endsAt, blockKind }) => ({
+        spaceLines: spaceLines.value.map(({ venueSpaceId, startsAt, endsAt, blockKind, requestedCapacity }) => ({
           venueSpaceId, startsAt, endsAt, blockKind,
+          ...(requestedCapacity === "" || requestedCapacity === null || requestedCapacity === undefined
+            ? {} : { requestedCapacity }),
         })),
         resourceLines: resourceLines.value.map(({ resourceTypeId, requestedQuantity }) => ({
           resourceTypeId, requestedQuantity,
@@ -178,12 +193,16 @@ export function useBookingDraft(dependencies: BookingDraftDependencies) {
         resourceStartsAt: requestedStart.value.trim() || null,
         resourceEndsAt: requestedEnd.value.trim() || null,
       });
-      allocationAvailabilityPreview.value = result.data;
-      allocationAvailabilityPreviewKey.value = requestedKey;
+      if (requestSequence === allocationPreviewRequestSequence) {
+        allocationAvailabilityPreview.value = result.data;
+        allocationAvailabilityPreviewKey.value = requestedKey;
+      }
     } catch (error) {
-      showError(error);
+      if (requestSequence === allocationPreviewRequestSequence) showError(error);
     } finally {
-      allocationAvailabilityPreviewBusy.value = false;
+      if (requestSequence === allocationPreviewRequestSequence) {
+        allocationAvailabilityPreviewBusy.value = false;
+      }
     }
   }
 
@@ -210,9 +229,9 @@ export function useBookingDraft(dependencies: BookingDraftDependencies) {
       }
       normalizedSpaceLines = spaceLines.value.map(({ requestedCapacity, ...line }) => ({
         ...line,
-        ...(requestedCapacity === "" || requestedCapacity === 0 || requestedCapacity === null || requestedCapacity === undefined
-          ? {}
-          : { requestedCapacity }),
+        requestedCapacity: typeof requestedCapacity === "number" && requestedCapacity > 0
+          ? requestedCapacity
+          : null,
       }));
       normalizedResourceLines = resourceLines.value.map((line) => ({ ...line, values: { ...(line.values ?? {}) } }));
       if (sourceFormFields.value.length) {
@@ -299,6 +318,10 @@ export function useBookingDraft(dependencies: BookingDraftDependencies) {
       blockKind: "event_use",
     }),
     removeSpaceLine: (index: number) => spaceLines.value.splice(index, 1),
+    applySpaceAlternative: (lineNumber: number, venueSpaceId: string) => {
+      const line = spaceLines.value[lineNumber - 1];
+      if (line) line.venueSpaceId = venueSpaceId;
+    },
     addResourceLine: () => resourceLines.value.push({ resourceTypeId: "", requestedQuantity: 1, values: {} }),
     removeResourceLine: (index: number) => resourceLines.value.splice(index, 1),
     requestedStart,

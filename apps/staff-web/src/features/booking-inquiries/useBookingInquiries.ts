@@ -5,7 +5,7 @@ import { formatBookingAnswerItems, resolveInquiryAssigneeName } from "./presenta
 
 type InquiryStatusCommand = "received" | "under_review" | "declined" | "spam";
 type ApiClient = typeof defaultApi;
-type StaffTab = "delivery" | "campaign" | "inquiries" | "approvals" | "prices" | "cancellations" | "taxes";
+type StaffTab = "delivery" | "campaign" | "inquiries" | "approvals" | "prices" | "cancellations" | "taxes" | "forms" | "settings";
 interface BookingInquiriesOptions {
   principal: Ref<Principal | null>; busy: Ref<boolean>; activeTab: Ref<StaffTab>;
   pageError: Ref<string>; pageNotice: Ref<string>; api: ApiClient;
