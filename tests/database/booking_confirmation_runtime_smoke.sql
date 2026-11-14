@@ -126,6 +126,21 @@ BEGIN
   EXCEPTION WHEN SQLSTATE '42501' THEN
     NULL;
   END;
+
+  -- The same unauthorized actor must be rejected before a nonexistent
+  -- booking ID is inspected; otherwise the function leaks booking existence.
+  BEGIN
+    PERFORM eogp.confirm_booking_reservations(
+      '11111111-1111-4111-8111-111111111111',
+      '51000000-0000-4000-8000-000000000002',
+      'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa',
+      'bbbbbbbb-2222-4222-8222-bbbbbbbbbbbb',
+      'ci_wrong_actor_unknown_booking'
+    );
+    RAISE EXCEPTION 'booking confirmation did not authorize before unknown-booking lookup';
+  EXCEPTION WHEN SQLSTATE '42501' THEN
+    NULL;
+  END;
 END;
 $test$;
 COMMIT;
