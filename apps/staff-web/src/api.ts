@@ -210,6 +210,18 @@ export interface DeliveryAttempt {
   retryScheduled: boolean;
 }
 
+export interface GuestInvitationDeliveryAttempt {
+  attemptId: string;
+  deliveryId: string;
+  attemptNumber: number;
+  status: "sending" | "sent" | "failed" | "uncertain";
+  failureCode: string | null;
+  providerMessageReference: string | null;
+  startedAt: string;
+  completedAt: string | null;
+  retryScheduled: boolean;
+}
+
 export interface GuestInvitationEvent {
   eventId: string;
   eventCode: string;
@@ -1321,6 +1333,10 @@ export const api = {
     request<Envelope<Record<string, unknown>>>(
       `/invitations/${encodeURIComponent(invitationId)}/revoke`,
       { method: "POST", body: { reasonCode }, idempotent: true },
+    ),
+  getGuestInvitationDeliveryAttempts: (invitationId: string) =>
+    request<Envelope<GuestInvitationDeliveryAttempt[]>>(
+      `/invitations/${encodeURIComponent(invitationId)}/delivery-attempts`,
     ),
   getGuestInvitation: (token: string) =>
     request<Envelope<GuestInvitation>>("/guest/invitation/me", {
