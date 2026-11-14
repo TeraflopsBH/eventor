@@ -3059,7 +3059,11 @@ export function buildApi(dependencies: ApiDependencies): FastifyInstance {
           );
           return result.rows[0]?.result as Record<string, unknown>;
         },
-      );
+        async (client) => {
+          await client.query<ResultRow>(
+            "SELECT eogp.list_guest_invitation_participations($1::uuid,$2::uuid,$3::uuid) AS result",
+            [principal.organizationId, request.params.eventId, principal.membershipId],
+          );
     },
   );
 
@@ -3080,7 +3084,11 @@ export function buildApi(dependencies: ApiDependencies): FastifyInstance {
           );
           return result.rows[0]?.result as Record<string, unknown>;
         },
-      );
+        async (client) => {
+          await client.query<ResultRow>(
+            "SELECT eogp.list_guest_invitation_delivery_attempts($1::uuid,$2::uuid,$3::uuid) AS result",
+            [principal.organizationId, request.params.invitationId, principal.membershipId],
+          );
     },
   );
 
