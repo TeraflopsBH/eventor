@@ -210,6 +210,8 @@ jobs:
         run: psql "$WORKER_URL" -X -v ON_ERROR_STOP=1 -f tests/database/event_notification_delivery_worker_smoke.sql
       - name: Verify booking-offer email worker SQL contract as worker
         run: psql "$WORKER_URL" -X -v ON_ERROR_STOP=1 -f tests/database/booking_offer_email_worker_sql_smoke.sql
+      - name: Verify staff RSVP command contract and privileges as runtime
+        run: psql "$RUNTIME_URL" -X -v ON_ERROR_STOP=1 -f tests/database/staff_rsvp_command_contract_smoke.sql
 
       - name: Set up Node.js for PostgreSQL-backed worker integration
         uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020
