@@ -217,6 +217,34 @@ BEGIN
     RAISE EXCEPTION 'an eogp SECURITY DEFINER function lacks a pinned pg_catalog-first search_path';
   END IF;
 
+  -- Actor-bearing SECURITY DEFINER permission helpers must bind their
+  -- membership argument to the transaction's trusted staff actor context.
+  -- Collaboration acceptance/revocation delegate this check to the shared
+  -- collaboration manager helper; preserve that delegation explicitly.
+  IF position('app.actor_membership_id' IN pg_get_functiondef(
+       'eogp.assert_event_command_permission(uuid,uuid,uuid,text)'::regprocedure
+     )) = 0
+     OR position('app.actor_membership_id' IN pg_get_functiondef(
+       'eogp.assert_booking_inquiry_permission(uuid,uuid,text)'::regprocedure
+     )) = 0
+     OR position('app.actor_membership_id' IN pg_get_functiondef(
+       'eogp.assert_collaboration_manage_permission(uuid,uuid)'::regprocedure
+     )) = 0
+     OR position('app.actor_membership_id' IN pg_get_functiondef(
+       'eogp.assert_booking_commercial_permission(uuid,uuid,text[])'::regprocedure
+     )) = 0
+     OR position('app.actor_membership_id' IN pg_get_functiondef(
+       'eogp.assert_booking_draft_permission(uuid,uuid,uuid,text)'::regprocedure
+     )) = 0
+     OR position('assert_collaboration_manage_permission' IN pg_get_functiondef(
+       'eogp.accept_collaboration_grant(uuid,uuid)'::regprocedure
+     )) = 0
+     OR position('assert_collaboration_manage_permission' IN pg_get_functiondef(
+       'eogp.revoke_collaboration_grant(uuid,uuid,text)'::regprocedure
+     )) = 0 THEN
+    RAISE EXCEPTION 'staff SECURITY DEFINER permission routines do not bind actor membership to trusted transaction context';
+  END IF;
+
   IF current_setting('app.organization_id', true) IS NOT NULL
      AND current_setting('app.organization_id', true) <> '' THEN
     RAISE EXCEPTION 'authentication smoke test must not rely on tenant GUC context';
