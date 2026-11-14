@@ -101,8 +101,8 @@ const staffPrincipal = {
 };
 
 function makeStaffInvitationApi(
-  authenticateStaff = async () => staffPrincipal,
-  historyError,
+  authenticateStaff: () => Promise<typeof staffPrincipal | null> = async () => staffPrincipal,
+  historyError?: Error,
 ) {
   const calls: Array<{ sql: string; values: unknown[] }> = [];
   const client = {
