@@ -65,6 +65,7 @@ The domain design is documented in `docs/implementation-design/v0.3/RSVP_AND_INV
 - [ ] Invitation batches, secure links and delivery tracking.
 - [ ] Guest self-service RSVP and response-change rules.
 - [x] Staff-recorded RSVP with source/operator/time/notes and append-only correction history.
+- [x] Staff-accessible RSVP response history with source, respondent, received/recorded times, operator membership attribution and correction lineage; restricted notes remain excluded.
 
 Staff-recorded RSVP and correction slice is implemented and exact-head CI-verified in draft PR #81. It uses `rsvp.record`, `rsvp.correct` and `rsvp.override_deadline`, stores encrypted restricted notes, binds the authenticated actor, and appends corrections without mutating prior responses. The organizer workspace now exposes the current response ID and provides English/Bosnian capture controls.
 - [ ] Guest portal and privacy-safe personal view.
