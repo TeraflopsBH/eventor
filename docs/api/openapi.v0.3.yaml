@@ -6395,7 +6395,9 @@ components:
         respondentKind: { type: string, enum: [guest, representative, staff] }
         receivedAt: { type: string, format: date-time }
         invitationId: { type: string, format: uuid }
-        noteRestricted: { type: string, maxLength: 4000 }
+        noteRestricted: { type: string, maxLength: 4000, writeOnly: true, description: "Encrypted before persistence; never returned in response projections." }
+        correctionOfResponseId: { type: string, format: uuid, description: "When supplied, append a correction to this current response. Requires rsvp.correct." }
+        correctionReason: { type: string, minLength: 3, maxLength: 2000, description: "Required with correctionOfResponseId; retained as the auditable reason for the correction." }
     RsvpCorrectionRequest:
       type: object
       required: [response, correctionReason]
