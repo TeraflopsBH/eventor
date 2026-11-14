@@ -159,6 +159,14 @@ DECLARE
   v_delivery_lock integer;
   v_issue_definition text;
   v_claim_definition text;
+  v_revoke_definition text;
+  v_issue_idempotency_lock integer;
+  v_issue_idempotency_lookup integer;
+  v_issue_participation_lock integer;
+  v_issue_invitation_lock integer;
+  v_issue_link_revoke integer;
+  v_revoke_invitation_lock integer;
+  v_revoke_link_update integer;
 BEGIN
   SELECT pg_get_functiondef(
     'eogp.authorize_invitation_email_submission(uuid,uuid)'::regprocedure
@@ -171,6 +179,15 @@ BEGIN
     INTO v_issue_definition;
   SELECT pg_get_functiondef('eogp.claim_invitation_email_delivery(uuid)'::regprocedure)
     INTO v_claim_definition;
+  SELECT pg_get_functiondef('eogp.revoke_guest_invitation(uuid,uuid,uuid,text)'::regprocedure)
+    INTO v_revoke_definition;
+  v_issue_idempotency_lock := strpos(v_issue_definition,'pg_advisory_xact_lock');
+  v_issue_idempotency_lookup := strpos(v_issue_definition,'idempotency_key_sha256=p_idempotency_key_sha256');
+  v_issue_participation_lock := strpos(v_issue_definition,'FOR UPDATE OF participation;');
+  v_issue_invitation_lock := strpos(v_issue_definition,'FOR UPDATE;');
+  v_issue_link_revoke := strpos(v_issue_definition,'UPDATE eogp.invitation_links');
+  v_revoke_invitation_lock := strpos(v_revoke_definition,'FOR UPDATE;');
+  v_revoke_link_update := strpos(v_revoke_definition,'UPDATE eogp.invitation_links');
   IF v_invitation_lock<=0 OR v_link_lock<=v_invitation_lock
      OR v_delivery_lock<=v_link_lock
      OR strpos(v_definition, 'link.revoked_at IS NOT NULL')=0
@@ -179,7 +196,15 @@ BEGIN
      OR strpos(v_definition, 'current_event_schedule_revision_id')=0
      OR strpos(v_definition, 'event.status NOT IN')=0
      OR strpos(v_issue_definition, 'current_event_schedule_revision_id')=0
-     OR strpos(v_claim_definition, 'current_event_schedule_revision_id')=0 THEN
+     OR strpos(v_claim_definition, 'current_event_schedule_revision_id')=0
+     OR v_issue_idempotency_lock<=0
+     OR v_issue_idempotency_lookup<=v_issue_idempotency_lock
+     OR strpos(v_issue_definition, 'idempotency_key_sha256=p_idempotency_key_sha256\n   FOR UPDATE')>0
+     OR v_issue_participation_lock<=0
+     OR v_issue_invitation_lock<=v_issue_participation_lock
+     OR v_issue_link_revoke<=v_issue_invitation_lock
+     OR v_revoke_invitation_lock<=0
+     OR v_revoke_link_update<=v_revoke_invitation_lock THEN
     RAISE EXCEPTION 'send authorization must lock invitation, link, delivery and revalidate capability state';
   END IF;
 END;
