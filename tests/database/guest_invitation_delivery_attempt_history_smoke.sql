@@ -312,11 +312,11 @@ BEGIN
       '94500000-0000-4000-8000-000000000001',
       '95600000-0000-4000-8000-000000000001'
     );
-  EXCEPTION WHEN SQLSTATE '42501' THEN
+  EXCEPTION WHEN SQLSTATE 'P0002' THEN
     v_denied := true;
   END;
   IF NOT v_denied THEN
-    RAISE EXCEPTION 'history projection accepted an active member without invitation.manage';
+    RAISE EXCEPTION 'history projection revealed an invitation to an active member without invitation.manage';
   END IF;
 END;
 $attempt_history_authorization$;
