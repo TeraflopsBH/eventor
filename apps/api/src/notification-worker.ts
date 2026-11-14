@@ -413,7 +413,7 @@ export async function processPendingBookingOfferEmailDeliveries(
   if (appUrl.protocol !== "https:" || appUrl.username || appUrl.password || appUrl.search || appUrl.hash) {
     throw new TypeError("The public application base URL must be HTTPS and contain no credentials, query or fragment.");
   }
-  const baseUrl = appUrl.toString().replace(/\/+$/, "");
+  const baseUrl = appUrl.toString().replace(new RegExp("/+$"), "");
   const tenants = await pool.query<PendingTenantRow>(
     "SELECT organization_id FROM eogp.discover_pending_booking_offer_email_tenants()",
   );
