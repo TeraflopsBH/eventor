@@ -322,6 +322,51 @@ test("guest invitation email worker decrypts the queued capability and sends a p
 });
 
 
+test("guest invitation email worker never opens SMTP when send authorization is denied", async () => {
+  const organizationId = "22222222-2222-4222-8222-222222222222";
+  const deliveryId = "55555555-5555-4555-8555-555555555555";
+  let claimCount = 0;
+  let factoryCalls = 0;
+  const completionCalls: unknown[][] = [];
+  const client = {
+    async query(sql: string, values: unknown[] = []) {
+      const normalized = sql.replace(/\\s+/g, " ").trim();
+      if (normalized.startsWith("SELECT * FROM eogp.claim_invitation_email_delivery")) {
+        claimCount += 1;
+        return { rows: claimCount === 1 ? [{ delivery_id: deliveryId }] : [], rowCount: claimCount === 1 ? 1 : 0 };
+      }
+      if (normalized.includes("authorize_invitation_email_submission")) {
+        return { rows: [{ authorized: false }], rowCount: 1 };
+      }
+      if (normalized.startsWith("SELECT eogp.complete_invitation_email_delivery")) {
+        completionCalls.push(values);
+        return { rows: [{ result: { retryScheduled: false } }], rowCount: 1 };
+      }
+      return { rows: [], rowCount: 1 };
+    },
+    release() {},
+  };
+  const pool = {
+    async query() { return { rows: [{ organization_id: organizationId }], rowCount: 1 }; },
+    async connect() { return client; },
+  } as unknown as Pool;
+  const factory: SmtpTransportFactory = () => {
+    factoryCalls += 1;
+    throw new Error("SMTP must not be initialized for a revoked invitation");
+  };
+
+  const result = await processPendingGuestInvitationEmailDeliveries(
+    pool, Buffer.alloc(32, 31), Buffer.alloc(32, 32),
+    "https://eventor.example.test", 10, 10, factory,
+  );
+
+  assert.equal(result.guestInvitationEmailAttempts, 1);
+  assert.equal(result.guestInvitationEmailFailed, 1);
+  assert.equal(result.guestInvitationEmailRetriesScheduled, 0);
+  assert.equal(factoryCalls, 0);
+  assert.deepEqual(completionCalls, [[organizationId, deliveryId, "failed", "INVITATION_REVOKED", null]]);
+});
+
 test("guest invitation email worker schedules retryable connection failures and preserves ambiguous SMTP outcomes", async (t) => {
   const cases = [
     {
