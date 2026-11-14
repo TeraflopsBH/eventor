@@ -93,7 +93,7 @@ BEGIN
 
   IF (v_third ->> 'revision')::integer <> 3
      OR (v_third ->> 'credentialsConfigured')::boolean IS DISTINCT FROM true THEN
-    RAISE EXCEPTION 'SMTP credential clearing failed: %', v_third;
+    RAISE EXCEPTION 'SMTP credential replacement failed: %', v_third;
   END IF;
 
   -- A credential replacement must be scoped to the owning organization; an
@@ -121,6 +121,7 @@ BEGIN
     RAISE EXCEPTION 'cross-organization credential replacement was not rejected';
   END IF;
 
+  v_invalid_rejected := false;
   BEGIN
     PERFORM eogp.set_organization_email_delivery_config(
       '22222222-2222-4222-8222-222222222222',
