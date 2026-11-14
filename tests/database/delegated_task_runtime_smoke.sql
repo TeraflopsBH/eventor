@@ -39,6 +39,45 @@ BEGIN
     NULL;
   END;
 
+  -- A membership from another tenant must be rejected before either a
+  -- real assignment or an unknown ID is looked up/locked.
+  PERFORM set_config('app.actor_membership_id','aaaaaaaa-1111-4111-8111-aaaaaaaaaaaa',true);
+  BEGIN
+    PERFORM eogp.get_assigned_task_projection(
+      '67000000-0000-4000-8000-000000000001',
+      'aaaaaaaa-1111-4111-8111-aaaaaaaaaaaa'
+    );
+    RAISE EXCEPTION 'task projection accepted a foreign-tenant membership';
+  EXCEPTION WHEN SQLSTATE '42501' THEN NULL;
+  END;
+  BEGIN
+    PERFORM eogp.get_assigned_task_projection(
+      'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa',
+      'aaaaaaaa-1111-4111-8111-aaaaaaaaaaaa'
+    );
+    RAISE EXCEPTION 'task projection did not authorize before unknown-ID lookup';
+  EXCEPTION WHEN SQLSTATE '42501' THEN NULL;
+  END;
+  BEGIN
+    PERFORM eogp.update_assigned_task_status(
+      '67000000-0000-4000-8000-000000000001',
+      'aaaaaaaa-1111-4111-8111-aaaaaaaaaaaa',
+      'in_progress','unauthorized_probe','{}'::jsonb
+    );
+    RAISE EXCEPTION 'task status command accepted a foreign-tenant membership';
+  EXCEPTION WHEN SQLSTATE '42501' THEN NULL;
+  END;
+  BEGIN
+    PERFORM eogp.update_assigned_task_status(
+      'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa',
+      'aaaaaaaa-1111-4111-8111-aaaaaaaaaaaa',
+      'in_progress','unauthorized_probe','{}'::jsonb
+    );
+    RAISE EXCEPTION 'task status command did not authorize before unknown-ID lookup';
+  EXCEPTION WHEN SQLSTATE '42501' THEN NULL;
+  END;
+  PERFORM set_config('app.actor_membership_id','bbbbbbbb-2222-4222-8222-bbbbbbbbbbbb',true);
+
   v_projection := eogp.update_assigned_task_status(
     '67000000-0000-4000-8000-000000000001',
     'bbbbbbbb-2222-4222-8222-bbbbbbbbbbbb',
