@@ -533,6 +533,8 @@ END;
 $staff_rsvp_late_override$;
 
 -- The append-only guard also applies to staff-entered RSVP history.
+-- Use the table owner so the trigger, rather than missing table privileges, is tested.
+SET LOCAL ROLE eventor_owner;
 DO $staff_rsvp_immutability$
 DECLARE
   v_response_id uuid;
