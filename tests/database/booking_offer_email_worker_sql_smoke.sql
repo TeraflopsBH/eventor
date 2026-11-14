@@ -1,6 +1,6 @@
 \set ON_ERROR_STOP on
 BEGIN;
-SET LOCAL app.organization_id='33333333-3333-4333-8333-333333333333';
+SET LOCAL app.organization_id='11111111-1111-4111-8111-111111111111';
 
 DO $booking_offer_email_worker$
 DECLARE
@@ -45,7 +45,7 @@ BEGIN
   -- RETURNING CTEs and catches PL/pgSQL output-column ambiguity at runtime.
   SELECT count(*) INTO v_claim_count
     FROM eogp.claim_booking_offer_email_delivery(
-      '33333333-3333-4333-8333-333333333333'
+      '11111111-1111-4111-8111-111111111111'
     );
   IF v_claim_count<>0 THEN
     RAISE EXCEPTION 'isolated empty-tenant claim unexpectedly returned a delivery';
@@ -55,7 +55,7 @@ BEGIN
   -- creating or sending a real email.
   BEGIN
     PERFORM eogp.complete_booking_offer_email_delivery(
-      '33333333-3333-4333-8333-333333333333',
+      '11111111-1111-4111-8111-111111111111',
       '44444444-4444-4444-8444-444444444444',
       'sent',NULL,'ci-no-send'
     );
