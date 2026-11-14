@@ -67,6 +67,40 @@ BEGIN
     RAISE EXCEPTION 'authentication role has excessive business-table or identity-delete privileges';
   END IF;
 
+  -- Authentication access is intentionally column-scoped. A table-level
+  -- grant would silently expand when new identity/session columns are added.
+  IF has_table_privilege(current_user, 'eogp.users', 'SELECT')
+     OR has_table_privilege(current_user, 'eogp.users', 'INSERT')
+     OR has_table_privilege(current_user, 'eogp.users', 'UPDATE')
+     OR has_table_privilege(current_user, 'eogp.user_sessions', 'SELECT')
+     OR has_table_privilege(current_user, 'eogp.user_sessions', 'INSERT')
+     OR has_table_privilege(current_user, 'eogp.user_sessions', 'UPDATE') THEN
+    RAISE EXCEPTION 'authentication role has table-wide identity/session privileges; expected column-only access';
+  END IF;
+
+  -- Delegated task records contain owner-tenant operational data. The runtime
+  -- must use the allowlisted SECURITY DEFINER projection and audited command.
+  IF has_table_privilege('eventor_runtime','eogp.event_responsibility_assignments','SELECT')
+     OR has_table_privilege('eventor_runtime','eogp.event_responsibility_assignments','INSERT')
+     OR has_table_privilege('eventor_runtime','eogp.event_responsibility_assignments','UPDATE')
+     OR has_table_privilege('eventor_runtime','eogp.event_responsibility_assignments','DELETE')
+     OR has_table_privilege('eventor_worker','eogp.event_responsibility_assignments','SELECT')
+     OR has_table_privilege('eventor_worker','eogp.event_responsibility_assignments','UPDATE') THEN
+    RAISE EXCEPTION 'application roles have direct access to delegated task records';
+  END IF;
+
+  -- Permission predicates are implementation helpers, not public database
+  -- APIs. Only their SECURITY DEFINER command callers should reach them.
+  IF has_function_privilege('eventor_runtime','eogp.assert_event_command_permission(uuid,uuid,uuid,text)','EXECUTE')
+     OR has_function_privilege('eventor_runtime','eogp.assert_booking_inquiry_permission(uuid,uuid,text)','EXECUTE')
+     OR has_function_privilege('eventor_runtime','eogp.assert_booking_draft_permission(uuid,uuid,uuid,text)','EXECUTE')
+     OR has_function_privilege('eventor_runtime','eogp.assert_booking_commercial_permission(uuid,uuid,text[])','EXECUTE')
+     OR has_function_privilege('eventor_runtime','eogp.assert_collaboration_manage_permission(uuid,uuid)','EXECUTE')
+     OR has_function_privilege('eventor_worker','eogp.assert_collaboration_manage_permission(uuid,uuid)','EXECUTE')
+     OR has_function_privilege('eventor_auth','eogp.assert_collaboration_manage_permission(uuid,uuid)','EXECUTE') THEN
+    RAISE EXCEPTION 'application role can execute an internal authorization helper directly';
+  END IF;
+
   IF NOT has_column_privilege(current_user, 'eogp.users', 'password_hash', 'SELECT')
      OR NOT has_column_privilege(current_user, 'eogp.users', 'password_hash', 'UPDATE')
      OR NOT has_column_privilege(current_user, 'eogp.users', 'email', 'SELECT') THEN
