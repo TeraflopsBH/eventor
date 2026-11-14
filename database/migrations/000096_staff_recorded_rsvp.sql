@@ -31,8 +31,6 @@ DECLARE
   v_sequence_number integer;
   v_response_id uuid;
   v_now timestamptz := clock_timestamp();
-  v_has_record_permission boolean;
-  v_has_override_permission boolean;
 BEGIN
   IF eogp.current_organization_id() IS DISTINCT FROM p_organization_id
      OR nullif(current_setting('app.actor_membership_id', true), '')::uuid
@@ -133,22 +131,21 @@ BEGIN
     RAISE EXCEPTION 'no applicable published RSVP policy allows this response' USING ERRCODE='55000';
   END IF;
 
-  SELECT EXISTS (
-    SELECT 1
-      FROM eogp.user_role_grants user_grant
-      JOIN eogp.role_permissions role_permission
-        ON role_permission.organization_id=user_grant.organization_id
-       AND role_permission.role_id=user_grant.role_id
-     WHERE user_grant.organization_id=p_organization_id
-       AND user_grant.membership_id=p_actor_membership_id
-       AND user_grant.revoked_at IS NULL
-       AND (user_grant.expires_at IS NULL OR user_grant.expires_at>v_now)
-       AND role_permission.permission_code='rsvp.record'
-       AND (user_grant.scope_kind='organization'
-         OR (user_grant.scope_kind='event' AND user_grant.scope_event_id=p_event_id))
-  ) INTO v_has_record_permission;
-  IF NOT v_has_record_permission THEN
-    RAISE EXCEPTION 'event.rsvp.record permission is required' USING ERRCODE='42501';
+  PERFORM 1
+    FROM eogp.user_role_grants user_grant
+    JOIN eogp.role_permissions role_permission
+      ON role_permission.organization_id=user_grant.organization_id
+     AND role_permission.role_id=user_grant.role_id
+   WHERE user_grant.organization_id=p_organization_id
+     AND user_grant.membership_id=p_actor_membership_id
+     AND user_grant.revoked_at IS NULL
+     AND (user_grant.expires_at IS NULL OR user_grant.expires_at>v_now)
+     AND role_permission.permission_code='rsvp.record'
+     AND (user_grant.scope_kind='organization'
+       OR (user_grant.scope_kind='event' AND user_grant.scope_event_id=p_event_id))
+   FOR SHARE OF user_grant, role_permission;
+  IF NOT FOUND THEN
+    RAISE EXCEPTION 'rsvp.record permission is required' USING ERRCODE='42501';
   END IF;
 
   SELECT response.id
@@ -161,20 +158,20 @@ BEGIN
    LIMIT 1;
 
   IF p_correction_of_response_id IS NOT NULL THEN
-    IF NOT EXISTS (
-      SELECT 1
-        FROM eogp.user_role_grants user_grant
-        JOIN eogp.role_permissions role_permission
-          ON role_permission.organization_id=user_grant.organization_id
-         AND role_permission.role_id=user_grant.role_id
-       WHERE user_grant.organization_id=p_organization_id
-         AND user_grant.membership_id=p_actor_membership_id
-         AND user_grant.revoked_at IS NULL
-         AND (user_grant.expires_at IS NULL OR user_grant.expires_at>v_now)
-         AND role_permission.permission_code='rsvp.correct'
-         AND (user_grant.scope_kind='organization'
-           OR (user_grant.scope_kind='event' AND user_grant.scope_event_id=p_event_id))
-    ) THEN
+    PERFORM 1
+      FROM eogp.user_role_grants user_grant
+      JOIN eogp.role_permissions role_permission
+        ON role_permission.organization_id=user_grant.organization_id
+       AND role_permission.role_id=user_grant.role_id
+     WHERE user_grant.organization_id=p_organization_id
+       AND user_grant.membership_id=p_actor_membership_id
+       AND user_grant.revoked_at IS NULL
+       AND (user_grant.expires_at IS NULL OR user_grant.expires_at>v_now)
+       AND role_permission.permission_code='rsvp.correct'
+       AND (user_grant.scope_kind='organization'
+         OR (user_grant.scope_kind='event' AND user_grant.scope_event_id=p_event_id))
+     FOR SHARE OF user_grant, role_permission;
+    IF NOT FOUND THEN
       RAISE EXCEPTION 'rsvp.correct permission is required to correct RSVP history' USING ERRCODE='42501';
     END IF;
     IF v_latest_response_id IS DISTINCT FROM p_correction_of_response_id THEN
@@ -186,22 +183,21 @@ BEGIN
 
   IF v_policy.late_change_requires_staff
      AND v_policy.response_deadline IS NOT NULL AND v_policy.response_deadline <= v_now THEN
-    SELECT EXISTS (
-      SELECT 1
-        FROM eogp.user_role_grants user_grant
-        JOIN eogp.role_permissions role_permission
-          ON role_permission.organization_id=user_grant.organization_id
-         AND role_permission.role_id=user_grant.role_id
-       WHERE user_grant.organization_id=p_organization_id
-         AND user_grant.membership_id=p_actor_membership_id
-         AND user_grant.revoked_at IS NULL
-         AND (user_grant.expires_at IS NULL OR user_grant.expires_at>v_now)
-         AND role_permission.permission_code='rsvp.override_deadline'
-         AND (user_grant.scope_kind='organization'
-           OR (user_grant.scope_kind='event' AND user_grant.scope_event_id=p_event_id))
-    ) INTO v_has_override_permission;
-    IF NOT v_has_override_permission THEN
-      RAISE EXCEPTION 'event.rsvp.override_deadline permission is required after the RSVP deadline' USING ERRCODE='42501';
+    PERFORM 1
+      FROM eogp.user_role_grants user_grant
+      JOIN eogp.role_permissions role_permission
+        ON role_permission.organization_id=user_grant.organization_id
+       AND role_permission.role_id=user_grant.role_id
+     WHERE user_grant.organization_id=p_organization_id
+       AND user_grant.membership_id=p_actor_membership_id
+       AND user_grant.revoked_at IS NULL
+       AND (user_grant.expires_at IS NULL OR user_grant.expires_at>v_now)
+       AND role_permission.permission_code='rsvp.override_deadline'
+       AND (user_grant.scope_kind='organization'
+         OR (user_grant.scope_kind='event' AND user_grant.scope_event_id=p_event_id))
+     FOR SHARE OF user_grant, role_permission;
+    IF NOT FOUND THEN
+      RAISE EXCEPTION 'rsvp.override_deadline permission is required after the RSVP deadline' USING ERRCODE='42501';
     END IF;
   END IF;
 
