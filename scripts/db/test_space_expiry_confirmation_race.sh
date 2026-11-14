@@ -53,6 +53,7 @@ if [[ ! -e "$tmp/worker-ready" ]]; then
   exit 1
 fi
 
+runtime_started_ns="$(date +%s%N)"
 psql "$RUNTIME_URL" -X -v ON_ERROR_STOP=1 -qAt <<SQL
 BEGIN;
 SELECT set_config('app.organization_id','$org',true);
@@ -85,6 +86,13 @@ END;
 \$race\$;
 COMMIT;
 SQL
+runtime_finished_ns="$(date +%s%N)"
+runtime_wait_ms="$(( (runtime_finished_ns - runtime_started_ns) / 1000000 ))"
+if (( runtime_wait_ms < 1500 )); then
+  echo "Runtime conversion did not wait for the worker transaction as expected (${runtime_wait_ms} ms)." >&2
+  cat "$tmp/worker.log"
+  exit 1
+fi
 
 wait "$worker_pid"
 worker_pid=""
