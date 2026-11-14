@@ -10,12 +10,14 @@ BEGIN
      OR to_regprocedure('eogp.submit_guest_invitation_rsvp(text,text,text,text,bytea)') IS NULL
      OR to_regprocedure('eogp.get_guest_invitation_rsvp_history(text)') IS NULL
      OR to_regprocedure('eogp.list_guest_invitation_events(uuid,uuid)') IS NULL
-     OR to_regprocedure('eogp.list_guest_invitation_participations(uuid,uuid,uuid)') IS NULL THEN
+     OR to_regprocedure('eogp.list_guest_invitation_participations(uuid,uuid,uuid)') IS NULL
+     OR to_regprocedure('eogp.list_guest_invitation_delivery_attempts(uuid,uuid,uuid)') IS NULL THEN
     RAISE EXCEPTION 'guest invitation runtime or staff projection functions are missing';
   END IF;
 
   IF has_table_privilege(current_user, 'eogp.guest_invitation_capability_lookup', 'SELECT')
-     OR has_table_privilege(current_user, 'eogp.guest_invitation_rsvp_idempotency', 'SELECT') THEN
+     OR has_table_privilege(current_user, 'eogp.guest_invitation_rsvp_idempotency', 'SELECT')
+     OR has_table_privilege(current_user, 'eogp.invitation_delivery_attempts', 'SELECT') THEN
     RAISE EXCEPTION 'runtime role has direct access to guest capability internals';
   END IF;
 
@@ -49,6 +51,7 @@ BEGIN
   END IF;
   IF NOT has_function_privilege(current_user, 'eogp.list_guest_invitation_events(uuid,uuid)', 'EXECUTE')
      OR NOT has_function_privilege(current_user, 'eogp.list_guest_invitation_participations(uuid,uuid,uuid)', 'EXECUTE')
+     OR NOT has_function_privilege(current_user, 'eogp.list_guest_invitation_delivery_attempts(uuid,uuid,uuid)', 'EXECUTE')
      OR NOT has_function_privilege(current_user,
        'eogp.issue_guest_invitation(uuid,uuid,uuid,uuid,uuid,uuid,uuid,text,bytea,text,bytea,timestamptz,text)', 'EXECUTE')
      OR NOT has_function_privilege(current_user, 'eogp.revoke_guest_invitation(uuid,uuid,uuid,text)', 'EXECUTE') THEN
