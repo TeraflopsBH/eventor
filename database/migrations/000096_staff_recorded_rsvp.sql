@@ -40,7 +40,8 @@ BEGIN
     RAISE EXCEPTION 'organization or staff actor context mismatch' USING ERRCODE='42501';
   END IF;
 
-  IF p_response NOT IN ('accepted','declined','tentative')
+  IF p_response IS NULL OR p_source_channel IS NULL OR p_respondent_kind IS NULL
+     OR p_response NOT IN ('accepted','declined','tentative')
      OR p_source_channel NOT IN ('phone','in_person','email','written','representative','staff_entry','other')
      OR p_respondent_kind NOT IN ('guest','representative','staff')
      OR p_received_at IS NULL OR p_received_at > v_now
@@ -183,7 +184,8 @@ BEGIN
     RAISE EXCEPTION 'RSVP changes are not allowed by the published policy' USING ERRCODE='55000';
   END IF;
 
-  IF v_policy.response_deadline IS NOT NULL AND v_policy.response_deadline <= v_now THEN
+  IF v_policy.late_change_requires_staff
+     AND v_policy.response_deadline IS NOT NULL AND v_policy.response_deadline <= v_now THEN
     SELECT EXISTS (
       SELECT 1
         FROM eogp.user_role_grants user_grant
