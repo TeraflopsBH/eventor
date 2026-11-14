@@ -1255,8 +1255,15 @@ export function buildApi(dependencies: ApiDependencies): FastifyInstance {
     const publicOfferDecision = request.method === "POST" &&
       /^\/booking-offers\/[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}\/(accept|reject)$/.test(pathname);
     const publicOfferView = request.method === "GET" &&
-      /^\/public\/booking-offers\/[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}$/.test(pathname);
-    if (publicBookingFormRead || publicBookingInquiryWrite || publicOfferDecision || publicOfferView) {
+      /^\\/public\\/booking-offers\\/[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}$/.test(pathname);
+    const publicGuestInvitation = (
+      request.method === "GET" &&
+      (pathname === "/guest/invitation/me" || pathname === "/guest/invitation/me/rsvp-history")
+    ) || (
+      request.method === "POST" &&
+      (pathname === "/guest/invitation/resolve" || pathname === "/guest/invitation/me/rsvp")
+    );
+    if (publicBookingFormRead || publicBookingInquiryWrite || publicOfferDecision || publicOfferView || publicGuestInvitation) {
       // Public intake and purpose-bound offer decisions authenticate through their own capability.
       request.staffPrincipal = null;
       return;
@@ -2803,7 +2810,7 @@ export function buildApi(dependencies: ApiDependencies): FastifyInstance {
   const sendGuestPrivateResponse = (
     reply: FastifyReply,
     status: number,
-    data: Record<string, unknown>,
+    data: unknown,
   ) => {
     reply.header("Cache-Control", "no-store, private");
     reply.header("Referrer-Policy", "no-referrer");
@@ -2913,7 +2920,7 @@ export function buildApi(dependencies: ApiDependencies): FastifyInstance {
         await client.query("COMMIT");
         const data = result.rows[0]?.result;
         if (!Array.isArray(data)) throw new ApiError(500, "GUEST_RSVP_HISTORY_MISSING", "The RSVP history could not be loaded.");
-        return sendGuestPrivateResponse(reply, 200, data as unknown as Record<string, unknown>);
+        return sendGuestPrivateResponse(reply, 200, data);
       } catch (error) {
         try { await client.query("ROLLBACK"); } catch { /* preserve the history error */ }
         throw databaseError(error);
