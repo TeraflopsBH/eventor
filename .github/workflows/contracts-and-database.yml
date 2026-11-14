@@ -203,6 +203,15 @@ jobs:
           ADMIN_EVENTOR_URL="${ADMIN_URL%/postgres}/eventor"
           psql "$ADMIN_EVENTOR_URL" -X -v ON_ERROR_STOP=1 -f tests/database/guest_invitation_delivery_attempt_history_smoke.sql
 
+      - name: Prepare an expired guest invitation delivery lease
+        run: psql "$MIGRATOR_URL" -X -v ON_ERROR_STOP=1 -f tests/database/guest_invitation_expired_lease_claim_fixture.sql
+
+      - name: Recover expired guest invitation lease through the real worker claim
+        run: psql "$WORKER_URL" -X -v ON_ERROR_STOP=1 -f tests/database/guest_invitation_expired_lease_claim_worker.sql
+
+      - name: Verify worker lease recovery and attempt history
+        run: psql "$MIGRATOR_URL" -X -v ON_ERROR_STOP=1 -f tests/database/guest_invitation_expired_lease_claim_assert.sql
+
       - name: Verify tenant-safe notification campaign preparation as worker
         run: psql "$WORKER_URL" -X -v ON_ERROR_STOP=1 -f tests/database/event_notification_worker_smoke.sql
 
