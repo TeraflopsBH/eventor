@@ -47,6 +47,7 @@ INSERT INTO eogp.organization_memberships (
 );
 
 SELECT set_config('app.organization_id','a7000000-0000-4000-8000-000000000001',true);
+SELECT set_config('app.actor_membership_id','a7200000-0000-4000-8000-000000000001',true);
 
 INSERT INTO eogp.roles (id,organization_id,code,name,scope_kind)
 VALUES (
@@ -367,6 +368,19 @@ BEGIN
   );
   v_conversion_inquiry_id := (v_conversion_submitted->>'inquiryId')::uuid;
 
+  -- A supplied membership cannot override the transaction's authenticated actor.
+  PERFORM set_config('app.actor_membership_id','a7200000-0000-4000-8000-000000000002',true);
+  BEGIN
+    PERFORM eogp.get_booking_inquiry(
+      'a7000000-0000-4000-8000-000000000001',v_inquiry_id,
+      'a7200000-0000-4000-8000-000000000001'
+    );
+    RAISE EXCEPTION 'booking inquiry projection accepted an actor/context mismatch';
+  EXCEPTION WHEN SQLSTATE '42501' THEN NULL;
+  END;
+  PERFORM set_config('app.actor_membership_id','a7200000-0000-4000-8000-000000000001',true);
+
+  PERFORM set_config('app.actor_membership_id','a7200000-0000-4000-8000-000000000003',true);
   BEGIN
     PERFORM eogp.convert_booking_inquiry_to_draft(
       'a7000000-0000-4000-8000-000000000001',
@@ -380,6 +394,7 @@ BEGIN
     RAISE EXCEPTION 'membership without inquiry conversion permission converted an inquiry';
   END IF;
 
+  PERFORM set_config('app.actor_membership_id','a7200000-0000-4000-8000-000000000001',true);
   v_conversion := eogp.convert_booking_inquiry_to_draft(
     'a7000000-0000-4000-8000-000000000001',
     v_conversion_inquiry_id,
@@ -479,11 +494,13 @@ BEGIN
     RAISE EXCEPTION 'membership without booking draft permission read a booking draft';
   END IF;
 
+  PERFORM set_config('app.actor_membership_id','a7200000-0000-4000-8000-000000000002',true);
   v_converted_detail := eogp.get_booking_inquiry(
     'a7000000-0000-4000-8000-000000000001',
     v_conversion_inquiry_id,
     'a7200000-0000-4000-8000-000000000002'
   );
+  PERFORM set_config('app.actor_membership_id','a7200000-0000-4000-8000-000000000001',true);
   IF v_converted_detail->'bookingDraft' IS DISTINCT FROM 'null'::jsonb THEN
     RAISE EXCEPTION 'inquiry-only reader was shown a booking draft reference without draft permission: %',v_converted_detail->'bookingDraft';
   END IF;
@@ -632,6 +649,7 @@ BEGIN
   END IF;
 
   BEGIN
+    PERFORM set_config('app.actor_membership_id','a7200000-0000-4000-8000-000000000001',true);
     PERFORM eogp.assign_booking_inquiry(
       'a7000000-0000-4000-8000-000000000001',
       v_inquiry_id,
@@ -659,6 +677,7 @@ BEGIN
   END IF;
 
   BEGIN
+    PERFORM set_config('app.actor_membership_id','a7200000-0000-4000-8000-000000000003',true);
     PERFORM eogp.list_booking_inquiries(
       'a7000000-0000-4000-8000-000000000001',
       'a7200000-0000-4000-8000-000000000003',
