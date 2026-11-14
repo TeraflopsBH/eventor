@@ -311,8 +311,8 @@ test("guest invitation email worker decrypts the queued capability and sends a p
   assert.equal(sentMessages[0]?.to, "guest@example.test");
   assert.equal(sentMessages[0]?.subject, "Pozivnica za događaj");
   assert.match(sentMessages[0]?.text ?? "", /Community gathering/);
-  assert.match(sentMessages[0]?.text ?? "", /\\n/);
-  assert.doesNotMatch(sentMessages[0]?.text ?? "", /\\\\n/);
+  assert.match(sentMessages[0]?.text ?? "", /\n/);
+  assert.doesNotMatch(sentMessages[0]?.text ?? "", /\\n/);
   assert.match(sentMessages[0]?.text ?? "", new RegExp(
     `https://eventor\\.example\\.test/app/guest/invitation#token=${capability}`,
   ));
