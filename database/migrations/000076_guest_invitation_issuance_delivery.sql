@@ -31,6 +31,12 @@ ALTER TABLE eogp.invitation_deliveries
   ADD CONSTRAINT invitation_deliveries_idempotency_uq
     UNIQUE (organization_id,idempotency_key_sha256);
 
+-- Legacy "sending" rows predate leases; fail closed as uncertain rather than
+-- silently resubmitting a message that may already have reached the provider.
+UPDATE eogp.invitation_deliveries
+   SET status='uncertain',failure_code='SMTP_UNKNOWN'
+ WHERE status='sending';
+
 ALTER TABLE eogp.invitation_deliveries
   DROP CONSTRAINT invitation_deliveries_status_check;
 ALTER TABLE eogp.invitation_deliveries
@@ -94,8 +100,8 @@ BEGIN
      OR substring(p_capability_ciphertext FROM 1 FOR 4)<>convert_to('ECP1','UTF8')
      OR p_presentation_snapshot_ciphertext IS NULL OR octet_length(p_presentation_snapshot_ciphertext)<=31
      OR substring(p_presentation_snapshot_ciphertext FROM 1 FOR 3)<>convert_to('EV1','UTF8')
-     OR p_locale NOT IN ('bs-BA','en')
-     OR p_expires_at<=clock_timestamp()
+     OR p_locale IS NULL OR p_locale NOT IN ('bs-BA','en')
+     OR p_expires_at IS NULL OR p_expires_at<=clock_timestamp()
      OR p_expires_at>clock_timestamp()+interval '180 days' THEN
     RAISE EXCEPTION 'invalid guest invitation issuance request' USING ERRCODE='22023';
   END IF;
