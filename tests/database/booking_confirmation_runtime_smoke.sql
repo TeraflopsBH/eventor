@@ -1,6 +1,7 @@
 \set ON_ERROR_STOP on
 BEGIN;
 SELECT set_config('app.organization_id','11111111-1111-4111-8111-111111111111',true);
+SELECT set_config('app.actor_membership_id','aaaaaaaa-1111-4111-8111-aaaaaaaaaaaa',true);
 DO $test$
 DECLARE
   v_resource_holds integer;
