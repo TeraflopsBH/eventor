@@ -434,7 +434,17 @@ export async function processPendingBookingOfferEmailDeliveries(
       let failureCode: string | null = null;
       let messageReference: string | null = null;
       let transport: ReturnType<SmtpTransportFactory> | null = null;
-      try {
+      const authorized = await inTenantTransaction(pool, tenant.organization_id, async (client) => {
+        const result = await client.query<{ authorized: boolean }>(
+          "SELECT eogp.authorize_invitation_email_submission($1::uuid,$2::uuid) AS authorized",
+          [tenant.organization_id, job.delivery_id],
+        );
+        return result.rows[0]?.authorized === true;
+      });
+      if (!authorized) {
+        outcome = "failed";
+        failureCode = "INVITATION_REVOKED";
+      } else try {
         const credentials = job.credentials_ciphertext
           ? decryptDeliveryCredentials(job.credentials_ciphertext, deliveryCredentialsEncryptionKey, {
               organizationId: tenant.organization_id,
