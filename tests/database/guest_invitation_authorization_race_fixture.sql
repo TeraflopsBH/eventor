@@ -1,4 +1,4 @@
-\\set ON_ERROR_STOP on
+\set ON_ERROR_STOP on
 BEGIN;
 SET LOCAL ROLE eventor_owner;
 SELECT set_config('app.organization_id','22222222-2222-4222-8222-222222222222',true);
