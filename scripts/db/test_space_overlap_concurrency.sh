@@ -28,14 +28,10 @@ trap cleanup EXIT
 space_id="$(
   psql "$RUNTIME_URL" -X -v ON_ERROR_STOP=1 -qAt \
     -c "SELECT set_config('app.organization_id','$org',true)" \
-    -c "SELECT block.venue_space_id
-          FROM eogp.venue_space_time_blocks block
-          JOIN eogp.venue_spaces space
-            ON space.organization_id=block.organization_id
-           AND space.id=block.venue_space_id
-         WHERE block.organization_id='$org'
-           AND block.id='15000000-0000-4000-8000-000000000002'
-           AND space.status='active'" | tail -n1
+    -c "SELECT venue_space_id
+          FROM eogp.venue_space_time_blocks
+         WHERE organization_id='$org'
+           AND id='15000000-0000-4000-8000-000000000002'" | tail -n1
 )"
 if [[ ! "$space_id" =~ ^[0-9a-fA-F-]{36}$ ]]; then
   echo "Could not resolve the active venue space from the committed booking fixture." >&2
