@@ -455,6 +455,21 @@ END;
 $guest_invitation_projection_authorization_lock$;
 
 
+DO $guest_invitation_idempotency_request_binding$
+DECLARE v_definition text; v_replay integer;
+BEGIN
+  SELECT pg_get_functiondef('eogp.issue_guest_invitation(uuid,uuid,uuid,uuid,uuid,uuid,uuid,text,bytea,text,bytea,timestamptz,text)'::regprocedure)
+    INTO v_definition;
+  v_replay := strpos(v_definition,'IF FOUND THEN');
+  IF v_replay=0
+     OR strpos(substring(v_definition FROM v_replay),'v_existing.event_id IS DISTINCT FROM p_event_id')=0
+     OR strpos(substring(v_definition FROM v_replay),'existing_invitation.participation_id=p_participation_id')=0
+     OR strpos(substring(v_definition FROM v_replay),'v_existing.invitation_id IS DISTINCT FROM p_invitation_id')=0 THEN
+    RAISE EXCEPTION 'invitation idempotency replay must remain bound to its event, participation and explicit invitation';
+  END IF;
+END;
+$guest_invitation_idempotency_request_binding$;
+
 DO $guest_invitation_command_authorization_lock$
 DECLARE
   v_issue_definition text;
