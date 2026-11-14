@@ -2783,6 +2783,9 @@ export function buildApi(dependencies: ApiDependencies): FastifyInstance {
           );
           return result.rows[0]?.result as Record<string, unknown>;
         },
+        async (client) => {
+          await authorizeBookingCommercialReplay(client, principal, "booking.confirm");
+        },
       );
     },
   );
