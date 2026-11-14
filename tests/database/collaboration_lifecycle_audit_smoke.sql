@@ -54,4 +54,18 @@ BEGIN
 END;
 $test$;
 
+
+
+DO $collaboration_actor_binding$
+DECLARE
+  v_definition text;
+BEGIN
+  SELECT pg_get_functiondef('eogp.propose_collaboration_grant(uuid,uuid,text,uuid,uuid,uuid,text,jsonb,text[],timestamptz,timestamptz,uuid)'::regprocedure)
+    INTO v_definition;
+  IF strpos(v_definition,'app.actor_membership_id')=0 THEN
+    RAISE EXCEPTION 'collaboration grant proposal must bind its supplied membership to the authenticated actor context';
+  END IF;
+END;
+$collaboration_actor_binding$;
+
 COMMIT;
