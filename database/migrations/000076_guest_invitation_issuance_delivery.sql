@@ -2,14 +2,6 @@
 -- Raw bearer tokens exist only in process memory and an authenticated-encryption
 -- envelope for the delivery worker; lookup and audit records contain only hashes.
 
-ALTER TABLE eogp.invitation_links
-  ADD COLUMN capability_ciphertext bytea,
-  ADD CONSTRAINT invitation_links_capability_ciphertext_ck
-    CHECK (capability_ciphertext IS NULL OR (
-      octet_length(capability_ciphertext) > 32
-      AND substring(capability_ciphertext FROM 1 FOR 4) = convert_to('ECP1','UTF8')
-    ));
-
 ALTER TABLE eogp.invitation_deliveries
   ADD COLUMN idempotency_key_sha256 text,
   ADD COLUMN capability_ciphertext bytea,
@@ -350,10 +342,10 @@ BEGIN
 
   INSERT INTO eogp.invitation_links(
     organization_id,event_id,invitation_id,invitation_revision_id,
-    token_sha256,expires_at,capability_ciphertext
+    token_sha256,expires_at
   ) VALUES (
     p_organization_id,p_event_id,v_invitation.id,v_revision_id,
-    p_token_sha256,p_expires_at,p_capability_ciphertext
+    p_token_sha256,p_expires_at
   ) RETURNING id INTO v_link_id;
 
   UPDATE eogp.invitations
