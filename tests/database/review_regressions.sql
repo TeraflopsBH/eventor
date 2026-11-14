@@ -552,6 +552,7 @@ VALUES
    'bbbbbbbb-2222-4222-8222-bbbbbbbbbbbb');
 
 SELECT set_config('app.organization_id','11111111-1111-4111-8111-111111111111',true);
+SELECT set_config('app.actor_membership_id','aaaaaaaa-1111-4111-8111-aaaaaaaaaaaa',true);
 INSERT INTO eogp.event_responsibility_assignments (
   id, organization_id, event_id, task_code, task_label,
   accountable_party_kind, performing_party_kind,
