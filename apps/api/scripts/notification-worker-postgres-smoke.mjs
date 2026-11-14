@@ -50,7 +50,7 @@ try {
               latest.provider_name, latest.source, latest.provider_message_reference
          FROM eogp.event_notification_delivery_attempts attempt
          LEFT JOIN LATERAL (
-           SELECT status,failure_code,provider_name,source,created_at
+           SELECT status,failure_code,provider_name,provider_message_reference,source,created_at
              FROM eogp.event_notification_delivery_attempt_events
             WHERE organization_id=attempt.organization_id AND attempt_id=attempt.id
             ORDER BY created_at DESC,id DESC LIMIT 1
