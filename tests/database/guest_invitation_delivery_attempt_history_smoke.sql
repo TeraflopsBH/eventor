@@ -505,6 +505,58 @@ BEGIN
 END;
 $staff_rsvp_regression$;
 
+-- A member with rsvp.record but without rsvp.correct must receive the same
+-- denial for a real and an unknown participation when requesting a correction.
+SET LOCAL ROLE eventor_owner;
+DELETE FROM eogp.role_permissions
+ WHERE organization_id='22222222-2222-4222-8222-222222222222'
+   AND role_id='93900000-0000-4000-8000-000000000001'
+   AND permission_code='rsvp.correct';
+SET LOCAL ROLE eventor_runtime;
+SELECT set_config('app.actor_membership_id','bbbbbbbb-2222-4222-8222-bbbbbbbbbbbb',true);
+DO $staff_rsvp_correction_non_enumeration$
+DECLARE v_denied boolean;
+BEGIN
+  v_denied := false;
+  BEGIN
+    PERFORM eogp.record_staff_guest_rsvp(
+      '22222222-2222-4222-8222-222222222222',
+      '94000000-0000-4000-8000-000000000001',
+      '94300000-0000-4000-8000-000000000001',
+      'bbbbbbbb-2222-4222-8222-bbbbbbbbbbbb',
+      'tentative','phone','guest',clock_timestamp()-interval '1 minute',
+      NULL,NULL,'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa','Unauthorized correction probe'
+    );
+  EXCEPTION WHEN SQLSTATE '42501' THEN v_denied := true;
+  END;
+  IF NOT v_denied THEN
+    RAISE EXCEPTION 'staff RSVP correction did not require rsvp.correct before resource lookup';
+  END IF;
+
+  v_denied := false;
+  BEGIN
+    PERFORM eogp.record_staff_guest_rsvp(
+      '22222222-2222-4222-8222-222222222222',
+      '94000000-0000-4000-8000-000000000001',
+      'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa',
+      'bbbbbbbb-2222-4222-8222-bbbbbbbbbbbb',
+      'tentative','phone','guest',clock_timestamp()-interval '1 minute',
+      NULL,NULL,'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa','Unauthorized correction probe'
+    );
+  EXCEPTION WHEN SQLSTATE '42501' THEN v_denied := true;
+  END;
+  IF NOT v_denied THEN
+    RAISE EXCEPTION 'staff RSVP correction exposed participation existence without rsvp.correct';
+  END IF;
+END;
+$staff_rsvp_correction_non_enumeration$;
+SET LOCAL ROLE eventor_owner;
+INSERT INTO eogp.role_permissions (organization_id,role_id,permission_code)
+VALUES ('22222222-2222-4222-8222-222222222222','93900000-0000-4000-8000-000000000001','rsvp.correct')
+ON CONFLICT DO NOTHING;
+SET LOCAL ROLE eventor_runtime;
+SELECT set_config('app.actor_membership_id','bbbbbbbb-2222-4222-8222-bbbbbbbbbbbb',true);
+
 -- Grant the explicit late-response override, then verify the same late record
 -- succeeds for the authorized organizer.
 SET LOCAL ROLE eventor_owner;
