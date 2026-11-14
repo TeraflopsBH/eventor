@@ -5,7 +5,7 @@ import { decryptDeliveryCredentialBundle, decryptDeliveryCredentials, encryptDel
 import { decryptContactValue, encryptContactValue } from "./contact-crypto.js";
 import { PublicFormAnswersError, PublicFormSchemaError, validatePublicFormAnswers, validatePublicFormSchema } from "./public-form-validation.js";
 import { verifyResendWebhookSignature } from "./resend-webhook.js";
-import { hashGuestInvitationToken } from "./guest-invitation-capability.js";
+import { createGuestInvitationCapability, hashGuestInvitationToken } from "./guest-invitation-capability.js";
 import { classifySmtpFailure, sendSmtpTestMessage, type SmtpSettings, type SmtpTransportFactory } from "./smtp-transport.js";
 import type { paths } from "./generated/openapi.js";
 import {
@@ -652,6 +652,38 @@ const guestRsvpHeaders = {
     "x-guest-invitation-token": { type: "string", pattern: "^[A-Za-z0-9_-]{43}$" },
   },
   additionalProperties: true,
+} as const;
+
+const guestInvitationStaffParams = {
+  type: "object", required: ["eventId", "participationId"],
+  properties: {
+    eventId: { type: "string", pattern: uuidPattern },
+    participationId: { type: "string", pattern: uuidPattern },
+  },
+  additionalProperties: false,
+} as const;
+const guestInvitationParams = {
+  type: "object", required: ["invitationId"],
+  properties: { invitationId: { type: "string", pattern: uuidPattern } },
+  additionalProperties: false,
+} as const;
+const guestInvitationIssueBody = {
+  type: "object",
+  required: ["scheduleRevisionId", "rsvpPolicyRevisionId", "expiresAt", "presentationSnapshot"],
+  properties: {
+    invitationId: { type: "string", pattern: uuidPattern },
+    scheduleRevisionId: { type: "string", pattern: uuidPattern },
+    rsvpPolicyRevisionId: { type: "string", pattern: uuidPattern },
+    locale: { type: "string", enum: ["bs-BA", "en"], default: "bs-BA" },
+    expiresAt: { type: "string", format: "date-time" },
+    presentationSnapshot: { type: "object", maxProperties: 80 },
+  },
+  additionalProperties: false,
+} as const;
+const guestInvitationRevokeBody = {
+  type: "object", required: ["reasonCode"],
+  properties: { reasonCode: { type: "string", minLength: 3, maxLength: 80, pattern: "^[a-z][a-z0-9_.-]*$" } },
+  additionalProperties: false,
 } as const;
 
 const publicOfferDecisionParams = {
@@ -2776,6 +2808,89 @@ export function buildApi(dependencies: ApiDependencies): FastifyInstance {
       },
     },
     async (request, reply) => submitPublicOfferDecision(request, reply, "rejected", request.body),
+  );
+
+  server.post<{
+    Params: { eventId: string; participationId: string };
+    Body: {
+      invitationId?: string;
+      scheduleRevisionId: string;
+      rsvpPolicyRevisionId: string;
+      locale?: "bs-BA" | "en";
+      expiresAt: string;
+      presentationSnapshot: Record<string, unknown>;
+    };
+  }>(
+    "/events/:eventId/participations/:participationId/invitation",
+    {
+      schema: { params: guestInvitationStaffParams, headers: idempotencyHeaders, body: guestInvitationIssueBody },
+    },
+    async (request, reply) => {
+      const principal = request.staffPrincipal!;
+      const idempotencyKey = request.headers["idempotency-key"];
+      if (typeof idempotencyKey !== "string") {
+        throw new ApiError(400, "IDEMPOTENCY_KEY_REQUIRED", "A valid Idempotency-Key header is required.");
+      }
+      const contactKey = dependencies.contactEncryptionKey;
+      if (!contactKey || contactKey.length !== 32) {
+        throw new ApiError(503, "CONTACT_ENCRYPTION_UNAVAILABLE", "Guest invitation capability encryption is not configured.");
+      }
+      const snapshotJson = JSON.stringify(request.body.presentationSnapshot);
+      if (Buffer.byteLength(snapshotJson, "utf8") > 32768) {
+        throw new ApiError(422, "INVITATION_PRESENTATION_TOO_LARGE", "The invitation presentation snapshot exceeds 32 KiB.");
+      }
+      const expiresAt = new Date(request.body.expiresAt);
+      if (!Number.isFinite(expiresAt.getTime()) || expiresAt.getTime() <= Date.now()
+          || expiresAt.getTime() > Date.now() + 180 * 24 * 60 * 60 * 1000) {
+        throw new ApiError(422, "INVITATION_EXPIRY_INVALID", "Invitation expiry must be within the next 180 days.");
+      }
+      const capability = createGuestInvitationCapability();
+      const capabilityCiphertext = encryptContactValue(
+        capability.token, contactKey,
+        { organizationId: principal.organizationId, contactKind: "other" },
+      );
+      const snapshotCiphertext = encryptPrivateText(snapshotJson, dependencies.privateFieldEncryptionKey);
+      return withCommand(
+        request, reply,
+        request.body.invitationId ? "reissueGuestInvitation" : "issueGuestInvitation",
+        { eventId: request.params.eventId, participationId: request.params.participationId, body: request.body },
+        async (client) => {
+          const result = await client.query<ResultRow>(
+            "SELECT eogp.issue_guest_invitation($1::uuid,$2::uuid,$3::uuid,$4::uuid,$5::uuid,$6::uuid,$7::uuid,$8::text,$9::bytea,$10::text,$11::bytea,$12::timestamptz,$13::text) AS result",
+            [
+              principal.organizationId, request.params.eventId, request.params.participationId,
+              request.body.invitationId ?? null, principal.membershipId,
+              request.body.scheduleRevisionId, request.body.rsvpPolicyRevisionId,
+              request.body.locale ?? "bs-BA", snapshotCiphertext, capability.tokenSha256,
+              capabilityCiphertext, expiresAt,
+              createHash("sha256").update(idempotencyKey, "utf8").digest("hex"),
+            ],
+          );
+          return result.rows[0]?.result as Record<string, unknown>;
+        },
+      );
+    },
+  );
+
+  server.post<{ Params: { invitationId: string }; Body: { reasonCode: string } }>(
+    "/invitations/:invitationId/revoke",
+    {
+      schema: { params: guestInvitationParams, headers: idempotencyHeaders, body: guestInvitationRevokeBody },
+    },
+    async (request, reply) => {
+      const principal = request.staffPrincipal!;
+      return withCommand(
+        request, reply, "revokeGuestInvitation",
+        { invitationId: request.params.invitationId, reasonCode: request.body.reasonCode },
+        async (client) => {
+          const result = await client.query<ResultRow>(
+            "SELECT eogp.revoke_guest_invitation($1::uuid,$2::uuid,$3::uuid,$4::text) AS result",
+            [principal.organizationId, request.params.invitationId, principal.membershipId, request.body.reasonCode],
+          );
+          return result.rows[0]?.result as Record<string, unknown>;
+        },
+      );
+    },
   );
 
   const getGuestInvitationTokenHash = (request: FastifyRequest): string => {
