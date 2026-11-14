@@ -55,7 +55,7 @@ BEGIN
   END IF;
 END;
 \$authorize_first\$;
-\\! touch "$tmp/worker-authorized"
+\! touch "$tmp/worker-authorized"
 SELECT pg_sleep(2);
 COMMIT;
 SQL
@@ -125,7 +125,7 @@ BEGIN
   PERFORM eogp.revoke_guest_invitation('$org','$invitation','$actor','ci_revocation_won');
 END;
 \$revoke_first\$;
-\\! touch "$tmp/revocation-committed"
+\! touch "$tmp/revocation-committed"
 SELECT pg_sleep(2);
 COMMIT;
 SQL
