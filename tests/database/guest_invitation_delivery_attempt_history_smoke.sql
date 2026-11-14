@@ -452,6 +452,23 @@ BEGIN
     RAISE EXCEPTION 'staff RSVP accepted a member without rsvp.record';
   END IF;
 
+  -- The same unauthorized member must receive the same denial for an
+  -- unknown participation ID; resource existence must not be observable.
+  v_denied := false;
+  BEGIN
+    PERFORM eogp.record_staff_guest_rsvp(
+      v_org,v_event,'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa',
+      '95600000-0000-4000-8000-000000000001',
+      'accepted','phone','guest',clock_timestamp()-interval '1 minute',
+      NULL,NULL,NULL,NULL
+    );
+  EXCEPTION WHEN SQLSTATE '42501' THEN
+    v_denied := true;
+  END;
+  IF NOT v_denied THEN
+    RAISE EXCEPTION 'staff RSVP exposed participation existence to a member without rsvp.record';
+  END IF;
+
   -- The supplied actor argument cannot override the transaction-bound actor.
   PERFORM set_config('app.actor_membership_id','95600000-0000-4000-8000-000000000001',true);
   v_denied := false;
