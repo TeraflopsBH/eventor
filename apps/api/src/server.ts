@@ -5,6 +5,7 @@ import { decryptDeliveryCredentialBundle, decryptDeliveryCredentials, encryptDel
 import { decryptContactValue, encryptContactValue } from "./contact-crypto.js";
 import { PublicFormAnswersError, PublicFormSchemaError, validatePublicFormAnswers, validatePublicFormSchema } from "./public-form-validation.js";
 import { verifyResendWebhookSignature } from "./resend-webhook.js";
+import { hashGuestInvitationToken } from "./guest-invitation-capability.js";
 import { classifySmtpFailure, sendSmtpTestMessage, type SmtpSettings, type SmtpTransportFactory } from "./smtp-transport.js";
 import type { paths } from "./generated/openapi.js";
 import {
@@ -612,6 +613,47 @@ const publicOfferCapabilityHeaders = {
   },
   additionalProperties: true,
 } as const;
+const guestInvitationCapabilityHeaders = {
+  type: "object",
+  required: ["x-guest-invitation-token"],
+  properties: {
+    "x-guest-invitation-token": { type: "string", pattern: "^[A-Za-z0-9_-]{43}$" },
+  },
+  additionalProperties: true,
+} as const;
+const guestInvitationResolveHeaders = {
+  type: "object",
+  required: ["idempotency-key", "x-guest-invitation-token"],
+  properties: {
+    "idempotency-key": { type: "string", minLength: 8, maxLength: 200 },
+    "x-guest-invitation-token": { type: "string", pattern: "^[A-Za-z0-9_-]{43}$" },
+  },
+  additionalProperties: true,
+} as const;
+const guestInvitationResolveBody = {
+  type: "object",
+  properties: { clientContext: { type: "string", maxLength: 200 } },
+  additionalProperties: false,
+} as const;
+const guestRsvpBody = {
+  type: "object",
+  required: ["response"],
+  properties: {
+    response: { type: "string", enum: ["accepted", "declined", "tentative"] },
+    note: { type: "string", maxLength: 1000 },
+  },
+  additionalProperties: false,
+} as const;
+const guestRsvpHeaders = {
+  type: "object",
+  required: ["idempotency-key", "x-guest-invitation-token"],
+  properties: {
+    "idempotency-key": { type: "string", minLength: 8, maxLength: 200 },
+    "x-guest-invitation-token": { type: "string", pattern: "^[A-Za-z0-9_-]{43}$" },
+  },
+  additionalProperties: true,
+} as const;
+
 const publicOfferDecisionParams = {
   type: "object", required: ["offerId"],
   properties: { offerId: { type: "string", pattern: uuidPattern } },
@@ -1182,7 +1224,7 @@ function principalIsValid(principal: StaffPrincipal | null): principal is StaffP
 
 export function buildApi(dependencies: ApiDependencies): FastifyInstance {
   const server = Fastify({
-    logger: { redact: ["req.headers.x-external-booking-token"] },
+    logger: { redact: ["req.headers.x-external-booking-token", "req.headers.x-guest-invitation-token"] },
     bodyLimit: 64 * 1024,
     trustProxy: dependencies.trustedProxyAddresses?.length
       ? [...dependencies.trustedProxyAddresses]
@@ -2727,6 +2769,158 @@ export function buildApi(dependencies: ApiDependencies): FastifyInstance {
       },
     },
     async (request, reply) => submitPublicOfferDecision(request, reply, "rejected", request.body),
+  );
+
+  const getGuestInvitationTokenHash = (request: FastifyRequest): string => {
+    const token = request.headers["x-guest-invitation-token"];
+    const tokenHash = hashGuestInvitationToken(token);
+    if (!tokenHash) {
+      throw new ApiError(401, "GUEST_INVITATION_CAPABILITY_REQUIRED", "A valid guest invitation capability is required.");
+    }
+    return tokenHash;
+  };
+
+  const resolveGuestInvitation = async (tokenHash: string): Promise<Record<string, unknown>> => {
+    const client = await dependencies.pool.connect();
+    try {
+      await client.query("BEGIN");
+      const result = await client.query<ResultRow>(
+        "SELECT eogp.resolve_guest_invitation($1::text) AS result",
+        [tokenHash],
+      );
+      await client.query("COMMIT");
+      const data = result.rows[0]?.result as Record<string, unknown> | undefined;
+      if (!data) throw new ApiError(404, "GUEST_INVITATION_NOT_FOUND", "The guest invitation was not found.");
+      return data;
+    } catch (error) {
+      try { await client.query("ROLLBACK"); } catch { /* preserve the resolution error */ }
+      throw databaseError(error);
+    } finally {
+      client.release();
+    }
+  };
+
+  const sendGuestPrivateResponse = (
+    reply: FastifyReply,
+    status: number,
+    data: Record<string, unknown>,
+  ) => {
+    reply.header("Cache-Control", "no-store, private");
+    reply.header("Referrer-Policy", "no-referrer");
+    reply.header("X-Robots-Tag", "noindex, nofollow, noarchive");
+    return reply.code(status).send({ data });
+  };
+
+  server.get(
+    "/guest/invitation/me",
+    { schema: { headers: guestInvitationCapabilityHeaders } },
+    async (request, reply) => {
+      const tokenHash = getGuestInvitationTokenHash(request);
+      const resolved = await resolveGuestInvitation(tokenHash);
+      const { organizationId: _organizationId, ...data } = resolved;
+      return sendGuestPrivateResponse(reply, 200, data);
+    },
+  );
+
+  server.post<{ Body: { clientContext?: string } }>(
+    "/guest/invitation/resolve",
+    {
+      schema: {
+        headers: guestInvitationResolveHeaders,
+        body: guestInvitationResolveBody,
+      },
+    },
+    async (request, reply) => {
+      const idempotencyKey = request.headers["idempotency-key"];
+      if (typeof idempotencyKey !== "string" || idempotencyKey.length < 8 || idempotencyKey.length > 200) {
+        throw new ApiError(400, "IDEMPOTENCY_KEY_REQUIRED", "A valid Idempotency-Key header is required.");
+      }
+      const tokenHash = getGuestInvitationTokenHash(request);
+      const resolved = await resolveGuestInvitation(tokenHash);
+      const { organizationId: _organizationId, ...data } = resolved;
+      return sendGuestPrivateResponse(reply, 200, data);
+    },
+  );
+
+  server.post<{ Body: { response: "accepted" | "declined" | "tentative"; note?: string } }>(
+    "/guest/invitation/me/rsvp",
+    {
+      schema: {
+        headers: guestRsvpHeaders,
+        body: guestRsvpBody,
+      },
+    },
+    async (request, reply) => {
+      const tokenHash = getGuestInvitationTokenHash(request);
+      const idempotencyKey = request.headers["idempotency-key"];
+      if (typeof idempotencyKey !== "string" || idempotencyKey.length < 8 || idempotencyKey.length > 200) {
+        throw new ApiError(400, "IDEMPOTENCY_KEY_REQUIRED", "A valid Idempotency-Key header is required.");
+      }
+      const resolved = await resolveGuestInvitation(tokenHash);
+      const organizationId = resolved.organizationId;
+      if (typeof organizationId !== "string" || !new RegExp(uuidPattern).test(organizationId)) {
+        throw new ApiError(500, "GUEST_INVITATION_CONTEXT_INVALID", "The guest invitation context is invalid.");
+      }
+      let notesCiphertext: Buffer | null = null;
+      if (request.body.note?.trim()) {
+        const encryptionKey = dependencies.contactEncryptionKey;
+        if (!encryptionKey || encryptionKey.length !== 32) {
+          throw new ApiError(503, "GUEST_RSVP_ENCRYPTION_UNAVAILABLE", "Guest RSVP note encryption is not configured.");
+        }
+        notesCiphertext = encryptContactValue(
+          request.body.note.trim(),
+          encryptionKey,
+          { organizationId, contactKind: "other" },
+        );
+      }
+      const idempotencyHash = createHash("sha256").update(idempotencyKey, "utf8").digest("hex");
+      const payloadHash = requestHash(
+        { response: request.body.response, note: request.body.note?.trim() ?? null },
+        dependencies.contactEncryptionKey,
+      );
+      const client = await dependencies.pool.connect();
+      try {
+        await client.query("BEGIN");
+        const result = await client.query<ResultRow>(
+          "SELECT eogp.submit_guest_invitation_rsvp($1::text,$2::text,$3::text,$4::text,$5::bytea) AS result",
+          [tokenHash, idempotencyHash, payloadHash, request.body.response, notesCiphertext],
+        );
+        await client.query("COMMIT");
+        const data = result.rows[0]?.result as Record<string, unknown> | undefined;
+        if (!data) throw new ApiError(500, "GUEST_RSVP_RESULT_MISSING", "The RSVP response was not recorded.");
+        return sendGuestPrivateResponse(reply, 201, data);
+      } catch (error) {
+        try { await client.query("ROLLBACK"); } catch { /* preserve the RSVP error */ }
+        throw databaseError(error);
+      } finally {
+        client.release();
+      }
+    },
+  );
+
+  server.get(
+    "/guest/invitation/me/rsvp-history",
+    { schema: { headers: guestInvitationCapabilityHeaders } },
+    async (request, reply) => {
+      const tokenHash = getGuestInvitationTokenHash(request);
+      const client = await dependencies.pool.connect();
+      try {
+        await client.query("BEGIN");
+        const result = await client.query<ResultRow>(
+          "SELECT eogp.get_guest_invitation_rsvp_history($1::text) AS result",
+          [tokenHash],
+        );
+        await client.query("COMMIT");
+        const data = result.rows[0]?.result;
+        if (!Array.isArray(data)) throw new ApiError(500, "GUEST_RSVP_HISTORY_MISSING", "The RSVP history could not be loaded.");
+        return sendGuestPrivateResponse(reply, 200, data as unknown as Record<string, unknown>);
+      } catch (error) {
+        try { await client.query("ROLLBACK"); } catch { /* preserve the history error */ }
+        throw databaseError(error);
+      } finally {
+        client.release();
+      }
+    },
   );
 
   server.post<{ Params: { revisionId: string }; Body: BookingOfferCreateBody }>(
