@@ -139,6 +139,24 @@ function makeStaffInvitationApi() {
           rowCount: 1,
         };
       }
+      if (normalized.includes("eogp.list_guest_invitation_delivery_attempts(")) {
+        return {
+          rows: [{
+            result: [{
+              attemptId: "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa",
+              deliveryId: "99999999-9999-4999-8999-999999999999",
+              attemptNumber: 2,
+              status: "failed",
+              failureCode: "SMTP_TIMEOUT",
+              providerMessageReference: null,
+              startedAt: "2026-11-14T12:00:00.000Z",
+              completedAt: "2026-11-14T12:00:30.000Z",
+              retryScheduled: true,
+            }],
+          }],
+          rowCount: 1,
+        };
+      }
       throw new Error("Unexpected staff invitation SQL: " + normalized);
     },
     release() {},
@@ -278,4 +296,23 @@ test("staff invitation revocation calls the audited tenant-scoped database comma
   const call = mock.calls.find((item) => item.sql.includes("eogp.revoke_guest_invitation("));
   assert.ok(call);
   assert.deepEqual(call.values, [organizationId, invitationId, staffPrincipal.membershipId, "guest_request"]);
+});
+
+
+test("staff delivery attempt history is read through the tenant- and permission-scoped projection", async (t) => {
+  const mock = makeStaffInvitationApi();
+  t.after(async () => mock.app.close());
+
+  const response = await mock.app.inject({
+    method: "GET",
+    url: "/invitations/33333333-3333-4333-8333-333333333333/delivery-attempts",
+  });
+  assert.equal(response.statusCode, 200);
+  const attempts = response.json<{ data: Array<{ attemptNumber: number; failureCode: string; retryScheduled: boolean }> }>().data;
+  assert.equal(attempts[0]?.attemptNumber, 2);
+  assert.equal(attempts[0]?.failureCode, "SMTP_TIMEOUT");
+  assert.equal(attempts[0]?.retryScheduled, true);
+  const call = mock.calls.find((item) => item.sql.includes("eogp.list_guest_invitation_delivery_attempts("));
+  assert.ok(call);
+  assert.deepEqual(call.values, [organizationId, invitationId, staffPrincipal.membershipId]);
 });
