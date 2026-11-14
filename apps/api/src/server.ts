@@ -1228,6 +1228,7 @@ async function runIdempotentCommand(
     await client.query("BEGIN");
     // The tenant comes only from the trusted session principal, never request data.
     await client.query("SELECT set_config('app.organization_id',$1,true)", [principal.organizationId]);
+
     await client.query("SELECT set_config('app.actor_membership_id',$1,true)", [principal.membershipId]);
     await client.query(
       "DELETE FROM eogp.idempotency_records WHERE organization_id=$1 AND principal_kind='membership' AND principal_id=$2 AND operation_id=$3 AND idempotency_key=$4 AND expires_at<=clock_timestamp()",
@@ -1683,6 +1684,8 @@ export function buildApi(dependencies: ApiDependencies): FastifyInstance {
     try {
       await client.query("BEGIN");
       await client.query("SELECT set_config('app.organization_id',$1,true)", [principal.organizationId]);
+
+      await client.query("SELECT set_config('app.actor_membership_id',$1,true)", [principal.membershipId]);
       const result = await client.query<ResultRow>(
         "SELECT eogp.get_organization_locale_settings($1::uuid,$2::uuid) AS result",
         [principal.organizationId,principal.membershipId],
@@ -1701,6 +1704,7 @@ export function buildApi(dependencies: ApiDependencies): FastifyInstance {
     try {
       await client.query("BEGIN");
       await client.query("SELECT set_config('app.organization_id',$1,true)", [principal.organizationId]);
+
       await client.query("SELECT set_config('app.actor_membership_id',$1,true)", [principal.membershipId]);
       const result = await client.query<ResultRow>(
         "SELECT eogp.set_organization_default_locale($1::uuid,$2::uuid,$3::text) AS result",
@@ -1726,6 +1730,8 @@ export function buildApi(dependencies: ApiDependencies): FastifyInstance {
       try {
         await client.query("BEGIN");
         await client.query("SELECT set_config('app.organization_id',$1,true)", [principal.organizationId]);
+
+        await client.query("SELECT set_config('app.actor_membership_id',$1,true)", [principal.membershipId]);
         const result = await client.query<ResultRow>(
           "SELECT eogp.get_booking_inquiry_capabilities($1::uuid,$2::uuid) AS result",
           [principal.organizationId, principal.membershipId],
@@ -1755,6 +1761,8 @@ export function buildApi(dependencies: ApiDependencies): FastifyInstance {
       try {
         await client.query("BEGIN");
         await client.query("SELECT set_config('app.organization_id',$1,true)", [principal.organizationId]);
+
+        await client.query("SELECT set_config('app.actor_membership_id',$1,true)", [principal.membershipId]);
         const result = await client.query<ResultRow>(
           "SELECT eogp.list_booking_inquiry_assignees($1::uuid,$2::uuid) AS result",
           [principal.organizationId, principal.membershipId],
@@ -1790,6 +1798,8 @@ export function buildApi(dependencies: ApiDependencies): FastifyInstance {
       try {
         await client.query("BEGIN");
         await client.query("SELECT set_config('app.organization_id',$1,true)", [principal.organizationId]);
+
+        await client.query("SELECT set_config('app.actor_membership_id',$1,true)", [principal.membershipId]);
         const result = await client.query<ResultRow>(
           "SELECT eogp.list_booking_inquiries($1::uuid,$2::uuid,$3::text,$4::uuid,$5::integer,$6::integer) AS result",
           [
@@ -1832,6 +1842,8 @@ export function buildApi(dependencies: ApiDependencies): FastifyInstance {
       try {
         await client.query("BEGIN");
         await client.query("SELECT set_config('app.organization_id',$1,true)", [principal.organizationId]);
+
+        await client.query("SELECT set_config('app.actor_membership_id',$1,true)", [principal.membershipId]);
         const result = await client.query<ResultRow>(
           "SELECT eogp.get_booking_draft($1::uuid,$2::uuid,$3::uuid) AS result",
           [principal.organizationId, request.params.draftId, principal.membershipId],
@@ -1860,6 +1872,8 @@ export function buildApi(dependencies: ApiDependencies): FastifyInstance {
       try {
         await client.query("BEGIN");
         await client.query("SELECT set_config('app.organization_id',$1,true)", [principal.organizationId]);
+
+        await client.query("SELECT set_config('app.actor_membership_id',$1,true)", [principal.membershipId]);
         const result = await client.query<ResultRow>(
           "SELECT eogp.get_booking_draft_allocation_options($1::uuid,$2::uuid,$3::uuid) AS result",
           [principal.organizationId, request.params.draftId, principal.membershipId],
@@ -1897,6 +1911,8 @@ export function buildApi(dependencies: ApiDependencies): FastifyInstance {
       try {
         await client.query("BEGIN");
         await client.query("SELECT set_config('app.organization_id',$1,true)", [principal.organizationId]);
+
+        await client.query("SELECT set_config('app.actor_membership_id',$1,true)", [principal.membershipId]);
         const result = await client.query<ResultRow>(
           "SELECT eogp.preview_booking_draft_allocation_availability($1::uuid,$2::uuid,$3::uuid,$4::jsonb,$5::jsonb,$6::timestamptz,$7::timestamptz) AS result",
           [
@@ -2034,6 +2050,8 @@ export function buildApi(dependencies: ApiDependencies): FastifyInstance {
       try {
         await client.query("BEGIN");
         await client.query("SELECT set_config('app.organization_id',$1,true)", [principal.organizationId]);
+
+        await client.query("SELECT set_config('app.actor_membership_id',$1,true)", [principal.membershipId]);
         const result = await client.query<ResultRow>(
           "SELECT eogp.get_booking_forms($1::uuid,$2::uuid) AS result",
           [principal.organizationId, principal.membershipId],
@@ -2131,6 +2149,8 @@ export function buildApi(dependencies: ApiDependencies): FastifyInstance {
       try {
         await client.query("BEGIN");
         await client.query("SELECT set_config('app.organization_id',$1,true)", [principal.organizationId]);
+
+        await client.query("SELECT set_config('app.actor_membership_id',$1,true)", [principal.membershipId]);
         const result = await client.query<ResultRow>(
           "SELECT eogp.get_booking_price_lists($1::uuid,$2::uuid) AS result",
           [principal.organizationId, principal.membershipId],
@@ -2261,6 +2281,8 @@ export function buildApi(dependencies: ApiDependencies): FastifyInstance {
       try {
         await client.query("BEGIN");
         await client.query("SELECT set_config('app.organization_id',$1,true)", [principal.organizationId]);
+
+        await client.query("SELECT set_config('app.actor_membership_id',$1,true)", [principal.membershipId]);
         const result = await client.query<ResultRow>(
           "SELECT eogp.get_booking_approval_policies($1::uuid,$2::uuid) AS result",
           [principal.organizationId, principal.membershipId],
@@ -2398,6 +2420,8 @@ export function buildApi(dependencies: ApiDependencies): FastifyInstance {
       try {
         await client.query("BEGIN");
         await client.query("SELECT set_config('app.organization_id',$1,true)", [principal.organizationId]);
+
+        await client.query("SELECT set_config('app.actor_membership_id',$1,true)", [principal.membershipId]);
         const result = await client.query<ResultRow>(
           "SELECT eogp.get_booking_tax_profiles($1::uuid,$2::uuid) AS result",
           [principal.organizationId, principal.membershipId],
@@ -2518,6 +2542,8 @@ export function buildApi(dependencies: ApiDependencies): FastifyInstance {
       try {
         await client.query("BEGIN");
         await client.query("SELECT set_config('app.organization_id',$1,true)", [principal.organizationId]);
+
+        await client.query("SELECT set_config('app.actor_membership_id',$1,true)", [principal.membershipId]);
         const result = await client.query<ResultRow>(
           "SELECT eogp.get_booking_cancellation_policies($1::uuid,$2::uuid) AS result",
           [principal.organizationId, principal.membershipId],
@@ -2647,6 +2673,8 @@ export function buildApi(dependencies: ApiDependencies): FastifyInstance {
       try {
         await client.query("BEGIN");
         await client.query("SELECT set_config('app.organization_id',$1,true)", [principal.organizationId]);
+
+        await client.query("SELECT set_config('app.actor_membership_id',$1,true)", [principal.membershipId]);
         const result = await client.query<ResultRow>(
           "SELECT eogp.get_booking_offer_approval_status($1::uuid,$2::uuid,$3::uuid) AS result",
           [principal.organizationId, request.params.offerId, principal.membershipId],
@@ -2860,6 +2888,7 @@ export function buildApi(dependencies: ApiDependencies): FastifyInstance {
       try {
         await client.query("BEGIN");
         await client.query("SELECT set_config('app.organization_id',$1,true)", [principal.organizationId]);
+
         await client.query("SELECT set_config('app.actor_membership_id',$1,true)", [principal.membershipId]);
         const result = await client.query<ResultRow>(
           "SELECT eogp.list_guest_invitation_events($1::uuid,$2::uuid) AS result",
@@ -2883,6 +2912,7 @@ export function buildApi(dependencies: ApiDependencies): FastifyInstance {
       try {
         await client.query("BEGIN");
         await client.query("SELECT set_config('app.organization_id',$1,true)", [principal.organizationId]);
+
         await client.query("SELECT set_config('app.actor_membership_id',$1,true)", [principal.membershipId]);
         const result = await client.query<ResultRow>(
           "SELECT eogp.list_guest_invitation_participations($1::uuid,$2::uuid,$3::uuid) AS result",
@@ -2913,6 +2943,7 @@ export function buildApi(dependencies: ApiDependencies): FastifyInstance {
       try {
         await client.query("BEGIN");
         await client.query("SELECT set_config('app.organization_id',$1,true)", [principal.organizationId]);
+
         await client.query("SELECT set_config('app.actor_membership_id',$1,true)", [principal.membershipId]);
         const result = await client.query<ResultRow>(
           "SELECT eogp.list_guest_invitation_delivery_attempts($1::uuid,$2::uuid,$3::uuid) AS result",
@@ -3258,6 +3289,8 @@ export function buildApi(dependencies: ApiDependencies): FastifyInstance {
       try {
         await client.query("BEGIN");
         await client.query("SELECT set_config('app.organization_id',$1,true)", [principal.organizationId]);
+
+        await client.query("SELECT set_config('app.actor_membership_id',$1,true)", [principal.membershipId]);
         const result = await client.query<ResultRow>(
           "SELECT eogp.get_booking_offer($1::uuid,$2::uuid,$3::uuid) AS result",
           [principal.organizationId, request.params.offerId, principal.membershipId],
@@ -3287,6 +3320,8 @@ export function buildApi(dependencies: ApiDependencies): FastifyInstance {
       try {
         await client.query("BEGIN");
         await client.query("SELECT set_config('app.organization_id',$1,true)", [principal.organizationId]);
+
+        await client.query("SELECT set_config('app.actor_membership_id',$1,true)", [principal.membershipId]);
         const result = await client.query<ResultRow>(
           "SELECT eogp.list_booking_offer_email_deliveries($1::uuid,$2::uuid,$3::uuid,$4::text,$5::integer,$6::integer) AS result",
           [principal.organizationId,request.params.offerId,principal.membershipId,request.query.status ?? null,limit,offset],
@@ -3488,6 +3523,8 @@ export function buildApi(dependencies: ApiDependencies): FastifyInstance {
       try {
         await client.query("BEGIN");
         await client.query("SELECT set_config('app.organization_id',$1,true)", [principal.organizationId]);
+
+        await client.query("SELECT set_config('app.actor_membership_id',$1,true)", [principal.membershipId]);
         const result = await client.query<ResultRow>(
           "SELECT eogp.get_booking_inquiry($1::uuid,$2::uuid,$3::uuid) AS result",
           [principal.organizationId, request.params.inquiryId, principal.membershipId],
@@ -3602,6 +3639,8 @@ export function buildApi(dependencies: ApiDependencies): FastifyInstance {
       try {
         await client.query("BEGIN");
         await client.query("SELECT set_config('app.organization_id',$1,true)", [principal.organizationId]);
+
+        await client.query("SELECT set_config('app.actor_membership_id',$1,true)", [principal.membershipId]);
         const result = await client.query<ResultRow>(
           "SELECT eogp.list_event_notification_campaigns($1::uuid,$2::uuid,$3::text,$4::integer,$5::integer) AS result",
           [principal.organizationId, principal.membershipId, request.query.status ?? null, limit, offset],
@@ -3633,6 +3672,8 @@ export function buildApi(dependencies: ApiDependencies): FastifyInstance {
       try {
         await client.query("BEGIN");
         await client.query("SELECT set_config('app.organization_id',$1,true)", [principal.organizationId]);
+
+        await client.query("SELECT set_config('app.actor_membership_id',$1,true)", [principal.membershipId]);
         const result = await client.query<ResultRow>(
           "SELECT eogp.get_event_notification_campaign_progress($1::uuid,$2::uuid,$3::uuid) AS result",
           [principal.organizationId, request.params.campaignId, principal.membershipId],
@@ -3662,6 +3703,8 @@ export function buildApi(dependencies: ApiDependencies): FastifyInstance {
       try {
         await client.query("BEGIN");
         await client.query("SELECT set_config('app.organization_id',$1,true)", [principal.organizationId]);
+
+        await client.query("SELECT set_config('app.actor_membership_id',$1,true)", [principal.membershipId]);
         const result = await client.query<ResultRow>(
           "SELECT eogp.list_event_notification_campaign_deliveries($1::uuid,$2::uuid,$3::uuid,$4::text,$5::integer,$6::integer) AS result",
           [principal.organizationId, request.params.campaignId, principal.membershipId, request.query.status ?? null, limit, offset],
@@ -3746,6 +3789,8 @@ export function buildApi(dependencies: ApiDependencies): FastifyInstance {
       try {
         await client.query("BEGIN");
         await client.query("SELECT set_config('app.organization_id',$1,true)", [principal.organizationId]);
+
+        await client.query("SELECT set_config('app.actor_membership_id',$1,true)", [principal.membershipId]);
         const result = await client.query<ResultRow>(
           "SELECT eogp.get_event_notification_campaign_review($1::uuid,$2::uuid,$3::uuid) AS result",
           [principal.organizationId, request.params.campaignId, principal.membershipId],
@@ -3919,6 +3964,8 @@ export function buildApi(dependencies: ApiDependencies): FastifyInstance {
       try {
         await beginClient.query("BEGIN");
         await beginClient.query("SELECT set_config('app.organization_id',$1,true)", [principal.organizationId]);
+
+        await beginClient.query("SELECT set_config('app.actor_membership_id',$1,true)", [principal.membershipId]);
         const result = await beginClient.query<ResultRow>(
           "SELECT eogp.begin_organization_email_delivery_test($1::uuid,$2::uuid,$3::text,$4::text) AS result",
           [principal.organizationId, principal.membershipId, idempotencyHash, recipientHash],
@@ -3979,6 +4026,8 @@ export function buildApi(dependencies: ApiDependencies): FastifyInstance {
       try {
         await finishClient.query("BEGIN");
         await finishClient.query("SELECT set_config('app.organization_id',$1,true)", [principal.organizationId]);
+
+        await finishClient.query("SELECT set_config('app.actor_membership_id',$1,true)", [principal.membershipId]);
         const result = await finishClient.query<ResultRow>(
           "SELECT eogp.complete_organization_email_delivery_test($1::uuid,$2::uuid,$3::uuid,$4::boolean,$5::text) AS result",
           [principal.organizationId, principal.membershipId, begin.requestId, succeeded, succeeded ? null : failureCode],
@@ -4053,6 +4102,8 @@ export function buildApi(dependencies: ApiDependencies): FastifyInstance {
     try {
       await client.query("BEGIN");
       await client.query("SELECT set_config('app.organization_id',$1,true)", [principal.organizationId]);
+
+      await client.query("SELECT set_config('app.actor_membership_id',$1,true)", [principal.membershipId]);
       const result = await client.query<ResultRow>(
         "SELECT eogp.get_organization_email_delivery_config($1::uuid,$2::uuid) AS result",
         [principal.organizationId, principal.membershipId],
@@ -4131,6 +4182,8 @@ export function buildApi(dependencies: ApiDependencies): FastifyInstance {
     try {
       await client.query("BEGIN");
       await client.query("SELECT set_config('app.organization_id',$1,true)", [principal.organizationId]);
+
+      await client.query("SELECT set_config('app.actor_membership_id',$1,true)", [principal.membershipId]);
       const result = await client.query<ResultRow>(
         "SELECT eogp.get_organization_resend_webhook_configuration($1::uuid,$2::uuid) AS result",
         [principal.organizationId, principal.membershipId],
