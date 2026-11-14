@@ -2204,7 +2204,9 @@ export function buildApi(dependencies: ApiDependencies): FastifyInstance {
             request.body.locale, JSON.stringify(request.body.fieldSchema)],
         );
         return result.rows[0]?.result as Record<string, unknown>;
-      });
+      }, async (client) => {
+      await authorizeBookingCommercialReplay(client, principal, "booking.manage");
+    });
     },
   );
 
@@ -2220,7 +2222,9 @@ export function buildApi(dependencies: ApiDependencies): FastifyInstance {
             [principal.organizationId, request.params.formId, principal.membershipId],
           );
           return result.rows[0]?.result as Record<string, unknown>;
-        });
+        }, async (client) => {
+      await authorizeBookingCommercialReplay(client, principal, "booking.manage");
+    });
     },
   );
 
@@ -2243,7 +2247,9 @@ export function buildApi(dependencies: ApiDependencies): FastifyInstance {
               principal.membershipId, request.body.locale, JSON.stringify(request.body.fieldSchema)],
           );
           return result.rows[0]?.result as Record<string, unknown>;
-        });
+        }, async (client) => {
+      await authorizeBookingCommercialReplay(client, principal, "booking.manage");
+    });
     },
   );
 
@@ -2260,7 +2266,9 @@ export function buildApi(dependencies: ApiDependencies): FastifyInstance {
             [principal.organizationId, request.params.formId, request.params.revisionId, principal.membershipId],
           );
           return result.rows[0]?.result as Record<string, unknown>;
-        });
+        }, async (client) => {
+      await authorizeBookingCommercialReplay(client, principal, "booking.manage");
+    });
     },
   );
 
@@ -2310,7 +2318,9 @@ export function buildApi(dependencies: ApiDependencies): FastifyInstance {
           ],
         );
         return result.rows[0]?.result as Record<string, unknown>;
-      });
+      }, async (client) => {
+      await authorizeBookingCommercialReplay(client, principal, "booking.manage");
+    });
     },
   );
 
@@ -2339,7 +2349,9 @@ export function buildApi(dependencies: ApiDependencies): FastifyInstance {
           );
           return result.rows[0]?.result as Record<string, unknown>;
         },
-      );
+      , async (client) => {
+      await authorizeBookingCommercialReplay(client, principal, "booking.manage");
+    });
     },
   );
 
@@ -2373,7 +2385,9 @@ export function buildApi(dependencies: ApiDependencies): FastifyInstance {
           );
           return result.rows[0]?.result as Record<string, unknown>;
         },
-      );
+      , async (client) => {
+      await authorizeBookingCommercialReplay(client, principal, "booking.manage");
+    });
     },
   );
 
@@ -2392,7 +2406,9 @@ export function buildApi(dependencies: ApiDependencies): FastifyInstance {
           );
           return result.rows[0]?.result as Record<string, unknown>;
         },
-      );
+      , async (client) => {
+      await authorizeBookingCommercialReplay(client, principal, "booking.manage");
+    });
     },
   );
 
@@ -2441,7 +2457,9 @@ export function buildApi(dependencies: ApiDependencies): FastifyInstance {
           );
           return result.rows[0]?.result as Record<string, unknown>;
         },
-      );
+      , async (client) => {
+      await authorizeBookingCommercialReplay(client, principal, "booking.manage");
+    });
     },
   );
 
@@ -2469,7 +2487,9 @@ export function buildApi(dependencies: ApiDependencies): FastifyInstance {
           );
           return result.rows[0]?.result as Record<string, unknown>;
         },
-      );
+      , async (client) => {
+      await authorizeBookingCommercialReplay(client, principal, "booking.manage");
+    });
     },
   );
 
@@ -2507,7 +2527,9 @@ export function buildApi(dependencies: ApiDependencies): FastifyInstance {
           );
           return result.rows[0]?.result as Record<string, unknown>;
         },
-      );
+      , async (client) => {
+      await authorizeBookingCommercialReplay(client, principal, "booking.manage");
+    });
     },
   );
 
@@ -2531,7 +2553,9 @@ export function buildApi(dependencies: ApiDependencies): FastifyInstance {
           );
           return result.rows[0]?.result as Record<string, unknown>;
         },
-      );
+      , async (client) => {
+      await authorizeBookingCommercialReplay(client, principal, "booking.manage");
+    });
     },
   );
 
@@ -2574,7 +2598,9 @@ export function buildApi(dependencies: ApiDependencies): FastifyInstance {
            body.registrationIdentifier ?? null,body.currency,body.taxBasis],
         );
         return result.rows[0]?.result as Record<string,unknown>;
-      });
+      }, async (client) => {
+      await authorizeBookingCommercialReplay(client, principal, "booking.manage");
+    });
     },
   );
 
@@ -2597,7 +2623,9 @@ export function buildApi(dependencies: ApiDependencies): FastifyInstance {
              body.effectiveFrom,body.effectiveUntil],
           );
           return result.rows[0]?.result as Record<string,unknown>;
-        });
+        }, async (client) => {
+      await authorizeBookingCommercialReplay(client, principal, "booking.manage");
+    });
     },
   );
 
@@ -2621,7 +2649,9 @@ export function buildApi(dependencies: ApiDependencies): FastifyInstance {
              body.roundingScale,body.effectiveFrom,body.effectiveUntil,JSON.stringify(body.taxCodes)],
           );
           return result.rows[0]?.result as Record<string,unknown>;
-        });
+        }, async (client) => {
+      await authorizeBookingCommercialReplay(client, principal, "booking.manage");
+    });
     },
   );
 
@@ -2637,7 +2667,9 @@ export function buildApi(dependencies: ApiDependencies): FastifyInstance {
             [principal.organizationId,request.params.taxProfileId,request.params.revisionId,principal.membershipId],
           );
           return result.rows[0]?.result as Record<string,unknown>;
-        });
+        }, async (client) => {
+      await authorizeBookingCommercialReplay(client, principal, "booking.manage");
+    });
     },
   );
 
@@ -2653,7 +2685,9 @@ export function buildApi(dependencies: ApiDependencies): FastifyInstance {
             [principal.organizationId,request.params.priceListId,request.params.revisionId,body.taxProfileRevisionId,principal.membershipId],
           );
           return result.rows[0]?.result as Record<string,unknown>;
-        });
+        }, async (client) => {
+      await authorizeBookingCommercialReplay(client, principal, "booking.manage");
+    });
     },
   );
 
@@ -2693,7 +2727,9 @@ export function buildApi(dependencies: ApiDependencies): FastifyInstance {
           [principal.organizationId,principal.membershipId,request.body.code,request.body.name],
         );
         return result.rows[0]?.result as Record<string,unknown>;
-      });
+      }, async (client) => {
+      await authorizeBookingCommercialReplay(client, principal, "booking.manage");
+    });
     },
   );
 
@@ -2715,7 +2751,9 @@ export function buildApi(dependencies: ApiDependencies): FastifyInstance {
              JSON.stringify(body.approvalRules),JSON.stringify(body.commercialRules),JSON.stringify(body.noticeRules)],
           );
           return result.rows[0]?.result as Record<string,unknown>;
-        });
+        }, async (client) => {
+      await authorizeBookingCommercialReplay(client, principal, "booking.manage");
+    });
     },
   );
 
@@ -2736,7 +2774,9 @@ export function buildApi(dependencies: ApiDependencies): FastifyInstance {
              body.customerMode,body.publicTerms,JSON.stringify(body.approvalRules),JSON.stringify(body.commercialRules),JSON.stringify(body.noticeRules)],
           );
           return result.rows[0]?.result as Record<string,unknown>;
-        });
+        }, async (client) => {
+      await authorizeBookingCommercialReplay(client, principal, "booking.manage");
+    });
     },
   );
 
@@ -2752,7 +2792,9 @@ export function buildApi(dependencies: ApiDependencies): FastifyInstance {
             [principal.organizationId,request.params.policyId,request.params.revisionId,principal.membershipId],
           );
           return result.rows[0]?.result as Record<string,unknown>;
-        });
+        }, async (client) => {
+      await authorizeBookingCommercialReplay(client, principal, "booking.manage");
+    });
     },
   );
 
@@ -3385,7 +3427,9 @@ export function buildApi(dependencies: ApiDependencies): FastifyInstance {
           );
           return result.rows[0]?.result as Record<string, unknown>;
         },
-      );
+      , async (client) => {
+      await authorizeBookingCommercialReplay(client, principal, "booking.manage");
+    });
     },
   );
 
@@ -3417,7 +3461,9 @@ export function buildApi(dependencies: ApiDependencies): FastifyInstance {
           );
           return result.rows[0]?.result as Record<string, unknown>;
         },
-      );
+      , async (client) => {
+      await authorizeBookingCommercialReplay(client, principal, "booking.manage");
+    });
     },
   );
 
@@ -3510,7 +3556,9 @@ export function buildApi(dependencies: ApiDependencies): FastifyInstance {
               request.body.resolution,request.body.reason,request.body.providerMessageReference ?? null],
           );
           return result.rows[0]?.result as Record<string,unknown>;
-        });
+        }, async (client) => {
+      await authorizeBookingCommercialReplay(client, principal, "booking.manage");
+    });
     },
   );
 
@@ -3536,7 +3584,9 @@ export function buildApi(dependencies: ApiDependencies): FastifyInstance {
             [principal.organizationId,request.params.deliveryId,principal.membershipId,request.body.reason],
           );
           return result.rows[0]?.result as Record<string,unknown>;
-        });
+        }, async (client) => {
+      await authorizeBookingCommercialReplay(client, principal, "booking.manage");
+    });
     },
   );
 
@@ -3625,7 +3675,9 @@ export function buildApi(dependencies: ApiDependencies): FastifyInstance {
           );
           return result.rows[0]?.result as Record<string, unknown>;
         },
-      );
+      , async (client) => {
+      await authorizeBookingCommercialReplay(client, principal, "booking.manage");
+    });
     },
   );
 
