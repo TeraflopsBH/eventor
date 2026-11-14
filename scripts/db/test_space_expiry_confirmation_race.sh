@@ -1,8 +1,8 @@
 #!/usr/bin/env bash
 set -Eeuo pipefail
 
-: "\${WORKER_URL:?Set WORKER_URL to the eventor_worker PostgreSQL login}"
-: "\${RUNTIME_URL:?Set RUNTIME_URL to the eventor_runtime PostgreSQL login}"
+: "${WORKER_URL:?Set WORKER_URL to the eventor_worker PostgreSQL login}"
+: "${RUNTIME_URL:?Set RUNTIME_URL to the eventor_runtime PostgreSQL login}"
 
 org="11111111-1111-4111-8111-111111111111"
 draft_revision="51000000-0000-4000-8000-000000000002"
@@ -30,7 +30,7 @@ sleep 3.2
 psql "$WORKER_URL" -X -v ON_ERROR_STOP=1 -qAt >"$tmp/worker.log" 2>&1 <<SQL &
 BEGIN;
 SELECT set_config('app.organization_id','$org',true);
-SELECT eogp.expire_space_holds('$org');
+SELECT 'WORKER_EXPIRED_COUNT=' || eogp.expire_space_holds('$org');
 \! touch "$tmp/worker-ready"
 SELECT pg_sleep(2);
 COMMIT;
@@ -89,7 +89,14 @@ SQL
 wait "$worker_pid"
 worker_pid=""
 
-if ! grep -q '1' "$tmp/worker.log"; then
+if ! grep -Eq '^WORKER_EXPIRED_COUNT=[1-9][0-9]*
+  cat "$tmp/worker.log"
+  echo "Worker output did not report an expiry transition." >&2
+  exit 1
+fi
+
+echo "Independent-connection expiry/confirmation race passed: eventor_worker expired the hold; eventor_runtime waited, converted zero holds, and observed the committed expired state."
+ "$tmp/worker.log"; then
   cat "$tmp/worker.log"
   echo "Worker output did not report an expiry transition." >&2
   exit 1
