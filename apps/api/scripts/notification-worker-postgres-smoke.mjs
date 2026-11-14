@@ -1,5 +1,4 @@
 import assert from "node:assert/strict";
-import { appendFileSync } from "node:fs";
 import { Pool } from "pg";
 import { processPendingEmailDeliveries } from "../dist/src/notification-worker.js";
 import { encryptContactValue } from "../dist/src/contact-crypto.js";
@@ -71,12 +70,6 @@ try {
 
   assert.ok(deliveryDiagnostic?.attempt_id, "worker did not expose a completed attempt for provider reconciliation");
   assert.ok(deliveryDiagnostic?.provider_message_reference, "worker did not persist the stable provider Message-ID");
-  if (process.env.GITHUB_ENV) {
-    appendFileSync(
-      process.env.GITHUB_ENV,
-      `CI_WORKER_ATTEMPT_ID=${deliveryDiagnostic.attempt_id}\\nCI_WORKER_MESSAGE_REFERENCE=${deliveryDiagnostic.provider_message_reference}\\n`,
-    );
-  }
   const callbackClient = await worker.connect();
   try {
     await callbackClient.query("BEGIN");
