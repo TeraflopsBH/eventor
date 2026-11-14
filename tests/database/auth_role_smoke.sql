@@ -158,31 +158,43 @@ BEGIN
   -- Global routing and worker-queue indexes intentionally bypass tenant RLS,
   -- so they must remain inaccessible except for the worker's tenant-key-only
   -- SELECT on the three queue directories.
-  IF has_table_privilege('public','eogp.booking_offer_capability_lookup','SELECT')
-     OR has_table_privilege('eventor_runtime','eogp.booking_offer_capability_lookup','SELECT')
-     OR has_table_privilege('eventor_worker','eogp.booking_offer_capability_lookup','SELECT')
-     OR has_table_privilege('eventor_auth','eogp.booking_offer_capability_lookup','SELECT')
-     OR has_table_privilege('public','eogp.guest_invitation_capability_lookup','SELECT')
-     OR has_table_privilege('eventor_runtime','eogp.guest_invitation_capability_lookup','SELECT')
-     OR has_table_privilege('eventor_worker','eogp.guest_invitation_capability_lookup','SELECT')
-     OR has_table_privilege('eventor_auth','eogp.guest_invitation_capability_lookup','SELECT')
-     OR has_table_privilege('public','eogp.public_organization_routes','SELECT')
-     OR has_table_privilege('eventor_runtime','eogp.public_organization_routes','SELECT')
-     OR has_table_privilege('eventor_worker','eogp.public_organization_routes','SELECT')
-     OR has_table_privilege('eventor_auth','eogp.public_organization_routes','SELECT')
-     OR has_table_privilege('public','eogp.resend_webhook_endpoint_routes','SELECT')
-     OR has_table_privilege('eventor_runtime','eogp.resend_webhook_endpoint_routes','SELECT')
-     OR has_table_privilege('eventor_worker','eogp.resend_webhook_endpoint_routes','SELECT')
-     OR has_table_privilege('eventor_auth','eogp.resend_webhook_endpoint_routes','SELECT')
-     OR NOT has_table_privilege('eventor_worker','eogp.booking_offer_email_delivery_tenant_queue','SELECT')
-     OR NOT has_table_privilege('eventor_worker','eogp.booking_offer_expiry_tenant_queue','SELECT')
-     OR NOT has_table_privilege('eventor_worker','eogp.invitation_delivery_tenant_queue','SELECT')
-     OR has_table_privilege('eventor_runtime','eogp.booking_offer_email_delivery_tenant_queue','SELECT')
-     OR has_table_privilege('eventor_runtime','eogp.booking_offer_expiry_tenant_queue','SELECT')
-     OR has_table_privilege('eventor_runtime','eogp.invitation_delivery_tenant_queue','SELECT')
-     OR has_table_privilege('eventor_auth','eogp.booking_offer_email_delivery_tenant_queue','SELECT')
-     OR has_table_privilege('eventor_auth','eogp.booking_offer_expiry_tenant_queue','SELECT')
-     OR has_table_privilege('eventor_auth','eogp.invitation_delivery_tenant_queue','SELECT') THEN
+  IF EXISTS (
+    SELECT 1
+      FROM pg_class relation
+      JOIN pg_namespace namespace ON namespace.oid=relation.relnamespace
+      CROSS JOIN LATERAL aclexplode(
+        coalesce(relation.relacl,acldefault('r',relation.relowner))
+      ) privilege
+      LEFT JOIN pg_roles granted_role ON granted_role.oid=privilege.grantee
+     WHERE namespace.nspname='eogp'
+       AND relation.relname IN (
+         'booking_offer_capability_lookup',
+         'booking_offer_email_delivery_tenant_queue',
+         'booking_offer_expiry_tenant_queue',
+         'guest_invitation_capability_lookup',
+         'invitation_delivery_tenant_queue',
+         'public_organization_routes',
+         'resend_webhook_endpoint_routes'
+       )
+       AND (
+         privilege.grantee=0
+         OR granted_role.rolname IN ('eventor_runtime','eventor_auth')
+         OR (
+           granted_role.rolname='eventor_worker'
+           AND NOT (
+             relation.relname IN (
+               'booking_offer_email_delivery_tenant_queue',
+               'booking_offer_expiry_tenant_queue',
+               'invitation_delivery_tenant_queue'
+             )
+             AND privilege.privilege_type='SELECT'
+           )
+         )
+       )
+  )
+  OR NOT has_table_privilege('eventor_worker','eogp.booking_offer_email_delivery_tenant_queue','SELECT')
+  OR NOT has_table_privilege('eventor_worker','eogp.booking_offer_expiry_tenant_queue','SELECT')
+  OR NOT has_table_privilege('eventor_worker','eogp.invitation_delivery_tenant_queue','SELECT') THEN
     RAISE EXCEPTION 'global routing/queue index privileges exceed their explicit least-privilege contract';
   END IF;
 
