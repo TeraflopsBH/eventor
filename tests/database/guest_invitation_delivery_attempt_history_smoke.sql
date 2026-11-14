@@ -358,7 +358,7 @@ BEGIN
     v_org,v_event,v_participation,
     'bbbbbbbb-2222-4222-8222-bbbbbbbbbbbb',
     'accepted','phone','guest',clock_timestamp()-interval '5 minutes',
-    v_invitation,decode('01020304','hex'),NULL,NULL
+    v_invitation,decode('45435031'||repeat('01',40),'hex'),NULL,NULL
   );
   v_first := (v_result->>'responseId')::uuid;
   IF v_result->>'response'<>'accepted' OR (v_result->>'sequenceNumber')::integer<>1 THEN
@@ -369,7 +369,7 @@ BEGIN
     v_org,v_event,v_participation,
     'bbbbbbbb-2222-4222-8222-bbbbbbbbbbbb',
     'declined','email','guest',clock_timestamp()-interval '4 minutes',
-    v_invitation,decode('05060708','hex'),v_first,
+    v_invitation,decode('45435031'||repeat('02',40),'hex'),v_first,
     'Guest confirmed the earlier answer was recorded incorrectly'
   );
   v_second := (v_result->>'responseId')::uuid;
