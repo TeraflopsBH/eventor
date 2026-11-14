@@ -168,6 +168,8 @@ BEGIN
      OR v_delivery_lock<=v_link_lock
      OR strpos(v_definition, 'link.revoked_at IS NOT NULL')=0
      OR strpos(v_definition, 'link.expires_at<=clock_timestamp()')=0
+     OR strpos(v_definition, 'policy.state=''published''')=0
+     OR strpos(v_definition, 'ORDER BY latest.revision_number DESC')=0
      OR strpos(v_definition, 'event.status NOT IN')=0 THEN
     RAISE EXCEPTION 'send authorization must lock invitation, link, delivery and revalidate capability state';
   END IF;
