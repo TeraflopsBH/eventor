@@ -37,6 +37,10 @@ BEGIN
         'startsAt', schedule.starts_at,
         'endsAt', schedule.ends_at,
         'timezone', COALESCE(schedule.timezone_name, event.timezone_name),
+        'scheduleRevisionId', schedule.id,
+        'rsvpPolicyRevisionId', (SELECT policy.id FROM eogp.rsvp_policy_revisions policy
+          WHERE policy.organization_id=event.organization_id AND policy.event_id=event.id AND policy.state='published'
+          ORDER BY policy.revision_number DESC LIMIT 1),
         'eligibleParticipationCount', (
           SELECT count(*) FROM eogp.event_participations participation
            WHERE participation.organization_id=event.organization_id
@@ -52,7 +56,7 @@ BEGIN
       ) AS event_row
       FROM eogp.events event
       LEFT JOIN LATERAL (
-        SELECT revision.starts_at, revision.ends_at, revision.timezone_name
+        SELECT revision.id, revision.starts_at, revision.ends_at, revision.timezone_name
           FROM eogp.event_schedule_revisions revision
          WHERE revision.organization_id=event.organization_id
            AND revision.event_id=event.id
