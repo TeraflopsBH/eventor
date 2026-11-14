@@ -1,6 +1,7 @@
 \set ON_ERROR_STOP on
 BEGIN;
 SELECT set_config('app.organization_id','22222222-2222-4222-8222-222222222222',true);
+SELECT set_config('app.actor_membership_id','bbbbbbbb-2222-4222-8222-bbbbbbbbbbbb',true);
 
 DO $test$
 DECLARE
