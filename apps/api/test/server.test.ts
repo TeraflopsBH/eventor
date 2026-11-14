@@ -115,6 +115,29 @@ function makePool() {
         return { rows: [], rowCount: 0 };
       }
       if (normalized.startsWith("SELECT set_config(")) return { rows: [], rowCount: 1 };
+      // Replay authorization queries are deliberately handled separately from
+      // commandCalls so route assertions continue to describe actual mutations.
+      if (normalized.startsWith("SELECT eogp.assert_event_command_permission(")) {
+        return { rows: [], rowCount: 1 };
+      }
+      if (normalized.startsWith("SELECT 1 FROM eogp.organization_memberships")) {
+        return { rows: [{ "?column?": 1 }], rowCount: 1 };
+      }
+      if (normalized.includes("FROM eogp.user_role_grants user_grant")) {
+        return { rows: [{ "?column?": 1 }], rowCount: 1 };
+      }
+      if (normalized.startsWith("SELECT 1 FROM eogp.booking_records")) {
+        return { rows: [{ "?column?": 1 }], rowCount: 1 };
+      }
+      if (normalized.startsWith("SELECT event_id,change_kind FROM eogp.event_change_requests")) {
+        return { rows: [{ event_id: "94000000-0000-4000-8000-000000000001", change_kind: "cancel" }], rowCount: 1 };
+      }
+      if (normalized.startsWith("SELECT campaign.event_id")) {
+        return { rows: [{ event_id: "94000000-0000-4000-8000-000000000001" }], rowCount: 1 };
+      }
+      if (normalized.startsWith("SELECT event_id FROM eogp.event_notification_campaigns")) {
+        return { rows: [{ event_id: "94000000-0000-4000-8000-000000000001" }], rowCount: 1 };
+      }
       if (normalized.includes("eogp.get_published_public_booking_form(") || normalized.includes("eogp.get_public_booking_form_revision(")) {
         publicBookingFormCalls += 1;
         commandCalls.push({ sql: normalized, values });
