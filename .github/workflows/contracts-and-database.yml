@@ -337,7 +337,7 @@ jobs:
           HOST: 0.0.0.0
           PORT: "8080"
         run: |
-          node apps/api/dist/main.js > /tmp/eventor-api.log 2>&1 &
+          node apps/api/dist/src/main.js > /tmp/eventor-api.log 2>&1 &
           echo $! > /tmp/eventor-api.pid
           for attempt in $(seq 1 30); do
             if curl --silent --show-error --output /dev/null http://localhost:8080/; then
