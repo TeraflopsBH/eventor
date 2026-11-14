@@ -3558,46 +3558,6 @@ paths:
         '422': { $ref: '#/components/responses/UnprocessableEntity' }
         '429': { $ref: '#/components/responses/TooManyRequests' }
         '500': { $ref: '#/components/responses/InternalServerError' }
-  "/invitations/{invitationId}/revoke":
-    post:
-      tags: ["Guest RSVP"]
-      operationId: revokeGuestInvitation
-      summary: "Revoke an invitation and suppress queued email"
-      security: [{ StaffSession: [], StaffCsrf: [] }]
-      parameters:
-        - name: invitationId
-          in: path
-          required: true
-          schema: { type: string, format: uuid }
-        - $ref: '#/components/parameters/IdempotencyKey'
-      requestBody:
-        required: true
-        content:
-          application/json:
-            schema:
-              type: object
-              required: [reasonCode]
-              properties:
-                reasonCode:
-                  type: string
-                  minLength: 3
-                  maxLength: 80
-                  pattern: "^[a-z][a-z0-9_.-]*$"
-              additionalProperties: false
-      responses:
-        '201':
-          description: "Invitation revoked."
-          content:
-            application/json:
-              schema: { $ref: '#/components/schemas/DataEnvelope' }
-        '400': { $ref: '#/components/responses/BadRequest' }
-        '401': { $ref: '#/components/responses/Unauthorized' }
-        '403': { $ref: '#/components/responses/Forbidden' }
-        '404': { $ref: '#/components/responses/NotFound' }
-        '409': { $ref: '#/components/responses/Conflict' }
-        '422': { $ref: '#/components/responses/UnprocessableEntity' }
-        '429': { $ref: '#/components/responses/TooManyRequests' }
-        '500': { $ref: '#/components/responses/InternalServerError' }
   "/guest/invitation/me":
     get:
       tags: ["Guest RSVP"]
