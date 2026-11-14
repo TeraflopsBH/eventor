@@ -78,7 +78,7 @@ This matrix tracks executable PostgreSQL integration coverage and remaining gaps
 
 ## Equipment/personnel
 - [x] Same discrete unit cannot be reserved for overlapping time.
-- [ ] Different units in a pool can be reserved concurrently when capacity allows.
+- [x] Different discrete units in one pool can hold overlapping intervals within the booking-line quantity; `review_regressions.sql` reserves four distinct units for the same interval and rejects a fifth.
 - [x] Pooled capacity is never exceeded under concurrent requests.
 - [x] A booking resource line’s peak simultaneous quantity cannot be exceeded across separate pools.
 - [x] Individually tracked unit reservations are included in the booking resource line quantity limit; a fifth overlapping unit is rejected when the requested quantity is four.
