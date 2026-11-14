@@ -45,9 +45,9 @@ try {
     await diagnosticClient.query("SET LOCAL ROLE eventor_owner");
     await diagnosticClient.query("SELECT set_config('app.organization_id',$1,true)", [organizationId]);
     const diagnostic = await diagnosticClient.query(
-      `SELECT attempt.status AS attempt_status, attempt.failure_code AS attempt_failure_code,
+      `SELECT attempt.id AS attempt_id, attempt.status AS attempt_status, attempt.failure_code AS attempt_failure_code,
               latest.status AS latest_event_status, latest.failure_code AS latest_event_failure_code,
-              latest.provider_name, latest.source
+              latest.provider_name, latest.source, latest.provider_message_reference
          FROM eogp.event_notification_delivery_attempts attempt
          LEFT JOIN LATERAL (
            SELECT status,failure_code,provider_name,source,created_at
@@ -67,6 +67,35 @@ try {
   } finally {
     diagnosticClient.release();
   }
+
+  assert.ok(deliveryDiagnostic?.attempt_id, "worker did not expose a completed attempt for provider reconciliation");
+  assert.ok(deliveryDiagnostic?.provider_message_reference, "worker did not persist the stable provider Message-ID");
+  const callbackClient = await worker.connect();
+  try {
+    await callbackClient.query("BEGIN");
+    await callbackClient.query("SELECT set_config('app.organization_id',$1,true)", [organizationId]);
+    const firstCallback = await callbackClient.query(
+      "SELECT eogp.record_verified_notification_provider_event($1::uuid,$2::text,$3::text,$4::uuid,$5::text,$6::text,$7::text) AS result",
+      [organizationId, "smtp", "ci-provider-event-1", deliveryDiagnostic.attempt_id,
+        deliveryDiagnostic.provider_message_reference, "delivered", "a".repeat(64)],
+    );
+    const firstResult = firstCallback.rows[0]?.result;
+    assert.equal(firstResult?.status, "delivered");
+    assert.equal(firstResult?.duplicate, false);
+    const duplicateCallback = await callbackClient.query(
+      "SELECT eogp.record_verified_notification_provider_event($1::uuid,$2::text,$3::text,$4::uuid,$5::text,$6::text,$7::text) AS result",
+      [organizationId, "smtp", "ci-provider-event-1", deliveryDiagnostic.attempt_id,
+        deliveryDiagnostic.provider_message_reference, "delivered", "a".repeat(64)],
+    );
+    assert.equal(duplicateCallback.rows[0]?.result?.duplicate, true);
+    await callbackClient.query("COMMIT");
+  } catch (error) {
+    await callbackClient.query("ROLLBACK");
+    throw error;
+  } finally {
+    callbackClient.release();
+  }
+
   console.log(JSON.stringify({ totals, factoryCalls, submittedCount: submitted.length, deliveryDiagnostic }));
   assert.equal(totals.emailAttempts, 1);
   assert.equal(totals.emailSent, 1);
