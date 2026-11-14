@@ -21,6 +21,7 @@ rm "$pre_dir/000077_guest_invitation_staff_projections.sql"
 rm "$pre_dir/000078_guest_invitation_delivery_attempt_history.sql"
 rm "$pre_dir/000079_guest_invitation_rsvp_lock_order.sql"
 rm "$pre_dir/000080_guest_invitation_history_capability_state.sql"
+rm "$pre_dir/000081_guest_invitation_revoke_delivery_guard.sql"
 
 echo "=== Apply schema through 000073 ==="
 DATABASE_URL="$MIGRATOR_URL" MIGRATIONS_DIR="$pre_dir" \
