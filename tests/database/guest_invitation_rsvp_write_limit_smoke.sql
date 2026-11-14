@@ -32,10 +32,7 @@ UPDATE eogp.rsvp_policy_revisions
 SET LOCAL ROLE eventor_runtime;
 DO $guest_rsvp_capability_write_limit$
 DECLARE
-  v_link_id uuid := '96600000-0000-4000-8000-000000000001';
   v_token_sha256 text := repeat('f',64);
-  v_denied boolean := false;
-  v_count integer;
   i integer;
 BEGIN
   FOR i IN 1..20 LOOP
@@ -47,20 +44,30 @@ BEGIN
       NULL
     );
   END LOOP;
+END;
+$guest_rsvp_capability_write_limit$;
 
-  SET LOCAL ROLE eventor_owner;
+SET LOCAL ROLE eventor_owner;
+DO $guest_rsvp_capability_write_limit_before$
+DECLARE v_count integer;
+BEGIN
   SELECT count(*) INTO v_count
     FROM eogp.rsvp_responses
    WHERE organization_id='22222222-2222-4222-8222-222222222222'
-     AND invitation_link_id=v_link_id;
+     AND invitation_link_id='96600000-0000-4000-8000-000000000001';
   IF v_count<>20 THEN
     RAISE EXCEPTION 'expected 20 guest responses before the cap, found %',v_count;
   END IF;
-  SET LOCAL ROLE eventor_runtime;
+END;
+$guest_rsvp_capability_write_limit_before$;
 
+SET LOCAL ROLE eventor_runtime;
+DO $guest_rsvp_capability_write_limit_reject$
+DECLARE v_denied boolean := false;
+BEGIN
   BEGIN
     PERFORM eogp.submit_guest_invitation_rsvp(
-      v_token_sha256,
+      repeat('f',64),
       lpad(to_hex(21),64,'0'),
       lpad(to_hex(121),64,'0'),
       'accepted',
@@ -72,32 +79,36 @@ BEGIN
   IF NOT v_denied THEN
     RAISE EXCEPTION 'guest invitation accepted a 21st distinct RSVP submission';
   END IF;
+END;
+$guest_rsvp_capability_write_limit_reject$;
 
-  SET LOCAL ROLE eventor_owner;
+SET LOCAL ROLE eventor_owner;
+DO $guest_rsvp_capability_write_limit_after$
+DECLARE v_count integer;
+BEGIN
   SELECT count(*) INTO v_count
     FROM eogp.rsvp_responses
    WHERE organization_id='22222222-2222-4222-8222-222222222222'
-     AND invitation_link_id=v_link_id;
+     AND invitation_link_id='96600000-0000-4000-8000-000000000001';
   IF v_count<>20 THEN
     RAISE EXCEPTION 'rejected 21st RSVP appended a response row; count is %',v_count;
   END IF;
   SELECT count(*) INTO v_count
     FROM eogp.guest_invitation_rsvp_idempotency
    WHERE organization_id='22222222-2222-4222-8222-222222222222'
-     AND invitation_link_id=v_link_id;
+     AND invitation_link_id='96600000-0000-4000-8000-000000000001';
   IF v_count<>20 THEN
     RAISE EXCEPTION 'rejected 21st RSVP appended an idempotency row; count is %',v_count;
   END IF;
   SELECT count(*) INTO v_count
     FROM eogp.audit_events
    WHERE organization_id='22222222-2222-4222-8222-222222222222'
-     AND actor_external_capability_id=v_link_id
+     AND actor_external_capability_id='96600000-0000-4000-8000-000000000001'
      AND action='guest.rsvp.submitted';
   IF v_count<>20 THEN
     RAISE EXCEPTION 'rejected 21st RSVP appended an audit event; count is %',v_count;
   END IF;
 END;
-$guest_rsvp_capability_write_limit$;
-
+$guest_rsvp_capability_write_limit_after$;
 ROLLBACK;
 \echo 'Guest invitation RSVP per-link write limit regression passed.'
