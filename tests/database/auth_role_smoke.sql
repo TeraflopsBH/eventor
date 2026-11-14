@@ -7,6 +7,7 @@ DECLARE
   membership_count integer;
   user_count integer;
   can_bypass boolean;
+  public_definer_functions text;
 BEGIN
   SELECT count(id) INTO organization_count FROM eogp.organizations;
   SELECT count(id) INTO membership_count FROM eogp.organization_memberships;
@@ -106,19 +107,19 @@ BEGIN
   -- SECURITY DEFINER routines must never inherit PostgreSQL's default
   -- PUBLIC EXECUTE grant. Internal helpers are callable only through their
   -- explicitly granted application command functions.
-  IF EXISTS (
-    SELECT 1
-      FROM pg_proc routine
-      JOIN pg_namespace namespace ON namespace.oid = routine.pronamespace
-      CROSS JOIN LATERAL aclexplode(
-        coalesce(routine.proacl, acldefault('f', routine.proowner))
-      ) privilege
-     WHERE namespace.nspname = 'eogp'
-       AND routine.prosecdef
-       AND privilege.grantee = 0
-       AND privilege.privilege_type = 'EXECUTE'
-  ) THEN
-    RAISE EXCEPTION 'an eogp SECURITY DEFINER function is executable by PUBLIC';
+  SELECT string_agg(routine.oid::regprocedure::text, ', ' ORDER BY routine.oid::regprocedure::text)
+    INTO public_definer_functions
+    FROM pg_proc routine
+    JOIN pg_namespace namespace ON namespace.oid = routine.pronamespace
+    CROSS JOIN LATERAL aclexplode(
+      coalesce(routine.proacl, acldefault('f', routine.proowner))
+    ) privilege
+   WHERE namespace.nspname = 'eogp'
+     AND routine.prosecdef
+     AND privilege.grantee = 0
+     AND privilege.privilege_type = 'EXECUTE';
+  IF public_definer_functions IS NOT NULL THEN
+    RAISE EXCEPTION 'eogp SECURITY DEFINER functions executable by PUBLIC: %', public_definer_functions;
   END IF;
 
   -- A SECURITY DEFINER routine without a pinned pg_catalog-first search path
