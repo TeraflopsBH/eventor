@@ -693,6 +693,22 @@ const guestInvitationIssueBody = {
   },
   additionalProperties: false,
 } as const;
+const staffRsvpRecordBody = {
+  type: "object",
+  required: ["response", "sourceChannel", "respondentKind", "receivedAt"],
+  properties: {
+    response: { type: "string", enum: ["accepted", "declined", "tentative"] },
+    sourceChannel: { type: "string", enum: ["phone", "in_person", "email", "written", "representative", "staff_entry", "other"] },
+    respondentKind: { type: "string", enum: ["guest", "representative", "staff"] },
+    receivedAt: { type: "string", format: "date-time" },
+    invitationId: { type: "string", pattern: uuidPattern },
+    noteRestricted: { type: "string", maxLength: 4000 },
+    correctionOfResponseId: { type: "string", pattern: uuidPattern },
+    correctionReason: { type: "string", minLength: 3, maxLength: 2000 },
+  },
+  additionalProperties: false,
+} as const;
+
 const guestInvitationRevokeBody = {
   type: "object", required: ["reasonCode"],
   properties: { reasonCode: { type: "string", minLength: 3, maxLength: 80, pattern: "^[a-z][a-z0-9_.-]*$" } },
@@ -3175,6 +3191,77 @@ export function buildApi(dependencies: ApiDependencies): FastifyInstance {
         try { await client.query("ROLLBACK"); } catch { /* preserve the read error */ }
         throw databaseError(error);
       } finally { client.release(); }
+    },
+  );
+
+  server.post<{
+    Params: { eventId: string; participationId: string };
+    Body: {
+      response: "accepted" | "declined" | "tentative";
+      sourceChannel: "phone" | "in_person" | "email" | "written" | "representative" | "staff_entry" | "other";
+      respondentKind: "guest" | "representative" | "staff";
+      receivedAt: string;
+      invitationId?: string;
+      noteRestricted?: string;
+      correctionOfResponseId?: string;
+      correctionReason?: string;
+    };
+  }>(
+    "/events/:eventId/participations/:participationId/rsvp-records",
+    { schema: { params: guestInvitationStaffParams, headers: idempotencyHeaders, body: staffRsvpRecordBody } },
+    async (request, reply) => {
+      const principal = request.staffPrincipal!;
+      const body = request.body;
+      if (Boolean(body.correctionOfResponseId) !== Boolean(body.correctionReason)) {
+        throw new ApiError(400, "RSVP_CORRECTION_INVALID", "A correction must include both the prior response ID and a reason.");
+      }
+      const receivedAt = new Date(body.receivedAt);
+      if (!Number.isFinite(receivedAt.getTime()) || receivedAt.getTime() > Date.now()) {
+        throw new ApiError(422, "RSVP_RECEIVED_AT_INVALID", "The received time must be a valid time in the past or present.");
+      }
+      const notesCiphertext = body.noteRestricted
+        ? encryptPrivateText(body.noteRestricted, dependencies.privateFieldEncryptionKey)
+        : null;
+      return withCommand(
+        request, reply, "recordStaffGuestRsvp",
+        { eventId: request.params.eventId, participationId: request.params.participationId, ...body },
+        async (client) => {
+          const result = await client.query<ResultRow>(
+            "SELECT eogp.record_staff_guest_rsvp($1::uuid,$2::uuid,$3::uuid,$4::uuid,$5::text,$6::text,$7::text,$8::timestamptz,$9::uuid,$10::bytea,$11::uuid,$12::text) AS result",
+            [
+              principal.organizationId, request.params.eventId, request.params.participationId,
+              principal.membershipId, body.response, body.sourceChannel, body.respondentKind,
+              receivedAt, body.invitationId ?? null, notesCiphertext,
+              body.correctionOfResponseId ?? null, body.correctionReason ?? null,
+            ],
+          );
+          return result.rows[0]?.result as Record<string, unknown>;
+        },
+        async (client) => {
+          const membership = await client.query(
+            "SELECT 1 FROM eogp.organization_memberships WHERE organization_id=$1 AND id=$2 AND status='active' FOR SHARE",
+            [principal.organizationId, principal.membershipId],
+          );
+          if (membership.rows.length === 0) throw new ApiError(403, "FORBIDDEN", "The staff membership is no longer active.");
+          const permission = await client.query(
+            `SELECT 1
+               FROM eogp.user_role_grants user_grant
+               JOIN eogp.role_permissions role_permission
+                 ON role_permission.organization_id=user_grant.organization_id
+                AND role_permission.role_id=user_grant.role_id
+              WHERE user_grant.organization_id=$1
+                AND user_grant.membership_id=$2
+                AND user_grant.revoked_at IS NULL
+                AND (user_grant.expires_at IS NULL OR user_grant.expires_at>clock_timestamp())
+                AND role_permission.permission_code='event.rsvp.record'
+                AND (user_grant.scope_kind='organization'
+                  OR (user_grant.scope_kind='event' AND user_grant.scope_event_id=$3))
+              FOR SHARE OF user_grant, role_permission`,
+            [principal.organizationId, principal.membershipId, request.params.eventId],
+          );
+          if (permission.rows.length === 0) throw new ApiError(403, "FORBIDDEN", "The event RSVP recording permission is no longer granted.");
+        },
+      );
     },
   );
 
