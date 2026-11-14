@@ -74,8 +74,14 @@ BEGIN
      OR has_table_privilege(current_user, 'eogp.users', 'UPDATE')
      OR has_table_privilege(current_user, 'eogp.user_sessions', 'SELECT')
      OR has_table_privilege(current_user, 'eogp.user_sessions', 'INSERT')
-     OR has_table_privilege(current_user, 'eogp.user_sessions', 'UPDATE') THEN
-    RAISE EXCEPTION 'authentication role has table-wide identity/session privileges; expected column-only access';
+     OR has_table_privilege(current_user, 'eogp.user_sessions', 'UPDATE')
+     OR has_table_privilege(current_user, 'eogp.organization_memberships', 'SELECT')
+     OR has_table_privilege(current_user, 'eogp.organizations', 'SELECT')
+     OR has_table_privilege('eventor_runtime', 'eogp.users', 'SELECT')
+     OR has_table_privilege('eventor_runtime', 'eogp.user_sessions', 'SELECT')
+     OR has_table_privilege('eventor_worker', 'eogp.users', 'SELECT')
+     OR has_table_privilege('eventor_worker', 'eogp.user_sessions', 'SELECT') THEN
+    RAISE EXCEPTION 'authentication/business roles have table-wide identity privileges; expected column-only auth access';
   END IF;
 
   -- Delegated task records contain owner-tenant operational data. The runtime
