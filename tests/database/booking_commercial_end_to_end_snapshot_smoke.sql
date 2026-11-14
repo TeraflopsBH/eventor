@@ -126,6 +126,15 @@ BEGIN
   INSERT INTO eogp.booking_drafts(
     id,organization_id,created_by_membership_id,status,current_revision_number
   ) VALUES(v_draft_id,v_org,v_creator,'draft',1);
+  -- Draft projections cannot be requested using a different membership argument.
+  PERFORM set_config('app.actor_membership_id',v_approver::text,true);
+  BEGIN
+    PERFORM eogp.get_booking_draft(v_org,v_draft_id,v_creator);
+    RAISE EXCEPTION 'booking draft projection accepted an actor/context mismatch';
+  EXCEPTION WHEN SQLSTATE '42501' THEN NULL;
+  END;
+  PERFORM set_config('app.actor_membership_id',v_creator::text,true);
+
   INSERT INTO eogp.booking_draft_revisions(
     id,organization_id,draft_id,revision_number,values_snapshot,timezone_name,
     change_reason,created_by_membership_id
