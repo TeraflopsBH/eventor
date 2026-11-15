@@ -58,7 +58,7 @@ SQL
 # must serialize them: exactly five reservations pass and all remaining ones
 # observe the block, regardless of statement arrival order.
 for i in {1..10}; do
-  psql "$AUTH_URL" -X -A -t -v ON_ERROR_STOP=1 \
+  psql "$AUTH_URL" -X -q -A -t -v ON_ERROR_STOP=1 \
     -c "$reserve_attempt_sql" >"$work_dir/$i.out" 2>"$work_dir/$i.err" &
 done
 wait
@@ -79,7 +79,7 @@ if [[ "$allowed" -ne 5 || "$blocked" -ne 5 ]]; then
   exit 1
 fi
 
-extra="$(psql "$AUTH_URL" -X -A -t -v ON_ERROR_STOP=1 \
+extra="$(psql "$AUTH_URL" -X -q -A -t -v ON_ERROR_STOP=1 \
   -c "$reserve_attempt_sql" | tr -d '[:space:]')"
 if [[ "$extra" != "t" ]]; then
   echo "A further login reservation was not blocked after the concurrent threshold" >&2
@@ -94,7 +94,7 @@ psql "$AUTH_URL" -X -v ON_ERROR_STOP=1 \
              failed_attempts=6,
              blocked_until=clock_timestamp()+interval '5 minutes'
        WHERE email_fingerprint='$email_fingerprint' AND source_fingerprint='$source_fingerprint'" >/dev/null
-active_block="$(psql "$AUTH_URL" -X -A -t -v ON_ERROR_STOP=1 \
+active_block="$(psql "$AUTH_URL" -X -q -A -t -v ON_ERROR_STOP=1 \
   -c "$reserve_attempt_sql" | tr -d '[:space:]')"
 if [[ "$active_block" != "t" ]]; then
   echo "An active login block was cleared when its attempt window expired" >&2
