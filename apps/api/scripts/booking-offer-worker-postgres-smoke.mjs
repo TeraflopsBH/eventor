@@ -27,7 +27,7 @@ const smtpFactory = (settings, credentials) => {
     username: credentials?.username ?? null,
     hasPassword: Boolean(credentials?.password),
   });
-  assert.equal(settings.host, "smtp.example.test");
+  assert.equal(settings.host, "smtp.resend.com");
   assert.equal(credentials?.username, "resend");
   assert.equal(credentials?.password, "ci-only-synthetic-provider-token");
   return {
@@ -59,17 +59,13 @@ try {
     await owner.query("SET LOCAL ROLE eventor_owner");
     await owner.query("SELECT set_config('app.organization_id',$1,true)", [organizationId]);
     const inquiryUpdate = await owner.query(
-      \`UPDATE eogp.booking_inquiries
-          SET requester_email_ciphertext=$3
-        WHERE organization_id=$1 AND id=$2::uuid\`,
+      "UPDATE eogp.booking_inquiries SET requester_email_ciphertext=$3 WHERE organization_id=$1 AND id=$2::uuid",
       [organizationId, inquiryId, emailCiphertext],
     );
     assert.equal(inquiryUpdate.rowCount, 1, "synthetic inquiry email was not updated");
     const deliveryUpdate = await owner.query(
-      \`UPDATE eogp.booking_offer_email_deliveries
-          SET capability_ciphertext=$3
-        WHERE organization_id=$1 AND id=$2::uuid AND status='queued'\`,
-      [organizationId, deliveryId, capabilityCiphertext],
+      "UPDATE eogp.booking_offer_email_deliveries SET recipient_ciphertext=$3, capability_ciphertext=$4 WHERE organization_id=$1 AND id=$2::uuid AND status='queued'",
+      [organizationId, deliveryId, emailCiphertext, capabilityCiphertext],
     );
     assert.equal(deliveryUpdate.rowCount, 1, "synthetic queued offer delivery was not updated");
     await owner.query("COMMIT");
@@ -100,10 +96,7 @@ try {
   assert.equal(submitted[0].subject, "Ponuda za rezervaciju");
   assert.match(submitted[0].text, /Primili ste ponudu za rezervaciju/);
   assert.match(submitted[0].text, /Ukupan iznos ponude/);
-  assert.match(
-    submitted[0].text,
-    new RegExp(\`/offers/[0-9a-f-]{36}#token=\${capability}\`),
-  );
+  assert.match(submitted[0].text, new RegExp("/offers/[0-9a-f-]{36}#token=" + capability));
   assert.equal(transportCreations.length, 1);
 
   const diagnostic = await migrator.connect();
@@ -113,12 +106,10 @@ try {
     await diagnostic.query("SET LOCAL ROLE eventor_owner");
     await diagnostic.query("SELECT set_config('app.organization_id',$1,true)", [organizationId]);
     const result = await diagnostic.query(
-      \`SELECT status,attempt_count,lease_expires_at,last_failure_code,
-              provider_message_reference,sent_at,
-              encode(capability_ciphertext,'base64') AS capability_envelope,
-              encode(recipient_ciphertext,'base64') AS recipient_envelope
-         FROM eogp.booking_offer_email_deliveries
-        WHERE organization_id=$1 AND id=$2::uuid\`,
+      "SELECT status,attempt_count,lease_expires_at,last_failure_code,provider_message_reference,sent_at," +
+      "encode(capability_ciphertext,'base64') AS capability_envelope," +
+      "encode(recipient_ciphertext,'base64') AS recipient_envelope " +
+      "FROM eogp.booking_offer_email_deliveries WHERE organization_id=$1 AND id=$2::uuid",
       [organizationId, deliveryId],
     );
     stored = result.rows[0];
