@@ -76,7 +76,7 @@ BEGIN
   );
   IF p_reason_code IS NULL
      OR length(btrim(p_reason_code)) NOT BETWEEN 2 AND 100
-     OR p_reason_code !~ '^[a-z][a-z0-9_]*
+     OR p_reason_code NOT SIMILAR TO '[a-z][a-z0-9_]{1,99}'
      OR (p_explanation_ciphertext IS NOT NULL AND octet_length(p_explanation_ciphertext)>16384) THEN
     RAISE EXCEPTION 'cancellation request reason or explanation is invalid' USING ERRCODE='22023';
   END IF;
