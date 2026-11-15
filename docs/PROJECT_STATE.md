@@ -142,7 +142,7 @@ No production database has been migrated. The commercial workflow, price-list ma
 
 ## Database schema review and remaining validation
 
-The initial [Database Review v0.2](database/DATABASE_REVIEW_v0.2.md) records findings in the historical 86-table starter schema. Earlier v0.3 migrations were executed successfully against PostgreSQL 18.6 in CI. The later commercial migrations 000058–000062 have not yet been executed or validated on the current stacked PR heads; CI is intentionally deferred until the monthly allowance resets. Issue #2 and related schema issues remain open for deeper DDL/RLS/authority review, broader constraint-matrix coverage, migration upgrade testing and backup/restore validation. The v0.2 SQL remains a historical reference rather than the executable successor schema.
+The initial [Database Review v0.2](database/DATABASE_REVIEW_v0.2.md) records findings in the historical 86-table starter schema. Earlier v0.3 migrations were executed successfully against PostgreSQL 18.6 in CI. The later commercial migrations 000058–000063 have not yet been executed or validated on the current stacked PR heads; CI is intentionally deferred until the monthly allowance resets. Issue #2 and related schema issues remain open for deeper DDL/RLS/authority review, broader constraint-matrix coverage, migration upgrade testing and backup/restore validation. The v0.2 SQL remains a historical reference rather than the executable successor schema.
 
 ## Accepted MVP boundary
 
@@ -169,7 +169,7 @@ The separate v0.2 booking SQL addendum duplicates all 22 booking/configuration t
 ## Immediate next steps
 
 1. Review the stacked commercial PRs in order. Tax configuration is implemented in PR #31 as an organization-owned, versioned profile catalogue; automatic statutory tax calculation remains a separate design and validation gate.
-2. Add PostgreSQL functional/concurrency coverage for migrations 000058–000062 and the complete offer/approval/confirmation workflow. CI remains intentionally deferred while the monthly GitHub Actions allowance is exhausted; do not spend further runs until the allowance resets.
+2. Add PostgreSQL functional/concurrency coverage for migrations 000058–000063 and the complete offer/approval/confirmation workflow. CI remains intentionally deferred while the monthly GitHub Actions allowance is exhausted; do not spend further runs until the allowance resets.
 3. Review offer preparation's effective-period checks against the new price-list revision model, and ensure the staff UI can explicitly select the exact published revision.
 4. Expand venue, building, space and resource administration workspaces after the commercial configuration layer is complete.
 5. Keep production deployment blocked until GHB validates inventory, capacities, prices, tax treatment, cancellation terms and approval authority.
