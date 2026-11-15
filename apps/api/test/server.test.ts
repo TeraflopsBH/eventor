@@ -102,6 +102,7 @@ function makePool() {
   let bookingOfferApprovalDecisionCalls = 0;
   let bookingOfferApprovalStatusCalls = 0;
   let bookingConfirmationCalls = 0;
+  let bookingCancellationQueueCalls = 0;
   let bookingApprovalPolicyListCalls = 0;
   let bookingApprovalPolicyCreateCalls = 0;
   let bookingApprovalPolicyRevisionCalls = 0;
@@ -799,6 +800,28 @@ function makePool() {
         commandCalls.push({ sql: normalized, values });
         return { rows: [{ result: { accepted: true, duplicate: false, attemptId: "95000000-0000-4000-8000-000000000001", status: values[4] } }], rowCount: 1 };
       }
+      if (normalized.includes("eogp.get_booking_cancellation_requests(")) {
+        bookingCancellationQueueCalls += 1;
+        commandCalls.push({ sql: normalized, values });
+        return { rows: [{ result: {
+          items: [{
+            requestId: "16161616-1616-4161-8161-161616161616",
+            bookingId: "17171717-1717-4171-8171-171717171717",
+            bookingCode: "BKG-ABC123",
+            bookingStatus: "confirmed",
+            requesterKind: "external_contact",
+            status: "submitted",
+            reasonCode: "schedule_change",
+            requestedAt: "2026-11-15T12:00:00.000Z",
+            resolvedAt: null,
+            policyRevisionId: "18181818-1818-4181-8181-181818181818",
+            decisions: [],
+          }],
+          total: 1,
+          limit: values[3],
+          offset: values[4],
+        } }], rowCount: 1 };
+      }
       if (normalized.includes("eogp.get_booking_approval_policies(")) {
         bookingApprovalPolicyListCalls += 1;
         commandCalls.push({ sql: normalized, values });
@@ -992,6 +1015,7 @@ function makePool() {
     get bookingOfferApprovalDecisionCalls() { return bookingOfferApprovalDecisionCalls; },
     get bookingOfferApprovalStatusCalls() { return bookingOfferApprovalStatusCalls; },
     get bookingConfirmationCalls() { return bookingConfirmationCalls; },
+    get bookingCancellationQueueCalls() { return bookingCancellationQueueCalls; },
     get bookingApprovalPolicyListCalls() { return bookingApprovalPolicyListCalls; },
     get bookingApprovalPolicyCreateCalls() { return bookingApprovalPolicyCreateCalls; },
     get bookingApprovalPolicyRevisionCalls() { return bookingApprovalPolicyRevisionCalls; },
@@ -2831,4 +2855,36 @@ test("queued notification campaign can be cancelled before delivery starts", asy
   });
   assert.equal(replay.statusCode, 201);
   assert.equal(mock.campaignCancelCalls, 1);
+});
+
+
+test("booking cancellation review queue is tenant-scoped, paginated and excludes contact details", async (t) => {
+  const mock = makePool();
+  const app = makeApi(mock.pool);
+  t.after(async () => app.close());
+
+  const response = await app.inject({
+    method: "GET",
+    url: "/organization/booking-cancellation-requests?status=submitted&limit=25&offset=5",
+  });
+  assert.equal(response.statusCode, 200);
+  const body = response.json<{ data: {
+    items: Array<{ requestId: string; bookingCode: string; status: string; requesterKind: string; decisions: unknown[] }>;
+    total: number; limit: number; offset: number;
+  } }>().data;
+  assert.equal(body.items.length, 1);
+  assert.equal(body.items[0]?.requestId, "16161616-1616-4161-8161-161616161616");
+  assert.equal(body.items[0]?.bookingCode, "BKG-ABC123");
+  assert.equal(body.items[0]?.status, "submitted");
+  assert.equal(body.items[0]?.requesterKind, "external_contact");
+  assert.deepEqual(body.items[0]?.decisions, []);
+  assert.equal(body.total, 1);
+  assert.equal(body.limit, 25);
+  assert.equal(body.offset, 5);
+  assert.equal(mock.bookingCancellationQueueCalls, 1);
+  const call = mock.commandCalls.find((entry) => entry.sql.includes("eogp.get_booking_cancellation_requests("));
+  assert.ok(call);
+  assert.deepEqual(call.values, [principal.organizationId, principal.membershipId, "submitted", 25, 5]);
+  assert.equal(JSON.stringify(body).includes("email"), false);
+  assert.equal(JSON.stringify(body).includes("explanation"), false);
 });
