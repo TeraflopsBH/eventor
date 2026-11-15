@@ -1,6 +1,7 @@
 name: Contracts and PostgreSQL migrations
 
 on:
+  workflow_dispatch:
   push:
     branches:
       - feat/postgresql18-migrations-openapi-v0.3
@@ -221,6 +222,13 @@ jobs:
       - name: Build API worker integration test
         working-directory: apps/api
         run: npm run build
+
+      - name: Verify real PostgreSQL login, session cookies, /me, expiry, CSRF and logout
+        working-directory: apps/api
+        env:
+          AUTH_URL: ${{ env.AUTH_URL }}
+          ADMIN_URL: ${{ env.ADMIN_URL }}
+        run: node --test dist/test/session-auth-postgres.integration.test.js
 
       - name: Verify booking-offer email delivery through PostgreSQL and fake SMTP
         working-directory: apps/api
