@@ -15,7 +15,7 @@ Migration 000020 already attaches the generic published-revision immutability gu
 
 ## Commands and authorization
 
-Migration 000061 adds:
+Migration 000062 adds:
 
 - `get_booking_cancellation_policies`
 - `create_booking_cancellation_policy`
