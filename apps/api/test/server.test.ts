@@ -2924,7 +2924,7 @@ test("staff can submit a booking cancellation request idempotently", async (t) =
   t.after(async () => app.close());
   const bookingId = "17171717-1717-4171-8171-171717171717";
   const headers = { "idempotency-key": "booking-cancel-request-01" };
-  const payload = { reasonCode: "schedule_change" };
+  const payload = { reasonCode: "schedule_change", explanation: "The event schedule has changed." };
 
   const first = await app.inject({
     method: "POST",
