@@ -139,6 +139,7 @@ test("booking offer email worker decrypts the queued capability and sends throug
   );
   const calls: string[] = [];
   const sentMessages: Array<{ to: string; subject: string; text: string }> = [];
+  let claimCount = 0;
   let closed = false;
   const job = {
     delivery_id: deliveryId,
@@ -169,7 +170,8 @@ test("booking offer email worker decrypts the queued capability and sends throug
       const normalized = sql.replace(/\s+/g, " ").trim();
       calls.push(normalized);
       if (normalized.startsWith("SELECT * FROM eogp.claim_booking_offer_email_delivery")) {
-        return { rows: [job], rowCount: 1 };
+        claimCount += 1;
+        return claimCount === 1 ? { rows: [job], rowCount: 1 } : { rows: [], rowCount: 0 };
       }
       if (normalized.startsWith("SELECT eogp.complete_booking_offer_email_delivery")) {
         assert.deepEqual(values, [organizationId, deliveryId, "sent", null, "smtp-message-id"]);
