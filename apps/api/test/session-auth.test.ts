@@ -129,7 +129,9 @@ test("staff login stores only hashed opaque session/CSRF tokens and authenticate
     call.sql.startsWith("SELECT account.id AS user_id"));
   assert.ok(reservationIndex >= 0 && reservationIndex < identityIndex,
     "login attempt must be reserved before identity lookup and password verification");
-  const reservationSql = mock.calls[reservationIndex].sql;
+  const reservation = mock.calls[reservationIndex];
+  assert.ok(reservation, "the login attempt reservation query must be recorded");
+  const reservationSql = reservation.sql;
   assert.match(reservationSql, /ON CONFLICT \(email_fingerprint, source_fingerprint\) DO UPDATE SET/);
   assert.match(reservationSql, /failed_attempts \+ 1 > \$4/,
     "the atomic reservation must set the block threshold after the configured number of attempts");
