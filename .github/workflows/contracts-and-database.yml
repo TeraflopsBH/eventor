@@ -214,6 +214,13 @@ jobs:
           npm ci --no-audit --no-fund
           npm run build
 
+      - name: Verify real PostgreSQL login, session cookies, /me, expiry, CSRF and logout
+        working-directory: apps/api
+        env:
+          AUTH_URL: ${{ env.AUTH_URL }}
+          ADMIN_URL: ${{ env.ADMIN_URL }}
+        run: node --test dist/test/session-auth-postgres.integration.test.js
+
       - name: Prepare event notification worker fixture
         run: psql "$MIGRATOR_URL" -X -v ON_ERROR_STOP=1 -f tests/database/event_notification_worker_fixture.sql
 
