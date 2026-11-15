@@ -1074,18 +1074,18 @@ BEGIN
 
   v_request_capability:=eogp.issue_external_booking_action_capability(
     v_org,v_booking_id,v_booking_contact_id,v_creator,
-    'booking_cancellation_request',v_token_sha256,
+    'booking_cancellation_request',v_request_capability_hash,
     clock_timestamp()+interval '7 days',1
   );
   IF v_request_capability->>'action'<>'booking_cancellation_request'
      OR v_request_capability->>'state'<>'active'
      OR (SELECT count(*) FROM eogp.external_booking_action_capability_lookup
-          WHERE token_sha256=v_token_sha256)<>1 THEN
+          WHERE token_sha256=v_request_capability_hash)<>1 THEN
     RAISE EXCEPTION 'external cancellation request capability was not issued and indexed';
   END IF;
 
   v_external_context:=eogp.resolve_external_booking_action_capability(
-    v_token_sha256,'booking_cancellation_request'
+    v_request_capability_hash,'booking_cancellation_request'
   );
   IF v_external_context->>'bookingCode' IS NULL
      OR v_external_context->>'cancellationTerms'<>'Cancellation terms version 1'
@@ -1094,7 +1094,7 @@ BEGIN
   END IF;
 
   v_external_request:=eogp.submit_external_booking_cancellation_request(
-    v_token_sha256,v_external_idempotency_hash,v_external_request_hash,
+    v_request_capability_hash,v_external_idempotency_hash,v_external_request_hash,
     'schedule_change',convert_to('EV1synthetic-encrypted-explanation','UTF8')
   );
   v_external_request_id:=(v_external_request->>'requestId')::uuid;
@@ -1105,7 +1105,7 @@ BEGIN
   END IF;
 
   v_external_replay:=eogp.submit_external_booking_cancellation_request(
-    v_token_sha256,v_external_idempotency_hash,v_external_request_hash,
+    v_request_capability_hash,v_external_idempotency_hash,v_external_request_hash,
     'schedule_change',convert_to('EV1synthetic-encrypted-explanation','UTF8')
   );
   IF (v_external_replay->>'requestId')::uuid<>v_external_request_id
@@ -1115,7 +1115,7 @@ BEGIN
      OR NOT EXISTS (
        SELECT 1 FROM eogp.external_action_capabilities
         WHERE organization_id=v_org
-          AND token_sha256=v_token_sha256
+          AND token_sha256=v_request_capability_hash
           AND use_count=1 AND revoked_at IS NOT NULL
      ) THEN
     RAISE EXCEPTION 'external cancellation idempotency replay duplicated the request or failed to consume the single-use capability';
@@ -1123,7 +1123,7 @@ BEGIN
 
   BEGIN
     PERFORM eogp.submit_external_booking_cancellation_request(
-      v_token_sha256,v_external_idempotency_hash,
+      v_request_capability_hash,v_external_idempotency_hash,
       encode(eogp.digest(convert_to('different payload','UTF8'),'sha256'),'hex'),
       'schedule_change',convert_to('EV1different-explanation','UTF8')
     );
