@@ -1965,7 +1965,7 @@ export function buildApi(dependencies: ApiDependencies): FastifyInstance {
           organizationId: principal.organizationId,
           membershipId: principal.membershipId,
         };
-    return reply.code(200).send({ data: { ...data, capabilityToken: token } });
+    return reply.code(200).send({ data });
   });
 
 
