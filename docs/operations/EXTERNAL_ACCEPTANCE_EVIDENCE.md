@@ -1,14 +1,15 @@
-## Current candidate checkpoint — 2026-11-15
+## Current integration result — 2026-11-15
 
-- Candidate PR: [#85](https://github.com/TeraflopsBH/eventor/pull/85)
-- Candidate commit: `778320afca847f09fc9a69d65dbf0ba20f6d59fb`
-- Candidate state: open, ready for review, not merged; 2,290 commits ahead of `main`, zero behind, 299 changed files.
-- Repository CI: [Contracts and PostgreSQL migrations #43703000050](https://github.com/TeraflopsBH/eventor/actions/runs/43703000050) passed all four jobs; [Secret history scan #43703000115](https://github.com/TeraflopsBH/eventor/actions/runs/43703000115) passed.
-- Optional SMTP and public HTTPS probes: skipped because no staging endpoint or SMTP sandbox configuration is available. Skipped is not passed.
-- Isolated staging environment and representative deployed database snapshot: not currently available.
-- Independent reviewer approval: outstanding.
+- Merged PR: [#85](https://github.com/TeraflopsBH/eventor/pull/85)
+- Squash merge commit on `main`: `3377fe0ab9016c57884d15a5353242dfa876bfa5`
+- Merged PR head: `69cb8a44882b7ece99ba9be987a345a5bd569395`
+- Exact-head repository CI: [Contracts and PostgreSQL migrations #43703214468](https://github.com/TeraflopsBH/eventor/actions/runs/43703214468) passed all four jobs; [Secret history scan #43703213760](https://github.com/TeraflopsBH/eventor/actions/runs/43703213760) passed.
+- Optional SMTP and public HTTPS probes: [run #43703214438](https://github.com/TeraflopsBH/eventor/actions/runs/43703214438) skipped because no SMTP sandbox configuration or public endpoint was configured. Skipped is not passed.
+- Staging and representative deployed database snapshot: unavailable at merge time.
+- Production-release disposition: external acceptance remains deferred / not yet executed.
 
-No browser-driven acceptance, provider sandbox delivery, representative deployed-schema upgrade, off-host backup/PITR/key-recovery drill, or target-host/network acceptance is claimed. These activities remain deferred, not failed and not passed. Use the checklist below only when an approved isolated environment and responsible operators become available.
+The squash merge confirms repository integration, not production readiness. No browser-driven acceptance, live provider delivery, representative deployed-schema upgrade, off-host backup/PITR/encryption-key recovery drill, or target-host/network acceptance is claimed. Complete the checklist below only in an approved isolated environment with named operators and sanitized evidence.
+
 
 # External deployment acceptance evidence
 
