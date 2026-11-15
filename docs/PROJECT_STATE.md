@@ -169,7 +169,7 @@ The separate v0.2 booking SQL addendum duplicates all 22 booking/configuration t
 ## Immediate next steps
 
 1. Review and merge the stacked cancellation-policy management PR after validation; then define the jurisdiction-neutral tax model before adding organization tax configuration. Do not hardcode Bosnia and Herzegovina or GHB rates.
-3. Add PostgreSQL functional/concurrency coverage for migrations 000058–000061 and the complete offer/approval/confirmation workflow. CI remains intentionally deferred while the monthly GitHub Actions allowance is exhausted; do not spend further runs until the allowance resets.
+3. Add PostgreSQL functional/concurrency coverage for migrations 000058–000062 and the complete offer/approval/confirmation workflow. CI remains intentionally deferred while the monthly GitHub Actions allowance is exhausted; do not spend further runs until the allowance resets.
 4. Review offer preparation's effective-period checks against the new price-list revision model, and ensure the staff UI can explicitly select the exact published revision.
 5. Expand venue, building, space and resource administration workspaces after the commercial configuration layer is complete.
 6. Keep production deployment blocked until GHB validates inventory, capacities, prices, tax treatment, cancellation terms and approval authority.
