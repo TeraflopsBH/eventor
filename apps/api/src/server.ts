@@ -2886,6 +2886,52 @@ export function buildApi(dependencies: ApiDependencies): FastifyInstance {
     },
   );
 
+  server.get<{ Params: { bookingId: string } }>(
+    "/bookings/:bookingId/cancellation-requests",
+    {
+      schema: {
+        params: { type: "object", required: ["bookingId"], properties: { bookingId: { type: "string", pattern: uuidPattern } }, additionalProperties: false },
+      },
+    },
+    async (request, reply) => {
+      const principal = request.staffPrincipal!;
+      const client = await dependencies.pool.connect();
+      try {
+        await client.query("BEGIN");
+        await client.query("SELECT set_config('app.organization_id',$1,true)", [principal.organizationId]);
+        await client.query("SELECT set_config('app.actor_membership_id',$1,true)", [principal.membershipId]);
+        const result = await client.query<ResultRow>(
+          "SELECT eogp.get_booking_cancellation_requests_for_booking($1::uuid,$2::uuid,$3::uuid) AS result",
+          [principal.organizationId, request.params.bookingId, principal.membershipId],
+        );
+        await client.query("COMMIT");
+        const items = Array.isArray(result.rows[0]?.result)
+          ? result.rows[0]!.result as Array<Record<string, unknown>>
+          : [];
+        const data = items.map((item) => {
+          const { explanationCiphertextBase64, ...safeItem } = item;
+          if (typeof explanationCiphertextBase64 !== "string") {
+            return { ...safeItem, explanation: null };
+          }
+          const ciphertext = Buffer.from(explanationCiphertextBase64, "base64");
+          if (ciphertext.toString("base64") !== explanationCiphertextBase64) {
+            throw new ApiError(500, "BOOKING_CANCELLATION_EXPLANATION_INVALID", "A stored cancellation explanation could not be read.");
+          }
+          return {
+            ...safeItem,
+            explanation: decryptPrivateText(ciphertext, dependencies.privateFieldEncryptionKey),
+          };
+        });
+        return reply.header("cache-control", "no-store, private").code(200).send({ data });
+      } catch (error) {
+        try { await client.query("ROLLBACK"); } catch { /* preserve the read error */ }
+        throw databaseError(error);
+      } finally {
+        client.release();
+      }
+    },
+  );
+
   server.post<{
     Params: { bookingId: string };
     Body: { reasonCode: string; explanation?: string };
