@@ -626,6 +626,15 @@ const publicOfferViewParams = {
   properties: { offerId: { type: "string", pattern: uuidPattern } },
   additionalProperties: false,
 } as const;
+const externalBookingActionBootstrapHeaders = {
+  type: "object",
+  required: ["idempotency-key", "x-external-booking-action-token"],
+  properties: {
+    "idempotency-key": { type: "string", minLength: 8, maxLength: 200 },
+    "x-external-booking-action-token": { type: "string", pattern: "^[A-Za-z0-9_-]{43}$" },
+  },
+  additionalProperties: true,
+} as const;
 const publicOfferCapabilityHeaders = {
   type: "object",
   required: ["x-external-booking-token"],
@@ -1951,7 +1960,7 @@ export function buildApi(dependencies: ApiDependencies): FastifyInstance {
           organizationId: principal.organizationId,
           membershipId: principal.membershipId,
         };
-    return reply.code(200).send({ data });
+    return reply.code(200).send({ data: { ...data, capabilityToken: token } });
   });
 
 
@@ -2977,12 +2986,12 @@ export function buildApi(dependencies: ApiDependencies): FastifyInstance {
     "/external/booking-actions/resolve",
     {
       schema: {
-        headers: publicOfferDecisionHeaders,
+        headers: externalBookingActionBootstrapHeaders,
         body: externalBookingActionResolveBody,
       },
     },
     async (request, reply) => {
-      const token = request.headers["x-external-booking-token"];
+      const token = request.headers["x-external-booking-action-token"];
       if (typeof token !== "string" || !/^[A-Za-z0-9_-]{43}$/.test(token)) {
         throw new ApiError(401, "BOOKING_ACTION_CAPABILITY_REQUIRED", "A valid external booking action capability is required.");
       }
