@@ -114,6 +114,8 @@ jobs:
       AUTH_URL: postgresql://eventor_auth:eventor_ci_auth_password@127.0.0.1:5432/eventor
       WORKER_URL: postgresql://eventor_worker:eventor_ci_worker_password@127.0.0.1:5432/eventor
       DATABASE_URL: postgresql://eventor_migrator:eventor_ci_migrator_password@127.0.0.1:5432/eventor
+      EVENTOR_CONTACT_ENCRYPTION_KEY: MTExMTExMTExMTExMTExMTExMTExMTExMTExMTExMTE=
+      EVENTOR_DELIVERY_CREDENTIALS_KEY: QkJCQkJCQkJCQkJCQkJCQkJCQkJCQkJCQkJCQkJCQkI=
     steps:
       - name: Check out repository
         uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
@@ -212,8 +214,25 @@ jobs:
       - name: Verify event change commands, scoped permissions and replacement schedules
         run: psql "$MIGRATOR_URL" -X -v ON_ERROR_STOP=1 -f tests/database/event_change_command_runtime_smoke.sql
 
+      - name: Set up Node.js for PostgreSQL-backed worker and browser acceptance
+        uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020
+        with:
+          node-version: "22.16.0"
+
+      - name: Install API dependencies and build the production API
+        working-directory: apps/api
+        run: |
+          npm ci --no-audit --no-fund
+          npm run build
+
       - name: Prepare event notification worker fixture
         run: psql "$MIGRATOR_URL" -X -v ON_ERROR_STOP=1 -f tests/database/event_notification_worker_fixture.sql
+
+      - name: Encrypt synthetic contact values before immutable campaign recipient snapshots
+        env:
+          EVENTOR_CONTACT_ENCRYPTION_KEY: ${{ env.EVENTOR_CONTACT_ENCRYPTION_KEY }}
+          MIGRATOR_URL: ${{ env.MIGRATOR_URL }}
+        run: node apps/api/scripts/prepare-notification-worker-fixture.mjs
 
       - name: Verify guest invitation delivery attempt-history transitions
         run: |
@@ -256,25 +275,40 @@ jobs:
       - name: Verify organizer notification campaign review and confirmation as runtime
         run: psql "$RUNTIME_URL" -X -v ON_ERROR_STOP=1 -f tests/database/event_notification_campaign_confirmation_smoke.sql
 
+      - name: Generate valid encrypted SMTP credentials for the immutable CI fixture
+        env:
+          EVENTOR_DELIVERY_CREDENTIALS_KEY: ${{ env.EVENTOR_DELIVERY_CREDENTIALS_KEY }}
+        run: |
+          credentials_base64="$(node apps/api/scripts/generate-ci-delivery-credentials.mjs)"
+          echo "CI_DELIVERY_CREDENTIALS_CIPHERTEXT_BASE64=$credentials_base64" >> "$GITHUB_ENV"
+
       - name: Verify tenant-scoped SMTP configuration versioning and secret boundaries
-        run: psql "$RUNTIME_URL" -X -v ON_ERROR_STOP=1 -f tests/database/organization_delivery_configuration_smoke.sql
+        run: |
+          psql "$RUNTIME_URL" -X -v ON_ERROR_STOP=1 \
+            -v ci_delivery_credentials_ciphertext_base64="$CI_DELIVERY_CREDENTIALS_CIPHERTEXT_BASE64" \
+            -f tests/database/organization_delivery_configuration_smoke.sql
       - name: Verify SMTP delivery worker claim, retry and terminal states
-        run: psql "$WORKER_URL" -X -v ON_ERROR_STOP=1 -f tests/database/event_notification_delivery_worker_smoke.sql
+        run: psql "$WORKER_URL" -X -v ON_ERROR_STOP=1 -v ci_worker_preprocessed_one=true -f tests/database/event_notification_delivery_worker_smoke.sql
       - name: Verify booking-offer email worker SQL contract as worker
         run: psql "$WORKER_URL" -X -v ON_ERROR_STOP=1 -f tests/database/booking_offer_email_worker_sql_smoke.sql
 
-      - name: Set up Node.js for PostgreSQL-backed worker integration
-        uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020
-        with:
-          node-version: "22.16.0"
+      - name: Generate encrypted booking-offer worker fixture values
+        env:
+          EVENTOR_CONTACT_ENCRYPTION_KEY: ${{ env.EVENTOR_CONTACT_ENCRYPTION_KEY }}
+        run: node apps/api/scripts/generate-booking-offer-fixture-ciphertexts.mjs
 
-      - name: Install API dependencies for worker integration
-        working-directory: apps/api
-        run: npm ci --no-audit --no-fund
+      - name: Prepare real booking-offer email delivery fixture
+        run: |
+          psql "$MIGRATOR_URL" -X -v ON_ERROR_STOP=1 \
+            -v ci_booking_offer_email_ciphertext_base64="$CI_BOOKING_OFFER_EMAIL_CIPHERTEXT_BASE64" \
+            -v ci_booking_offer_capability_ciphertext_base64="$CI_BOOKING_OFFER_CAPABILITY_CIPHERTEXT_BASE64" \
+            -f tests/database/booking_offer_email_worker_fixture.sql
 
-      - name: Build API worker integration test
-        working-directory: apps/api
-        run: npm run build
+      - name: Run booking-offer TypeScript worker against PostgreSQL with concurrent fake-SMTP workers
+        env:
+          EVENTOR_CONTACT_ENCRYPTION_KEY: ${{ env.EVENTOR_CONTACT_ENCRYPTION_KEY }}
+          EVENTOR_DELIVERY_CREDENTIALS_KEY: ${{ env.EVENTOR_DELIVERY_CREDENTIALS_KEY }}
+        run: node apps/api/scripts/booking-offer-worker-postgres-smoke.mjs
 
       - name: Verify booking-offer email delivery through PostgreSQL and fake SMTP
         working-directory: apps/api
@@ -289,6 +323,57 @@ jobs:
           AUTH_URL: ${{ env.AUTH_URL }}
           ADMIN_URL: ${{ env.ADMIN_URL }}
         run: node --test dist/test/session-auth-postgres.integration.test.js
+
+      - name: Install pinned Playwright and browser engines
+        working-directory: apps/api
+        run: |
+          npm install --no-save --package-lock=false playwright@1.56.1
+          npx playwright install --with-deps chromium firefox
+
+      - name: Seed a synthetic staff password for browser authentication
+        working-directory: apps/api
+        run: |
+          password_hash="$(node --input-type=module -e 'import argon2 from "argon2"; process.stdout.write(await argon2.hash("CI-only-password-2026", { type: argon2.argon2id }));')"
+          psql "$AUTH_URL" -X -v ON_ERROR_STOP=1 \
+            -c "UPDATE eogp.users SET password_hash = '$password_hash' WHERE email = 'ci-a@example.invalid';"
+          test "$(psql "$AUTH_URL" -X -qAt -v ON_ERROR_STOP=1 -c "SELECT count(*) FROM eogp.users WHERE email='ci-a@example.invalid' AND password_hash IS NOT NULL;")" = "1"
+
+      - name: Start the API with isolated CI database roles
+        env:
+          EVENTOR_RUNTIME_DATABASE_URL: ${{ env.RUNTIME_URL }}
+          EVENTOR_AUTH_DATABASE_URL: ${{ env.AUTH_URL }}
+          EVENTOR_ALLOWED_ORIGINS: http://localhost:8080
+          EVENTOR_AUTH_FINGERPRINT_KEY: U1NTU1NTU1NTU1NTU1NTU1NTU1NTU1NTU1NTU1NTU1M=
+          EVENTOR_PUBLIC_INQUIRY_FINGERPRINT_KEY: ZGRkZGRkZGRkZGRkZGRkZGRkZGRkZGRkZGRkZGRkZGQ=
+          EVENTOR_FIELD_ENCRYPTION_KEY: dXV1dXV1dXV1dXV1dXV1dXV1dXV1dXV1dXV1dXV1dXU=
+          EVENTOR_CONTACT_ENCRYPTION_KEY: ${{ env.EVENTOR_CONTACT_ENCRYPTION_KEY }}
+          EVENTOR_DELIVERY_CREDENTIALS_KEY: ${{ env.EVENTOR_DELIVERY_CREDENTIALS_KEY }}
+          EVENTOR_BOOKING_CAPABILITY_KEY: JiYmJiYmJiYmJiYmJiYmJiYmJiYmJiYmJiYmJiYmJiY=
+          HOST: 0.0.0.0
+          PORT: "8080"
+        run: |
+          node apps/api/dist/src/main.js > /tmp/eventor-api.log 2>&1 &
+          echo $! > /tmp/eventor-api.pid
+          for attempt in $(seq 1 30); do
+            if curl --silent --show-error --output /dev/null http://localhost:8080/; then
+              exit 0
+            fi
+            sleep 1
+          done
+          cat /tmp/eventor-api.log
+          exit 1
+
+      - name: Verify login, Secure cookies, session restoration, CSRF and logout in Chromium and Firefox
+        env:
+          EVENTOR_BROWSER_BASE_URL: http://localhost:8080
+        run: node apps/api/scripts/session-browser-smoke.mjs
+
+      - name: Stop the CI API process
+        if: always()
+        run: |
+          if [ -f /tmp/eventor-api.pid ]; then
+            kill "$(cat /tmp/eventor-api.pid)" 2>/dev/null || true
+          fi
 
       - name: Verify delivery result under forced-RLS owner
         run: psql "$MIGRATOR_URL" -X -v ON_ERROR_STOP=1 -c "SET ROLE eventor_owner" -f tests/database/event_notification_delivery_result_smoke.sql
