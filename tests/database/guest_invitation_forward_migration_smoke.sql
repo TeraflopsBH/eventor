@@ -2,6 +2,17 @@
 
 SET ROLE eventor_owner;
 SELECT set_config('app.organization_id','97000000-0000-4000-8000-000000000001',true);
+SELECT
+  id,
+  organization_id,
+  event_id,
+  invitation_id,
+  invitation_revision_id,
+  encode(capability_ciphertext,'hex') AS capability_ciphertext_hex
+FROM eogp.invitation_deliveries
+WHERE organization_id='97000000-0000-4000-8000-000000000001'
+ORDER BY id;
+
 DO $guest_invitation_forward_migration$
 BEGIN
   IF EXISTS (
