@@ -1,7 +1,12 @@
 \set ON_ERROR_STOP on
+\if :{?ci_delivery_credentials_ciphertext_base64}
+\else
+\set ci_delivery_credentials_ciphertext_base64 'RURDMQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEB'
+\endif
 BEGIN;
 SET LOCAL app.organization_id = '22222222-2222-4222-8222-222222222222';
 SELECT set_config('app.actor_membership_id','bbbbbbbb-2222-4222-8222-bbbbbbbbbbbb',true);
+SELECT set_config('eventor.ci_delivery_credentials_ciphertext_base64', :'ci_delivery_credentials_ciphertext_base64', true);
 
 DO $delivery$
 DECLARE
@@ -87,7 +92,7 @@ BEGIN
       'replyTo','',
       'connectionTimeoutMs',15000
     ),
-    decode('45444331' || repeat('01',29),'hex'),
+    decode(current_setting('eventor.ci_delivery_credentials_ciphertext_base64'),'base64'),
     true,
     false
   );
@@ -173,7 +178,7 @@ BEGIN
      OR v_test ->> 'status' <> 'pending'
      OR v_test ->> 'credentialsCiphertextBase64' IS NULL
      OR decode(v_test ->> 'credentialsCiphertextBase64','base64')
-          IS DISTINCT FROM decode('45444331' || repeat('01',29),'hex') THEN
+          IS DISTINCT FROM decode(current_setting('eventor.ci_delivery_credentials_ciphertext_base64'),'base64') THEN
     RAISE EXCEPTION 'SMTP test request did not return only the expected encrypted credential envelope: %',v_test;
   END IF;
 
