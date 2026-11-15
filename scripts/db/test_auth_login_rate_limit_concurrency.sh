@@ -59,18 +59,18 @@ SQL
 # observe the block, regardless of statement arrival order.
 for i in {1..10}; do
   psql "$AUTH_URL" -X -A -t -v ON_ERROR_STOP=1 \
-    -c "$reserve_attempt_sql" >"$work_dir/$i" 2>"$work_dir/$i.err" &
+    -c "$reserve_attempt_sql" >"$work_dir/$i.out" 2>"$work_dir/$i.err" &
 done
 wait
 
 allowed=0
 blocked=0
-for result_file in "$work_dir"/*; do
+for result_file in "$work_dir"/*.out; do
   result="$(tr -d '[:space:]' <"$result_file")"
   case "$result" in
     f|false) allowed=$((allowed + 1)) ;;
     t|true) blocked=$((blocked + 1)) ;;
-    *) echo "Unexpected login reservation result in $result_file: '$result'" >&2; cat "$result_file.err" >&2; exit 1 ;;
+    *) echo "Unexpected login reservation result in $result_file: '$result'" >&2; cat "${result_file%.out}.err" >&2; exit 1 ;;
   esac
 done
 
