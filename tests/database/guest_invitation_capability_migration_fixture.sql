@@ -16,7 +16,7 @@ VALUES (
 
 INSERT INTO eogp.users (id,email,display_name,status)
 VALUES (
-  'cccccccc-cccc-4ccc-8ccc-cccccccccccc',
+  'eeeeeeee-eeee-4eee-8eee-eeeeeeeeeeee',
   'ci-forward@example.invalid',
   'CI Forward Migration User',
   'active'
@@ -26,7 +26,7 @@ INSERT INTO eogp.organization_memberships (id,organization_id,user_id,status,joi
 VALUES (
   '97000000-0000-4000-8000-000000000002',
   '97000000-0000-4000-8000-000000000001',
-  'cccccccc-cccc-4ccc-8ccc-cccccccccccc',
+  'eeeeeeee-eeee-4eee-8eee-eeeeeeeeeeee',
   'active',clock_timestamp()
 );
 
