@@ -48,7 +48,7 @@ jobs:
     if: ${{ vars.EVENTOR_PUBLIC_BASE_URL != '' }}
     runs-on: ubuntu-latest
     steps:
-      - name: Validate public HTTPS endpoint, certificate and HSTS
+      - name: Validate public HTTPS endpoint, certificate and security headers
         env:
           EVENTOR_PUBLIC_BASE_URL: ${{ vars.EVENTOR_PUBLIC_BASE_URL }}
         run: |
@@ -61,13 +61,53 @@ jobs:
               raise SystemExit("EVENTOR_PUBLIC_BASE_URL must be an absolute HTTPS URL without credentials")
           print(f"Probing configured public endpoint: {parsed.hostname}")
           PY
-          http_code="$(curl --silent --show-error --location --proto '=https' --tlsv1.2 \
+          curl --silent --show-error --location --proto '=https' --tlsv1.2 \
             --max-time 30 --dump-header /tmp/eventor-public-headers.txt \
-            --output /dev/null --write-out '%{http_code}' "$EVENTOR_PUBLIC_BASE_URL")"
-          case "$http_code" in
-            2??|3??) ;;
-            *) echo "Expected a successful HTTPS response, got HTTP $http_code" >&2; exit 1 ;;
-          esac
-          grep -Eiq '^strict-transport-security:' /tmp/eventor-public-headers.txt
-          grep -Eiq '^x-content-type-options:' /tmp/eventor-public-headers.txt
-          grep -Eiq '^referrer-policy:' /tmp/eventor-public-headers.txt
+            --output /dev/null "$EVENTOR_PUBLIC_BASE_URL"
+          python - <<'PY'
+          import re
+          from pathlib import Path
+
+          lines = Path("/tmp/eventor-public-headers.txt").read_text(
+              encoding="iso-8859-1"
+          ).splitlines()
+          blocks = []
+          current = None
+          for line in lines:
+              if line.startswith("HTTP/"):
+                  if current is not None:
+                      blocks.append(current)
+                  match = re.match(r"^HTTP/\\S+\\s+(\\d{3})", line)
+                  if not match:
+                      raise SystemExit(f"Unrecognized HTTP status line: {line}")
+                  current = {"status": int(match.group(1)), "headers": {}}
+              elif current is not None and ":" in line:
+                  name, value = line.split(":", 1)
+                  current["headers"][name.strip().lower()] = value.strip()
+              elif not line.strip() and current is not None:
+                  blocks.append(current)
+                  current = None
+          if current is not None:
+              blocks.append(current)
+          if not blocks:
+              raise SystemExit("No HTTP response headers were received")
+          final = blocks[-1]
+          if not 200 <= final["status"] < 300:
+              raise SystemExit(
+                  f"Expected a final 2xx HTTPS response, got HTTP {final['status']}"
+              )
+          required = (
+              "strict-transport-security",
+              "x-content-type-options",
+              "referrer-policy",
+          )
+          missing = [name for name in required if not final["headers"].get(name)]
+          if missing:
+              raise SystemExit(
+                  "Final HTTPS response is missing required security headers: "
+                  + ", ".join(missing)
+              )
+          print(
+              f"Final HTTPS response: {final['status']}; required security headers present."
+          )
+          PY
