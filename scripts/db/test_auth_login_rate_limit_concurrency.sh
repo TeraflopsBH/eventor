@@ -26,7 +26,7 @@ DO UPDATE SET
     WHEN eogp.auth_login_attempts.blocked_until > clock_timestamp()
       THEN eogp.auth_login_attempts.failed_attempts
     WHEN eogp.auth_login_attempts.window_started_at
-         < clock_timestamp() - make_interval(secs => \$3)
+         < clock_timestamp() - make_interval(secs => 900)
       THEN 1
     ELSE eogp.auth_login_attempts.failed_attempts + 1
   END,
@@ -34,7 +34,7 @@ DO UPDATE SET
     WHEN eogp.auth_login_attempts.blocked_until > clock_timestamp()
       THEN eogp.auth_login_attempts.window_started_at
     WHEN eogp.auth_login_attempts.window_started_at
-         < clock_timestamp() - make_interval(secs => \$3)
+         < clock_timestamp() - make_interval(secs => 900)
       THEN clock_timestamp()
     ELSE eogp.auth_login_attempts.window_started_at
   END,
@@ -42,10 +42,10 @@ DO UPDATE SET
     WHEN eogp.auth_login_attempts.blocked_until > clock_timestamp()
       THEN eogp.auth_login_attempts.blocked_until
     WHEN eogp.auth_login_attempts.window_started_at
-         < clock_timestamp() - make_interval(secs => \$3)
+         < clock_timestamp() - make_interval(secs => 900)
       THEN NULL
-    WHEN eogp.auth_login_attempts.failed_attempts + 1 > \$4
-      THEN clock_timestamp() + make_interval(secs => \$5)
+    WHEN eogp.auth_login_attempts.failed_attempts + 1 > 5
+      THEN clock_timestamp() + make_interval(secs => 900)
     ELSE NULL
   END,
   updated_at = clock_timestamp()
