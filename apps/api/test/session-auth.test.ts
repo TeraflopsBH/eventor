@@ -32,7 +32,7 @@ function makePool(passwordHash: string, blocked = false) {
     async query(sql: string, values: unknown[] = []) {
       const normalized = sql.replace(/\s+/g, " ").trim();
       calls.push({ sql: normalized, values });
-      if (normalized.startsWith("SELECT coalesce(")) {
+      if (normalized.startsWith("INSERT INTO eogp.auth_login_attempts")) {
         return { rows: [{ blocked }], rowCount: 1 };
       }
       if (normalized.startsWith("SELECT account.id AS user_id")) {
@@ -122,6 +122,17 @@ test("staff login stores only hashed opaque session/CSRF tokens and authenticate
   assert.notEqual(mock.csrfHash, created.csrfToken);
   assert.equal(mock.tokenHash?.length, 64);
   assert.equal(mock.csrfHash?.length, 64);
+
+  const reservationIndex = mock.calls.findIndex((call) =>
+    call.sql.startsWith("INSERT INTO eogp.auth_login_attempts"));
+  const identityIndex = mock.calls.findIndex((call) =>
+    call.sql.startsWith("SELECT account.id AS user_id"));
+  assert.ok(reservationIndex >= 0 && reservationIndex < identityIndex,
+    "login attempt must be reserved before identity lookup and password verification");
+  const reservationSql = mock.calls[reservationIndex].sql;
+  assert.match(reservationSql, /ON CONFLICT \(email_fingerprint, source_fingerprint\) DO UPDATE SET/);
+  assert.match(reservationSql, /failed_attempts \+ 1 > \$4/,
+    "the atomic reservation must set the block threshold after the configured number of attempts");
 
   const cookies = [
     STAFF_SESSION_COOKIE + "=" + created.sessionToken,
