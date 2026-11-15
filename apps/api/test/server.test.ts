@@ -102,6 +102,10 @@ function makePool() {
   let bookingOfferApprovalDecisionCalls = 0;
   let bookingOfferApprovalStatusCalls = 0;
   let bookingConfirmationCalls = 0;
+  let externalBookingCapabilityIssueCalls = 0;
+  let externalBookingCapabilityRevokeCalls = 0;
+  let externalBookingCapabilityResolveCalls = 0;
+  let externalBookingCancellationSubmitCalls = 0;
   let bookingCancellationQueueCalls = 0;
   let bookingCancellationBookingGetCalls = 0;
   let bookingCancellationRequestSubmitCalls = 0;
@@ -803,6 +807,54 @@ function makePool() {
         commandCalls.push({ sql: normalized, values });
         return { rows: [{ result: { accepted: true, duplicate: false, attemptId: "95000000-0000-4000-8000-000000000001", status: values[4] } }], rowCount: 1 };
       }
+      if (normalized.includes("eogp.issue_external_booking_action_capability(")) {
+        externalBookingCapabilityIssueCalls += 1;
+        commandCalls.push({ sql: normalized, values });
+        return { rows: [{ result: {
+          capabilityId: "21212121-2121-4121-8121-212121212121",
+          bookingId: values[1],
+          bookingContactId: values[2],
+          action: values[4],
+          expiresAt: values[6],
+          maxUses: values[7],
+          state: "active",
+        } }], rowCount: 1 };
+      }
+      if (normalized.includes("eogp.revoke_external_booking_action_capability(")) {
+        externalBookingCapabilityRevokeCalls += 1;
+        commandCalls.push({ sql: normalized, values });
+        return { rows: [{ result: {
+          capabilityId: values[2],
+          bookingId: values[1],
+          state: "revoked",
+          revokedAt: "2026-11-15T14:00:00.000Z",
+        } }], rowCount: 1 };
+      }
+      if (normalized.includes("eogp.resolve_external_booking_action_capability(")) {
+        externalBookingCapabilityResolveCalls += 1;
+        commandCalls.push({ sql: normalized, values });
+        return { rows: [{ result: {
+          organizationId: principal.organizationId,
+          bookingId: values[0],
+          bookingCode: "BKG-CANCEL-001",
+          bookingStatus: "confirmed",
+          action: values[1],
+          expiresAt: "2026-12-01T00:00:00.000Z",
+          cancellationTerms: "Cancellation requests are subject to review.",
+          latestCancellationRequest: null,
+        } }], rowCount: 1 };
+      }
+      if (normalized.includes("eogp.submit_external_booking_cancellation_request(")) {
+        externalBookingCancellationSubmitCalls += 1;
+        commandCalls.push({ sql: normalized, values });
+        return { rows: [{ result: {
+          requestId: "22222222-2222-4222-8222-222222222222",
+          bookingCode: "BKG-CANCEL-001",
+          status: "submitted",
+          requestedAt: "2026-11-15T14:10:00.000Z",
+          replayed: false,
+        } }], rowCount: 1 };
+      }
       if (normalized.includes("eogp.get_booking_cancellation_requests_for_booking(")) {
         bookingCancellationBookingGetCalls += 1;
         commandCalls.push({ sql: normalized, values });
@@ -1058,6 +1110,10 @@ function makePool() {
     get bookingOfferApprovalDecisionCalls() { return bookingOfferApprovalDecisionCalls; },
     get bookingOfferApprovalStatusCalls() { return bookingOfferApprovalStatusCalls; },
     get bookingConfirmationCalls() { return bookingConfirmationCalls; },
+    get externalBookingCapabilityIssueCalls() { return externalBookingCapabilityIssueCalls; },
+    get externalBookingCapabilityRevokeCalls() { return externalBookingCapabilityRevokeCalls; },
+    get externalBookingCapabilityResolveCalls() { return externalBookingCapabilityResolveCalls; },
+    get externalBookingCancellationSubmitCalls() { return externalBookingCancellationSubmitCalls; },
     get bookingCancellationQueueCalls() { return bookingCancellationQueueCalls; },
     get bookingCancellationBookingGetCalls() { return bookingCancellationBookingGetCalls; },
     get bookingCancellationRequestSubmitCalls() { return bookingCancellationRequestSubmitCalls; },
