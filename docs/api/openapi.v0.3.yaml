@@ -3485,7 +3485,8 @@ paths:
     get:
       tags: ["Booking Cancellation"]
       operationId: getExternalBookingCancellationRequest
-      summary: "Read the external request status using the same booking capability"
+      summary: "Read a cancellation request using its contact-scoped status capability"
+      description: "The status capability is read-only, reusable until expiry or revocation, and scoped to the booking contact who submitted the request. It exposes no private explanation or staff-only decision notes."
       security: [{ BookingActionCapability: [] }]
       parameters:
         - $ref: '#/components/parameters/PRequestId'
