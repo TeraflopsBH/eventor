@@ -6235,7 +6235,6 @@ components:
       properties:
         expectedBookingRevision: { type: integer, minimum: 1 }
         cancellationRequestId: { type: string, format: uuid }
-        requesterKind: { type: string, enum: [customer, venue_provider] }
     CancellationExecutionRequest:
       type: object
       required: [expectedBookingRevision, cancellationRequestId]
