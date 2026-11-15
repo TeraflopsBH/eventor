@@ -2908,16 +2908,9 @@ export function buildApi(dependencies: ApiDependencies): FastifyInstance {
     async (request, reply) => {
       const principal = request.staffPrincipal!;
       const explanation = request.body.explanation?.trim() || null;
-      let explanationCiphertext: Buffer | null = null;
-      if (explanation) {
-        const key = dependencies.contactEncryptionKey;
-        if (!key || key.length !== 32) {
-          throw new ApiError(503, "BOOKING_CANCELLATION_ENCRYPTION_UNAVAILABLE", "Private cancellation explanations cannot be stored securely right now.");
-        }
-        explanationCiphertext = encryptContactValue(
-          explanation, key, { organizationId: principal.organizationId, contactKind: "other" },
-        );
-      }
+      const explanationCiphertext = explanation
+        ? encryptPrivateText(explanation, dependencies.privateFieldEncryptionKey)
+        : null;
       return withCommand(
         request, reply, "submitBookingCancellationRequest",
         { bookingId: request.params.bookingId, reasonCode: request.body.reasonCode, explanation },
