@@ -81,13 +81,35 @@ BEGIN
   PERFORM eogp.assert_booking_cancellation_permission(
     p_organization_id,p_booking_id,p_actor_membership_id,'booking.manage'
   );
-  IF p_action_code NOT IN ('booking_cancellation_request','booking_cancellation_status')
+  IF p_action_code IS NULL OR p_action_code NOT IN ('booking_cancellation_request','booking_cancellation_status')
      OR p_token_sha256 IS NULL OR p_token_sha256 !~ '^[0-9a-f]{64}$'
      OR p_expires_at IS NULL OR p_expires_at<=v_now
      OR p_expires_at>v_now+interval '180 days'
      OR p_max_uses IS NULL OR p_max_uses NOT BETWEEN 1 AND 20
      OR (p_action_code='booking_cancellation_request' AND p_max_uses<>1) THEN
     RAISE EXCEPTION 'external booking action capability parameters are invalid' USING ERRCODE='22023';
+  END IF;
+
+  -- Lock capabilities before the contact and booking, matching the submit
+  -- command's lock order to avoid issuance/submission deadlocks.
+  PERFORM 1
+    FROM eogp.external_action_capabilities capability
+   WHERE capability.organization_id=p_organization_id
+     AND capability.booking_id=p_booking_id
+     AND capability.booking_contact_id=p_booking_contact_id
+     AND capability.action_code=p_action_code
+     AND capability.revoked_at IS NULL
+   FOR UPDATE;
+
+  PERFORM 1
+    FROM eogp.booking_party_contacts contact
+   WHERE contact.organization_id=p_organization_id
+     AND contact.booking_id=p_booking_id
+     AND contact.id=p_booking_contact_id
+     AND contact.authorized_actions @> ARRAY[p_action_code]::text[]
+   FOR SHARE;
+  IF NOT FOUND THEN
+    RAISE EXCEPTION 'booking contact is not authorized for this external action' USING ERRCODE='42501';
   END IF;
 
   SELECT status INTO v_booking_status
@@ -99,17 +121,6 @@ BEGIN
   END IF;
   IF p_action_code='booking_cancellation_request' AND v_booking_status<>'confirmed' THEN
     RAISE EXCEPTION 'cancellation request capability requires a confirmed booking' USING ERRCODE='55000';
-  END IF;
-
-  PERFORM 1
-    FROM eogp.booking_party_contacts contact
-   WHERE contact.organization_id=p_organization_id
-     AND contact.booking_id=p_booking_id
-     AND contact.id=p_booking_contact_id
-     AND contact.authorized_actions @> ARRAY[p_action_code]::text[]
-   FOR SHARE;
-  IF NOT FOUND THEN
-    RAISE EXCEPTION 'booking contact is not authorized for this external action' USING ERRCODE='42501';
   END IF;
 
   -- Issuing a successor link invalidates older links for the same contact/action.
