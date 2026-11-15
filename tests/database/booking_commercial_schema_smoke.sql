@@ -15,8 +15,6 @@ DECLARE
     'booking_offer_email_deliveries',
     'booking_price_lists','booking_price_list_revisions','booking_price_items',
     'cancellation_policies','cancellation_policy_revisions',
-      'booking_cancellation_requests','booking_cancellation_decisions',
-      'booking_cancellation_effects','booking_disruption_notices',
     'booking_cancellation_requests','booking_cancellation_decisions',
     'booking_cancellation_effects','booking_disruption_notices',
     'booking_tax_profiles','booking_tax_profile_revisions'
