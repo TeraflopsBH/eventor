@@ -29,33 +29,21 @@ BEGIN
 END;
 $capability_preflight$;
 
-DO $capability_copy$
-DECLARE
-  v_organization_id uuid;
-BEGIN
-  -- The delivery update trigger performs an event-scoped lifecycle check.
-  -- Set the tenant context per organization so its forced-RLS event lookup
-  -- remains valid while the two delivery/link tables are temporarily un-RLS'd.
-  FOR v_organization_id IN
-    SELECT DISTINCT organization_id
-      FROM eogp.invitation_links
-     WHERE capability_ciphertext IS NOT NULL
-     ORDER BY organization_id
-  LOOP
-    PERFORM set_config('app.organization_id',v_organization_id::text,true);
-    UPDATE eogp.invitation_deliveries delivery
-       SET capability_ciphertext=link.capability_ciphertext
-      FROM eogp.invitation_links link
-     WHERE delivery.organization_id=v_organization_id
-       AND link.organization_id=v_organization_id
-       AND delivery.event_id=link.event_id
-       AND delivery.invitation_id=link.invitation_id
-       AND delivery.invitation_revision_id=link.invitation_revision_id
-       AND link.capability_ciphertext IS NOT NULL;
-  END LOOP;
-  PERFORM set_config('app.organization_id','',true);
-END;
-$capability_copy$;
+-- The normal delivery guard intentionally rejects arbitrary envelope
+-- rewrites. This is a one-time schema migration, so suspend user triggers only
+-- for this table while copying the legacy encrypted value, then restore them.
+ALTER TABLE eogp.invitation_deliveries DISABLE TRIGGER USER;
+
+UPDATE eogp.invitation_deliveries delivery
+   SET capability_ciphertext=link.capability_ciphertext
+  FROM eogp.invitation_links link
+ WHERE delivery.organization_id=link.organization_id
+   AND delivery.event_id=link.event_id
+   AND delivery.invitation_id=link.invitation_id
+   AND delivery.invitation_revision_id=link.invitation_revision_id
+   AND link.capability_ciphertext IS NOT NULL;
+
+ALTER TABLE eogp.invitation_deliveries ENABLE TRIGGER USER;
 
 DO $capability_verify$
 BEGIN
