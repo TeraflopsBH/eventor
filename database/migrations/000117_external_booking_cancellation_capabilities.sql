@@ -249,6 +249,19 @@ BEGIN
   END IF;
 
   PERFORM set_config('app.organization_id',v_organization_id::text,true);
+  PERFORM 1
+    FROM eogp.external_action_capabilities capability
+   WHERE capability.organization_id=v_organization_id
+     AND capability.id=v_capability_id
+     AND capability.token_sha256=p_token_sha256
+     AND capability.action_code=p_action_code
+     AND capability.revoked_at IS NULL
+     AND capability.expires_at>clock_timestamp()
+   FOR SHARE;
+  IF NOT FOUND THEN
+    RAISE EXCEPTION 'external booking action capability is expired, revoked or unavailable' USING ERRCODE='55000';
+  END IF;
+
   SELECT jsonb_build_object(
     'organizationId',capability.organization_id,
     'bookingId',booking.id,
@@ -471,6 +484,18 @@ GRANT EXECUTE ON FUNCTION eogp.issue_external_booking_action_capability(uuid,uui
     RAISE EXCEPTION 'external booking action capability not found' USING ERRCODE='P0002';
   END IF;
   PERFORM set_config('app.organization_id',v_organization_id::text,true);
+  PERFORM 1
+    FROM eogp.external_action_capabilities capability
+   WHERE capability.organization_id=v_organization_id
+     AND capability.id=v_capability_id
+     AND capability.token_sha256=p_token_sha256
+     AND capability.action_code='booking_cancellation_status'
+     AND capability.revoked_at IS NULL
+     AND capability.expires_at>clock_timestamp()
+   FOR SHARE;
+  IF NOT FOUND THEN
+    RAISE EXCEPTION 'external cancellation status capability is expired or revoked' USING ERRCODE='55000';
+  END IF;
 
   SELECT jsonb_build_object(
     'requestId',request.id,
