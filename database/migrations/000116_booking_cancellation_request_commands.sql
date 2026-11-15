@@ -148,7 +148,7 @@ DECLARE
   v_next_status text;
   v_resolved_at timestamptz;
 BEGIN
-  IF p_decision NOT IN ('approved','rejected','returned_for_changes') THEN
+  IF p_decision IS NULL OR p_decision NOT IN ('approved','rejected','returned_for_changes') THEN
     RAISE EXCEPTION 'unsupported booking cancellation decision' USING ERRCODE='22023';
   END IF;
   IF p_reason IS NULL OR length(btrim(p_reason)) NOT BETWEEN 3 AND 1000 THEN
@@ -160,7 +160,7 @@ BEGIN
    WHERE organization_id=p_organization_id AND id=p_request_id
    FOR UPDATE;
   IF NOT FOUND THEN
-    RAISE EXCEPTION 'booking cancellation request not found' USING ERRCODE='P0002';
+    RAISE EXCEPTION 'booking cancellation request is unavailable to this actor' USING ERRCODE='42501';
   END IF;
 
   v_permission:=CASE WHEN p_decision='returned_for_changes'
