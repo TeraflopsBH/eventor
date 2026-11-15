@@ -1731,7 +1731,6 @@ paths:
       security: [{ StaffSession: [], StaffCsrf: [] }]
       parameters:
         - $ref: '#/components/parameters/PBookingId'
-        - $ref: '#/components/parameters/IdempotencyKey'
       requestBody:
         required: true
         content:
@@ -4196,17 +4195,15 @@ paths:
         '401': { $ref: '#/components/responses/Unauthorized' }
         '403': { $ref: '#/components/responses/Forbidden' }
         '409': { $ref: '#/components/responses/Conflict' }
-  "/booking-cancellation-requests/{requestId}/decision":
+  "/bookings/{bookingId}/cancellation-requests/{requestId}/decision":
     post:
       tags: ["Booking Cancellation"]
       operationId: decideBookingCancellationRequest
       summary: "Approve, reject or return a booking cancellation request for changes"
       security: [{ StaffSession: [], StaffCsrf: [] }]
       parameters:
-        - name: requestId
-          in: path
-          required: true
-          schema: { type: string, format: uuid }
+        - $ref: '#/components/parameters/PBookingId'
+        - $ref: '#/components/parameters/PRequestId'
         - $ref: '#/components/parameters/IdempotencyKey'
       requestBody:
         required: true
@@ -6234,12 +6231,14 @@ components:
         emergencyOverride: { type: boolean, default: false }
     CancellationPreviewRequest:
       type: object
+      required: [expectedBookingRevision]
       properties:
         expectedBookingRevision: { type: integer, minimum: 1 }
+        cancellationRequestId: { type: string, format: uuid }
         requesterKind: { type: string, enum: [customer, venue_provider] }
     CancellationExecutionRequest:
       type: object
-      required: [expectedBookingRevision]
+      required: [expectedBookingRevision, cancellationRequestId]
       properties:
         expectedBookingRevision: { type: integer, minimum: 1 }
         cancellationRequestId: { type: string, format: uuid }
