@@ -115,7 +115,7 @@ BEGIN
          v_delivery.capability_ciphertext,v_delivery.recipient_ciphertext,
          config.credentials_ciphertext,config.settings,
          config.settings->>'senderEmail',config.settings->>'senderName',
-         config.settings->>'replyTo',revision.valid_until,revision.currency,revision.total_amount
+         config.settings->>'replyTo',revision.valid_until,revision.currency::text,revision.total_amount
     FROM eogp.organization_delivery_config_revisions config
     JOIN eogp.booking_offer_revisions revision
       ON revision.organization_id=v_delivery.organization_id
