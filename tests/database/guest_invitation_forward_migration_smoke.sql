@@ -1,7 +1,5 @@
 \set ON_ERROR_STOP on
 
-SET ROLE eventor_owner;
-SELECT set_config('app.organization_id','97000000-0000-4000-8000-000000000001',true);
 SELECT
   id,
   organization_id,
