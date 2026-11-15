@@ -86,4 +86,20 @@ if [[ "$extra" != "t" ]]; then
   exit 1
 fi
 
-echo "Concurrent authentication login rate-limit regression passed (5 allowed, 5 blocked, subsequent attempt blocked)."
+# An active block must outlive an expired attempt window when the configured
+# block duration is longer than the login window.
+psql "$AUTH_URL" -X -v ON_ERROR_STOP=1 -v email="$email_fingerprint" -v source="$source_fingerprint" \
+  -c "UPDATE eogp.auth_login_attempts
+         SET window_started_at=clock_timestamp()-interval '1 hour',
+             failed_attempts=6,
+             blocked_until=clock_timestamp()+interval '5 minutes'
+       WHERE email_fingerprint=:'email' AND source_fingerprint=:'source'" >/dev/null
+active_block="$(psql "$AUTH_URL" -X -A -t -v ON_ERROR_STOP=1 \
+  -v email="$email_fingerprint" -v source="$source_fingerprint" \
+  -c "$reserve_attempt_sql" | tr -d '[:space:]')"
+if [[ "$active_block" != "t" ]]; then
+  echo "An active login block was cleared when its attempt window expired" >&2
+  exit 1
+fi
+
+echo "Concurrent authentication login rate-limit regression passed (5 allowed, 5 blocked, subsequent attempt blocked, active block preserved)."
