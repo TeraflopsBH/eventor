@@ -1,32 +1,32 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-: "${AUTH_URL:?AUTH_URL must point to the dedicated eventor_auth database role}"
-: "${ADMIN_URL:?ADMIN_URL must point to the isolated CI database administrator}"
+: "$AUTH_URL"
+: "$ADMIN_URL"
 
 work_dir="$(mktemp -d)"
 email_fingerprint="$(openssl rand -hex 32)"
 source_fingerprint="$(openssl rand -hex 32)"
 cleanup() {
-  psql "$ADMIN_URL" -X -v ON_ERROR_STOP=1 -v email="$email_fingerprint" -v source="$source_fingerprint" \
-    -c "DELETE FROM eogp.auth_login_attempts WHERE email_fingerprint=:'email' AND source_fingerprint=:'source'" \
+  psql "$ADMIN_URL" -X -v ON_ERROR_STOP=1 \
+    -c "DELETE FROM eogp.auth_login_attempts WHERE email_fingerprint='$email_fingerprint' AND source_fingerprint='$source_fingerprint'" \
     >/dev/null 2>&1 || true
   rm -rf "$work_dir"
 }
 trap cleanup EXIT
 
-reserve_attempt_sql=$(cat <<'SQL'
+reserve_attempt_sql=$(cat <<SQL
 INSERT INTO eogp.auth_login_attempts (
   email_fingerprint, source_fingerprint,
   window_started_at, failed_attempts, updated_at
-) VALUES (:'email',:'source',clock_timestamp(),1,clock_timestamp())
+) VALUES ('$email_fingerprint','$source_fingerprint',clock_timestamp(),1,clock_timestamp())
 ON CONFLICT (email_fingerprint, source_fingerprint)
 DO UPDATE SET
   failed_attempts = CASE
     WHEN eogp.auth_login_attempts.blocked_until > clock_timestamp()
       THEN eogp.auth_login_attempts.failed_attempts
     WHEN eogp.auth_login_attempts.window_started_at
-         < clock_timestamp() - make_interval(secs => 900)
+         < clock_timestamp() - make_interval(secs => \$3)
       THEN 1
     ELSE eogp.auth_login_attempts.failed_attempts + 1
   END,
@@ -34,7 +34,7 @@ DO UPDATE SET
     WHEN eogp.auth_login_attempts.blocked_until > clock_timestamp()
       THEN eogp.auth_login_attempts.window_started_at
     WHEN eogp.auth_login_attempts.window_started_at
-         < clock_timestamp() - make_interval(secs => 900)
+         < clock_timestamp() - make_interval(secs => \$3)
       THEN clock_timestamp()
     ELSE eogp.auth_login_attempts.window_started_at
   END,
@@ -42,10 +42,10 @@ DO UPDATE SET
     WHEN eogp.auth_login_attempts.blocked_until > clock_timestamp()
       THEN eogp.auth_login_attempts.blocked_until
     WHEN eogp.auth_login_attempts.window_started_at
-         < clock_timestamp() - make_interval(secs => 900)
+         < clock_timestamp() - make_interval(secs => \$3)
       THEN NULL
-    WHEN eogp.auth_login_attempts.failed_attempts + 1 > 5
-      THEN clock_timestamp() + make_interval(secs => 900)
+    WHEN eogp.auth_login_attempts.failed_attempts + 1 > \$4
+      THEN clock_timestamp() + make_interval(secs => \$5)
     ELSE NULL
   END,
   updated_at = clock_timestamp()
@@ -58,7 +58,6 @@ SQL
 # observe the block, regardless of statement arrival order.
 for i in {1..10}; do
   psql "$AUTH_URL" -X -A -t -v ON_ERROR_STOP=1 \
-    -v email="$email_fingerprint" -v source="$source_fingerprint" \
     -c "$reserve_attempt_sql" >"$work_dir/$i" &
 done
 wait
@@ -79,7 +78,6 @@ if [[ "$allowed" -ne 5 || "$blocked" -ne 5 ]]; then
 fi
 
 extra="$(psql "$AUTH_URL" -X -A -t -v ON_ERROR_STOP=1 \
-  -v email="$email_fingerprint" -v source="$source_fingerprint" \
   -c "$reserve_attempt_sql" | tr -d '[:space:]')"
 if [[ "$extra" != "t" ]]; then
   echo "A further login reservation was not blocked after the concurrent threshold" >&2
@@ -88,14 +86,13 @@ fi
 
 # An active block must outlive an expired attempt window when the configured
 # block duration is longer than the login window.
-psql "$AUTH_URL" -X -v ON_ERROR_STOP=1 -v email="$email_fingerprint" -v source="$source_fingerprint" \
+psql "$AUTH_URL" -X -v ON_ERROR_STOP=1 \
   -c "UPDATE eogp.auth_login_attempts
          SET window_started_at=clock_timestamp()-interval '1 hour',
              failed_attempts=6,
              blocked_until=clock_timestamp()+interval '5 minutes'
-       WHERE email_fingerprint=:'email' AND source_fingerprint=:'source'" >/dev/null
+       WHERE email_fingerprint='$email_fingerprint' AND source_fingerprint='$source_fingerprint'" >/dev/null
 active_block="$(psql "$AUTH_URL" -X -A -t -v ON_ERROR_STOP=1 \
-  -v email="$email_fingerprint" -v source="$source_fingerprint" \
   -c "$reserve_attempt_sql" | tr -d '[:space:]')"
 if [[ "$active_block" != "t" ]]; then
   echo "An active login block was cleared when its attempt window expired" >&2
