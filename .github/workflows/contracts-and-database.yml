@@ -327,6 +327,9 @@ jobs:
       - name: Verify isolated authentication database role
         run: psql "$AUTH_URL" -X -v ON_ERROR_STOP=1 -f tests/database/auth_role_smoke.sql
 
+      - name: Verify concurrent authentication login throttling
+        run: bash scripts/db/test_auth_login_rate_limit_concurrency.sh
+
       - name: Verify append-only history against owner-level mutation
         run: psql "$MIGRATOR_URL" -X -v ON_ERROR_STOP=1 -f tests/database/append_only_smoke.sql
 
