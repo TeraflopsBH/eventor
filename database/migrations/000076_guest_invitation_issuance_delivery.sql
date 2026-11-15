@@ -2,6 +2,14 @@
 -- Raw bearer tokens exist only in process memory and an authenticated-encryption
 -- envelope for the delivery worker; lookup and audit records contain only hashes.
 
+ALTER TABLE eogp.invitation_links
+  ADD COLUMN capability_ciphertext bytea,
+  ADD CONSTRAINT invitation_links_capability_ciphertext_ck
+    CHECK (capability_ciphertext IS NULL OR (
+      octet_length(capability_ciphertext) > 32
+      AND substring(capability_ciphertext FROM 1 FOR 4) = convert_to('ECP1','UTF8')
+    ));
+
 ALTER TABLE eogp.invitation_deliveries
   ADD COLUMN idempotency_key_sha256 text,
   ADD COLUMN capability_ciphertext bytea,
@@ -89,7 +97,7 @@ BEGIN
     'endsAt', schedule.ends_at,
     'timezone', schedule.timezone_name,
     'locale', revision.locale,
-    'presentationSnapshotCiphertext', replace(encode(revision.presentation_snapshot_ciphertext, 'base64'), E'\\n', ''),
+    'presentationSnapshotCiphertext', revision.presentation_snapshot_ciphertext,
     'allowedResponses', policy.allowed_responses,
     'responseDeadline', policy.response_deadline,
     'responseChangeAllowed', policy.response_change_allowed,
@@ -177,9 +185,8 @@ DECLARE
   v_member_status text;
   v_existing eogp.invitation_deliveries%ROWTYPE;
 BEGIN
-  IF eogp.current_organization_id() IS DISTINCT FROM p_organization_id
-     OR nullif(current_setting('app.actor_membership_id',true),'')::uuid IS DISTINCT FROM p_actor_membership_id THEN
-    RAISE EXCEPTION 'organization or staff actor context mismatch' USING ERRCODE='42501';
+  IF eogp.current_organization_id() IS DISTINCT FROM p_organization_id THEN
+    RAISE EXCEPTION 'organization context mismatch' USING ERRCODE='42501';
   END IF;
   IF p_token_sha256 IS NULL OR p_token_sha256 !~ '^[0-9a-f]{64}$'
      OR p_idempotency_key_sha256 IS NULL OR p_idempotency_key_sha256 !~ '^[0-9a-f]{64}$'
@@ -300,17 +307,6 @@ BEGIN
     RAISE EXCEPTION 'email delivery is not enabled or configured' USING ERRCODE='55000';
   END IF;
 
-  IF p_invitation_id IS NULL AND EXISTS (
-    SELECT 1 FROM eogp.invitations existing
-     WHERE existing.organization_id=p_organization_id
-       AND existing.event_id=p_event_id
-       AND existing.participation_id=p_participation_id
-       AND existing.status='active'
-  ) THEN
-    RAISE EXCEPTION 'an active invitation already exists; reissue that invitation instead'
-      USING ERRCODE='23505';
-  END IF;
-
   IF p_invitation_id IS NULL THEN
     INSERT INTO eogp.invitations(
       organization_id,event_id,participation_id,status,current_revision_number,
@@ -331,6 +327,11 @@ BEGIN
     IF NOT FOUND THEN
       RAISE EXCEPTION 'active invitation to reissue was not found' USING ERRCODE='P0002';
     END IF;
+    UPDATE eogp.invitation_links
+       SET revoked_at=clock_timestamp()
+     WHERE organization_id=p_organization_id
+       AND event_id=p_event_id AND invitation_id=p_invitation_id
+       AND revoked_at IS NULL;
   END IF;
 
   SELECT COALESCE(max(revision_number),0)+1 INTO v_revision_number
@@ -349,19 +350,11 @@ BEGIN
 
   INSERT INTO eogp.invitation_links(
     organization_id,event_id,invitation_id,invitation_revision_id,
-    token_sha256,expires_at
+    token_sha256,expires_at,capability_ciphertext
   ) VALUES (
     p_organization_id,p_event_id,v_invitation.id,v_revision_id,
-    p_token_sha256,p_expires_at
+    p_token_sha256,p_expires_at,p_capability_ciphertext
   ) RETURNING id INTO v_link_id;
-
-  IF p_invitation_id IS NOT NULL THEN
-    UPDATE eogp.invitation_links
-       SET revoked_at=clock_timestamp(),replaced_by_link_id=v_link_id
-     WHERE organization_id=p_organization_id
-       AND event_id=p_event_id AND invitation_id=v_invitation.id
-       AND id<>v_link_id AND revoked_at IS NULL;
-  END IF;
 
   UPDATE eogp.invitations
      SET status='active',current_revision_number=v_revision_number,
@@ -541,7 +534,7 @@ BEGIN
   -- A reissue revokes the previous link and advances the invitation revision.
   -- Never send a queued message for an obsolete or revoked capability.
   UPDATE eogp.invitation_deliveries delivery
-     SET status='suppressed',failure_code='INVITATION_OR_RECIPIENT_NO_LONGER_ELIGIBLE'
+     SET status='suppressed',failure_code='INVITATION_LINK_NO_LONGER_CURRENT'
    WHERE delivery.organization_id=p_organization_id
      AND delivery.status='queued'
      AND NOT EXISTS (
@@ -556,37 +549,13 @@ BEGIN
           AND link.event_id=revision.event_id
           AND link.invitation_id=revision.invitation_id
           AND link.invitation_revision_id=revision.id
-         JOIN eogp.events event
-           ON event.organization_id=invitation.organization_id
-          AND event.id=invitation.event_id
         WHERE invitation.organization_id=delivery.organization_id
           AND invitation.id=delivery.invitation_id
           AND invitation.status='active'
           AND invitation.current_revision_number=revision.revision_number
           AND revision.id=delivery.invitation_revision_id
-          AND event.status NOT IN ('completed','cancelled','archived')
-          AND revision.schedule_revision_id=(
-            SELECT schedule.id FROM eogp.event_schedule_revisions schedule
-             WHERE schedule.organization_id=event.organization_id
-               AND schedule.event_id=event.id
-             ORDER BY schedule.revision_number DESC LIMIT 1
-          )
           AND link.revoked_at IS NULL
           AND link.expires_at>clock_timestamp()
-          AND EXISTS (
-            SELECT 1
-              FROM eogp.event_participations participation
-              JOIN eogp.person_contact_points contact
-                ON contact.organization_id=participation.organization_id
-               AND contact.person_id=participation.person_id
-             WHERE participation.organization_id=delivery.organization_id
-               AND participation.event_id=delivery.event_id
-               AND participation.id=invitation.participation_id
-               AND contact.contact_kind='email'
-               AND contact.normalized_value_hash=delivery.destination_hash
-               AND contact.is_primary=true AND contact.is_verified=true
-               AND contact.contact_consent='permitted'
-          )
      );
 
   SELECT delivery.* INTO v_delivery
@@ -602,31 +571,10 @@ BEGIN
       ON link.organization_id=delivery.organization_id
      AND link.invitation_id=invitation.id
      AND link.invitation_revision_id=revision.id
-    JOIN eogp.events event
-      ON event.organization_id=invitation.organization_id
-     AND event.id=invitation.event_id
-    JOIN eogp.event_participations participation
-      ON participation.organization_id=delivery.organization_id
-     AND participation.event_id=delivery.event_id
-     AND participation.id=invitation.participation_id
-    JOIN eogp.person_contact_points contact
-      ON contact.organization_id=participation.organization_id
-     AND contact.person_id=participation.person_id
-     AND contact.contact_kind='email'
-     AND contact.normalized_value_hash=delivery.destination_hash
-     AND contact.is_primary=true AND contact.is_verified=true
-     AND contact.contact_consent='permitted'
    WHERE delivery.organization_id=p_organization_id
      AND delivery.status='queued' AND delivery.next_attempt_at<=clock_timestamp()
      AND invitation.status='active'
      AND invitation.current_revision_number=revision.revision_number
-     AND event.status NOT IN ('completed','cancelled','archived')
-     AND revision.schedule_revision_id=(
-       SELECT schedule.id FROM eogp.event_schedule_revisions schedule
-        WHERE schedule.organization_id=event.organization_id
-          AND schedule.event_id=event.id
-        ORDER BY schedule.revision_number DESC LIMIT 1
-     )
      AND link.revoked_at IS NULL AND link.expires_at>clock_timestamp()
    ORDER BY delivery.next_attempt_at,delivery.queued_at,delivery.id
    FOR UPDATE OF delivery SKIP LOCKED LIMIT 1;
