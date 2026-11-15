@@ -6710,46 +6710,6 @@ components:
           properties:
             draftRevisionId: { type: string, format: uuid }
             supersedeCurrentOffer: { type: boolean, default: false }
-    CancellationDecisionRequest:
-      type: object
-      required: [reason]
-      properties:
-        reason: { type: string, minLength: 3, maxLength: 2000 }
-        commercialConsequences: { type: object, additionalProperties: true }
-    VenueCancellationRequest:
-      type: object
-      required: [reasonCode, customerSummary]
-      properties:
-        reasonCode: { type: string, maxLength: 100 }
-        customerSummary: { type: string, minLength: 3, maxLength: 2000 }
-        internalExplanation: { type: string, maxLength: 4000 }
-        emergencyOverride: { type: boolean, default: false }
-    CancellationPreviewRequest:
-      type: object
-      properties:
-        expectedBookingRevision: { type: integer, minimum: 1 }
-        requesterKind: { type: string, enum: [customer, venue_provider] }
-    CancellationExecutionRequest:
-      type: object
-      required: [expectedBookingRevision]
-      properties:
-        expectedBookingRevision: { type: integer, minimum: 1 }
-        cancellationRequestId: { type: string, format: uuid }
-    CancellationPolicyCreateRequest:
-      type: object
-      required: [code, name]
-      properties:
-        code: { type: string, maxLength: 80 }
-        name: { type: string, maxLength: 250 }
-    CancellationPolicyRevisionRequest:
-      type: object
-      required: [customerMode, publicTerms, approvalRules, commercialRules, noticeRules]
-      properties:
-        customerMode: { type: string, enum: [request_only, approval_required, self_service] }
-        publicTerms: { type: string, minLength: 1, maxLength: 10000 }
-        approvalRules: { type: object, additionalProperties: true }
-        commercialRules: { type: object, additionalProperties: true }
-        noticeRules: { type: object, additionalProperties: true }
     PublishRequest:
       type: object
       properties:
