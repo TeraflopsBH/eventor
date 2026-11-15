@@ -39,7 +39,7 @@ function optionalPublicAppBaseUrl(): string | undefined {
   if (parsed.protocol !== "https:" || parsed.username || parsed.password || parsed.search || parsed.hash) {
     throw new Error("EVENTOR_PUBLIC_APP_BASE_URL must use HTTPS and must not contain credentials, query parameters or a fragment.");
   }
-  return parsed.toString().replace(/\\/+$/, "");
+  return parsed.toString().replace(/\/+$/, "");
 }
 const publicAppBaseUrl = optionalPublicAppBaseUrl();
 
