@@ -315,11 +315,12 @@ function makePool() {
       }
       if (normalized.includes("eogp.save_booking_offer_revision(")) {
         commandCalls.push({ sql: normalized, values });
-        if (values[3] !== null) bookingOfferSuccessorCalls += 1;
+        const isSuccessor = !normalized.includes("NULL::uuid");
+        if (isSuccessor) bookingOfferSuccessorCalls += 1;
         else bookingOfferPrepareCalls += 1;
         return { rows: [{ result: {
-          offerId: values[3] ?? "18181818-1818-4181-8181-181818181818",
-          offerRevisionId: values[3] !== null ? "19191919-1919-4191-8191-191919191919" : "18181818-1818-4181-8181-181818181819",
+          offerId: isSuccessor ? String(values[3]) : "18181818-1818-4181-8181-181818181818",
+          offerRevisionId: isSuccessor ? "19191919-1919-4191-8191-191919191919" : "18181818-1818-4181-8181-181818181819",
           draftRevisionId: values[1],
           revisionNumber: values[3] !== null ? 2 : 1,
           state: "draft",
@@ -1295,10 +1296,11 @@ test("staff inquiry inbox decrypts authorized projections and routes assignment,
     principal.organizationId,
     "16161616-1616-4161-8161-161616161616",
     principal.membershipId,
-    null,
+    "21212121-2121-4121-8121-212121212121",
   ]);
-  assert.deepEqual(JSON.parse(String(prepareCall.values[10])), offerBody.lineItems);
-  assert.deepEqual(JSON.parse(String(prepareCall.values[11])), []);
+  assert.match(prepareCall.sql, /,NULL::uuid,/);
+  assert.deepEqual(JSON.parse(String(prepareCall.values[9])), offerBody.lineItems);
+  assert.deepEqual(JSON.parse(String(prepareCall.values[10])), []);
 
   const offerRead = await app.inject({
     method: "GET",
