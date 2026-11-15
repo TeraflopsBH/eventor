@@ -244,6 +244,15 @@ jobs:
             -v ci_delivery_credentials_ciphertext_base64="$CI_DELIVERY_CREDENTIALS_CIPHERTEXT_BASE64" \
             -f tests/database/organization_delivery_configuration_smoke.sql
 
+      - name: Prepare real booking-offer email delivery fixture
+        run: psql "$MIGRATOR_URL" -X -v ON_ERROR_STOP=1 -f tests/database/booking_offer_email_worker_fixture.sql
+
+      - name: Run the booking-offer TypeScript worker against PostgreSQL with concurrent fake-SMTP workers
+        env:
+          EVENTOR_CONTACT_ENCRYPTION_KEY: ${{ env.EVENTOR_CONTACT_ENCRYPTION_KEY }}
+          EVENTOR_DELIVERY_CREDENTIALS_KEY: ${{ env.EVENTOR_DELIVERY_CREDENTIALS_KEY }}
+        run: node apps/api/scripts/booking-offer-worker-postgres-smoke.mjs
+
       - name: Install pinned Playwright and browser engines
         working-directory: apps/api
         run: |
