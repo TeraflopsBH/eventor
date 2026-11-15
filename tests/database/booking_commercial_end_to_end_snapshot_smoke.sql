@@ -55,6 +55,7 @@ DECLARE
   v_booking_id uuid;
   v_draft_hold_resource_id uuid;
   v_draft_hold_space_id uuid;
+  v_invalid_draft_hold_id uuid;
   v_draft_hold_release jsonb;
   v_draft_hold_audit_count integer;
   v_token_sha256 text := encode(eogp.digest(convert_to(gen_random_uuid()::text,'UTF8'),'sha256'),'hex');
@@ -209,6 +210,48 @@ BEGIN
      OR (SELECT status FROM eogp.venue_space_time_blocks WHERE organization_id=v_org AND id=v_draft_hold_space_id)<>'released' THEN
     RAISE EXCEPTION 'draft hold release did not transition both selected rows to released';
   END IF;
+
+  -- Repeating the exact request is a no-op and must not create another audit.
+  v_draft_hold_release:=eogp.release_booking_draft_reservations(
+    v_org,v_draft_revision_id,
+    ARRAY[v_draft_hold_resource_id,v_draft_hold_space_id],
+    v_creator,'ci_draft_reallocation'
+  );
+  IF (v_draft_hold_release->>'resourceReservationsReleased')::integer<>0
+     OR (v_draft_hold_release->>'spaceReservationsReleased')::integer<>0
+     OR (v_draft_hold_release->>'changed')::boolean IS DISTINCT FROM false THEN
+    RAISE EXCEPTION 'repeated draft hold release was not idempotent: %',v_draft_hold_release;
+  END IF;
+
+  -- A mixed valid/unknown ID request must be rejected before changing the
+  -- valid row. Clean up the surviving hold through the same command.
+  INSERT INTO eogp.resource_reservations(
+    organization_id,resource_pool_id,booking_draft_revision_id,
+    quantity,starts_at,ends_at,status,expires_at,idempotency_key
+  ) VALUES(
+    v_org,v_resource_pool_id,v_draft_revision_id,1,
+    v_space_starts_at,v_space_ends_at,'held',
+    clock_timestamp()+interval '1 day','ci-e2e-invalid-draft-release'
+  ) RETURNING id INTO v_invalid_draft_hold_id;
+  BEGIN
+    PERFORM eogp.release_booking_draft_reservations(
+      v_org,v_draft_revision_id,
+      ARRAY[v_invalid_draft_hold_id,'99999999-9999-4999-8999-999999999999'::uuid],
+      v_creator,'ci_invalid_draft_reallocation'
+    );
+    RAISE EXCEPTION 'draft hold release accepted a mixed valid/unknown ID request';
+  EXCEPTION WHEN SQLSTATE '42501' THEN
+    NULL;
+  END;
+  IF (SELECT status FROM eogp.resource_reservations
+       WHERE organization_id=v_org AND id=v_invalid_draft_hold_id)<>'held' THEN
+    RAISE EXCEPTION 'invalid mixed draft release partially changed a valid hold';
+  END IF;
+  PERFORM eogp.release_booking_draft_reservations(
+    v_org,v_draft_revision_id,ARRAY[v_invalid_draft_hold_id],
+    v_creator,'ci_draft_reallocation_cleanup'
+  );
+
   SELECT count(*) INTO v_draft_hold_audit_count
     FROM eogp.audit_events
    WHERE organization_id=v_org
