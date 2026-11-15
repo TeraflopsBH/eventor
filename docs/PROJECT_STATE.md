@@ -1,3 +1,17 @@
+## Current cumulative integration candidate — 2026-11-15
+
+**Current candidate:** draft PR [#85](https://github.com/TeraflopsBH/eventor/pull/85), branch `feat/guest-invitation-runtime-phase1`, targeting `main`. The exact validated head at this checkpoint is `aa35a98ee1f87c685a18a19f6aaa909ce63ede79`. The branch is mergeable and has no commits behind `main`; it contains 2,281 commits and 299 changed files. It remains draft and has not been merged. The older PR #81 integration-status entry below is historical and is superseded by this cumulative candidate.
+
+**Exact-head repository CI:** [Contracts and PostgreSQL migrations #43701269554](https://github.com/TeraflopsBH/eventor/actions/runs/43701269554) passed all four jobs; [Secret history scan #43701273451](https://github.com/TeraflopsBH/eventor/actions/runs/43701273451) passed. The PostgreSQL job includes the full migration/RLS/concurrency/regression sequence, the expanded migration-000114 commercial reservation-release test, and an ephemeral logical dump/restore rehearsal. The optional external acceptance run [#43701273541](https://github.com/TeraflopsBH/eventor/actions/runs/43701273541) skipped both SMTP sandbox and public HTTPS probes because the required repository variables/secrets are not configured. Skipped is not passed.
+
+**Review status:** no unresolved inline review threads. The earlier review comment alleging missing migration-000114 behavioral coverage was explicitly corrected by its author; the end-to-end test already covers the core release behavior, and the current candidate adds actor-context mismatch, duplicate-ID and non-editable-draft rejection assertions.
+
+**Environment-dependent acceptance remains deferred:** no isolated staging environment, representative deployed database snapshot, SMTP sandbox credentials, target Linux host, backup destination or encryption-key recovery path is currently available. Therefore browser-driven workflows, real provider delivery, representative deployed-schema upgrade, off-host backup/PITR/key-recovery and target-host/network checks have not been performed. Do not treat ephemeral CI as a substitute for these activities. Keep production release blocked until evidence, accountable owners and explicit approval exist.
+
+**Merge readiness:** repository CI is green, but this is not production certification or authorization to merge. Before changing PR #85 from draft or merging, complete the cumulative code/review assessment, resolve the merge strategy for its 2,281-commit history, and obtain the required product/security/operations approval. PR #82's competing migration `000074_booking_offer_email_claim_ambiguity_fix.sql` remains excluded; do not combine it with canonical migration `000074_booking_offer_email_worker_fixes.sql`.
+
+---
+
 # Project state
 
 **Status:** accepted product/domain design baseline; PostgreSQL 18 implementation, canonical OpenAPI v0.3, Fastify staff API/workers and Vue 3 staff web across stacked draft PRs #26–#81; booking-offer and guest-invitation delivery, public RSVP, organizer invitation workspace and staff-recorded RSVP/correction slice implemented in draft PR #81; staff-recorded RSVP/correction implementation at `dfc13826b37904674df3dfa0e17abe9ac3c51388` passes both required workflows (#43640523487 and #43640531550); subsequent changes are documentation-only; production-readiness review and external acceptance remain open  
