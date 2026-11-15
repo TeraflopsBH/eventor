@@ -244,8 +244,15 @@ jobs:
             -v ci_delivery_credentials_ciphertext_base64="$CI_DELIVERY_CREDENTIALS_CIPHERTEXT_BASE64" \
             -f tests/database/organization_delivery_configuration_smoke.sql
 
+      - name: Generate encrypted booking-offer worker fixture values
+        run: node apps/api/scripts/generate-booking-offer-fixture-ciphertexts.mjs
+
       - name: Prepare real booking-offer email delivery fixture
-        run: psql "$MIGRATOR_URL" -X -v ON_ERROR_STOP=1 -f tests/database/booking_offer_email_worker_fixture.sql
+        run: |
+          psql "$MIGRATOR_URL" -X -v ON_ERROR_STOP=1 \
+            -v ci_booking_offer_email_ciphertext_base64="$CI_BOOKING_OFFER_EMAIL_CIPHERTEXT_BASE64" \
+            -v ci_booking_offer_capability_ciphertext_base64="$CI_BOOKING_OFFER_CAPABILITY_CIPHERTEXT_BASE64" \
+            -f tests/database/booking_offer_email_worker_fixture.sql
 
       - name: Run the booking-offer TypeScript worker against PostgreSQL with concurrent fake-SMTP workers
         env:
