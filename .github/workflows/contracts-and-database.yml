@@ -234,6 +234,9 @@ jobs:
           MIGRATOR_URL: ${{ env.MIGRATOR_URL }}
         run: node apps/api/scripts/prepare-notification-worker-fixture.mjs
 
+      - name: Run TypeScript notification worker against PostgreSQL with fake SMTP
+        run: node apps/api/scripts/notification-worker-postgres-smoke.mjs
+
       - name: Verify guest invitation delivery attempt-history transitions
         run: |
           ADMIN_EVENTOR_URL="${ADMIN_URL%/postgres}/eventor"
