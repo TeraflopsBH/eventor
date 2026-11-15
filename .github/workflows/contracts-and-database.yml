@@ -390,7 +390,7 @@ jobs:
           psql "$MIGRATOR_URL" -X -v ON_ERROR_STOP=1 \
             -c "SET ROLE eventor_owner; SELECT version, filename, execution_ms FROM eogp.schema_migrations ORDER BY version;"
 
-      - name: Rehearse forward upgrade from migration 72 to migration 73 with existing data
+      - name: Rehearse forward upgrade from migration 72 to migration 74 with existing data
         env:
           UPGRADE_MIGRATOR_URL: postgresql://eventor_migrator:eventor_ci_migrator_password@127.0.0.1:5432/eventor_upgrade
         run: bash scripts/ci/upgrade-rehearsal.sh
