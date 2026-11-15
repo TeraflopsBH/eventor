@@ -34,7 +34,7 @@ test("real PostgreSQL staff sessions survive HTTP cookie round-trips and enforce
   let app: ReturnType<typeof buildApi> | undefined;
 
   try {
-    // session_auth_integration_fixture.sql creates this synthetic identity and its active membership.
+    // migration_smoke.sql creates this synthetic identity and its active membership.
     await pool.query(
       "UPDATE eogp.users SET password_hash=$2 WHERE id=$1 AND status='active'",
       [userId, passwordHash],
