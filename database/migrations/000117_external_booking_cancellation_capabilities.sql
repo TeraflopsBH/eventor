@@ -287,7 +287,7 @@ BEGIN
      AND capability.action_code=p_action_code
      AND capability.revoked_at IS NULL
      AND capability.expires_at>clock_timestamp()
-     AND capability.use_count<capability.max_uses
+     AND (p_action_code<>'booking_cancellation_request' OR capability.use_count<capability.max_uses)
      AND (p_action_code<>'booking_cancellation_request' OR booking.status='confirmed');
   IF NOT FOUND THEN
     RAISE EXCEPTION 'external booking action capability is expired, revoked or unavailable' USING ERRCODE='55000';
@@ -494,7 +494,6 @@ GRANT EXECUTE ON FUNCTION eogp.issue_external_booking_action_capability(uuid,uui
      AND capability.action_code='booking_cancellation_status'
      AND capability.revoked_at IS NULL
      AND capability.expires_at>clock_timestamp()
-     AND capability.use_count<capability.max_uses
      AND request.id=p_request_id;
   IF NOT FOUND THEN
     RAISE EXCEPTION 'external cancellation status is not available to this capability' USING ERRCODE='P0002';
