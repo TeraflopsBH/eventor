@@ -6211,7 +6211,11 @@ components:
       type: object
       required: [reasonCode]
       properties:
-        reasonCode: { type: string, minLength: 2, maxLength: 100, pattern: '^[a-z][a-z0-9_]*
+        reasonCode:
+          type: string
+          minLength: 2
+          maxLength: 100
+          pattern: '^[a-z][a-z0-9_]{1,99}'
     CancellationDecisionRequest:
       type: object
       required: [reason]
