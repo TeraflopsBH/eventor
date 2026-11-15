@@ -353,7 +353,8 @@ try {
   }
 
   assert.equal(finalState?.status, "sent");
-  assert.equal(Number(finalState?.attempt_count), 3);
+  // Manual retry resets the per-cycle attempt counter before redelivery.
+  assert.equal(Number(finalState?.attempt_count), 1);
   assert.equal(Number(finalState?.manual_retry_count), 1);
   assert.equal(Number(finalState?.sent_audit_count), 2);
   assert.equal(Number(finalState?.expired_lease_audit_count), 1);
