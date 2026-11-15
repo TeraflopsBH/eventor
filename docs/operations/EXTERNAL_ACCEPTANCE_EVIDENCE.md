@@ -1,14 +1,14 @@
 ## Current integration result — 2026-11-15
 
-- Merged PR: [#85](https://github.com/TeraflopsBH/eventor/pull/85)
-- Squash merge commit on `main`: `3377fe0ab9016c57884d15a5353242dfa876bfa5`
-- Merged PR head: `69cb8a44882b7ece99ba9be987a345a5bd569395`
-- Exact-head repository CI: [Contracts and PostgreSQL migrations #43703214468](https://github.com/TeraflopsBH/eventor/actions/runs/43703214468) passed all four jobs; [Secret history scan #43703213760](https://github.com/TeraflopsBH/eventor/actions/runs/43703213760) passed.
-- Optional SMTP and public HTTPS probes: [run #43703214438](https://github.com/TeraflopsBH/eventor/actions/runs/43703214438) skipped because no SMTP sandbox configuration or public endpoint was configured. Skipped is not passed.
-- Staging and representative deployed database snapshot: unavailable at merge time.
-- Production-release disposition: external acceptance remains deferred / not yet executed.
+- Current `main` candidate: `071eceb874dc2f6322f767c67f1814ddf56c5d6f` (PR #99 squash merge).
+- Integrated PostgreSQL/migration stack: PR [#85](https://github.com/TeraflopsBH/eventor/pull/85), squash merge `3377fe0ab9016c57884d15a5353242dfa876bfa5`.
+- PostgreSQL-backed worker and browser acceptance coverage: PR [#99](https://github.com/TeraflopsBH/eventor/pull/99), squash merge `071eceb874dc2f6322f767c67f1814ddf56c5d6f`.
+- PR #99 exact-head CI passed all four jobs in [Contracts and PostgreSQL migrations #43706344509](https://github.com/TeraflopsBH/eventor/actions/runs/43706344509); [Secret history scan #43706344553](https://github.com/TeraflopsBH/eventor/actions/runs/43706344553) passed.
+- Post-merge `main` CI passed all five jobs in [Contracts and PostgreSQL migrations #43708609435](https://github.com/TeraflopsBH/eventor/actions/runs/43708609435); [Secret history scan #43708609439](https://github.com/TeraflopsBH/eventor/actions/runs/43708609439) passed.
+- Optional external SMTP/public HTTPS acceptance remains skipped/unconfigured; skipped is not passed.
+- Production-like staging, live provider acceptance, representative deployed-database upgrade, off-host backup/PITR/encryption-key recovery, and target-host/network acceptance remain deferred / not executed.
 
-The squash merge confirms repository integration, not production readiness. No browser-driven acceptance, live provider delivery, representative deployed-schema upgrade, off-host backup/PITR/encryption-key recovery drill, or target-host/network acceptance is claimed. Complete the checklist below only in an approved isolated environment with named operators and sanitized evidence.
+The squash merges and green repository CI establish source integration and the listed automated checks only. They do not establish production readiness. PR #99's browser tests use a local CI API and synthetic identities; worker tests use PostgreSQL fixtures and fake SMTP. No independent human review was available for PR #99; a maintainer self-review and its limitations were recorded on that PR. Complete the checklist below only in an approved isolated environment with named operators and sanitized evidence.
 
 
 # External deployment acceptance evidence
