@@ -9,7 +9,7 @@ email_fingerprint="$(openssl rand -hex 32)"
 source_fingerprint="$(openssl rand -hex 32)"
 cleanup() {
   psql "$MIGRATOR_URL" -X -v ON_ERROR_STOP=1 -v email="$email_fingerprint" -v source="$source_fingerprint" \
-    -c "DELETE FROM eogp.auth_login_attempts WHERE email_fingerprint=:'email' AND source_fingerprint=:'source'" \
+    -c "SET ROLE eventor_owner; DELETE FROM eogp.auth_login_attempts WHERE email_fingerprint=:'email' AND source_fingerprint=:'source'" \
     >/dev/null 2>&1 || true
   rm -rf "$work_dir"
 }
