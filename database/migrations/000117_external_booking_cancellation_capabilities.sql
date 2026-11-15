@@ -256,6 +256,7 @@ BEGIN
       FROM eogp.booking_cancellation_requests request
       WHERE request.organization_id=booking.organization_id
         AND request.booking_id=booking.id
+        AND request.requester_contact_id=capability.booking_contact_id
       ORDER BY request.requested_at DESC,request.id DESC
       LIMIT 1
     )
@@ -421,6 +422,74 @@ BEGIN
   ) VALUES(
     v_organization_id,v_capability.id,p_idempotency_key_sha256,p_request_sha256,v_result
   );
+  RETURN v_result;
+END;
+$function$;
+
+CREATE FUNCTION eogp.get_external_booking_cancellation_request_status(
+  p_token_sha256 text,
+  p_request_id uuid
+) RETURNS jsonb
+LANGUAGE plpgsql
+SECURITY DEFINER
+SET search_path = pg_catalog,eogp
+AS $function$
+DECLARE
+  v_organization_id uuid;
+  v_capability_id uuid;
+  v_result jsonb;
+BEGIN
+  IF p_token_sha256 IS NULL OR p_token_sha256 !~ '^[0-9a-f]{64}
+  eogp.revoke_external_booking_action_capability(uuid,uuid,uuid,uuid,text),
+  eogp.resolve_external_booking_action_capability(text,text),
+  eogp.get_external_booking_cancellation_request_status(text,uuid),
+  eogp.submit_external_booking_cancellation_request(text,text,text,text,bytea)
+  FROM PUBLIC,eventor_worker,eventor_auth;
+GRANT EXECUTE ON FUNCTION eogp.issue_external_booking_action_capability(uuid,uuid,uuid,uuid,text,text,timestamptz,integer),
+  eogp.revoke_external_booking_action_capability(uuid,uuid,uuid,uuid,text),
+  eogp.resolve_external_booking_action_capability(text,text),
+  eogp.submit_external_booking_cancellation_request(text,text,text,text,bytea)
+  TO eventor_runtime;
+
+     OR p_request_id IS NULL THEN
+    RAISE EXCEPTION 'invalid external cancellation status request' USING ERRCODE='22023';
+  END IF;
+  SELECT organization_id,capability_id
+    INTO v_organization_id,v_capability_id
+    FROM eogp.external_booking_action_capability_lookup
+   WHERE token_sha256=p_token_sha256;
+  IF NOT FOUND THEN
+    RAISE EXCEPTION 'external booking action capability not found' USING ERRCODE='P0002';
+  END IF;
+  PERFORM set_config('app.organization_id',v_organization_id::text,true);
+
+  SELECT jsonb_build_object(
+    'requestId',request.id,
+    'bookingCode',booking.booking_code,
+    'status',request.status,
+    'requestedAt',request.requested_at,
+    'resolvedAt',request.resolved_at
+  )
+    INTO v_result
+    FROM eogp.external_action_capabilities capability
+    JOIN eogp.booking_cancellation_requests request
+      ON request.organization_id=capability.organization_id
+     AND request.booking_id=capability.booking_id
+     AND request.requester_contact_id=capability.booking_contact_id
+    JOIN eogp.booking_records booking
+      ON booking.organization_id=request.organization_id
+     AND booking.id=request.booking_id
+   WHERE capability.organization_id=v_organization_id
+     AND capability.id=v_capability_id
+     AND capability.token_sha256=p_token_sha256
+     AND capability.action_code='booking_cancellation_status'
+     AND capability.revoked_at IS NULL
+     AND capability.expires_at>clock_timestamp()
+     AND capability.use_count<capability.max_uses
+     AND request.id=p_request_id;
+  IF NOT FOUND THEN
+    RAISE EXCEPTION 'external cancellation status is not available to this capability' USING ERRCODE='P0002';
+  END IF;
   RETURN v_result;
 END;
 $function$;
