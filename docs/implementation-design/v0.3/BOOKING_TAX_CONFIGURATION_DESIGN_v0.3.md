@@ -2,7 +2,7 @@
 
 ## Scope
 
-Migration 000062 adds organization-owned, versioned tax profiles. A profile revision records an organization-defined jurisdiction/authority identifier, tax registration identifier, currency, tax basis, rounding method and decimal scale, effective window, and an immutable tax-code catalogue.
+Migration 000063 adds organization-owned, versioned tax profiles. A profile revision records an organization-defined jurisdiction/authority identifier, tax registration identifier, currency, tax basis, rounding method and decimal scale, effective window, and an immutable tax-code catalogue.
 
 Tax-code treatments are deliberately limited to configuration labels:
 
