@@ -4,15 +4,10 @@ import { processPendingBookingOfferEmailDeliveries } from "../dist/src/notificat
 import { encryptContactValue } from "../dist/src/contact-crypto.js";
 
 const organizationId = "22222222-2222-4222-8222-222222222222";
-const inquiryId = process.env.CI_OFFER_EMAIL_INQUIRY_ID;
-const deliveryId = process.env.CI_OFFER_EMAIL_DELIVERY_ID;
-const capability = process.env.CI_OFFER_EMAIL_TOKEN;
+const capability = "A".repeat(43);
 const contactKey = Buffer.from(process.env.EVENTOR_CONTACT_ENCRYPTION_KEY ?? "", "base64");
 const deliveryKey = Buffer.from(process.env.EVENTOR_DELIVERY_CREDENTIALS_KEY ?? "", "base64");
 
-assert.match(inquiryId ?? "", /^[0-9a-f-]{36}$/i, "fixture inquiry ID is required");
-assert.match(deliveryId ?? "", /^[0-9a-f-]{36}$/i, "fixture delivery ID is required");
-assert.match(capability ?? "", /^[A-Za-z0-9_-]{43}$/, "fixture capability must be 43 URL-safe characters");
 assert.equal(contactKey.length, 32, "contact encryption key must be 32 bytes");
 assert.equal(deliveryKey.length, 32, "delivery credential key must be 32 bytes");
 
@@ -54,10 +49,26 @@ try {
   });
 
   const owner = await migrator.connect();
+  let inquiryId;
+  let deliveryId;
   try {
     await owner.query("BEGIN");
     await owner.query("SET LOCAL ROLE eventor_owner");
     await owner.query("SELECT set_config('app.organization_id',$1,true)", [organizationId]);
+    const fixture = await owner.query(
+      "SELECT delivery.id AS delivery_id,draft.source_inquiry_id AS inquiry_id " +
+      "FROM eogp.booking_offer_email_deliveries delivery " +
+      "JOIN eogp.booking_offers offer ON offer.organization_id=delivery.organization_id AND offer.id=delivery.offer_id " +
+      "JOIN eogp.booking_drafts draft ON draft.organization_id=offer.organization_id AND draft.id=offer.draft_id " +
+      "WHERE delivery.organization_id=$1 AND delivery.idempotency_key_sha256=$2",
+      [organizationId, "4".repeat(64)],
+    );
+    assert.equal(fixture.rowCount, 1, "persistent booking-offer fixture was not found");
+    inquiryId = fixture.rows[0].inquiry_id;
+    deliveryId = fixture.rows[0].delivery_id;
+    assert.match(inquiryId, /^[0-9a-f-]{36}$/i);
+    assert.match(deliveryId, /^[0-9a-f-]{36}$/i);
+
     const inquiryUpdate = await owner.query(
       "UPDATE eogp.booking_inquiries SET requester_email_ciphertext=$3 WHERE organization_id=$1 AND id=$2::uuid",
       [organizationId, inquiryId, emailCiphertext],
