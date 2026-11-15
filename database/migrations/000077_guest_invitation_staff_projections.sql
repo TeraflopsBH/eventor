@@ -50,18 +50,15 @@ BEGIN
   IF EXISTS (
     SELECT 1
       FROM eogp.invitation_links link
+      JOIN eogp.invitation_deliveries delivery
+        ON delivery.organization_id=link.organization_id
+       AND delivery.event_id=link.event_id
+       AND delivery.invitation_id=link.invitation_id
+       AND delivery.invitation_revision_id=link.invitation_revision_id
      WHERE link.capability_ciphertext IS NOT NULL
-       AND NOT EXISTS (
-         SELECT 1
-           FROM eogp.invitation_deliveries delivery
-          WHERE delivery.organization_id=link.organization_id
-            AND delivery.event_id=link.event_id
-            AND delivery.invitation_id=link.invitation_id
-            AND delivery.invitation_revision_id=link.invitation_revision_id
-            AND delivery.capability_ciphertext IS NOT NULL
-       )
+       AND delivery.capability_ciphertext IS DISTINCT FROM link.capability_ciphertext
   ) THEN
-    RAISE EXCEPTION 'invitation capability ciphertext migration left an unmatched link';
+    RAISE EXCEPTION 'invitation capability ciphertext differs between legacy link and delivery row after copy';
   END IF;
 END;
 $capability_verify$;
