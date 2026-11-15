@@ -193,8 +193,14 @@ try {
   assert.equal(sent?.last_failure_code, null);
   assert.equal(sent?.provider_message_reference, "<ci-booking-offer-worker@delivery.eventor.invalid>");
   assert.ok(sent?.sent_at);
-  assert.ok(sent?.capability_envelope?.startsWith("RUNQMQ"));
-  assert.ok(sent?.recipient_envelope?.startsWith("RUNQMQ"));
+  assert.equal(
+    Buffer.from(sent?.capability_envelope ?? "", "base64").subarray(0, 4).toString("utf8"),
+    "ECP1",
+  );
+  assert.equal(
+    Buffer.from(sent?.recipient_envelope ?? "", "base64").subarray(0, 4).toString("utf8"),
+    "ECP1",
+  );
   assert.equal(sent.capability_envelope.includes(capability), false);
   assert.equal(sent.recipient_envelope.includes("booking-offer-worker@example.invalid"), false);
 
