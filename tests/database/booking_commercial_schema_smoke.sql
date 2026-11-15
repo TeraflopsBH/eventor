@@ -49,6 +49,7 @@ DECLARE
     'eogp.update_booking_cancellation_policy_draft_revision(uuid,uuid,uuid,uuid,text,text,jsonb,jsonb,jsonb)',
     'eogp.publish_booking_cancellation_policy_revision(uuid,uuid,uuid,uuid)',
     'eogp.get_booking_cancellation_requests(uuid,uuid,text,integer,integer)',
+    'eogp.get_booking_cancellation_requests_for_booking(uuid,uuid,uuid)',
     'eogp.submit_booking_cancellation_request(uuid,uuid,uuid,text,bytea)',
     'eogp.decide_booking_cancellation_request(uuid,uuid,uuid,text,text)',
     'eogp.assert_booking_cancellation_request_permission(uuid,uuid,uuid,text)',
