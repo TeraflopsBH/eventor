@@ -3,15 +3,14 @@ name: Contracts and PostgreSQL migrations
 on:
   push:
     branches:
-      - feat/postgresql18-migrations-openapi-v0.3
-      - fix/pr26-high-risk-integrity-review
-      - feat/booking-commercial-workflow
       - main
+      - "feat/**"
+      - "fix/**"
   pull_request:
     branches:
       - main
-      - feat/postgresql18-migrations-openapi-v0.3
-      - fix/pr26-high-risk-integrity-review
+      - "feat/**"
+      - "fix/**"
 
 permissions:
   contents: read
