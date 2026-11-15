@@ -15,6 +15,12 @@ test("real PostgreSQL staff sessions survive HTTP cookie round-trips and enforce
   skip: !databaseUrl ? "AUTH_URL is only configured in the PostgreSQL integration job" : false,
 }, async () => {
   const pool = new Pool({ connectionString: databaseUrl, max: 2 });
+  const adminUrl = process.env.ADMIN_URL ? new URL(process.env.ADMIN_URL) : null;
+  if (adminUrl) adminUrl.pathname = "/eventor";
+  const maintenancePool = new Pool({
+    connectionString: adminUrl?.toString() ?? databaseUrl,
+    max: 1,
+  });
   const origin = "https://staff.example.test";
   const fingerprintKey = Buffer.alloc(32, 0x5a);
   const userId = "bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb";
@@ -115,7 +121,7 @@ test("real PostgreSQL staff sessions survive HTTP cookie round-trips and enforce
       ip: "127.0.0.1",
     } as never);
     assert.ok(expiredPrincipal?.sessionId);
-    await pool.query(
+    await maintenancePool.query(
       "UPDATE eogp.user_sessions SET expires_at=clock_timestamp()-interval '1 second' WHERE id=$1",
       [expiredPrincipal.sessionId],
     );
@@ -140,6 +146,6 @@ test("real PostgreSQL staff sessions survive HTTP cookie round-trips and enforce
   } finally {
     if (app) await app.close();
     await pool.query("UPDATE eogp.users SET password_hash=NULL WHERE id=$1", [userId]).catch(() => undefined);
-    await pool.end();
+    await Promise.all([pool.end(), maintenancePool.end()]);
   }
 });
