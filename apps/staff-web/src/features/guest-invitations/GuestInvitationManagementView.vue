@@ -1,0 +1,378 @@
+<script setup lang="ts">
+import { computed, onMounted, ref, watch } from "vue";
+import { useI18n } from "vue-i18n";
+import { api, type GuestInvitationDeliveryAttempt, type GuestInvitationEvent, type GuestInvitationParticipation, type GuestInvitationRsvpHistoryEntry } from "../../api";
+
+const props = defineProps<{ organizationId: string }>();
+const { t, locale } = useI18n();
+const events = ref<GuestInvitationEvent[]>([]);
+const participants = ref<GuestInvitationParticipation[]>([]);
+const selectedEventId = ref("");
+const loading = ref(false);
+const error = ref("");
+const notice = ref("");
+const expandedInvitationId = ref<string | null>(null);
+const attemptHistory = ref<Record<string, GuestInvitationDeliveryAttempt[]>>({});
+const historyLoading = ref(false);
+const expandedRsvpHistoryId = ref<string | null>(null);
+const rsvpHistory = ref<Record<string, GuestInvitationRsvpHistoryEntry[]>>({});
+const rsvpHistoryLoading = ref(false);
+const selectedEvent = computed(() => events.value.find((event) => event.eventId === selectedEventId.value) ?? null);
+const localeValue = computed<"bs-BA" | "en">(() => locale.value === "en" ? "en" : "bs-BA");
+
+const recordingParticipationId = ref<string | null>(null);
+const rsvpResponse = ref<"accepted" | "declined" | "tentative">("accepted");
+const rsvpSourceChannel = ref<"phone" | "in_person" | "email" | "written" | "representative" | "staff_entry" | "other">("phone");
+const rsvpRespondentKind = ref<"guest" | "representative" | "staff">("guest");
+const rsvpReceivedAt = ref(localDateTimeValue());
+const rsvpNote = ref("");
+const correctionMode = ref(false);
+const correctionReason = ref("");
+
+function localDateTimeValue(): string {
+  const value = new Date();
+  const pad = (part: number) => String(part).padStart(2, "0");
+  return `${value.getFullYear()}-${pad(value.getMonth() + 1)}-${pad(value.getDate())}T${pad(value.getHours())}:${pad(value.getMinutes())}`;
+}
+
+function openRsvp(person: GuestInvitationParticipation, correction = false): void {
+  recordingParticipationId.value = person.participationId;
+  correctionMode.value = correction;
+  rsvpResponse.value = person.currentResponse ?? "accepted";
+  rsvpSourceChannel.value = "phone";
+  rsvpRespondentKind.value = "guest";
+  rsvpReceivedAt.value = localDateTimeValue();
+  rsvpNote.value = "";
+  correctionReason.value = "";
+}
+
+function setRsvpSource(value: string): void {
+  rsvpSourceChannel.value = value as typeof rsvpSourceChannel.value;
+  if (value === "representative") rsvpRespondentKind.value = "representative";
+  else if (value === "staff_entry") rsvpRespondentKind.value = "staff";
+  else rsvpRespondentKind.value = "guest";
+}
+
+async function recordRsvp(person: GuestInvitationParticipation): Promise<void> {
+  if (!selectedEventId.value || !rsvpReceivedAt.value) return;
+  if (correctionMode.value && (!person.currentResponseId || correctionReason.value.trim().length < 3)) {
+    error.value = t("guestInvitations.correctionReasonRequired");
+    return;
+  }
+  loading.value = true; error.value = ""; notice.value = "";
+  try {
+    const receivedAt = new Date(rsvpReceivedAt.value);
+    if (!Number.isFinite(receivedAt.getTime()) || receivedAt.getTime() > Date.now()) {
+      throw new Error(t("guestInvitations.receivedAt"));
+    }
+    await api.recordStaffGuestRsvp(selectedEventId.value, person.participationId, {
+      response: rsvpResponse.value,
+      sourceChannel: rsvpSourceChannel.value,
+      respondentKind: rsvpRespondentKind.value,
+      receivedAt: receivedAt.toISOString(),
+      ...(person.invitationId ? { invitationId: person.invitationId } : {}),
+      ...(rsvpNote.value.trim() ? { noteRestricted: rsvpNote.value.trim() } : {}),
+      ...(correctionMode.value && person.currentResponseId ? {
+        correctionOfResponseId: person.currentResponseId,
+        correctionReason: correctionReason.value.trim(),
+      } : {}),
+    });
+    recordingParticipationId.value = null;
+    await loadParticipants();
+    notice.value = t("guestInvitations.rsvpRecorded", { name: person.displayName });
+  } catch (cause) {
+    error.value = cause instanceof Error ? cause.message : t("guestInvitations.rsvpRecordFailed");
+  } finally { loading.value = false; }
+}
+
+async function loadEvents(): Promise<void> {
+  if (!props.organizationId) return;
+  loading.value = true; error.value = ""; notice.value = "";
+  try {
+    const result = await api.getGuestInvitationEvents(props.organizationId);
+    events.value = result.data;
+    if (!selectedEventId.value && events.value.length) selectedEventId.value = events.value[0]!.eventId;
+    if (selectedEventId.value && !events.value.some((event) => event.eventId === selectedEventId.value)) {
+      selectedEventId.value = events.value[0]?.eventId ?? "";
+    }
+  } catch (cause) {
+    error.value = cause instanceof Error ? cause.message : t("guestInvitations.loadFailed");
+  } finally { loading.value = false; }
+}
+
+async function loadParticipants(): Promise<void> {
+  if (!selectedEventId.value) { participants.value = []; return; }
+  loading.value = true; error.value = ""; notice.value = "";
+  try {
+    participants.value = (await api.getGuestInvitationParticipations(selectedEventId.value)).data;
+  } catch (cause) {
+    error.value = cause instanceof Error ? cause.message : t("guestInvitations.loadFailed");
+  } finally { loading.value = false; }
+}
+
+async function toggleRsvpHistory(person: GuestInvitationParticipation): Promise<void> {
+  if (expandedRsvpHistoryId.value === person.participationId) { expandedRsvpHistoryId.value = null; return; }
+  if (!selectedEventId.value) return;
+  expandedRsvpHistoryId.value = person.participationId;
+  rsvpHistoryLoading.value = true; error.value = "";
+  try {
+    const result = await api.getGuestInvitationRsvpHistory(selectedEventId.value, person.participationId);
+    rsvpHistory.value = { ...rsvpHistory.value, [person.participationId]: result.data };
+  } catch (cause) {
+    error.value = cause instanceof Error ? cause.message : "Unable to load RSVP history.";
+    expandedRsvpHistoryId.value = null;
+  } finally { rsvpHistoryLoading.value = false; }
+}
+function formatRsvpTimestamp(value: string): string {
+  const date = new Date(value);
+  return Number.isFinite(date.getTime()) ? new Intl.DateTimeFormat(localeValue.value === "en" ? "en-GB" : "bs-BA", { dateStyle: "medium", timeStyle: "short" }).format(date) : value;
+}
+
+async function toggleAttemptHistory(invitationId: string): Promise<void> {
+  if (expandedInvitationId.value === invitationId) {
+    expandedInvitationId.value = null;
+    return;
+  }
+  expandedInvitationId.value = invitationId;
+    historyLoading.value = true;
+  error.value = "";
+  try {
+    const result = await api.getGuestInvitationDeliveryAttempts(invitationId);
+    attemptHistory.value = { ...attemptHistory.value, [invitationId]: result.data };
+  } catch (cause) {
+    error.value = cause instanceof Error ? cause.message : t("guestInvitations.historyFailed");
+    expandedInvitationId.value = null;
+  } finally { historyLoading.value = false; }
+}
+
+async function issue(participation: GuestInvitationParticipation): Promise<void> {
+  const event = selectedEvent.value;
+  if (!event?.scheduleRevisionId || !event.rsvpPolicyRevisionId || !participation.emailReady) return;
+  const isReissue = Boolean(participation.invitationId && ["active", "draft"].includes(participation.invitationStatus ?? ""));
+  const message = isReissue ? t("guestInvitations.confirmReissue", { name: participation.displayName }) : t("guestInvitations.confirmIssue", { name: participation.displayName });
+  if (!window.confirm(message)) return;
+  loading.value = true; error.value = ""; notice.value = "";
+  try {
+    const expiresAt = new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString();
+    await api.issueGuestInvitation(event.eventId, participation.participationId, {
+      ...(isReissue && participation.invitationId ? { invitationId: participation.invitationId } : {}),
+      scheduleRevisionId: event.scheduleRevisionId,
+      rsvpPolicyRevisionId: event.rsvpPolicyRevisionId,
+      locale: localeValue.value,
+      expiresAt,
+      presentationSnapshot: {},
+    });
+    notice.value = t(isReissue ? "guestInvitations.reissued" : "guestInvitations.issued", { name: participation.displayName });
+    await loadParticipants();
+  } catch (cause) {
+    error.value = cause instanceof Error ? cause.message : t("guestInvitations.issueFailed");
+  } finally { loading.value = false; }
+}
+
+async function revoke(participation: GuestInvitationParticipation): Promise<void> {
+  if (!participation.invitationId || !window.confirm(t("guestInvitations.confirmRevoke", { name: participation.displayName }))) return;
+  loading.value = true; error.value = ""; notice.value = "";
+  try {
+    await api.revokeGuestInvitation(participation.invitationId, "staff_revoked");
+    notice.value = t("guestInvitations.revoked", { name: participation.displayName });
+    await loadParticipants();
+  } catch (cause) {
+    error.value = cause instanceof Error ? cause.message : t("guestInvitations.revokeFailed");
+  } finally { loading.value = false; }
+}
+
+watch(selectedEventId, () => { void loadParticipants(); });
+onMounted(() => { void loadEvents(); });
+</script>
+
+<template>
+  <section class="panel">
+    <div class="section-heading">
+      <div>
+        <p class="eyebrow">{{ t("guestInvitations.eyebrow") }}</p>
+        <h2>{{ t("guestInvitations.title") }}</h2>
+        <p class="muted">{{ t("guestInvitations.description") }}</p>
+      </div>
+      <button class="button button-quiet" :disabled="loading" @click="loadEvents">{{ t("guestInvitations.refresh") }}</button>
+    </div>
+
+    <label class="field-label">
+      {{ t("guestInvitations.event") }}
+      <select v-model="selectedEventId" :disabled="loading || events.length === 0">
+        <option value="" disabled>{{ t("guestInvitations.chooseEvent") }}</option>
+        <option v-for="event in events" :key="event.eventId" :value="event.eventId">{{ event.title }} · {{ event.status }}</option>
+      </select>
+    </label>
+
+    <p v-if="error" class="message message-error" role="alert">{{ error }}</p>
+    <p v-if="notice" class="message message-success" role="status">{{ notice }}</p>
+    <p v-if="loading" class="muted" aria-live="polite">{{ t("guestInvitations.loading") }}</p>
+    <p v-else-if="events.length === 0" class="muted">{{ t("guestInvitations.noEvents") }}</p>
+    <template v-else-if="selectedEvent">
+      <div class="muted">
+        {{ t("guestInvitations.eventSummary", { eligible: selectedEvent.eligibleParticipationCount, invitations: selectedEvent.invitationCount }) }}
+      </div>
+      <p v-if="!selectedEvent.scheduleRevisionId || !selectedEvent.rsvpPolicyRevisionId" class="message message-error">
+        {{ t("guestInvitations.eventNotReady") }}
+      </p>
+      <div class="table-wrap">
+        <table>
+          <thead>
+            <tr>
+              <th>{{ t("guestInvitations.guest") }}</th>
+              <th>{{ t("guestInvitations.participation") }}</th>
+              <th>{{ t("guestInvitations.invitation") }}</th>
+              <th>{{ t("guestInvitations.delivery") }}</th>
+              <th>{{ t("guestInvitations.rsvp") }}</th>
+              <th>{{ t("guestInvitations.actions") }}</th>
+            </tr>
+          </thead>
+          <tbody>
+            <template v-for="person in participants" :key="person.participationId">
+            <tr>
+              <td>
+                <strong>{{ person.displayName }}</strong>
+                <small v-if="!person.emailReady" class="muted">{{ t("guestInvitations.emailNotReady") }}</small>
+              </td>
+              <td>{{ person.status }}</td>
+              <td>{{ person.invitationStatus ?? t("guestInvitations.notIssued") }}</td>
+              <td>{{ person.deliveryStatus ?? "—" }}</td>
+              <td>{{ person.currentResponse ?? "—" }}</td>
+              <td class="action-cell">
+                <button
+                  v-if="person.status === 'eligible' && person.emailReady && selectedEvent.scheduleRevisionId && selectedEvent.rsvpPolicyRevisionId && (!person.invitationId || ['active', 'draft', 'revoked'].includes(person.invitationStatus ?? ''))"
+                  class="button button-primary"
+                  :disabled="loading"
+                  @click="issue(person)"
+                >{{ person.invitationId && ["active", "draft"].includes(person.invitationStatus ?? "") ? t("guestInvitations.reissue") : t("guestInvitations.issue") }}</button>
+                <button
+                  v-if="person.invitationId"
+                  class="button button-quiet"
+                  :disabled="historyLoading"
+                  @click="toggleAttemptHistory(person.invitationId)"
+                >{{ expandedInvitationId === person.invitationId ? t("guestInvitations.hideHistory") : t("guestInvitations.showHistory") }}</button>
+                <button class="button button-quiet" :disabled="rsvpHistoryLoading" @click="toggleRsvpHistory(person)">
+                  {{ expandedRsvpHistoryId === person.participationId ? (localeValue === "en" ? "Hide RSVP history" : "Sakrij historiju RSVP-a") : (localeValue === "en" ? "RSVP history" : "Historija RSVP-a") }}
+                </button>
+                <button class="button button-quiet" :disabled="loading" @click="openRsvp(person)">
+                  {{ t("guestInvitations.recordRsvp") }}
+                </button>
+                <button
+                  v-if="person.currentResponseId"
+                  class="button button-quiet"
+                  :disabled="loading"
+                  @click="openRsvp(person, true)"
+                >{{ t("guestInvitations.correctRsvp") }}</button>
+                <button
+                  v-if="person.invitationId && ['active', 'draft'].includes(person.invitationStatus ?? '')"
+                  class="button button-quiet"
+                  :disabled="loading"
+                  @click="revoke(person)"
+                >{{ t("guestInvitations.revoke") }}</button>
+              </td>
+            </tr>
+            <tr v-if="expandedRsvpHistoryId === person.participationId" :key="`${person.participationId}-rsvp-history`">
+              <td colspan="6">
+                <div class="attempt-history">
+                  <strong>{{ localeValue === "en" ? "RSVP response history" : "Historija RSVP odgovora" }}</strong>
+                  <p v-if="rsvpHistoryLoading" class="muted">{{ t("guestInvitations.loading") }}</p>
+                  <p v-else-if="(rsvpHistory[person.participationId] ?? []).length === 0" class="muted">{{ localeValue === "en" ? "No RSVP responses recorded." : "Nema zabilježenih RSVP odgovora." }}</p>
+                  <ol v-else class="history-list">
+                    <li v-for="entry in rsvpHistory[person.participationId]" :key="entry.responseId">
+                      <strong>#{{ entry.sequenceNumber }} · {{ t(`guestInvitations.${entry.response}`) }}</strong>
+                      <span>{{ localeValue === "en" ? "Source" : "Izvor" }}: {{ entry.sourceChannel }} · {{ localeValue === "en" ? "Respondent" : "Odgovorio" }}: {{ entry.respondentKind }}</span>
+                      <span>{{ localeValue === "en" ? "Received" : "Primljeno" }}: {{ formatRsvpTimestamp(entry.receivedAt) }}</span>
+                      <span>{{ localeValue === "en" ? "Recorded" : "Zabilježeno" }}: {{ formatRsvpTimestamp(entry.recordedAt) }}</span>
+                      <span v-if="entry.actorMembershipId">{{ localeValue === "en" ? "Recorded by membership" : "Zabilježio član" }}: {{ entry.actorMembershipId }}</span>
+                      <span v-if="entry.correctionOfResponseId">{{ localeValue === "en" ? "Corrects prior response" : "Ispravlja prethodni odgovor" }}: {{ entry.correctionReason }}</span>
+                    </li>
+                  </ol>
+                </div>
+              </td>
+            </tr>
+            <tr v-if="recordingParticipationId === person.participationId" :key="`${person.participationId}-rsvp-form`">
+              <td colspan="6">
+                <form class="attempt-history" @submit.prevent="recordRsvp(person)">
+                  <strong>{{ correctionMode ? t("guestInvitations.correctRsvp") : t("guestInvitations.recordRsvp") }}</strong>
+                  <p v-if="correctionMode" class="muted">{{ t("guestInvitations.correctionHelp") }}</p>
+                  <div class="rsvp-entry-grid">
+                    <label class="field-label">
+                      {{ t("guestInvitations.rsvpResponse") }}
+                      <select v-model="rsvpResponse" :disabled="loading">
+                        <option value="accepted">{{ t("guestInvitations.accepted") }}</option>
+                        <option value="declined">{{ t("guestInvitations.declined") }}</option>
+                        <option value="tentative">{{ t("guestInvitations.tentative") }}</option>
+                      </select>
+                    </label>
+                    <label class="field-label">
+                      {{ t("guestInvitations.rsvpSource") }}
+                      <select :value="rsvpSourceChannel" :disabled="loading" @change="setRsvpSource(($event.target as HTMLSelectElement).value)">
+                        <option value="phone">{{ t("guestInvitations.sourcePhone") }}</option>
+                        <option value="in_person">{{ t("guestInvitations.sourceInPerson") }}</option>
+                        <option value="email">{{ t("guestInvitations.sourceEmail") }}</option>
+                        <option value="written">{{ t("guestInvitations.sourceWritten") }}</option>
+                        <option value="representative">{{ t("guestInvitations.sourceRepresentative") }}</option>
+                        <option value="staff_entry">{{ t("guestInvitations.sourceStaff") }}</option>
+                        <option value="other">{{ t("guestInvitations.sourceOther") }}</option>
+                      </select>
+                    </label>
+                    <label class="field-label">
+                      {{ t("guestInvitations.respondent") }}
+                      <select v-model="rsvpRespondentKind" :disabled="loading || ['representative', 'staff_entry'].includes(rsvpSourceChannel)">
+                        <option value="guest">{{ t("guestInvitations.respondentGuest") }}</option>
+                        <option value="representative">{{ t("guestInvitations.respondentRepresentative") }}</option>
+                        <option value="staff">{{ t("guestInvitations.respondentStaff") }}</option>
+                      </select>
+                    </label>
+                    <label class="field-label">
+                      {{ t("guestInvitations.receivedAt") }}
+                      <input v-model="rsvpReceivedAt" type="datetime-local" required :disabled="loading" />
+                    </label>
+                  </div>
+                  <label class="field-label">
+                    {{ t("guestInvitations.restrictedNote") }}
+                    <textarea v-model="rsvpNote" rows="2" maxlength="4000" :disabled="loading"></textarea>
+                  </label>
+                  <label v-if="correctionMode" class="field-label">
+                    {{ t("guestInvitations.correctionReason") }}
+                    <textarea v-model="correctionReason" rows="2" minlength="3" maxlength="2000" required :disabled="loading"></textarea>
+                  </label>
+                  <div class="action-cell">
+                    <button class="button button-primary" type="submit" :disabled="loading">
+                      {{ t("guestInvitations.submitRsvp") }}
+                    </button>
+                    <button class="button button-quiet" type="button" :disabled="loading" @click="recordingParticipationId = null">
+                      {{ t("guestInvitations.hideHistory") }}
+                    </button>
+                  </div>
+                </form>
+              </td>
+            </tr>
+            <tr v-if="person.invitationId && expandedInvitationId === person.invitationId" :key="`${person.participationId}-attempts`">
+              <td colspan="6">
+                <div class="attempt-history">
+                  <strong>{{ t("guestInvitations.attemptHistory") }}</strong>
+                  <p v-if="historyLoading" class="muted">{{ t("guestInvitations.loading") }}</p>
+                  <p v-else-if="(attemptHistory[person.invitationId] ?? []).length === 0" class="muted">{{ t("guestInvitations.noAttempts") }}</p>
+                  <ol v-else>
+                    <li v-for="attempt in attemptHistory[person.invitationId]" :key="attempt.attemptId">
+                      <strong>{{ t("guestInvitations.attemptNumber", { number: attempt.attemptNumber }) }}</strong>
+                      · {{ attempt.status }}
+                      · {{ new Date(attempt.startedAt).toLocaleString(localeValue) }}
+                      <span v-if="attempt.failureCode"> · {{ attempt.failureCode }}</span>
+                      <span v-if="attempt.retryScheduled"> · {{ t("guestInvitations.retryScheduled") }}</span>
+                      <span v-if="attempt.providerMessageReference"> · {{ t("guestInvitations.providerReference") }}: {{ attempt.providerMessageReference }}</span>
+                      <span v-if="attempt.completedAt"> · {{ new Date(attempt.completedAt).toLocaleString(localeValue) }}</span>
+                    </li>
+                  </ol>
+                </div>
+              </td>
+            </tr>
+            </template>
+            <tr v-if="participants.length === 0"><td colspan="6" class="muted">{{ t("guestInvitations.noParticipants") }}</td></tr>
+          </tbody>
+        </table>
+      </div>
+    </template>
+  </section>
+</template>

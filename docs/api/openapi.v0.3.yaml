@@ -3152,6 +3152,40 @@ paths:
         '422': { $ref: '#/components/responses/UnprocessableEntity' }
         '429': { $ref: '#/components/responses/TooManyRequests' }
         '500': { $ref: '#/components/responses/InternalServerError' }
+  "/organizations/{organizationId}/guest-invitation-events":
+    get:
+      tags: ["Invitations and RSVP"]
+      operationId: listGuestInvitationEvents
+      summary: "List events the staff member may manage invitations for"
+      security: [{ StaffSession: [] }]
+      parameters:
+        - $ref: '#/components/parameters/POrganizationId'
+      responses:
+        '200':
+          description: "Successful response."
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/ListEnvelope' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '500': { $ref: '#/components/responses/InternalServerError' }
+  "/events/{eventId}/guest-invitation-participations":
+    get:
+      tags: ["Invitations and RSVP"]
+      operationId: listGuestInvitationParticipations
+      summary: "List invitation-eligible event participation projections"
+      security: [{ StaffSession: [] }]
+      parameters:
+        - $ref: '#/components/parameters/PEventId'
+      responses:
+        '200':
+          description: "Successful response."
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/ListEnvelope' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '500': { $ref: '#/components/responses/InternalServerError' }
   "/events/{eventId}/participations":
     get:
       tags: ["Event Participation"]
@@ -3199,6 +3233,26 @@ paths:
         '412': { $ref: '#/components/responses/PreconditionFailed' }
         '422': { $ref: '#/components/responses/UnprocessableEntity' }
         '429': { $ref: '#/components/responses/TooManyRequests' }
+        '500': { $ref: '#/components/responses/InternalServerError' }
+  "/events/{eventId}/participations/{participationId}/rsvp-history":
+    get:
+      tags: ["Invitations and RSVP"]
+      operationId: listStaffGuestRsvpHistory
+      summary: "List append-only RSVP response history for an event participation"
+      description: "Requires active membership and invitation.manage for the event. Restricted RSVP notes are never included."
+      security: [{ StaffSession: [] }]
+      parameters:
+        - $ref: '#/components/parameters/PEventId'
+        - $ref: '#/components/parameters/PParticipationId'
+      responses:
+        '200':
+          description: "Successful response."
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/ListEnvelope' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '404': { $ref: '#/components/responses/NotFound' }
         '500': { $ref: '#/components/responses/InternalServerError' }
   "/events/{eventId}/participations/{participationId}/rsvp-records":
     post:
@@ -3530,10 +3584,22 @@ paths:
                 rsvpPolicyRevisionId: { type: string, format: uuid }
                 locale: { type: string, enum: [bs-BA, en], default: bs-BA }
                 expiresAt: { type: string, format: date-time }
-                presentationSnapshot: { type: object, maxProperties: 80, description: "Guest-safe presentation data; encrypted before persistence." }
+                presentationSnapshot:
+                  type: object
+                  description: "Guest-safe presentation data; encrypted before persistence."
+                  properties:
+                    greeting: { type: string, maxLength: 500 }
+                    venueName: { type: string, maxLength: 200 }
+                    venueAddress: { type: string, maxLength: 500 }
+                    directions: { type: string, maxLength: 2000 }
+                    additionalInfo: { type: string, maxLength: 4000 }
+                    accessibility: { type: string, maxLength: 2000 }
+                    scheduleLabel: { type: string, maxLength: 200 }
+                    hostDisplayName: { type: string, maxLength: 200 }
+                  additionalProperties: false
               additionalProperties: false
       responses:
-        '200':
+        '201':
           description: "Invitation issued/reissued and email delivery queued."
           content:
             application/json:
@@ -3543,6 +3609,28 @@ paths:
         '403': { $ref: '#/components/responses/Forbidden' }
         '404': { $ref: '#/components/responses/NotFound' }
         '409': { $ref: '#/components/responses/Conflict' }
+        '422': { $ref: '#/components/responses/UnprocessableEntity' }
+        '429': { $ref: '#/components/responses/TooManyRequests' }
+        '500': { $ref: '#/components/responses/InternalServerError' }
+  "/guest/invitation/me":
+    get:
+      tags: ["Guest RSVP"]
+      operationId: getMyInvitation
+      summary: "Return this guest's own safe invitation projection"
+      security: [{ GuestInvitationCapability: [] }]
+      responses:
+        '200':
+          description: "Successful response."
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/DataEnvelope' }
+        '400': { $ref: '#/components/responses/BadRequest' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '404': { $ref: '#/components/responses/NotFound' }
+        '409': { $ref: '#/components/responses/Conflict' }
+        '410': { $ref: '#/components/responses/Gone' }
+        '412': { $ref: '#/components/responses/PreconditionFailed' }
         '422': { $ref: '#/components/responses/UnprocessableEntity' }
         '429': { $ref: '#/components/responses/TooManyRequests' }
         '500': { $ref: '#/components/responses/InternalServerError' }
@@ -3746,11 +3834,29 @@ paths:
         '422': { $ref: '#/components/responses/UnprocessableEntity' }
         '429': { $ref: '#/components/responses/TooManyRequests' }
         '500': { $ref: '#/components/responses/InternalServerError' }
+  "/invitations/{invitationId}/delivery-attempts":
+    get:
+      tags: ["Invitations and RSVP"]
+      operationId: listGuestInvitationDeliveryAttempts
+      summary: "List SMTP delivery attempts for an invitation"
+      security: [{ StaffSession: [] }]
+      parameters:
+        - $ref: '#/components/parameters/PInvitationId'
+      responses:
+        '200':
+          description: "Successful response."
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/ListEnvelope' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '404': { $ref: '#/components/responses/NotFound' }
+        '500': { $ref: '#/components/responses/InternalServerError' }
   "/invitations/{invitationId}/revoke":
     post:
       tags: ["Invitations and RSVP"]
-      operationId: revokeInvitation
-      summary: "Revoke invitation link and stop pending sends"
+      operationId: revokeGuestInvitation
+      summary: "Revoke an invitation and suppress queued email"
       security: [{ StaffSession: [], StaffCsrf: [] }]
       parameters:
         - $ref: '#/components/parameters/PInvitationId'
@@ -3759,7 +3865,16 @@ paths:
         required: true
         content:
           application/json:
-            schema: { $ref: '#/components/schemas/ReasonRequest' }
+            schema:
+              type: object
+              required: [reasonCode]
+              properties:
+                reasonCode:
+                  type: string
+                  minLength: 3
+                  maxLength: 80
+                  pattern: "^[a-z][a-z0-9_.-]*$"
+              additionalProperties: false
       responses:
         '201':
           description: "Successful response."
@@ -5181,28 +5296,6 @@ paths:
         "404": { description: "Endpoint or correlated delivery attempt not found." }
         "409": { description: "Event conflicts with the existing delivery state." }
         "503": { description: "Temporary storage or key failure; the provider may retry." }
-  "/guest/invitation/me":
-    get:
-      tags: ["Guest RSVP"]
-      operationId: getMyInvitation
-      summary: "Return this guest's own safe invitation projection"
-      security: [{ GuestInvitationCapability: [] }]
-      responses:
-        '200':
-          description: "Successful response."
-          content:
-            application/json:
-              schema: { $ref: '#/components/schemas/DataEnvelope' }
-        '400': { $ref: '#/components/responses/BadRequest' }
-        '401': { $ref: '#/components/responses/Unauthorized' }
-        '403': { $ref: '#/components/responses/Forbidden' }
-        '404': { $ref: '#/components/responses/NotFound' }
-        '409': { $ref: '#/components/responses/Conflict' }
-        '410': { $ref: '#/components/responses/Gone' }
-        '412': { $ref: '#/components/responses/PreconditionFailed' }
-        '422': { $ref: '#/components/responses/UnprocessableEntity' }
-        '429': { $ref: '#/components/responses/TooManyRequests' }
-        '500': { $ref: '#/components/responses/InternalServerError' }
 components:
   securitySchemes:
     StaffSession:
@@ -6322,7 +6415,9 @@ components:
         respondentKind: { type: string, enum: [guest, representative, staff] }
         receivedAt: { type: string, format: date-time }
         invitationId: { type: string, format: uuid }
-        noteRestricted: { type: string, maxLength: 4000 }
+        noteRestricted: { type: string, maxLength: 4000, writeOnly: true, description: "Encrypted before persistence; never returned in response projections." }
+        correctionOfResponseId: { type: string, format: uuid, description: "When supplied, append a correction to this current response. Requires rsvp.correct." }
+        correctionReason: { type: string, minLength: 3, maxLength: 2000, description: "Required with correctionOfResponseId; retained as the auditable reason for the correction." }
     RsvpCorrectionRequest:
       type: object
       required: [response, correctionReason]

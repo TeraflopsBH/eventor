@@ -1,6 +1,6 @@
 # Implementation Design v0.3 — domain design addenda
 
-**Status:** proposed detailed domain/API designs; schema migration and implementation remain open.
+**Status:** proposed detailed domain/API designs; successor migrations, API contract validation and implementation remain open.
 
 This directory contains successor design addenda that refine the historical v0.2 design snapshot. They do not modify or replace the v0.2 SQL/OpenAPI artifacts.
 
@@ -8,6 +8,7 @@ This directory contains successor design addenda that refine the historical v0.2
 
 - [RSVP and Invitation Design v0.3](RSVP_AND_INVITATION_DESIGN_v0.3.md) — state separation, event policy, secure links, guest self-service, staff capture, proposed data model, API routes, access control, operating scope and acceptance scenarios.
 - [Cross-Organization Collaboration Design v0.3](CROSS_ORGANIZATION_COLLABORATION_DESIGN_v0.3.md) — venue-provider/organizer ownership, booking-event links, scoped collaboration grants and immutable venue-plan snapshots.
+- [OpenAPI v0.3 contract](../../api/openapi.v0.3.yaml) — concrete contract draft aligned to the API design and the v0.3 domain addenda.
 - [Cancellation and Event Disruption Design v0.3](CANCELLATION_AND_EVENT_DISRUPTION_DESIGN_v0.3.md) — booking cancellation by customer or venue provider, event cancellation/postponement by organizer, notification audiences, cross-organization boundaries, audit and acceptance scenarios.
 
 ## Parent documents and decisions

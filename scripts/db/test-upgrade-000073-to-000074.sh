@@ -8,15 +8,21 @@ MIGRATION_074="$ROOT_DIR/database/migrations/000074_booking_offer_email_worker_f
 
 pre_dir="$(mktemp -d)"
 post_dir="$(mktemp -d)"
-trap 'rm -rf "$pre_dir" "$post_dir"' EXIT
+middle_dir="$(mktemp -d)"
+forward_dir="$(mktemp -d)"
+later_dir="$(mktemp -d)"
+trap 'rm -rf "$pre_dir" "$post_dir" "$middle_dir" "$forward_dir" "$later_dir"' EXIT
 
 # Rehearse the exact schema boundary immediately before the worker-fix
 # migration. The migration chain through 000073 is applied first, then the
 # same committed synthetic CI fixture used by the normal database suite.
-cp "$ROOT_DIR"/database/migrations/[0-9][0-9][0-9][0-9][0-9][0-9]_*.sql "$pre_dir/"
-rm "$pre_dir/000074_booking_offer_email_worker_fixes.sql"
-rm "$pre_dir/000075_guest_invitation_runtime.sql"
-rm "$pre_dir/000076_guest_invitation_issuance_delivery.sql"
+for file in "$ROOT_DIR"/database/migrations/[0-9][0-9][0-9][0-9][0-9][0-9]_*.sql; do
+  filename="$(basename "$file")"
+  version="${filename%%_*}"
+  if (( 10#${version} <= 73 )); then
+    cp "$file" "$pre_dir/"
+  fi
+done
 
 echo "=== Apply schema through 000073 ==="
 DATABASE_URL="$MIGRATOR_URL" MIGRATIONS_DIR="$pre_dir" \
@@ -81,7 +87,33 @@ END;
 $upgrade_check$;
 SQL
 
-echo "=== Re-run the normal migration runner against the complete chain ==="
-DATABASE_URL="$MIGRATOR_URL" bash "$ROOT_DIR/scripts/db/migrate.sh"
+echo "=== Apply the published 000075 and 000076 migrations unchanged ==="
+cp "$ROOT_DIR"/database/migrations/000075_*.sql "$middle_dir/"
+cp "$ROOT_DIR"/database/migrations/000076_*.sql "$middle_dir/"
+DATABASE_URL="$MIGRATOR_URL" MIGRATIONS_DIR="$middle_dir" \
+  bash "$ROOT_DIR/scripts/db/migrate.sh"
 
-echo "Populated schema upgrade rehearsal 000073 -> 000074 passed."
+echo "=== Seed a pre-000077 invitation link with its legacy encrypted capability ==="
+psql "$MIGRATOR_URL" -X -v ON_ERROR_STOP=1 \
+  -f "$ROOT_DIR/tests/database/guest_invitation_capability_migration_fixture.sql"
+
+echo "=== Apply forward migration 000077 and verify the legacy capability copy immediately ==="
+cp "$ROOT_DIR"/database/migrations/000077_*.sql "$forward_dir/"
+DATABASE_URL="$MIGRATOR_URL" MIGRATIONS_DIR="$forward_dir" \
+  bash "$ROOT_DIR/scripts/db/migrate.sh"
+admin_eventor_url="${ADMIN_URL%/postgres}/eventor"
+psql "$admin_eventor_url" -X -v ON_ERROR_STOP=1 \
+  -f "$ROOT_DIR/tests/database/guest_invitation_forward_migration_smoke.sql"
+
+echo "=== Apply remaining forward migrations from 000078 onward ==="
+for file in "$ROOT_DIR"/database/migrations/[0-9][0-9][0-9][0-9][0-9][0-9]_*.sql; do
+  filename="$(basename "$file")"
+  version="${filename%%_*}"
+  if (( 10#${version} >= 78 )); then
+    cp "$file" "$later_dir/"
+  fi
+done
+DATABASE_URL="$MIGRATOR_URL" MIGRATIONS_DIR="$later_dir" \
+  bash "$ROOT_DIR/scripts/db/migrate.sh"
+
+echo "Populated schema upgrade rehearsals 000073 -> 000074 and 000076 -> 000077 passed."
