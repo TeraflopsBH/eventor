@@ -8,6 +8,7 @@ on:
       - fix/pr26-high-risk-integrity-review
       - feat/booking-commercial-workflow
       - feat/booking-allocation-alternatives
+      - feat/auth-postgres-session-integration
       - main
   pull_request:
     branches:
