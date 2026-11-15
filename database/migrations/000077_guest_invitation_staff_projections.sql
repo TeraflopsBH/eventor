@@ -3,6 +3,12 @@
 -- capability on both the link and delivery; newer code keeps it only on the
 -- restricted delivery row. Preserve pending delivery envelopes before dropping
 -- the redundant link-table copy.
+-- Both tables use forced tenant RLS. Temporarily disable it inside this
+-- single migration transaction so the owner can move all tenants' envelopes;
+-- restore ENABLE + FORCE before the transaction commits.
+ALTER TABLE eogp.invitation_links DISABLE ROW LEVEL SECURITY;
+ALTER TABLE eogp.invitation_deliveries DISABLE ROW LEVEL SECURITY;
+
 DO $capability_preflight$
 BEGIN
   IF EXISTS (
@@ -57,6 +63,11 @@ $capability_verify$;
 ALTER TABLE eogp.invitation_links
   DROP CONSTRAINT invitation_links_capability_ciphertext_ck,
   DROP COLUMN capability_ciphertext;
+
+ALTER TABLE eogp.invitation_links ENABLE ROW LEVEL SECURITY;
+ALTER TABLE eogp.invitation_links FORCE ROW LEVEL SECURITY;
+ALTER TABLE eogp.invitation_deliveries ENABLE ROW LEVEL SECURITY;
+ALTER TABLE eogp.invitation_deliveries FORCE ROW LEVEL SECURITY;
 
 -- Replace the 000076 implementations with the hardened forward versions.
 CREATE OR REPLACE FUNCTION eogp.resolve_guest_invitation(
