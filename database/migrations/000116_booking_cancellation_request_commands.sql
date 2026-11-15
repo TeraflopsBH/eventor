@@ -202,6 +202,15 @@ BEGIN
 END;
 $function$;
 
+-- All cancellation lifecycle writes must pass through the audited command boundary.
+-- Runtime keeps tenant-scoped SELECT access for queue/history projections only.
+REVOKE INSERT, UPDATE, DELETE ON
+  eogp.booking_cancellation_requests,
+  eogp.booking_cancellation_decisions,
+  eogp.booking_cancellation_effects,
+  eogp.booking_disruption_notices
+FROM eventor_runtime, eventor_worker, eventor_auth;
+
 REVOKE ALL ON FUNCTION eogp.assert_booking_cancellation_permission(uuid,uuid,uuid,text)
   FROM PUBLIC,eventor_runtime,eventor_worker,eventor_auth;
 REVOKE ALL ON FUNCTION eogp.submit_booking_cancellation_request(uuid,uuid,uuid,text,bytea)
