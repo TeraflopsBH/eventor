@@ -1296,8 +1296,9 @@ test("staff inquiry inbox decrypts authorized projections and routes assignment,
     principal.organizationId,
     "16161616-1616-4161-8161-161616161616",
     principal.membershipId,
-    null,
+    "21212121-2121-4121-8121-212121212121",
   ]);
+  assert.match(prepareCall.sql, /,NULL::uuid,/);
   assert.deepEqual(JSON.parse(String(prepareCall.values[10])), offerBody.lineItems);
   assert.deepEqual(JSON.parse(String(prepareCall.values[11])), []);
 
