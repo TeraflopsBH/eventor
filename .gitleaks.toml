@@ -1,0 +1,7 @@
+title = "Eventor secret scanning"
+
+[allowlist]
+description = "Exact synthetic RSVP idempotency-key fixture reported as generic-api-key; not a credential."
+commits = ["6fb4101b070709e86964936fb7b0a0becb1f81fb"]
+paths = ["apps/api/test/guest-invitation-runtime.test.ts"]
+regexes = ["staff-rsvp-invalid-0001"]

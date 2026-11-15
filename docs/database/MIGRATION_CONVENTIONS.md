@@ -37,7 +37,8 @@ COMMIT;
 Use separate roles with least privilege:
 - **Schema owner:** owns schemas and objects; not used by application requests.
 - **Migration role:** may create/alter objects and apply reviewed migrations.
-- **Runtime role:** used by the API/worker; does not own tables, is not superuser and does not have `BYPASSRLS`.
+- **Runtime role:** used by tenant-scoped API commands; does not own tables, is not superuser and does not have `BYPASSRLS`.
+- **Authentication role:** dedicated `eventor_auth` credential for global user/password verification and organization-membership discovery. It does not have venue, booking, guest or event business-table access. The general runtime role has no direct access to `eogp.users`; tenant UI reads the RLS-filtered `eogp.organization_member_profiles` projection.
 
 The API must not connect as the schema owner or migration role. Credentials are deployment secrets and are never stored in Git.
 
@@ -50,6 +51,7 @@ The API must not connect as the schema owner or migration role. Credentials are 
 - Runtime tests must connect as the non-owner runtime role. Table owner/superuser tests do not prove RLS behavior.
 - Set authenticated organization context transaction-locally after authorization and before queries; never trust an organization_id supplied only by a client.
 - Ensure pooled connections cannot carry tenant context from one request into another.
+- **The `app.organization_id` custom GUC is trusted application context, not a credential or cryptographic identity.** A database client that possesses the runtime credential and can execute arbitrary SQL can generally set that GUC itself. RLS therefore protects against omitted tenant predicates and accidental cross-tenant access; it does not make a compromised runtime credential safe from arbitrary SQL. Keep database credentials private to the API, prevent direct client/database access, use parameterized queries, constrain SECURITY DEFINER functions, and establish tenant context only inside authenticated/authorized transactions.
 
 ## 5. Integrity and concurrency
 

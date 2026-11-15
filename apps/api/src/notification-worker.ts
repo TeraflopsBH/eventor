@@ -413,7 +413,7 @@ export async function processPendingBookingOfferEmailDeliveries(
   if (appUrl.protocol !== "https:" || appUrl.username || appUrl.password || appUrl.search || appUrl.hash) {
     throw new TypeError("The public application base URL must be HTTPS and contain no credentials, query or fragment.");
   }
-  const baseUrl = appUrl.toString().replace(/\/+$/, "");
+  const baseUrl = appUrl.toString().replace(new RegExp("/+$"), "");
   const tenants = await pool.query<PendingTenantRow>(
     "SELECT organization_id FROM eogp.discover_pending_booking_offer_email_tenants()",
   );
@@ -537,7 +537,7 @@ export async function processPendingGuestInvitationEmailDeliveries(
   if (appUrl.protocol !== "https:" || appUrl.username || appUrl.password || appUrl.search || appUrl.hash) {
     throw new TypeError("The public application base URL must be HTTPS and contain no credentials, query or fragment.");
   }
-  const baseUrl = appUrl.toString().replace(/\\/+$/, "");
+  const baseUrl = appUrl.toString().replace(new RegExp("/+$"), "");
   const tenants = await pool.query<PendingTenantRow>(
     "SELECT organization_id FROM eogp.discover_pending_invitation_delivery_tenants()",
   );
@@ -558,7 +558,17 @@ export async function processPendingGuestInvitationEmailDeliveries(
       let failureCode: string | null = null;
       let messageReference: string | null = null;
       let transport: ReturnType<SmtpTransportFactory> | null = null;
-      try {
+      const authorized = await inTenantTransaction(pool, tenant.organization_id, async (client) => {
+        const result = await client.query<{ authorized: boolean }>(
+          "SELECT eogp.authorize_invitation_email_submission($1::uuid,$2::uuid) AS authorized",
+          [tenant.organization_id, job.delivery_id],
+        );
+        return result.rows[0]?.authorized === true;
+      });
+      if (!authorized) {
+        outcome = "failed";
+        failureCode = "INVITATION_NOT_SENDABLE";
+      } else try {
         const credentials = job.credentials_ciphertext
           ? decryptDeliveryCredentials(job.credentials_ciphertext, deliveryCredentialsEncryptionKey, {
               organizationId: tenant.organization_id, channel: "email",
@@ -591,7 +601,7 @@ export async function processPendingGuestInvitationEmailDeliveries(
           bosnian
             ? "Ova veza je lična. Nemojte je prosljeđivati drugim osobama."
             : "This link is personal. Do not forward it to anyone else.",
-        ].join("\\n");
+        ].join("\n");
         transport = factory(job.smtp_settings, credentials);
         const sent = await transport.sendMail({ to: destination, subject, text });
         if (!sent.accepted.some((address) => address.toLowerCase() === destination.toLowerCase())) {
