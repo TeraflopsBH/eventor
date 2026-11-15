@@ -8,7 +8,7 @@
 
 **Production-release evidence remains deferred:** no approved staging environment, representative deployed-database snapshot, SMTP sandbox credentials, target Linux host, off-host backup destination or encryption-key recovery path was available. Browser-driven workflows, real provider delivery, representative deployed-schema upgrade, off-host backup/PITR/key recovery and target-host/network checks are not claimed as completed. Production readiness remains unverified until these activities have owners and evidence.
 
-**Historical PR reconciliation:** the implementation PR stack through #81 is superseded by merged PR #85 and is being closed as historical review slices. PR #82 is intentionally retained for separate assessment: it contains an alternate, conflicting migration 000074 and worker/browser acceptance tests not yet present on `main`. Do not merge its alternate migration; recover any useful tests in a separate change based on current `main`.
+**Historical PR reconciliation:** the implementation PR stack through #81 and the conflicting source PR #82 are closed as superseded by merged PR #85. The safe worker/browser acceptance additions formerly in #82 have been ported to [follow-up PR #99](https://github.com/TeraflopsBH/eventor/pull/99), based on current `main`; its exact-head CI is green and it is ready for independent review. PR #99 excludes the conflicting alternate migration 000074 and the branch-coupled upgrade script. Do not merge the alternate migration.
 
 
 ---
