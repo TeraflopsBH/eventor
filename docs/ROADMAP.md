@@ -1,97 +1,167 @@
-# Delivery roadmap
+# Eventor delivery roadmap
 
-This roadmap tracks the accepted Eventor product direction and implementation gates. PR #26 contains the initial PostgreSQL/OpenAPI baseline; PR #27 is a separate stacked remediation and application-foundation draft. Both remain open, unmerged drafts.
+**Baseline date:** 2026-11-15  
+**Product/design baseline:** Technical Blueprint v1.2 and accepted v0.3 domain/architecture decisions.  
+**Implementation baseline:** `main` at `046a2466a4bbb6d391f75f3afa4ca3f876c1151a`.  
+**Detailed audit:** [Blueprint-to-repository gap analysis v1.0](BLUEPRINT_TO_REPOSITORY_GAP_ANALYSIS_v1.0.md).
 
-## Phase 0 — Repository and design baseline
+## Delivery principle
 
-- [x] Import Technical Blueprint v1.2 and Implementation Design v0.2 source artifacts.
-- [x] Perform initial static reconciliation and record findings in `docs/DESIGN_RECONCILIATION_v0.2.md` (remaining technical validation tracked separately).
-- [x] Apply the initial ordered migrations and run PostgreSQL 18.6 migration/integrity/RLS/concurrency tests in CI (draft PR #26); broader upgrade and recovery validation remains open.
-- [x] Accept the cross-organization ownership and tenant/resource integrity successor designs (PRs #15, #24 and #25); implementation review remains open in draft PR #26.
-- [x] Record initial architectural decisions and unresolved assumptions; add follow-up ADRs as decisions are approved.
-- [x] Define the venue-first MVP and acceptance criteria (PR #20).
-- [ ] Add CI, issue/PR templates and repository protection settings.
+Build a coherent, usable Eventor product before final environment acceptance. Continue automated tests throughout development. Do not spend the next phase repeating already-completed external acceptance preparation while core user workflows remain absent.
 
-## Phase 0.5 — Successor contracts
+The product remains an API-first modular monolith:
+- Vue 3 + TypeScript + Vite for staff and guest-facing interfaces.
+- Fastify + TypeScript for the API and background workers.
+- PostgreSQL as authoritative storage.
+- SVG-based spatial model and editor.
+- Transactional outbox and real-time publication.
+- OR-Tools CP-SAT for advisory allocation proposals; a human must review and explicitly commit solver output.
 
-- [x] Accept database integrity and resource reservation constraints (Issue #13 / PR #24).
-- [x] Produce an initial ordered PostgreSQL 18 migration draft and checksum runner.
-- [x] Produce canonical OpenAPI 3.1.1 v0.3 YAML from the route/security design.
-- [x] Add PostgreSQL integration/concurrency/RLS tests and pinned OpenAPI validation to the unified CI workflow.
-- [x] Pass the unified three-job CI workflow on PostgreSQL 18.6, OpenAPI 3.1 and the initial staff-web build on PR #27 head `8c19c51b37a67f1cb1faf6f158d5db32e8c32d9e` ([run #43027314682](https://github.com/TeraflopsBH/eventor/actions/runs/43027314682)). This successful run predates migrations 000039–000046 and the subsequent Resend/public booking-intake/staff-inquiry changes; it does not validate the current PR #27 head.
-- [ ] Complete deeper schema/permission review, migration-upgrade/backup tests and route-level API contract tests before accepting the DDL.
-- [ ] Close Issues #2, #3, #13 and #17 only after their runtime/CI acceptance criteria pass.
+## Phase 0 — Establish the current baseline
 
-## Phase 1 — Platform foundation
+- [x] Merge the integrated PostgreSQL migration and feature stack (PR #85).
+- [x] Merge worker and staff-session browser acceptance coverage (PR #99).
+- [x] Merge guest invitation browser acceptance coverage (PR #101; mocked HTTP boundary).
+- [x] Align invitation OpenAPI paths with runtime behavior (PR #102).
+- [x] Audit Technical Blueprint v1.2 against actual runtime/API/UI/migrations/tests (PR #103).
+- [ ] Keep project-state, roadmap and issue tracker synchronized with the current implementation.
+- [ ] Reconcile stale historical issues and PRs; do not mistake historical checklists for current status.
 
-- [ ] Monorepo workspace and build tooling.
-- [x] Fastify API bootstrap, environment configuration, database pools and staff-session integration are present in PR #27.
-- [ ] Add unauthenticated liveness and dependency-aware readiness endpoints, plus operational health checks.
-- [x] A 46-file PostgreSQL 18 migration chain, least-privilege roles, checksum runner and transactional command conventions are present across PRs #26/#27. Fresh-database validation passed on the earlier PR #27 head; migration-upgrade, backup/restore and current-head CI validation remain open. Migrations 000040–000041 add restricted published-form retrieval and encrypted, idempotent, rate-limited public inquiry submission; migration 000042 adds permissioned staff inquiry projections, assignments, review status, internal annotations and immutable histories; migration 000043 adds exact published-revision projection for validation against the revision the visitor actually submitted; migration 000044 adds a permission-gated active assignee roster and membership capability projection; migration 000045 adds permission-gated, idempotent inquiry-to-draft conversion with an encrypted ECP1 snapshot, immutable revision 1, attributed inquiry history and audit records; migration 000046 adds organization-scope draft-read/manage permissions, protected draft projections, immutable successor revisions, optimistic concurrency, ECP1 value encryption, and active-hold/venue/resource validation.
-- [ ] Shared contracts, validation and error model.
-- [ ] Complete review of the implemented database-backed staff sessions, CSRF/origin checks, tenant-scoped authorization and audit boundaries; extend role/permission coverage to the remaining API operations.
-- [x] Organization, venue and event tenancy foundations and RLS migrations are present.
-- [ ] Complete runtime API projections and staff workflows for organization, venue and event administration.
-- [ ] CI checks and synthetic test fixtures.
+## Phase 1 — Complete a coherent venue-booking vertical
 
-## Phase 2 — Configurable venue booking
+**Existing foundation:** public booking inquiries and forms, staff inquiry review, booking drafts/revisions, commercial offer and approval foundations, pricing/tax/cancellation configuration, resource reservations, notification campaigns and delivery worker.
 
-**Next application vertical slice:** issue and revise customer offers against an explicit immutable draft revision, implement acceptance/rejection and approval policy, then confirm bookings using the existing reservation commands with final resource rechecks. Inquiry conversion, protected draft projections and immutable successor revisions are now implemented; revision writes are blocked while active holds remain on the prior revision. The public API validates answers against the exact immutable published revision using field-schema v1, and the staff UI now supports permission-aware inbox/detail, assignment, status, internal notes and histories. Keep booking-only operation independent of optional event/guest capabilities.
+- [ ] Audit each booking lifecycle transition against the v0.3 domain design and identify any remaining runtime/UI gaps.
+- [ ] Complete direct/manual booking creation where not already covered.
+- [ ] Complete offer revision, customer acceptance/rejection, approval and confirmation as one demonstrable workflow.
+- [ ] Complete cancellation, amendment and postponement workflows with resource release and immutable commercial snapshots.
+- [ ] Complete venue-side fulfilment/task assignment and responsibility history.
+- [ ] Complete customer-facing booking communications and delivery reconciliation.
+- [ ] Add operator-facing liveness/readiness and useful diagnostics.
+- [ ] Define and automate end-to-end booking acceptance scenarios using synthetic fixtures.
 
-- [ ] Versioned form/catalogue/configuration management.
-- [x] Public inquiry intake and spam/rate protections.
-- [x] Permissioned staff inquiry review API, assignment, status, internal notes and immutable history.
-- [x] Staff inquiry inbox/detail UI with permission-aware assignment, status and annotation controls.
-- [x] Versioned field-schema v1 answer validation against the exact published revision.
-- [x] Atomic inquiry-to-draft conversion with an encrypted source-submission snapshot, immutable revision 1, idempotent replay, inquiry history and audit event.
-- [x] Permission-checked booking draft projection and immutable successor revision API/UI with ECP1 encryption, optimistic concurrency and active-hold safeguards.
-- [ ] Offer creation/revisions, customer acceptance/rejection and approval flow.
-- [ ] Explicit booking confirmation and resource reservation.
-- [ ] Resource inventory, pricing and separately scheduled rehearsals.
-- [ ] Notifications and booking audit trail.
-- [ ] Customer/organizer cancellation requests, venue-initiated cancellation, approval policy, commercial consequence snapshot and atomic resource release ([Issue #21](https://github.com/TeraflopsBH/eventor/issues/21)).
+## Phase 2 — Event organizer and Guest Registry foundation
 
-## Phase 3 — Guest registry, invitations and RSVP
+- [ ] Complete organization, user, membership and role administration UX.
+- [ ] Implement event create/edit/archive, lifecycle and session management.
+- [ ] Implement persistent Guest Registry CRUD, search, profile history and permissioned access.
+- [ ] Implement event participation and guest-list management independently of person records.
+- [ ] Add categories, tags, groups, relationships and configurable custom fields.
+- [ ] Add CSV/XLSX import/export with preview, validation, duplicate detection and error reporting.
+- [ ] Add supervised identity merge with audit trail and safe correction/rollback strategy.
+- [ ] Add bulk actions and saved views.
+- [ ] Preserve tenant and organization ownership boundaries; never expose the organizer's guest directory to a venue provider by default.
 
-**Implemented slice in draft PR #81:** capability-protected guest invitation resolution, personal invitation view and policy-checked RSVP/history endpoints; organizer issue/reissue/revoke operations; encrypted invitation email delivery with worker authorization, retries/uncertain outcomes and immutable attempt history; event schedule and lifecycle checks; and a permission-scoped organizer invitation workspace. This is not completion of the full phase: persistent guest registry management, imports/deduplication/merge, invitation batching/reminders, staff-recorded RSVP, broader guest portal, and full attendance/check-in workflows still require implementation and acceptance. See the exact-head CI and scope summary in `docs/PROJECT_STATE.md`.
+## Phase 3 — Venue model and spatial editor
 
+- [ ] Implement reusable venue/building/level/room/space hierarchy and versioned venue templates.
+- [ ] Support halls, rooms, mosque/prayer spaces and other configured layouts without hardcoding one venue.
+- [ ] Implement source-plan onboarding for PDF/image/SVG and workbook references, preserving originals and requiring human review.
+- [ ] Build the SVG spatial editor with scale calibration, layers, geometry, labels and reusable objects.
+- [ ] Model tables, rows, prayer rows, individual positions, capacity zones and non-allocatable features distinctly.
+- [ ] Support color-coded tableless zones and mixed precise/count-based capacity.
+- [ ] Add map revisions, approval, publication, history and printable output.
+- [ ] Ensure accessibility and keyboard alternatives to drag-and-drop editing.
 
-Cancellation/postponement behavior is proposed in `docs/implementation-design/v0.3/CANCELLATION_AND_EVENT_DISRUPTION_DESIGN_v0.3.md`; design review and contract alignment are tracked in [Issue #21](https://github.com/TeraflopsBH/eventor/issues/21).
+## Phase 4 — Guest seating and allocation
 
-The domain design is documented in `docs/implementation-design/v0.3/RSVP_AND_INVITATION_DESIGN_v0.3.md`; schema/API implementation is tracked in [Issue #10](https://github.com/TeraflopsBH/eventor/issues/10).
+- [ ] Implement manual assignment and movement first.
+- [ ] Implement category/group-based allocation and capacity validation.
+- [ ] Implement together/avoid, preferences, exclusions, distance/session and other hard/soft constraints.
+- [ ] Implement locks, diagnostics, conflicts and targeted reflow.
+- [ ] Add OR-Tools CP-SAT worker behind a versioned, validated input/output contract.
+- [ ] Present solver output as a proposal with explanation and before/after diff.
+- [ ] Require explicit authorized human commit; never silently apply optimization.
+- [ ] Publish immutable allocation-plan revisions and provide live staff and printable plan views.
+- [ ] Render sanitized guest-facing map/wayfinding views.
 
-- [ ] Persistent guest registry and event participation.
-- [ ] Imports, duplicate detection and supervised merge.
-- [ ] Invitation batches, secure links and delivery tracking.
-- [ ] Guest self-service RSVP and response-change rules.
-- [x] Staff-recorded RSVP with source/operator/time/notes and append-only correction history.
-- [x] Staff-accessible RSVP response history with source, respondent, received/recorded times, operator membership attribution and correction lineage; restricted notes remain excluded.
+## Phase 5 — Guest portal, invitations and admission
 
-Staff-recorded RSVP and correction slice is implemented and exact-head CI-verified in draft PR #81. It uses `rsvp.record`, `rsvp.correct` and `rsvp.override_deadline`, stores encrypted restricted notes, binds the authenticated actor, and appends corrections without mutating prior responses. The organizer workspace now exposes the current response ID and provides English/Bosnian capture controls.
-- [ ] Guest portal and privacy-safe personal view.
-- [ ] Event cancellation/postponement, RSVP reconfirmation, notification audiences and tracked cancellation campaigns ([Issue #21](https://github.com/TeraflopsBH/eventor/issues/21)).
+**Existing foundation:** capability-protected invitation links, RSVP, staff-recorded response/correction and invitation management UI.
 
-## Phase 4 — Venue spatial model and seating
+- [ ] Complete batch invitations, reminders, delivery controls and full guest communication history.
+- [ ] Build branded guest portal/PWA with event information and personal permitted data.
+- [ ] Show the guest's own allocation and safe map/wayfinding, including accessibility information.
+- [ ] Design and implement a separate admission credential lifecycle; invitation links are not admission passes.
+- [ ] Generate revocable opaque QR credentials and printable guest cards.
+- [ ] Implement gate scanning UI/PWA, station/operator management, manual lookup and correction.
+- [ ] Prevent duplicate admission and preserve audit history across multiple gates.
+- [ ] Add real-time synchronization and bounded offline tolerance with explicit reconciliation.
+- [ ] Keep invitation, RSVP, eligibility and physical attendance as separate facts.
 
-- [ ] Venue geometry, floors, rooms, zones, rows, positions and capacity pools.
-- [ ] SVG floor-plan editor and versioned maps.
-- [ ] Manual and category-based allocation.
-- [ ] Constraint model, diagnostics and solver integration.
-- [ ] Proposal preview, locking, scoped reruns and explicit commit.
-- [ ] Sanitized guest-facing map rendering.
+## Phase 6 — Event-day operations and collaboration
 
-## Phase 5 — Check-in and live operations
+- [ ] Build the Live Event Operations Cockpit with role-scoped live metrics, map layers, alerts, timeline and interventions.
+- [ ] Add role-specific reception, gate, seating, venue, floor/zone and management workspaces.
+- [ ] Implement staff/vendor assignments, deliverables, deadlines, evidence and scoped collaboration.
+- [ ] Implement external prerequisite/CDI tracking as a readiness checklist (request, responsible party, schedule, status, completion and restricted references).
+- [ ] Add transactional-outbox-backed realtime updates and reconnect/resynchronization.
+- [ ] Add read-only information display panels for welcome, session, venue, seating, directions and announcements.
+- [ ] Add operational reports, exports, printable plans, guest cards and signage.
 
-- [ ] QR issuance and revocation.
-- [ ] Staff check-in PWA and attendance corrections.
-- [ ] Live operations cockpit and role-specific workspaces.
-- [ ] Real-time events, alerts, readiness and operational audit.
-- [ ] Reports, signage and guest materials.
+## Phase 7 — Communications, branding and configuration
 
-## Phase 6 — Hardening and deployment
+- [ ] Build a real email template composer/editor (not merely campaign review).
+- [ ] Support plain text and HTML, variables, validation, preview, test-send, localization and revision history.
+- [ ] Support approved bulk send, reminders, audience selection, retries and ambiguous-outcome reconciliation.
+- [ ] Implement organization → venue → event branding inheritance and pinned asset/template revisions.
+- [ ] Complete reusable forms and data/request submission workflows for guest registration and vendor/staff operations where required.
+- [ ] Complete localization and accessibility across all user-facing modules.
+- [ ] Add configurable reporting and document templates.
 
-- [ ] Security review and threat model.
-- [ ] Backup/restore and disaster-recovery validation.
-- [ ] Performance, accessibility and browser/device testing.
-- [ ] Monitoring, logs and operational runbooks.
-- [ ] Pilot deployment, user acceptance and production readiness.
+## Phase 8 — Installation, upgrade and operations
+
+One release artifact must support two equivalent installation modes.
+
+### Native Linux
+- [ ] Dependency and supported-distribution detection.
+- [ ] Dedicated service identities, filesystem permissions and secure secret provisioning.
+- [ ] PostgreSQL setup/connection, migration and least-privilege role provisioning.
+- [ ] API, worker and frontend deployment with systemd services.
+- [ ] Reverse-proxy/HTTPS integration and trusted-proxy configuration.
+- [ ] Initial administrator/bootstrap flow and configuration validation.
+- [ ] Upgrade, rollback, backup/restore and service health commands.
+
+### Docker Compose
+- [ ] Production-oriented Compose topology for API, worker, frontend/reverse proxy and PostgreSQL as appropriate.
+- [ ] Persistent volumes, non-root containers, health checks and dependency readiness.
+- [ ] Secret/environment handling without committing credentials or baking them into images.
+- [ ] Migration and initial-admin bootstrap workflow.
+- [ ] Upgrade, rollback, backup/restore and log/health procedures.
+- [ ] Document external reverse-proxy use and optional bundled proxy topology.
+
+### Shared release requirements
+- [ ] Both modes use the same application build, migrations, configuration schema and security defaults.
+- [ ] Installer offers a clear native-versus-Docker choice and validates prerequisites before changing the host.
+- [ ] Idempotent install/upgrade behavior and safe failure recovery.
+- [ ] Document supported Linux versions, resource sizing, networking, SMTP and DNS/TLS options.
+- [ ] Local email capture (for example, Mailpit) supported for development/testing; external SMTP is configurable, not mandatory for local development.
+
+## Phase 9 — Integrated release candidate and final acceptance
+
+**The `eventor-acceptance` QEMU/KVM VM is deliberately reserved for this final phase.** It is not the environment for early feature discovery.
+
+- [ ] Freeze a coherent release candidate after Phases 1–8 are functionally complete.
+- [ ] Run a clean native installation on the acceptance VM.
+- [ ] Run a clean Docker Compose installation on the acceptance VM.
+- [ ] Exercise upgrade and rollback paths for both deployment modes.
+- [ ] Execute complete venue booking and organizer event workflows.
+- [ ] Execute guest import, invitations, RSVP, seating, QR admission and multi-gate check-in.
+- [ ] Exercise cockpit, vendor/staff coordination, CDI readiness and information displays.
+- [ ] Test email capture and at least one external SMTP sandbox/provider.
+- [ ] Validate public HTTPS with the intended reverse proxy/tunnel and domain.
+- [ ] Rehearse representative database upgrade, off-host backup/restore, PITR and encryption-key recovery.
+- [ ] Run security, tenant isolation, accessibility, browser/device, load and failure-recovery checks.
+- [ ] Record evidence and unresolved limitations; do not claim production readiness without passing gates.
+
+## Scope and product-owner dependencies
+
+- The platform remains reusable and self-hosted; GHB is the first reference organization, not a hardcoded product boundary.
+- Booking-only venue-provider use must remain possible without activating organizer guest/event capabilities.
+- Venue facts, capacities, prices, approval authorities, cancellation terms and operational policies require owner confirmation before being enforced as GHB-specific configuration.
+- The application records external coordination and assigned responsibilities; it does not implement law-enforcement or inspection activity.
+- No real guest information, credentials, invitation tokens, private venue drawings or operationally sensitive source material may be committed.
+
+## Current priority
+
+Proceed with **Phase 1 audit/closure and Phase 2 event/Guest Registry foundation**. Do not start the acceptance VM stage until the application and both installers form a coherent release candidate.
