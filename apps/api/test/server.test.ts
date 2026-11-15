@@ -106,6 +106,7 @@ function makePool() {
   let externalBookingCapabilityRevokeCalls = 0;
   let externalBookingCapabilityResolveCalls = 0;
   let externalBookingCancellationSubmitCalls = 0;
+  let externalBookingCancellationStatusCalls = 0;
   let bookingCancellationQueueCalls = 0;
   let bookingCancellationBookingGetCalls = 0;
   let bookingCancellationRequestSubmitCalls = 0;
@@ -844,6 +845,17 @@ function makePool() {
           latestCancellationRequest: null,
         } }], rowCount: 1 };
       }
+      if (normalized.includes("eogp.get_external_booking_cancellation_request_status(")) {
+        externalBookingCancellationStatusCalls += 1;
+        commandCalls.push({ sql: normalized, values });
+        return { rows: [{ result: {
+          requestId: values[1],
+          bookingCode: "BKG-CANCEL-001",
+          status: "under_review",
+          requestedAt: "2026-11-15T14:10:00.000Z",
+          resolvedAt: null,
+        } }], rowCount: 1 };
+      }
       if (normalized.includes("eogp.submit_external_booking_cancellation_request(")) {
         externalBookingCancellationSubmitCalls += 1;
         commandCalls.push({ sql: normalized, values });
@@ -1114,6 +1126,7 @@ function makePool() {
     get externalBookingCapabilityRevokeCalls() { return externalBookingCapabilityRevokeCalls; },
     get externalBookingCapabilityResolveCalls() { return externalBookingCapabilityResolveCalls; },
     get externalBookingCancellationSubmitCalls() { return externalBookingCancellationSubmitCalls; },
+    get externalBookingCancellationStatusCalls() { return externalBookingCancellationStatusCalls; },
     get bookingCancellationQueueCalls() { return bookingCancellationQueueCalls; },
     get bookingCancellationBookingGetCalls() { return bookingCancellationBookingGetCalls; },
     get bookingCancellationRequestSubmitCalls() { return bookingCancellationRequestSubmitCalls; },
@@ -3234,4 +3247,31 @@ test("external customer cancellation request encrypts the explanation and uses c
   assert.ok(Buffer.isBuffer(call.values[4]));
   assert.equal((call.values[4] as Buffer).subarray(0, 3).toString("ascii"), "EV1");
   assert.equal((call.values[4] as Buffer).includes(Buffer.from(explanation)), false);
+});
+
+
+test("external customer can read only their cancellation request status using a status capability", async (t) => {
+  const mock = makePool();
+  const app = makeApi(mock.pool, { authenticated: false });
+  t.after(async () => app.close());
+  const token = "V".repeat(43);
+  const requestId = "24242424-2424-4424-8424-242424242424";
+  const response = await app.inject({
+    method: "GET",
+    url: `/external/booking-actions/cancellation-requests/${requestId}`,
+    headers: { "x-external-booking-token": token },
+  });
+  assert.equal(response.statusCode, 200);
+  const data = response.json<{ data: { requestId: string; bookingCode: string; status: string } }>().data;
+  assert.equal(data.requestId, requestId);
+  assert.equal(data.bookingCode, "BKG-CANCEL-001");
+  assert.equal(data.status, "under_review");
+  assert.equal(response.headers["cache-control"], "no-store, private");
+  assert.equal(mock.externalBookingCancellationStatusCalls, 1);
+  const call = mock.commandCalls.find((entry) => entry.sql.includes("eogp.get_external_booking_cancellation_request_status("));
+  assert.ok(call);
+  assert.deepEqual(call.values, [
+    createHash("sha256").update(token, "utf8").digest("hex"),
+    requestId,
+  ]);
 });
