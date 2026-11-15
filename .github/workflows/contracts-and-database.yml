@@ -131,6 +131,7 @@ jobs:
           bash -n scripts/db/test_guest_invitation_command_authorization_lock.sh
           bash -n scripts/db/test-concurrency.sh
           bash -n scripts/db/test-migrations.sh
+          bash -n scripts/db/test-migration-history-gap.sh
 
       - name: Bootstrap least-privilege roles
         run: |
@@ -148,6 +149,9 @@ jobs:
             -c "ALTER ROLE eventor_worker WITH PASSWORD 'eventor_ci_worker_password';"
           psql "$ADMIN_URL" -X -v ON_ERROR_STOP=1 \
             -c "ALTER ROLE eventor_auth WITH PASSWORD 'eventor_ci_auth_password';"
+
+      - name: Verify migration runner rejects missing historical migrations
+        run: bash scripts/db/test-migration-history-gap.sh
 
       - name: Confirm PostgreSQL major and extension availability
         run: |
