@@ -3016,7 +3016,11 @@ test("booking cancellation request detail projection is permission-scoped and om
   });
   assert.equal(response.statusCode, 200);
   assert.equal(response.headers["cache-control"], "no-store, private");
-  const items = response.json<{ data: Array<Record<string, unknown>> }>().data;
+  const envelope = response.json<{ data: Array<Record<string, unknown>>; meta: { limit: number; totalCount: number; nextCursor: string | null } }>();
+  const items = envelope.data;
+  assert.equal(envelope.meta.limit, 1);
+  assert.equal(envelope.meta.totalCount, 1);
+  assert.equal(envelope.meta.nextCursor, null);
   assert.equal(items.length, 1);
   assert.equal(items[0]?.bookingId, bookingId);
   assert.equal(items[0]?.status, "submitted");
