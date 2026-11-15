@@ -9,6 +9,8 @@ DECLARE
   can_bypass boolean;
   public_definer_functions text;
   tenant_tables_without_forced_rls text;
+  v_role text;
+  v_function text;
 BEGIN
   SELECT count(id) INTO organization_count FROM eogp.organizations;
   SELECT count(id) INTO membership_count FROM eogp.organization_memberships;
@@ -84,27 +86,70 @@ BEGIN
     RAISE EXCEPTION 'authentication/business roles have table-wide identity privileges; expected column-only auth access';
   END IF;
 
-  -- Delegated task records contain owner-tenant operational data. The runtime
-  -- must use the allowlisted SECURITY DEFINER projection and audited command.
-  IF has_table_privilege('eventor_runtime','eogp.event_responsibility_assignments','SELECT')
-     OR has_table_privilege('eventor_runtime','eogp.event_responsibility_assignments','INSERT')
-     OR has_table_privilege('eventor_runtime','eogp.event_responsibility_assignments','UPDATE')
-     OR has_table_privilege('eventor_runtime','eogp.event_responsibility_assignments','DELETE')
-     OR has_table_privilege('eventor_worker','eogp.event_responsibility_assignments','SELECT')
-     OR has_table_privilege('eventor_worker','eogp.event_responsibility_assignments','UPDATE') THEN
-    RAISE EXCEPTION 'application roles have direct access to delegated task records';
+  -- Delegated task records contain owner-tenant operational data. Every
+  -- application role must be denied both table-level and column-level access;
+  -- checking only has_table_privilege would miss explicit column grants.
+  FOREACH v_role IN ARRAY ARRAY['eventor_runtime','eventor_worker','eventor_auth'] LOOP
+    IF has_table_privilege(v_role,'eogp.event_responsibility_assignments','SELECT')
+       OR has_table_privilege(v_role,'eogp.event_responsibility_assignments','INSERT')
+       OR has_table_privilege(v_role,'eogp.event_responsibility_assignments','UPDATE')
+       OR has_table_privilege(v_role,'eogp.event_responsibility_assignments','DELETE')
+       OR has_table_privilege(v_role,'eogp.event_responsibility_assignments','TRUNCATE')
+       OR has_any_column_privilege(v_role,'eogp.event_responsibility_assignments','SELECT')
+       OR has_any_column_privilege(v_role,'eogp.event_responsibility_assignments','INSERT')
+       OR has_any_column_privilege(v_role,'eogp.event_responsibility_assignments','UPDATE') THEN
+      RAISE EXCEPTION 'application role % has direct access to delegated task records',v_role;
+    END IF;
+  END LOOP;
+  IF EXISTS (
+    SELECT 1
+      FROM pg_class relation
+      JOIN pg_namespace namespace ON namespace.oid=relation.relnamespace
+      CROSS JOIN LATERAL aclexplode(
+        coalesce(relation.relacl,acldefault('r',relation.relowner))
+      ) privilege
+     WHERE namespace.nspname='eogp'
+       AND relation.relname='event_responsibility_assignments'
+       AND privilege.grantee=0
+  ) THEN
+    RAISE EXCEPTION 'PUBLIC has direct privileges on delegated task records';
   END IF;
 
   -- Permission predicates are implementation helpers, not public database
-  -- APIs. Only their SECURITY DEFINER command callers should reach them.
-  IF has_function_privilege('eventor_runtime','eogp.assert_event_command_permission(uuid,uuid,uuid,text)','EXECUTE')
-     OR has_function_privilege('eventor_runtime','eogp.assert_booking_inquiry_permission(uuid,uuid,text)','EXECUTE')
-     OR has_function_privilege('eventor_runtime','eogp.assert_booking_draft_permission(uuid,uuid,uuid,text)','EXECUTE')
-     OR has_function_privilege('eventor_runtime','eogp.assert_booking_commercial_permission(uuid,uuid,text[])','EXECUTE')
-     OR has_function_privilege('eventor_runtime','eogp.assert_collaboration_manage_permission(uuid,uuid)','EXECUTE')
-     OR has_function_privilege('eventor_worker','eogp.assert_collaboration_manage_permission(uuid,uuid)','EXECUTE')
-     OR has_function_privilege('eventor_auth','eogp.assert_collaboration_manage_permission(uuid,uuid)','EXECUTE') THEN
-    RAISE EXCEPTION 'application role can execute an internal authorization helper directly';
+  -- APIs. None of the application roles or PUBLIC may execute them directly.
+  FOREACH v_role IN ARRAY ARRAY['eventor_runtime','eventor_worker','eventor_auth'] LOOP
+    FOREACH v_function IN ARRAY ARRAY[
+      'eogp.assert_event_command_permission(uuid,uuid,uuid,text)',
+      'eogp.assert_booking_inquiry_permission(uuid,uuid,text)',
+      'eogp.assert_booking_draft_permission(uuid,uuid,uuid,text)',
+      'eogp.assert_booking_commercial_permission(uuid,uuid,text[])',
+      'eogp.assert_collaboration_manage_permission(uuid,uuid)'
+    ] LOOP
+      IF has_function_privilege(v_role,v_function,'EXECUTE') THEN
+        RAISE EXCEPTION 'application role % can execute internal authorization helper % directly',
+          v_role,v_function;
+      END IF;
+    END LOOP;
+  END LOOP;
+  IF EXISTS (
+    SELECT 1
+      FROM pg_proc routine
+      JOIN pg_namespace namespace ON namespace.oid=routine.pronamespace
+      CROSS JOIN LATERAL aclexplode(
+        coalesce(routine.proacl,acldefault('f',routine.proowner))
+      ) privilege
+     WHERE namespace.nspname='eogp'
+       AND routine.oid IN (
+         'eogp.assert_event_command_permission(uuid,uuid,uuid,text)'::regprocedure,
+         'eogp.assert_booking_inquiry_permission(uuid,uuid,text)'::regprocedure,
+         'eogp.assert_booking_draft_permission(uuid,uuid,uuid,text)'::regprocedure,
+         'eogp.assert_booking_commercial_permission(uuid,uuid,text[])'::regprocedure,
+         'eogp.assert_collaboration_manage_permission(uuid,uuid)'::regprocedure
+       )
+       AND privilege.grantee=0
+       AND privilege.privilege_type='EXECUTE'
+  ) THEN
+    RAISE EXCEPTION 'PUBLIC can execute an internal authorization helper directly';
   END IF;
 
   IF NOT has_column_privilege(current_user, 'eogp.users', 'password_hash', 'SELECT')
