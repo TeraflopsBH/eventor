@@ -2888,7 +2888,7 @@ export function buildApi(dependencies: ApiDependencies): FastifyInstance {
 
   server.post<{
     Params: { bookingId: string };
-    Body: { reasonCode: string };
+    Body: { reasonCode: string; explanation?: string };
   }>(
     "/bookings/:bookingId/cancellation-requests",
     {
@@ -2904,13 +2904,25 @@ export function buildApi(dependencies: ApiDependencies): FastifyInstance {
     },
     async (request, reply) => {
       const principal = request.staffPrincipal!;
+      const explanation = request.body.explanation?.trim() || null;
+      let explanationCiphertext: Buffer | null = null;
+      if (explanation) {
+        const key = dependencies.contactEncryptionKey;
+        if (!key || key.length !== 32) {
+          throw new ApiError(503, "BOOKING_CANCELLATION_ENCRYPTION_UNAVAILABLE", "Private cancellation explanations cannot be stored securely right now.");
+        }
+        explanationCiphertext = encryptContactValue(
+          explanation, key, { organizationId: principal.organizationId, contactKind: "other" },
+        );
+      }
       return withCommand(
         request, reply, "submitBookingCancellationRequest",
-        { bookingId: request.params.bookingId, ...request.body },
+        { bookingId: request.params.bookingId, reasonCode: request.body.reasonCode, explanation },
         async (client) => {
           const result = await client.query<ResultRow>(
-            "SELECT eogp.submit_booking_cancellation_request($1::uuid,$2::uuid,$3::uuid,$4::text,NULL::bytea) AS result",
-            [principal.organizationId, request.params.bookingId, principal.membershipId, request.body.reasonCode],
+            "SELECT eogp.submit_booking_cancellation_request($1::uuid,$2::uuid,$3::uuid,$4::text,$5::bytea) AS result",
+            [principal.organizationId, request.params.bookingId, principal.membershipId,
+              request.body.reasonCode, explanationCiphertext],
           );
           return result.rows[0]?.result as Record<string, unknown>;
         },
