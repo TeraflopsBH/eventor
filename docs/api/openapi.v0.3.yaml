@@ -3774,66 +3774,6 @@ paths:
         '422': { $ref: '#/components/responses/UnprocessableEntity' }
         '429': { $ref: '#/components/responses/TooManyRequests' }
         '500': { $ref: '#/components/responses/InternalServerError' }
-  "/invitations/{invitationId}/reissue":
-    post:
-      tags: ["Invitations and RSVP"]
-      operationId: reissueInvitation
-      summary: "Issue a new invitation link revision"
-      security: [{ StaffSession: [], StaffCsrf: [] }]
-      parameters:
-        - $ref: '#/components/parameters/PInvitationId'
-        - $ref: '#/components/parameters/IdempotencyKey'
-      requestBody:
-        required: true
-        content:
-          application/json:
-            schema: { $ref: '#/components/schemas/InvitationReissueRequest' }
-      responses:
-        '202':
-          description: "Accepted for asynchronous processing."
-          content:
-            application/json:
-              schema: { $ref: '#/components/schemas/JobEnvelope' }
-        '400': { $ref: '#/components/responses/BadRequest' }
-        '401': { $ref: '#/components/responses/Unauthorized' }
-        '403': { $ref: '#/components/responses/Forbidden' }
-        '404': { $ref: '#/components/responses/NotFound' }
-        '409': { $ref: '#/components/responses/Conflict' }
-        '410': { $ref: '#/components/responses/Gone' }
-        '412': { $ref: '#/components/responses/PreconditionFailed' }
-        '422': { $ref: '#/components/responses/UnprocessableEntity' }
-        '429': { $ref: '#/components/responses/TooManyRequests' }
-        '500': { $ref: '#/components/responses/InternalServerError' }
-  "/invitations/{invitationId}/resend":
-    post:
-      tags: ["Invitations and RSVP"]
-      operationId: resendInvitation
-      summary: "Retry delivery of the current invitation revision"
-      security: [{ StaffSession: [], StaffCsrf: [] }]
-      parameters:
-        - $ref: '#/components/parameters/PInvitationId'
-        - $ref: '#/components/parameters/IdempotencyKey'
-      requestBody:
-        required: true
-        content:
-          application/json:
-            schema: { $ref: '#/components/schemas/InvitationDeliveryRequest' }
-      responses:
-        '202':
-          description: "Accepted for asynchronous processing."
-          content:
-            application/json:
-              schema: { $ref: '#/components/schemas/JobEnvelope' }
-        '400': { $ref: '#/components/responses/BadRequest' }
-        '401': { $ref: '#/components/responses/Unauthorized' }
-        '403': { $ref: '#/components/responses/Forbidden' }
-        '404': { $ref: '#/components/responses/NotFound' }
-        '409': { $ref: '#/components/responses/Conflict' }
-        '410': { $ref: '#/components/responses/Gone' }
-        '412': { $ref: '#/components/responses/PreconditionFailed' }
-        '422': { $ref: '#/components/responses/UnprocessableEntity' }
-        '429': { $ref: '#/components/responses/TooManyRequests' }
-        '500': { $ref: '#/components/responses/InternalServerError' }
   "/invitations/{invitationId}/delivery-attempts":
     get:
       tags: ["Invitations and RSVP"]
