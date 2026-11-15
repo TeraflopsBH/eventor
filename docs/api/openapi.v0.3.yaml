@@ -6216,6 +6216,7 @@ components:
           minLength: 2
           maxLength: 100
           pattern: '^[a-z][a-z0-9_]{1,99}'
+        explanation: { type: string, maxLength: 4000 }
     CancellationDecisionRequest:
       type: object
       required: [reason]
