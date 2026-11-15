@@ -179,6 +179,35 @@ test("staff login stores only hashed opaque session/CSRF tokens and authenticate
   assert.ok(mock.calls.some((call) => call.sql.startsWith("UPDATE eogp.user_sessions")));
 });
 
+test("failed staff login consumes exactly one atomic rate-limit reservation", async () => {
+  const passwordHash = await argon2.hash("correct horse battery staple", { type: argon2.argon2id });
+  const mock = makePool(passwordHash);
+  const auth = new PostgresStaffSessionAuth(mock.pool, {
+    allowedOrigins: [origin],
+    fingerprintKey: Buffer.alloc(32, 7),
+  });
+
+  await assert.rejects(
+    auth.createStaffSession(request(), {
+      email: "staff@example.test",
+      password: "incorrect horse battery staple",
+      organizationSlug: "event-owner",
+    }),
+    (error: unknown) => error instanceof SessionAuthError && error.status === 401,
+  );
+
+  assert.equal(
+    mock.calls.filter((call) => call.sql.startsWith("INSERT INTO eogp.auth_login_attempts")).length,
+    1,
+    "the failed request must be counted by its initial reservation, not a second post-verification write",
+  );
+  assert.equal(
+    mock.calls.some((call) => call.sql.startsWith("UPDATE eogp.auth_login_attempts")),
+    false,
+    "a failed login must not clear its reserved attempt",
+  );
+});
+
 test("staff login rejects a non-allow-listed origin", async () => {
   const mock = makePool("not-used");
   const auth = new PostgresStaffSessionAuth(mock.pool, {
