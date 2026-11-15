@@ -119,10 +119,18 @@ jobs:
       - name: Check out repository
         uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
 
-      - name: Install PostgreSQL client and shell tools
+      - name: Install PostgreSQL 18 client and shell tools
         run: |
+          sudo install -d /usr/share/postgresql-common/pgdg
+          curl --fail --silent --show-error https://www.postgresql.org/media/keys/ACCC4CF8.asc \
+            | sudo tee /usr/share/postgresql-common/pgdg/apt.postgresql.org.asc >/dev/null
+          echo "deb [signed-by=/usr/share/postgresql-common/pgdg/apt.postgresql.org.asc] https://apt.postgresql.org/pub/repos/apt $(. /etc/os-release && echo "$VERSION_CODENAME")-pgdg main" \
+            | sudo tee /etc/apt/sources.list.d/pgdg.list
           sudo apt-get update
-          sudo apt-get install --yes postgresql-client
+          sudo apt-get install --yes postgresql-client-18
+          psql --version
+          pg_dump --version
+          pg_restore --version
           bash -n scripts/db/migrate.sh
           bash -n scripts/db/test_resource_concurrency.sh
           bash -n scripts/db/test_space_expiry_confirmation_race.sh
