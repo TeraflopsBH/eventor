@@ -58,7 +58,7 @@ CREATE FUNCTION eogp.claim_booking_offer_email_delivery(
   capability_ciphertext bytea,recipient_ciphertext bytea,
   credentials_ciphertext bytea,smtp_settings jsonb,
   sender_email text,sender_name text,reply_to text,
-  valid_until timestamptz,currency text,total_amount numeric
+  valid_until timestamptz,currency text,total_amount numeric,customer_locale text
 )
 LANGUAGE plpgsql
 SECURITY DEFINER
@@ -164,11 +164,23 @@ BEGIN
          v_delivery.capability_ciphertext,v_delivery.recipient_ciphertext,
          config.credentials_ciphertext,config.settings,
          config.settings->>'senderEmail',config.settings->>'senderName',
-         config.settings->>'replyTo',revision.valid_until,revision.currency::text,revision.total_amount
+         config.settings->>'replyTo',revision.valid_until,revision.currency::text,revision.total_amount,
+         coalesce(inquiry.customer_locale,organization.default_locale,'en')
     FROM eogp.organization_delivery_config_revisions config
     JOIN eogp.booking_offer_revisions revision
       ON revision.organization_id=v_delivery.organization_id
      AND revision.id=v_delivery.offer_revision_id
+    JOIN eogp.booking_offers offer
+      ON offer.organization_id=v_delivery.organization_id
+     AND offer.id=v_delivery.offer_id
+    JOIN eogp.booking_drafts draft
+      ON draft.organization_id=offer.organization_id
+     AND draft.id=offer.draft_id
+    LEFT JOIN eogp.booking_inquiries inquiry
+      ON inquiry.organization_id=draft.organization_id
+     AND inquiry.id=draft.source_inquiry_id
+    JOIN eogp.organizations organization
+      ON organization.id=v_delivery.organization_id
    WHERE config.organization_id=p_organization_id
      AND config.id=v_delivery.delivery_config_revision_id;
 END;
