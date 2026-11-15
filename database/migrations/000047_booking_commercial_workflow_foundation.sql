@@ -154,7 +154,12 @@ CREATE POLICY booking_offer_approval_decisions_tenant_isolation
   USING (organization_id = eogp.current_organization_id())
   WITH CHECK (organization_id = eogp.current_organization_id());
 
-REVOKE ALL ON eogp.booking_approval_policies,
+-- These business and capability records are exposed only through the
+-- permission-checked SECURITY DEFINER commands, never by direct runtime SQL.
+REVOKE ALL ON eogp.booking_offers,
+  eogp.booking_offer_revisions,
+  eogp.external_action_capabilities,
+  eogp.booking_approval_policies,
   eogp.booking_approval_policy_revisions,
   eogp.booking_offer_decision_history,
   eogp.booking_offer_approval_decisions
