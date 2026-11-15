@@ -101,6 +101,7 @@ BEGIN
     RAISE EXCEPTION 'synthetic booking inquiry was not accepted: %',v_submitted;
   END IF;
   v_inquiry_id := (v_submitted->>'inquiryId')::uuid;
+  PERFORM set_config('app.actor_membership_id',v_actor::text,true);
   -- Public submission keeps the email envelope opaque; install a valid synthetic
   -- ECP1 envelope explicitly for the worker fixture, then replace it with real
   -- contact encryption in the Node smoke before any SMTP submission.
