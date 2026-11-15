@@ -20,7 +20,7 @@ BEGIN
     RAISE EXCEPTION 'restricted invitation delivery queue is missing capability ciphertext';
   END IF;
 
-  IF position('delivery.capability_ciphertext' IN
+  IF position('v_delivery.capability_ciphertext' IN
       pg_get_functiondef('eogp.claim_invitation_email_delivery(uuid)'::regprocedure))=0 THEN
     RAISE EXCEPTION 'invitation delivery claim does not read the restricted delivery envelope';
   END IF;
