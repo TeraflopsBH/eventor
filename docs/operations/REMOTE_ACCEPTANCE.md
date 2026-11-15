@@ -8,7 +8,7 @@ This runbook describes what the GitHub-hosted acceptance workflow verifies witho
 - API/OpenAPI and staff-web tests, type-checks, production build and dependency audits.
 - Real PostgreSQL-backed execution of both the event-notification and booking-offer TypeScript SMTP workers using deterministic in-memory SMTP transports. The booking-offer lane verifies encrypted recipient/capability handling, a retryable SMTP failure, a subsequent successful attempt, and concurrent worker claims without duplicate submission. No external mail is sent.
 - Chromium and Firefox browser checks for staff login, Secure/HttpOnly cookie persistence, session restoration through `GET /me`, CSRF-protected mutation, logout and revocation.
-- Upgrade rehearsal from the immediately preceding committed migration baseline (version 72) to version 73, with representative data present across the upgrade.
+- Upgrade rehearsal from the immediately preceding committed migration baseline (version 72) through versions 73 and 74, with representative data present across the upgrade.
 - Logical PostgreSQL backup/restore rehearsal into a separate ephemeral database, followed by schema-ledger and data-count verification.
 - Full reachable Git-history secret scanning.
 
