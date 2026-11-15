@@ -309,7 +309,7 @@ VALUES
  ('10000000-0000-0000-0000-00000000000a',
   'f0000000-0000-0000-0000-00000000000a',
   'e0000000-0000-0000-0000-00000000000a',
-  NULL,
+  'a5000000-0000-0000-0000-00000000000a',
   '{}'::jsonb, '{}'::jsonb,
   '30000000-0000-0000-0000-00000000000a',
   repeat('f',64));
@@ -330,6 +330,17 @@ VALUES
   'a4000000-0000-0000-0000-00000000000a',
   1,'approval_required','{}'::jsonb,'{}'::jsonb,'{}'::jsonb,
   'CI policy terms','published',clock_timestamp());
+
+-- A second published revision is deliberately not pinned to this booking.
+INSERT INTO eogp.cancellation_policy_revisions
+ (id, organization_id, cancellation_policy_id, revision_number, customer_mode,
+  approval_rules, commercial_rules, notice_rules, public_terms, state, published_at)
+VALUES
+ ('a6000000-0000-0000-0000-00000000000a',
+  '10000000-0000-0000-0000-00000000000a',
+  'a4000000-0000-0000-0000-00000000000a',
+  2,'approval_required','{}'::jsonb,'{}'::jsonb,'{}'::jsonb,
+  'CI later policy terms','published',clock_timestamp());
 
 INSERT INTO eogp.booking_party_contacts
  (id, organization_id, booking_id, party_role, display_name_ciphertext, email_hash, email_ciphertext, authorized_actions)
@@ -380,7 +391,7 @@ BEGIN
       ('10000000-0000-0000-0000-00000000000a',
        'f0000000-0000-0000-0000-00000000000a',
        'a3000000-0000-0000-0000-00000000000a',
-       'a5000000-0000-0000-0000-00000000000a',
+       'a6000000-0000-0000-0000-00000000000a',
        '{}'::jsonb, NULL,
        'a2000000-0000-0000-0000-00000000000a','external_capability');
     RAISE EXCEPTION 'cancellation effect accepted an unpinned policy revision';
