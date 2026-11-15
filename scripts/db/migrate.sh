@@ -29,6 +29,28 @@ shopt -s nullglob
 files=("$MIGRATIONS_DIR"/[0-9][0-9][0-9][0-9][0-9][0-9]_*.sql)
 (("${#files[@]}" > 0)) || { echo "No migration files found in $MIGRATIONS_DIR" >&2; exit 1; }
 
+# Refuse to apply a missing historical migration after a later version is
+# already recorded. This commonly indicates that a database was initialized
+# from a prior baseline whose schema is not represented by this migration set.
+highest_applied="$(psql "$DATABASE_URL" -X -qAt -v ON_ERROR_STOP=1 \
+  -c "SET ROLE eventor_owner; SELECT COALESCE(max(version), '') FROM eogp.schema_migrations")"
+
+if [[ -n "$highest_applied" ]]; then
+  for file in "${files[@]}"; do
+    filename="$(basename "$file")"
+    version="${filename%%_*}"
+    if [[ "$version" < "$highest_applied" ]]; then
+      recorded="$(psql "$DATABASE_URL" -X -qAt -v ON_ERROR_STOP=1 \
+        -c "SET ROLE eventor_owner; SELECT 1 FROM eogp.schema_migrations WHERE version = '$version'")"
+      if [[ -z "$recorded" ]]; then
+        echo "Migration history gap: $filename is missing but later migration $highest_applied is already recorded." >&2
+        echo "Refusing to apply historical migrations out of order; reconcile the database baseline and ledger first." >&2
+        exit 1
+      fi
+    fi
+  done
+fi
+
 for file in "${files[@]}"; do
   filename="$(basename "$file")"
   version="${filename%%_*}"
