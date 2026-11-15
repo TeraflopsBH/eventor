@@ -589,6 +589,26 @@ const bookingConfirmationBody = {
   },
   additionalProperties: false,
 } as const;
+const externalBookingActionCapabilityBody = {
+  type: "object",
+  required: ["bookingContactId", "action", "expiresAt"],
+  properties: {
+    bookingContactId: { type: "string", pattern: uuidPattern },
+    action: { type: "string", enum: ["booking_cancellation_request", "booking_cancellation_status"] },
+    expiresAt: { type: "string", format: "date-time" },
+    maxUses: { type: "integer", minimum: 1, maximum: 20, default: 1 },
+  },
+  additionalProperties: false,
+} as const;
+const externalBookingActionResolveBody = {
+  type: "object",
+  required: ["action"],
+  properties: {
+    action: { type: "string", enum: ["booking_cancellation_request", "booking_cancellation_status"] },
+  },
+  additionalProperties: false,
+} as const;
+
 const bookingOfferApprovalBody = {
   type: "object",
   required: ["offerRevisionId", "ruleCode", "decision", "reason"],
@@ -1364,7 +1384,10 @@ export function buildApi(dependencies: ApiDependencies): FastifyInstance {
       request.method === "POST" &&
       (pathname === "/guest/invitation/resolve" || pathname === "/guest/invitation/me/rsvp")
     );
-    if (publicBookingFormRead || publicBookingInquiryWrite || publicOfferDecision || publicOfferView || publicGuestInvitation) {
+    const publicExternalBookingAction = request.method === "POST" &&
+      (pathname === "/external/booking-actions/resolve"
+        || pathname === "/external/booking-actions/cancellation-requests");
+    if (publicBookingFormRead || publicBookingInquiryWrite || publicOfferDecision || publicOfferView || publicGuestInvitation || publicExternalBookingAction) {
       // Public intake and purpose-bound offer decisions authenticate through their own capability.
       request.staffPrincipal = null;
       return;
@@ -2843,6 +2866,205 @@ export function buildApi(dependencies: ApiDependencies): FastifyInstance {
         }, async (client) => {
       await authorizeBookingCommercialReplay(client, principal, "booking.manage");
     });
+    },
+  );
+
+  server.post<{
+    Params: { bookingId: string };
+    Body: { bookingContactId: string; action: "booking_cancellation_request" | "booking_cancellation_status"; expiresAt: string; maxUses?: number };
+  }>(
+    "/bookings/:bookingId/external-action-capabilities",
+    {
+      schema: {
+        params: { type: "object", required: ["bookingId"], properties: { bookingId: { type: "string", pattern: uuidPattern } }, additionalProperties: false },
+        headers: idempotencyHeaders,
+        body: externalBookingActionCapabilityBody,
+      },
+    },
+    async (request, reply) => {
+      const principal = request.staffPrincipal!;
+      const capabilityKey = dependencies.bookingCapabilityKey;
+      if (!capabilityKey || capabilityKey.length !== 32) {
+        throw new ApiError(503, "BOOKING_CAPABILITY_KEY_UNAVAILABLE", "External booking action capability issuance is not configured.");
+      }
+      const idempotencyKey = request.headers["idempotency-key"];
+      if (typeof idempotencyKey !== "string") {
+        throw new ApiError(400, "IDEMPOTENCY_KEY_REQUIRED", "A valid Idempotency-Key header is required.");
+      }
+      const expiresAt = new Date(request.body.expiresAt);
+      if (!Number.isFinite(expiresAt.getTime())
+          || expiresAt.getTime() <= Date.now()
+          || expiresAt.getTime() > Date.now() + 180 * 24 * 60 * 60 * 1000) {
+        throw new ApiError(422, "EXTERNAL_CAPABILITY_EXPIRY_INVALID", "Capability expiry must be within the next 180 days.");
+      }
+      const maxUses = request.body.maxUses ?? 1;
+      if (request.body.action === "booking_cancellation_request" && maxUses !== 1) {
+        throw new ApiError(422, "EXTERNAL_CANCELLATION_CAPABILITY_SINGLE_USE", "Cancellation request capabilities must be single-use.");
+      }
+      const capabilityToken = createHmac("sha256", capabilityKey)
+        .update(JSON.stringify({
+          purpose: "eventor:external-booking-action-capability:v1",
+          organizationId: principal.organizationId,
+          membershipId: principal.membershipId,
+          bookingId: request.params.bookingId,
+          bookingContactId: request.body.bookingContactId,
+          action: request.body.action,
+          expiresAt: expiresAt.toISOString(),
+          maxUses,
+          idempotencyKey,
+        }), "utf8")
+        .digest("base64url");
+      const tokenHash = createHash("sha256").update(capabilityToken, "utf8").digest("hex");
+      const command = await runIdempotentCommand(
+        dependencies, principal, "issueExternalBookingActionCapability", idempotencyKey,
+        { bookingId: request.params.bookingId, ...request.body, expiresAt: expiresAt.toISOString(), maxUses },
+        async (client) => {
+          const result = await client.query<ResultRow>(
+            "SELECT eogp.issue_external_booking_action_capability($1::uuid,$2::uuid,$3::uuid,$4::uuid,$5::text,$6::text,$7::timestamptz,$8::integer) AS result",
+            [principal.organizationId, request.params.bookingId, request.body.bookingContactId,
+              principal.membershipId, request.body.action, tokenHash, expiresAt, maxUses],
+          );
+          return result.rows[0]?.result as Record<string, unknown>;
+        },
+        async (client) => authorizeBookingCancellationReplay(
+          client, principal, request.params.bookingId, "booking.manage",
+        ),
+      );
+      const data = command.body.data as Record<string, unknown>;
+      return reply.code(command.status).send({ data: { ...data, token: capabilityToken } });
+    },
+  );
+
+  server.post<{
+    Params: { bookingId: string; capabilityId: string };
+    Body: { reason: string };
+  }>(
+    "/bookings/:bookingId/external-action-capabilities/:capabilityId/revoke",
+    {
+      schema: {
+        params: {
+          type: "object", required: ["bookingId", "capabilityId"],
+          properties: { bookingId: { type: "string", pattern: uuidPattern }, capabilityId: { type: "string", pattern: uuidPattern } },
+          additionalProperties: false,
+        },
+        headers: idempotencyHeaders,
+        body: reasonBody,
+      },
+    },
+    async (request, reply) => {
+      const principal = request.staffPrincipal!;
+      return withCommand(
+        request, reply, "revokeExternalBookingActionCapability",
+        { bookingId: request.params.bookingId, capabilityId: request.params.capabilityId, reason: request.body.reason },
+        async (client) => {
+          const result = await client.query<ResultRow>(
+            "SELECT eogp.revoke_external_booking_action_capability($1::uuid,$2::uuid,$3::uuid,$4::uuid,$5::text) AS result",
+            [principal.organizationId, request.params.bookingId, request.params.capabilityId,
+              principal.membershipId, request.body.reason],
+          );
+          return result.rows[0]?.result as Record<string, unknown>;
+        },
+        async (client) => authorizeBookingCancellationReplay(
+          client, principal, request.params.bookingId, "booking.manage",
+        ),
+      );
+    },
+  );
+
+  server.post<{
+    Body: { action: "booking_cancellation_request" | "booking_cancellation_status" };
+  }>(
+    "/external/booking-actions/resolve",
+    {
+      schema: {
+        headers: publicOfferDecisionHeaders,
+        body: externalBookingActionResolveBody,
+      },
+    },
+    async (request, reply) => {
+      const token = request.headers["x-external-booking-token"];
+      if (typeof token !== "string" || !/^[A-Za-z0-9_-]{43}$/.test(token)) {
+        throw new ApiError(401, "BOOKING_ACTION_CAPABILITY_REQUIRED", "A valid external booking action capability is required.");
+      }
+      const tokenHash = createHash("sha256").update(token, "utf8").digest("hex");
+      const client = await dependencies.pool.connect();
+      try {
+        await client.query("BEGIN");
+        const result = await client.query<ResultRow>(
+          "SELECT eogp.resolve_external_booking_action_capability($1::text,$2::text) AS result",
+          [tokenHash, request.body.action],
+        );
+        await client.query("COMMIT");
+        const raw = result.rows[0]?.result as Record<string, unknown> | undefined;
+        if (!raw) throw new ApiError(404, "BOOKING_ACTION_CAPABILITY_NOT_FOUND", "The external booking action is not available.");
+        const { organizationId: _organizationId, bookingId: _bookingId, ...data } = raw;
+        reply.header("Cache-Control", "no-store, private");
+        reply.header("Referrer-Policy", "no-referrer");
+        reply.header("X-Robots-Tag", "noindex, nofollow, noarchive");
+        return reply.code(200).send({ data });
+      } catch (error) {
+        try { await client.query("ROLLBACK"); } catch { /* preserve the resolve error */ }
+        throw databaseError(error);
+      } finally {
+        client.release();
+      }
+    },
+  );
+
+  server.post<{
+    Body: { reasonCode: string; explanation?: string };
+  }>(
+    "/external/booking-actions/cancellation-requests",
+    {
+      schema: {
+        headers: publicOfferDecisionHeaders,
+        body: {
+          type: "object", required: ["reasonCode"],
+          properties: {
+            reasonCode: { type: "string", minLength: 2, maxLength: 100, pattern: "^[a-z][a-z0-9_]*$" },
+            explanation: { type: "string", maxLength: 4000 },
+          },
+          additionalProperties: false,
+        },
+      },
+    },
+    async (request, reply) => {
+      const token = request.headers["x-external-booking-token"];
+      const idempotencyKey = request.headers["idempotency-key"];
+      if (typeof token !== "string" || !/^[A-Za-z0-9_-]{43}$/.test(token)
+          || typeof idempotencyKey !== "string" || idempotencyKey.length < 8 || idempotencyKey.length > 200) {
+        throw new ApiError(401, "BOOKING_ACTION_CAPABILITY_REQUIRED", "A valid external booking action capability and idempotency key are required.");
+      }
+      const explanation = request.body.explanation?.trim() || null;
+      const explanationCiphertext = explanation
+        ? encryptPrivateText(explanation, dependencies.privateFieldEncryptionKey)
+        : null;
+      const tokenHash = createHash("sha256").update(token, "utf8").digest("hex");
+      const idempotencyHash = createHash("sha256").update(idempotencyKey, "utf8").digest("hex");
+      const payloadHash = requestHash(
+        { reasonCode: request.body.reasonCode, explanation },
+        dependencies.privateFieldEncryptionKey,
+      );
+      const client = await dependencies.pool.connect();
+      try {
+        await client.query("BEGIN");
+        const result = await client.query<ResultRow>(
+          "SELECT eogp.submit_external_booking_cancellation_request($1::text,$2::text,$3::text,$4::text,$5::bytea) AS result",
+          [tokenHash, idempotencyHash, payloadHash, request.body.reasonCode, explanationCiphertext],
+        );
+        await client.query("COMMIT");
+        const data = result.rows[0]?.result as Record<string, unknown> | undefined;
+        if (!data) throw new ApiError(500, "BOOKING_CANCELLATION_RESULT_MISSING", "The cancellation request was not recorded.");
+        reply.header("Cache-Control", "no-store, private");
+        reply.header("Referrer-Policy", "no-referrer");
+        reply.header("X-Robots-Tag", "noindex, nofollow, noarchive");
+        return reply.code(201).send({ data });
+      } catch (error) {
+        try { await client.query("ROLLBACK"); } catch { /* preserve the submission error */ }
+        throw databaseError(error);
+      } finally {
+        client.release();
+      }
     },
   );
 
