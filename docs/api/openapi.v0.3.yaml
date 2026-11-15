@@ -3566,7 +3566,7 @@ paths:
               type: object
               required: [reasonCode]
               properties:
-                reasonCode: { type: string, minLength: 3, maxLength: 80, pattern: '^[a-z][a-z0-9_.-]*
+                reasonCode: { type: string, minLength: 3, maxLength: 80, pattern: '^[a-z][a-z0-9_.-]*$' }
     get:
       tags: ["Guest RSVP"]
       operationId: getMyInvitation
