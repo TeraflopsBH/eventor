@@ -3121,7 +3121,7 @@ test("staff cancellation decision records approval with an explicit reason", asy
 
   const response = await app.inject({
     method: "POST",
-    url: `/booking-cancellation-requests/${requestId}/decision`,
+    url: `/bookings/17171717-1717-4171-8171-171717171717/cancellation-requests/${requestId}/decision`,
     headers,
     payload,
   });
