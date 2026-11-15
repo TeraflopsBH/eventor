@@ -315,11 +315,12 @@ function makePool() {
       }
       if (normalized.includes("eogp.save_booking_offer_revision(")) {
         commandCalls.push({ sql: normalized, values });
-        if (values[3] !== null) bookingOfferSuccessorCalls += 1;
+        const isSuccessor = !normalized.includes("NULL::uuid");
+        if (isSuccessor) bookingOfferSuccessorCalls += 1;
         else bookingOfferPrepareCalls += 1;
         return { rows: [{ result: {
-          offerId: values[3] ?? "18181818-1818-4181-8181-181818181818",
-          offerRevisionId: values[3] !== null ? "19191919-1919-4191-8191-191919191919" : "18181818-1818-4181-8181-181818181819",
+          offerId: isSuccessor ? String(values[3]) : "18181818-1818-4181-8181-181818181818",
+          offerRevisionId: isSuccessor ? "19191919-1919-4191-8191-191919191919" : "18181818-1818-4181-8181-181818181819",
           draftRevisionId: values[1],
           revisionNumber: values[3] !== null ? 2 : 1,
           state: "draft",
