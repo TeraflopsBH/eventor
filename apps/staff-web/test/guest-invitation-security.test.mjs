@@ -23,3 +23,15 @@ test("guest bearer token is removed from the current browser history entry", () 
   assert.match(guestPage, /window\.location\.search/);
   assert.match(guestPage, /\^\[A-Za-z0-9_-\]\{43\}\$/);
 });
+
+const publicOfferPage = await readFile(
+  new URL("../src/features/public-booking-offers/PublicBookingOfferPage.vue", import.meta.url),
+  "utf8",
+);
+
+test("public booking offer bearer token is removed from browser history", () => {
+  assert.match(publicOfferPage, /window\\.history\\.replaceState\\(window\\.history\\.state, "",/);
+  assert.match(publicOfferPage, /window\\.location\\.pathname/);
+  assert.match(publicOfferPage, /window\\.location\\.search/);
+  assert.match(publicOfferPage, /\\^\\[A-Za-z0-9_-\\]\\{43\\}\\$/);
+});
