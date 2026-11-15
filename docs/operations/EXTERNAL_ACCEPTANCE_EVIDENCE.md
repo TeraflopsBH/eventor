@@ -1,3 +1,14 @@
+## Current candidate checkpoint — 2026-11-15
+
+- Candidate PR: [#85](https://github.com/TeraflopsBH/eventor/pull/85)
+- Candidate commit: `aa35a98ee1f87c685a18a19f6aaa909ce63ede79`
+- Repository CI: required contracts/database and full-history secret-scan workflows passed on this exact head.
+- Optional SMTP and public HTTPS probes: skipped because no staging endpoint or SMTP sandbox configuration is available.
+- Isolated staging environment and representative deployed database snapshot: not currently available.
+- Accountable external acceptance owners: unassigned.
+
+No browser-driven acceptance, provider sandbox delivery, representative deployed-schema upgrade, off-host backup/PITR/key-recovery drill, or target-host/network acceptance is claimed. These activities remain deferred, not failed and not passed. Use the checklist below only when an approved isolated environment and responsible operators become available.
+
 # External deployment acceptance evidence
 
 **Disposition:** blocked / not yet executed  
