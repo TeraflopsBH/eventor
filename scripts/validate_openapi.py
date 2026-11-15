@@ -173,12 +173,15 @@ def main() -> int:
                     fail(f"{method.upper()} {route}: malformed security requirement")
                 schemes.update(requirement.keys())
 
-            # Public intake and explicit capability routes must not inherit staff login.
-            if (route.startswith("/public/") and route != "/public/booking-offers/{offerId}") or (route == "/auth/session" and method.lower() == "post"):
+            # Anonymous intake routes must opt out of inherited staff auth.
+            # The customer-facing issued-offer projection is under /public/ but
+            # is deliberately protected by its purpose-bound booking capability.
+            if route == "/public/booking-offers/{offerId}":
+                if schemes != {"BookingActionCapability"}:
+                    fail(f"{method.upper()} {route}: must use only BookingActionCapability")
+            elif route.startswith("/public/") or (route == "/auth/session" and method.lower() == "post"):
                 if operation.get("security") != []:
-                    fail(f"{method.upper()} {route}: anonymous public route must explicitly declare security: []")
-            if route == "/public/booking-offers/{offerId}" and schemes != {"BookingActionCapability"}:
-                fail(f"{method.upper()} {route}: public offer review must require only BookingActionCapability")
+                    fail(f"{method.upper()} {route}: public route must explicitly declare security: []")
 
             if route.startswith("/external/booking-actions/"):
                 expected = (
