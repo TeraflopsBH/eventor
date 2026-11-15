@@ -182,9 +182,9 @@ const canManageBookingOffer = computed(() =>
 );
 const bookingOfferApprovalsSatisfied = computed(() => {
   const requirements = bookingOfferApprovalStatus.value?.requirements;
-  return Boolean(requirements) && requirements.every((item) =>
+  return requirements?.every((item) =>
     !item.blocked && item.approvedCount >= item.requiredApprovals,
-  );
+  ) ?? false;
 });
 const canConfirmBookingOffer = computed(() => {
   const revision = bookingOffer.value?.currentRevision;
@@ -1543,7 +1543,7 @@ async function submitPublicOfferAcceptance(): Promise<void> {
     publicOfferError.value = "Enter your name to record acceptance.";
     return;
   }
-  if (!publicOfferId || !publicOfferToken.value || !publicOffer || publicOffer.value.status !== "issued") return;
+  if (!publicOfferId || !publicOfferToken.value || !publicOffer.value || publicOffer.value.status !== "issued") return;
   publicDecisionBusy.value = true;
   publicOfferError.value = "";
   if (publicDecisionKind.value !== "accepted") {
@@ -1571,7 +1571,7 @@ async function submitPublicOfferRejection(): Promise<void> {
     publicOfferError.value = "Please provide a reason of at least 3 characters.";
     return;
   }
-  if (!publicOfferId || !publicOfferToken.value || !publicOffer || publicOffer.value.status !== "issued") return;
+  if (!publicOfferId || !publicOfferToken.value || !publicOffer.value || publicOffer.value.status !== "issued") return;
   publicDecisionBusy.value = true;
   publicOfferError.value = "";
   if (publicDecisionKind.value !== "rejected") {
