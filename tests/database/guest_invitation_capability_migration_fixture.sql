@@ -111,6 +111,18 @@ INSERT INTO eogp.invitation_revisions (
   '97000000-0000-4000-8000-000000000002'
 );
 
+INSERT INTO eogp.invitation_deliveries (
+  id,organization_id,event_id,invitation_id,invitation_revision_id,
+  channel,destination_ciphertext,destination_hash,status,capability_ciphertext
+) VALUES (
+  '97000000-0000-4000-8000-000000000012',
+  '97000000-0000-4000-8000-000000000001',
+  '97000000-0000-4000-8000-000000000003',
+  '97000000-0000-4000-8000-000000000009',
+  '97000000-0000-4000-8000-000000000010',
+  'email',decode('45435031010203','hex'),repeat('f',64),'queued',NULL
+);
+
 INSERT INTO eogp.invitation_links (
   id,organization_id,event_id,invitation_id,invitation_revision_id,
   token_sha256,expires_at,capability_ciphertext
@@ -122,18 +134,6 @@ INSERT INTO eogp.invitation_links (
   '97000000-0000-4000-8000-000000000010',
   repeat('9',64),clock_timestamp()+interval '1 day',
   decode('45435031' || repeat('aa',32),'hex')
-);
-
-INSERT INTO eogp.invitation_deliveries (
-  id,organization_id,event_id,invitation_id,invitation_revision_id,
-  channel,destination_ciphertext,destination_hash,status,capability_ciphertext
-) VALUES (
-  '97000000-0000-4000-8000-000000000012',
-  '97000000-0000-4000-8000-000000000001',
-  '97000000-0000-4000-8000-000000000003',
-  '97000000-0000-4000-8000-000000000009',
-  '97000000-0000-4000-8000-000000000010',
-  'email',decode('45435031010203','hex'),repeat('f',64),'queued',NULL
 );
 
 COMMIT;
