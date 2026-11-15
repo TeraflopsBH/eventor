@@ -17,7 +17,7 @@ DECLARE
     'cancellation_policies','cancellation_policy_revisions',
     'booking_cancellation_requests','booking_cancellation_decisions',
     'booking_cancellation_effects','booking_disruption_notices',
-    'booking_cancellation_capability_idempotency',
+    'booking_cancellation_capability_idempotency','external_booking_action_capability_lookup',
     'booking_tax_profiles','booking_tax_profile_revisions'
   ];
   v_required_functions text[] := ARRAY[
@@ -58,6 +58,7 @@ DECLARE
     'eogp.revoke_external_booking_action_capability(uuid,uuid,uuid,uuid,text)',
     'eogp.resolve_external_booking_action_capability(text,text)',
     'eogp.submit_external_booking_cancellation_request(text,text,text,text,bytea)',
+    'eogp.get_external_booking_cancellation_request_status(text,uuid)',
     'eogp.get_booking_tax_profiles(uuid,uuid)',
     'eogp.create_booking_tax_profile(uuid,uuid,text,text,text,text,text,text)',
     'eogp.create_booking_tax_profile_revision(uuid,uuid,uuid,text,text,text,text,text,integer,timestamptz,timestamptz)',
