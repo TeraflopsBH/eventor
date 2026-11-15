@@ -17,6 +17,14 @@ CREATE POLICY external_booking_action_capability_lookup_tenant_isolation
   ON eogp.external_booking_action_capability_lookup
   USING (organization_id=eogp.current_organization_id())
   WITH CHECK (organization_id=eogp.current_organization_id());
+-- The token hash is the only pre-tenant bootstrap key. Runtime roles have no
+-- table privileges; SECURITY DEFINER commands execute as eventor_owner and
+-- may resolve this one hash before setting the tenant context.
+CREATE POLICY external_booking_action_capability_lookup_owner_access
+  ON eogp.external_booking_action_capability_lookup
+  TO eventor_owner
+  USING (true)
+  WITH CHECK (true);
 
 REVOKE ALL ON eogp.external_booking_action_capability_lookup
   FROM PUBLIC,eventor_runtime,eventor_worker,eventor_auth;
