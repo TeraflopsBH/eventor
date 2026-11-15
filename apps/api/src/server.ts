@@ -1462,6 +1462,40 @@ export function buildApi(dependencies: ApiDependencies): FastifyInstance {
     }
   };
 
+  const authorizeBookingCancellationReplay = async (
+    client: PoolClient,
+    principal: StaffPrincipal,
+    bookingId: string,
+    permissionCode: "booking.cancellation.request" | "booking.cancellation.review" | "booking.cancellation.approve",
+  ): Promise<void> => {
+    const membership = await client.query(
+      "SELECT 1 FROM eogp.organization_memberships WHERE organization_id=$1 AND id=$2 AND status='active' FOR SHARE",
+      [principal.organizationId, principal.membershipId],
+    );
+    if (membership.rows.length === 0) {
+      throw new ApiError(403, "FORBIDDEN", "The staff membership is no longer active.");
+    }
+    const permission = await client.query(
+      `SELECT 1
+         FROM eogp.user_role_grants user_grant
+         JOIN eogp.role_permissions role_permission
+           ON role_permission.organization_id=user_grant.organization_id
+          AND role_permission.role_id=user_grant.role_id
+        WHERE user_grant.organization_id=$1
+          AND user_grant.membership_id=$2
+          AND user_grant.revoked_at IS NULL
+          AND (user_grant.expires_at IS NULL OR user_grant.expires_at>clock_timestamp())
+          AND role_permission.permission_code=$3
+          AND (user_grant.scope_kind='organization'
+            OR (user_grant.scope_kind='booking' AND user_grant.scope_booking_id=$4))
+        FOR SHARE OF user_grant, role_permission`,
+      [principal.organizationId, principal.membershipId, permissionCode, bookingId],
+    );
+    if (permission.rows.length === 0) {
+      throw new ApiError(403, "FORBIDDEN", "The required booking cancellation permission is no longer granted.");
+    }
+  };
+
   const authorizeNotificationCampaignSendReplay = async (
     client: PoolClient,
     principal: StaffPrincipal,
@@ -2849,6 +2883,90 @@ export function buildApi(dependencies: ApiDependencies): FastifyInstance {
       } finally {
         client.release();
       }
+    },
+  );
+
+  server.post<{
+    Params: { bookingId: string };
+    Body: { reasonCode: string };
+  }>(
+    "/bookings/:bookingId/cancellation-requests",
+    {
+      schema: {
+        params: { type: "object", required: ["bookingId"], properties: { bookingId: { type: "string", pattern: uuidPattern } }, additionalProperties: false },
+        headers: idempotencyHeaders,
+        body: {
+          type: "object", required: ["reasonCode"],
+          properties: { reasonCode: { type: "string", minLength: 2, maxLength: 80, pattern: "^[a-z][a-z0-9_]*$" } },
+          additionalProperties: false,
+        },
+      },
+    },
+    async (request, reply) => {
+      const principal = request.staffPrincipal!;
+      return withCommand(
+        request, reply, "submitBookingCancellationRequest",
+        { bookingId: request.params.bookingId, ...request.body },
+        async (client) => {
+          const result = await client.query<ResultRow>(
+            "SELECT eogp.submit_booking_cancellation_request($1::uuid,$2::uuid,$3::uuid,$4::text,NULL::bytea) AS result",
+            [principal.organizationId, request.params.bookingId, principal.membershipId, request.body.reasonCode],
+          );
+          return result.rows[0]?.result as Record<string, unknown>;
+        },
+        async (client) => authorizeBookingCancellationReplay(
+          client, principal, request.params.bookingId, "booking.cancellation.request",
+        ),
+      );
+    },
+  );
+
+  server.post<{
+    Params: { requestId: string };
+    Body: { decision: "approved" | "rejected" | "returned_for_changes"; reason: string };
+  }>(
+    "/booking-cancellation-requests/:requestId/decision",
+    {
+      schema: {
+        params: { type: "object", required: ["requestId"], properties: { requestId: { type: "string", pattern: uuidPattern } }, additionalProperties: false },
+        headers: idempotencyHeaders,
+        body: {
+          type: "object", required: ["decision", "reason"],
+          properties: {
+            decision: { type: "string", enum: ["approved", "rejected", "returned_for_changes"] },
+            reason: { type: "string", minLength: 3, maxLength: 1000 },
+          },
+          additionalProperties: false,
+        },
+      },
+    },
+    async (request, reply) => {
+      const principal = request.staffPrincipal!;
+      return withCommand(
+        request, reply, "decideBookingCancellationRequest",
+        { requestId: request.params.requestId, ...request.body },
+        async (client) => {
+          const result = await client.query<ResultRow>(
+            "SELECT eogp.decide_booking_cancellation_request($1::uuid,$2::uuid,$3::uuid,$4::text,$5::text) AS result",
+            [principal.organizationId, request.params.requestId, principal.membershipId,
+              request.body.decision, request.body.reason],
+          );
+          return result.rows[0]?.result as Record<string, unknown>;
+        },
+        async (client) => {
+          const requestRow = await client.query<{ booking_id: string }>(
+            "SELECT booking_id FROM eogp.booking_cancellation_requests WHERE organization_id=$1 AND id=$2",
+            [principal.organizationId, request.params.requestId],
+          );
+          const bookingId = requestRow.rows[0]?.booking_id;
+          if (!bookingId) throw new ApiError(404, "NOT_FOUND", "The booking cancellation request was not found.");
+          await authorizeBookingCancellationReplay(
+            client, principal, bookingId,
+            request.body.decision === "returned_for_changes"
+              ? "booking.cancellation.review" : "booking.cancellation.approve",
+          );
+        },
+      );
     },
   );
 
