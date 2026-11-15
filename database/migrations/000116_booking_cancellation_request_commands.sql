@@ -16,6 +16,10 @@ BEGIN
   IF eogp.current_organization_id() IS DISTINCT FROM p_organization_id THEN
     RAISE EXCEPTION 'organization context mismatch' USING ERRCODE='42501';
   END IF;
+  IF nullif(current_setting('app.actor_membership_id',true),'')::uuid
+       IS DISTINCT FROM p_actor_membership_id THEN
+    RAISE EXCEPTION 'actor membership context mismatch' USING ERRCODE='42501';
+  END IF;
   IF p_permission_code NOT IN (
     'booking.cancellation.request',
     'booking.cancellation.review',
