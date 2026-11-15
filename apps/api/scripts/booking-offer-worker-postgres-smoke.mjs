@@ -329,9 +329,19 @@ try {
     await finalCheck.query("SET LOCAL ROLE eventor_owner");
     await finalCheck.query("SELECT set_config('app.organization_id',$1,true)", [organizationId]);
     const result = await finalCheck.query(
-      "SELECT status,attempt_count,manual_retry_count,last_failure_code,lease_expires_at,sent_at " +
-      "FROM eogp.booking_offer_email_deliveries WHERE organization_id=$1 AND id=$2::uuid",
-      [organizationId, deliveryId],
+      "SELECT delivery.status,delivery.attempt_count,delivery.manual_retry_count,delivery.last_failure_code," +
+      "delivery.lease_expires_at,delivery.sent_at," +
+      "(SELECT count(*) FROM eogp.audit_events audit WHERE audit.organization_id=delivery.organization_id " +
+      "AND audit.aggregate_id=delivery.offer_id AND audit.action='booking.offer.email_sent') AS sent_audit_count," +
+      "(SELECT count(*) FROM eogp.audit_events audit WHERE audit.organization_id=delivery.organization_id " +
+      "AND audit.aggregate_id=delivery.offer_id AND audit.action='booking.offer.email_uncertain' " +
+      "AND audit.safe_metadata->>'source'='expired_worker_lease') AS expired_lease_audit_count," +
+      "NOT EXISTS (SELECT 1 FROM eogp.audit_events audit WHERE audit.organization_id=delivery.organization_id " +
+      "AND audit.aggregate_id=delivery.offer_id AND (audit.safe_metadata::text LIKE '%'||$3||'%' " +
+      "OR audit.safe_metadata::text LIKE '%'||$4||'%')) AS audit_redacted " +
+      "FROM eogp.booking_offer_email_deliveries delivery " +
+      "WHERE delivery.organization_id=$1 AND delivery.id=$2::uuid",
+      [organizationId, deliveryId, "booking-offer-worker@example.invalid", capability],
     );
     finalState = result.rows[0];
     await finalCheck.query("COMMIT");
@@ -345,6 +355,9 @@ try {
   assert.equal(finalState?.status, "sent");
   assert.equal(Number(finalState?.attempt_count), 3);
   assert.equal(Number(finalState?.manual_retry_count), 1);
+  assert.equal(Number(finalState?.sent_audit_count), 2);
+  assert.equal(Number(finalState?.expired_lease_audit_count), 1);
+  assert.equal(finalState?.audit_redacted, true);
   assert.equal(finalState?.last_failure_code, null);
   assert.equal(finalState?.lease_expires_at, null);
   assert.ok(finalState?.sent_at);
