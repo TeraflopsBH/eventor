@@ -76,6 +76,13 @@ BEGIN
     END IF;
   END LOOP;
 
+  IF has_function_privilege('eventor_worker',
+       'eogp.release_booking_draft_reservations(uuid,uuid,uuid[],uuid,text)','EXECUTE')
+     OR has_function_privilege('eventor_auth',
+       'eogp.release_booking_draft_reservations(uuid,uuid,uuid[],uuid,text)','EXECUTE') THEN
+    RAISE EXCEPTION 'draft reservation release must remain unavailable to worker and authentication roles';
+  END IF;
+
   SELECT string_agg(table_name, ', ' ORDER BY table_name)
     INTO v_name
     FROM unnest(ARRAY[
