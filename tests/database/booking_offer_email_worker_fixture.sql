@@ -1,4 +1,4 @@
-\\set ON_ERROR_STOP on
+\set ON_ERROR_STOP on
 BEGIN;
 SET LOCAL ROLE eventor_owner;
 SELECT set_config('app.organization_id','22222222-2222-4222-8222-222222222222',true);
@@ -170,14 +170,8 @@ BEGIN
     RAISE EXCEPTION 'booking offer email was not queued: %',v_queued;
   END IF;
 
-  PERFORM set_config('eventor.ci_offer_email_inquiry_id',v_inquiry_id::text,true);
-  PERFORM set_config('eventor.ci_offer_email_delivery_id',v_queued->>'deliveryId',true);
-  PERFORM set_config('eventor.ci_offer_email_token',v_token,true);
 END;
 $fixture$;
 
-SELECT current_setting('eventor.ci_offer_email_inquiry_id') AS ci_offer_email_inquiry_id,
-       current_setting('eventor.ci_offer_email_delivery_id') AS ci_offer_email_delivery_id,
-       current_setting('eventor.ci_offer_email_token') AS ci_offer_email_token;
 COMMIT;
-\\echo 'Persistent synthetic booking-offer email fixture prepared.';
+\echo 'Persistent synthetic booking-offer email fixture prepared.';
