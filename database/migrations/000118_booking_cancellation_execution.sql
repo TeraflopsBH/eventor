@@ -121,27 +121,8 @@ CREATE TRIGGER booking_cancellation_request_policy_guard
   BEFORE INSERT ON eogp.booking_cancellation_requests
   FOR EACH ROW EXECUTE FUNCTION eogp.guard_booking_cancellation_request_policy();
 
-CREATE FUNCTION eogp.guard_external_booking_cancellation_capability_policy()
-RETURNS trigger
-LANGUAGE plpgsql
-SECURITY DEFINER
-SET search_path = pg_catalog,eogp
-AS $function$
-BEGIN
-  IF NEW.action_code='booking_cancellation_request' THEN
-    PERFORM eogp.assert_booking_cancellation_request_policy(NEW.organization_id,NEW.booking_id);
-  END IF;
-  RETURN NEW;
-END;
-$function$;
-
-CREATE TRIGGER external_booking_cancellation_capability_policy_guard
-  BEFORE INSERT ON eogp.external_action_capabilities
-  FOR EACH ROW EXECUTE FUNCTION eogp.guard_external_booking_cancellation_capability_policy();
-
 REVOKE ALL ON FUNCTION eogp.assert_booking_cancellation_request_policy(uuid,uuid),
-  eogp.guard_booking_cancellation_request_policy(),
-  eogp.guard_external_booking_cancellation_capability_policy()
+  eogp.guard_booking_cancellation_request_policy()
   FROM PUBLIC,eventor_runtime,eventor_worker,eventor_auth;
 
 -- Replace request-id-first authorization with booking-scoped authorization
