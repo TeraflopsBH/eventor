@@ -169,6 +169,21 @@ jobs:
       - name: Run database integrity smoke tests
         run: psql "$MIGRATOR_URL" -X -v ON_ERROR_STOP=1 -f tests/database/migration_smoke.sql
 
+      - name: Set up Node.js for real PostgreSQL authentication integration tests
+        uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020
+        with:
+          node-version: "22.16.0"
+      - name: Install and build API integration test runner
+        working-directory: apps/api
+        run: |
+          npm ci --no-audit --no-fund
+          npm run build
+      - name: Verify real PostgreSQL login, session cookies, /me, expiry, CSRF and logout
+        working-directory: apps/api
+        env:
+          AUTH_URL: ${{ env.AUTH_URL }}
+        run: node --test dist/test/session-auth-postgres.integration.test.js
+
       - name: Verify tenant isolation as non-owner runtime role
         run: |
           psql "$RUNTIME_URL" -X -v ON_ERROR_STOP=1 \
