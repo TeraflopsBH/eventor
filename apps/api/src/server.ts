@@ -2940,6 +2940,9 @@ export function buildApi(dependencies: ApiDependencies): FastifyInstance {
         ),
       );
       const data = command.body.data as Record<string, unknown>;
+      reply.header("Cache-Control", "no-store, private");
+      reply.header("Referrer-Policy", "no-referrer");
+      reply.header("X-Robots-Tag", "noindex, nofollow, noarchive");
       return reply.code(command.status).send({ data: { ...data, token: capabilityToken } });
     },
   );
