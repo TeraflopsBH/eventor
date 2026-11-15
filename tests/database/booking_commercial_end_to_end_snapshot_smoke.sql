@@ -53,6 +53,10 @@ DECLARE
   v_offer_id uuid;
   v_offer_revision_id uuid;
   v_booking_id uuid;
+  v_draft_hold_resource_id uuid;
+  v_draft_hold_space_id uuid;
+  v_draft_hold_release jsonb;
+  v_draft_hold_audit_count integer;
   v_token_sha256 text := encode(eogp.digest(convert_to(gen_random_uuid()::text,'UTF8'),'sha256'),'hex');
   v_idempotency_key_sha256 text := encode(eogp.digest(convert_to(gen_random_uuid()::text,'UTF8'),'sha256'),'hex');
   v_request_sha256 text := encode(eogp.digest(convert_to(gen_random_uuid()::text,'UTF8'),'sha256'),'hex');
@@ -175,10 +179,48 @@ BEGIN
     v_org,v_resource_pool_id,v_draft_revision_id,1,
     v_space_starts_at,v_space_ends_at,'held',
     clock_timestamp()+interval '1 day','ci-e2e-unlinked-draft-hold'
+  ) RETURNING id INTO v_draft_hold_resource_id;
+
+  INSERT INTO eogp.venue_space_time_blocks(
+    organization_id,venue_space_id,booking_draft_revision_id,reservation_kind,status,
+    starts_at,ends_at,expires_at,idempotency_key,actor_membership_id
+  ) VALUES(
+    v_org,v_space_id,v_draft_revision_id,'draft_hold','held',
+    v_space_starts_at,v_space_ends_at,clock_timestamp()+interval '1 day',
+    'ci-e2e-amendment-space-hold',v_creator
+  ) RETURNING id INTO v_draft_hold_space_id;
+
+  -- A draft amendment/reallocation may explicitly release selected active
+  -- resource and space holds without cancelling the draft or affecting other
+  -- reservations. The command records the actor, reason and exact changed IDs.
+  v_draft_hold_release:=eogp.release_booking_draft_reservations(
+    v_org,v_draft_revision_id,
+    ARRAY[v_draft_hold_resource_id,v_draft_hold_space_id],
+    v_creator,'ci_draft_reallocation'
   );
-  DELETE FROM eogp.resource_reservations
+  IF (v_draft_hold_release->>'resourceReservationsReleased')::integer<>1
+     OR (v_draft_hold_release->>'spaceReservationsReleased')::integer<>1
+     OR (v_draft_hold_release->>'changed')::boolean IS DISTINCT FROM true
+     OR v_draft_hold_release->'resourceReservationIdsReleased'<>jsonb_build_array(v_draft_hold_resource_id::text)
+     OR v_draft_hold_release->'spaceReservationIdsReleased'<>jsonb_build_array(v_draft_hold_space_id::text) THEN
+    RAISE EXCEPTION 'draft hold release did not return the exact selected resource/space rows: %',v_draft_hold_release;
+  END IF;
+  IF (SELECT status FROM eogp.resource_reservations WHERE organization_id=v_org AND id=v_draft_hold_resource_id)<>'released'
+     OR (SELECT status FROM eogp.venue_space_time_blocks WHERE organization_id=v_org AND id=v_draft_hold_space_id)<>'released' THEN
+    RAISE EXCEPTION 'draft hold release did not transition both selected rows to released';
+  END IF;
+  SELECT count(*) INTO v_draft_hold_audit_count
+    FROM eogp.audit_events
    WHERE organization_id=v_org
-     AND idempotency_key='ci-e2e-unlinked-draft-hold';
+     AND action='booking.draft.reservations.released'
+     AND aggregate_type='booking_draft'
+     AND aggregate_id=v_draft_id
+     AND actor_membership_id=v_creator
+     AND reason_code='ci_draft_reallocation'
+     AND safe_metadata->>'draftRevisionId'=v_draft_revision_id::text;
+  IF v_draft_hold_audit_count<>1 THEN
+    RAISE EXCEPTION 'draft hold release must emit exactly one actor-attributed audit event, got %',v_draft_hold_audit_count;
+  END IF;
 
   -- Publish tax profile revision 1 at 20%.
   v_result:=eogp.create_booking_tax_profile(v_org,v_creator,
