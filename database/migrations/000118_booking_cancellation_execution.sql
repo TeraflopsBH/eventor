@@ -93,7 +93,7 @@ BEGIN
    WHERE snapshot.organization_id=p_organization_id
      AND snapshot.booking_id=p_booking_id
    FOR SHARE OF snapshot,revision;
-  IF NOT FOUND OR v_policy_state<>'published' THEN
+  IF NOT FOUND OR v_policy_state NOT IN ('published','retired') THEN
     RAISE EXCEPTION 'confirmed booking has no published pinned cancellation policy' USING ERRCODE='55000';
   END IF;
   IF v_customer_mode='self_service' THEN
@@ -318,7 +318,7 @@ BEGIN
    WHERE organization_id=p_organization_id
      AND id=v_snapshot.cancellation_policy_revision_id
    FOR SHARE;
-  IF NOT FOUND OR v_policy.state<>'published' THEN
+  IF NOT FOUND OR v_policy.state NOT IN ('published','retired') THEN
     RAISE EXCEPTION 'pinned cancellation policy revision is unavailable' USING ERRCODE='55000';
   END IF;
 
@@ -440,6 +440,17 @@ BEGIN
     p_organization_id,p_booking_id,p_actor_membership_id,'booking.cancellation.execute'
   );
 
+  SELECT * INTO v_booking
+    FROM eogp.booking_records
+   WHERE organization_id=p_organization_id AND id=p_booking_id
+   FOR UPDATE;
+  IF NOT FOUND THEN
+    RAISE EXCEPTION 'booking not found' USING ERRCODE='P0002';
+  END IF;
+
+  -- The booking lock serializes concurrent execution attempts. Re-check the
+  -- immutable effect after acquiring it so a racing retry returns the first
+  -- committed result instead of failing on the now-cancelled booking.
   SELECT * INTO v_existing_effect
     FROM eogp.booking_cancellation_effects
    WHERE organization_id=p_organization_id AND booking_id=p_booking_id;
@@ -455,13 +466,6 @@ BEGIN
     );
   END IF;
 
-  SELECT * INTO v_booking
-    FROM eogp.booking_records
-   WHERE organization_id=p_organization_id AND id=p_booking_id
-   FOR UPDATE;
-  IF NOT FOUND THEN
-    RAISE EXCEPTION 'booking not found' USING ERRCODE='P0002';
-  END IF;
   IF v_booking.status<>'confirmed' THEN
     RAISE EXCEPTION 'only confirmed bookings can be effectively cancelled' USING ERRCODE='55000';
   END IF;
@@ -616,6 +620,7 @@ REVOKE ALL ON FUNCTION
   FROM PUBLIC,eventor_worker,eventor_auth;
 
 GRANT EXECUTE ON FUNCTION
+  eogp.assert_booking_cancellation_request_permission(uuid,uuid,uuid,uuid,text),
   eogp.decide_booking_cancellation_request(uuid,uuid,uuid,uuid,text,text),
   eogp.preview_booking_cancellation(uuid,uuid,uuid,integer,uuid),
   eogp.execute_booking_cancellation(uuid,uuid,uuid,uuid,integer,text)
