@@ -102,6 +102,10 @@ function makePool() {
   let bookingOfferApprovalDecisionCalls = 0;
   let bookingOfferApprovalStatusCalls = 0;
   let bookingConfirmationCalls = 0;
+  let bookingCancellationQueueCalls = 0;
+  let bookingCancellationBookingGetCalls = 0;
+  let bookingCancellationRequestSubmitCalls = 0;
+  let bookingCancellationDecisionCalls = 0;
   let bookingApprovalPolicyListCalls = 0;
   let bookingApprovalPolicyCreateCalls = 0;
   let bookingApprovalPolicyRevisionCalls = 0;
@@ -799,6 +803,68 @@ function makePool() {
         commandCalls.push({ sql: normalized, values });
         return { rows: [{ result: { accepted: true, duplicate: false, attemptId: "95000000-0000-4000-8000-000000000001", status: values[4] } }], rowCount: 1 };
       }
+      if (normalized.includes("eogp.get_booking_cancellation_requests_for_booking(")) {
+        bookingCancellationBookingGetCalls += 1;
+        commandCalls.push({ sql: normalized, values });
+        return { rows: [{ result: [{
+          requestId: "19191919-1919-4191-8191-191919191919",
+          bookingId: values[1],
+          requesterKind: "organization_member",
+          status: "submitted",
+          reasonCode: "schedule_change",
+          explanationCiphertextBase64: null,
+          requestedAt: "2026-11-15T13:00:00.000Z",
+          resolvedAt: null,
+          policyRevisionId: "18181818-1818-4181-8181-181818181818",
+          decisions: [],
+        }] }], rowCount: 1 };
+      }
+      if (normalized.includes("eogp.submit_booking_cancellation_request(")) {
+        bookingCancellationRequestSubmitCalls += 1;
+        commandCalls.push({ sql: normalized, values });
+        return { rows: [{ result: {
+          requestId: "19191919-1919-4191-8191-191919191919",
+          bookingId: values[1],
+          status: "submitted",
+          reasonCode: values[3],
+          requestedAt: "2026-11-15T13:00:00.000Z",
+        } }], rowCount: 1 };
+      }
+      if (normalized.includes("eogp.decide_booking_cancellation_request(")) {
+        bookingCancellationDecisionCalls += 1;
+        commandCalls.push({ sql: normalized, values });
+        const decision = String(values[3]);
+        return { rows: [{ result: {
+          requestId: values[1],
+          bookingId: "17171717-1717-4171-8171-171717171717",
+          decisionId: "20202020-2020-4020-8020-202020202020",
+          decision,
+          status: decision === "returned_for_changes" ? "submitted" : decision,
+          decidedAt: "2026-11-15T13:10:00.000Z",
+        } }], rowCount: 1 };
+      }
+      if (normalized.includes("eogp.get_booking_cancellation_requests(")) {
+        bookingCancellationQueueCalls += 1;
+        commandCalls.push({ sql: normalized, values });
+        return { rows: [{ result: {
+          items: [{
+            requestId: "16161616-1616-4161-8161-161616161616",
+            bookingId: "17171717-1717-4171-8171-171717171717",
+            bookingCode: "BKG-ABC123",
+            bookingStatus: "confirmed",
+            requesterKind: "external_contact",
+            status: "submitted",
+            reasonCode: "schedule_change",
+            requestedAt: "2026-11-15T12:00:00.000Z",
+            resolvedAt: null,
+            policyRevisionId: "18181818-1818-4181-8181-181818181818",
+            decisions: [],
+          }],
+          total: 1,
+          limit: values[3],
+          offset: values[4],
+        } }], rowCount: 1 };
+      }
       if (normalized.includes("eogp.get_booking_approval_policies(")) {
         bookingApprovalPolicyListCalls += 1;
         commandCalls.push({ sql: normalized, values });
@@ -992,6 +1058,10 @@ function makePool() {
     get bookingOfferApprovalDecisionCalls() { return bookingOfferApprovalDecisionCalls; },
     get bookingOfferApprovalStatusCalls() { return bookingOfferApprovalStatusCalls; },
     get bookingConfirmationCalls() { return bookingConfirmationCalls; },
+    get bookingCancellationQueueCalls() { return bookingCancellationQueueCalls; },
+    get bookingCancellationBookingGetCalls() { return bookingCancellationBookingGetCalls; },
+    get bookingCancellationRequestSubmitCalls() { return bookingCancellationRequestSubmitCalls; },
+    get bookingCancellationDecisionCalls() { return bookingCancellationDecisionCalls; },
     get bookingApprovalPolicyListCalls() { return bookingApprovalPolicyListCalls; },
     get bookingApprovalPolicyCreateCalls() { return bookingApprovalPolicyCreateCalls; },
     get bookingApprovalPolicyRevisionCalls() { return bookingApprovalPolicyRevisionCalls; },
@@ -2831,4 +2901,154 @@ test("queued notification campaign can be cancelled before delivery starts", asy
   });
   assert.equal(replay.statusCode, 201);
   assert.equal(mock.campaignCancelCalls, 1);
+});
+
+
+test("booking cancellation review queue is tenant-scoped, paginated and excludes contact details", async (t) => {
+  const mock = makePool();
+  const app = makeApi(mock.pool);
+  t.after(async () => app.close());
+
+  const response = await app.inject({
+    method: "GET",
+    url: "/organization/booking-cancellation-requests?status=submitted&limit=25&offset=5",
+  });
+  assert.equal(response.statusCode, 200);
+  const body = response.json<{ data: {
+    items: Array<{ requestId: string; bookingCode: string; status: string; requesterKind: string; decisions: unknown[] }>;
+    total: number; limit: number; offset: number;
+  } }>().data;
+  assert.equal(body.items.length, 1);
+  assert.equal(body.items[0]?.requestId, "16161616-1616-4161-8161-161616161616");
+  assert.equal(body.items[0]?.bookingCode, "BKG-ABC123");
+  assert.equal(body.items[0]?.status, "submitted");
+  assert.equal(body.items[0]?.requesterKind, "external_contact");
+  assert.deepEqual(body.items[0]?.decisions, []);
+  assert.equal(body.total, 1);
+  assert.equal(body.limit, 25);
+  assert.equal(body.offset, 5);
+  assert.equal(mock.bookingCancellationQueueCalls, 1);
+  const call = mock.commandCalls.find((entry) => entry.sql.includes("eogp.get_booking_cancellation_requests("));
+  assert.ok(call);
+  assert.deepEqual(call.values, [principal.organizationId, principal.membershipId, "submitted", 25, 5]);
+  assert.equal(JSON.stringify(body).includes("email"), false);
+  assert.equal(JSON.stringify(body).includes("explanation"), false);
+});
+
+
+test("staff can submit a booking cancellation request idempotently", async (t) => {
+  const mock = makePool();
+  const app = makeApi(mock.pool);
+  t.after(async () => app.close());
+  const bookingId = "17171717-1717-4171-8171-171717171717";
+  const headers = { "idempotency-key": "booking-cancel-request-01" };
+  const payload = { reasonCode: "schedule_change", explanation: "The event schedule has changed." };
+
+  const first = await app.inject({
+    method: "POST",
+    url: `/bookings/${bookingId}/cancellation-requests`,
+    headers,
+    payload,
+  });
+  assert.equal(first.statusCode, 201);
+  const data = first.json<{ data: { requestId: string; bookingId: string; status: string; reasonCode: string } }>().data;
+  assert.equal(data.requestId, "19191919-1919-4191-8191-191919191919");
+  assert.equal(data.bookingId, bookingId);
+  assert.equal(data.status, "submitted");
+  assert.equal(data.reasonCode, "schedule_change");
+  assert.equal(mock.bookingCancellationRequestSubmitCalls, 1);
+  const call = mock.commandCalls.find((entry) => entry.sql.includes("eogp.submit_booking_cancellation_request("));
+  assert.ok(call);
+  assert.deepEqual(call.values.slice(0, 4), [principal.organizationId, bookingId, principal.membershipId, "schedule_change"]);
+  assert.ok(Buffer.isBuffer(call.values[4]));
+  assert.equal((call.values[4] as Buffer).includes(Buffer.from(payload.explanation)), false);
+  assert.equal(JSON.stringify(call.values).includes(payload.explanation), false);
+  assert.match(call.sql, /\$5::bytea/);
+
+  const replay = await app.inject({
+    method: "POST",
+    url: `/bookings/${bookingId}/cancellation-requests`,
+    headers,
+    payload,
+  });
+  assert.equal(replay.statusCode, 201);
+  assert.deepEqual(replay.json(), first.json());
+  assert.equal(mock.bookingCancellationRequestSubmitCalls, 1);
+});
+
+test("staff can return a cancellation request for changes without resolving it", async (t) => {
+  const mock = makePool();
+  const app = makeApi(mock.pool);
+  t.after(async () => app.close());
+  const requestId = "19191919-1919-4191-8191-191919191919";
+  const response = await app.inject({
+    method: "POST",
+    url: `/booking-cancellation-requests/${requestId}/decision`,
+    headers: { "idempotency-key": "booking-cancel-return-01" },
+    payload: { decision: "returned_for_changes", reason: "Please provide the revised schedule." },
+  });
+  assert.equal(response.statusCode, 201);
+  const data = response.json<{ data: { decision: string; status: string } }>().data;
+  assert.equal(data.decision, "returned_for_changes");
+  assert.equal(data.status, "submitted");
+  assert.equal(mock.bookingCancellationDecisionCalls, 1);
+  const call = mock.commandCalls.find((entry) => entry.sql.includes("eogp.decide_booking_cancellation_request("));
+  assert.ok(call);
+  assert.equal(call.values[3], "returned_for_changes");
+});
+test("staff cancellation decision records approval with an explicit reason", async (t) => {
+  const mock = makePool();
+  const app = makeApi(mock.pool);
+  t.after(async () => app.close());
+  const requestId = "19191919-1919-4191-8191-191919191919";
+  const headers = { "idempotency-key": "booking-cancel-decision-01" };
+  const payload = { decision: "approved", reason: "The request was reviewed and approved." };
+
+  const response = await app.inject({
+    method: "POST",
+    url: `/booking-cancellation-requests/${requestId}/decision`,
+    headers,
+    payload,
+  });
+  assert.equal(response.statusCode, 201);
+  const data = response.json<{ data: { requestId: string; decision: string; status: string } }>().data;
+  assert.equal(data.requestId, requestId);
+  assert.equal(data.decision, "approved");
+  assert.equal(data.status, "approved");
+  assert.equal(mock.bookingCancellationDecisionCalls, 1);
+  const call = mock.commandCalls.find((entry) => entry.sql.includes("eogp.decide_booking_cancellation_request("));
+  assert.ok(call);
+  assert.deepEqual(call.values, [
+    principal.organizationId, requestId, principal.membershipId,
+    "approved", "The request was reviewed and approved.",
+  ]);
+});
+
+
+test("booking cancellation request detail projection is permission-scoped and omits ciphertext", async (t) => {
+  const mock = makePool();
+  const app = makeApi(mock.pool);
+  t.after(async () => app.close());
+  const bookingId = "17171717-1717-4171-8171-171717171717";
+  const response = await app.inject({
+    method: "GET",
+    url: `/bookings/${bookingId}/cancellation-requests`,
+  });
+  assert.equal(response.statusCode, 200);
+  assert.equal(response.headers["cache-control"], "no-store, private");
+  const envelope = response.json<{ data: Array<Record<string, unknown>>; meta: { limit: number; totalCount: number; nextCursor: string | null } }>();
+  const items = envelope.data;
+  assert.equal(envelope.meta.limit, 1);
+  assert.equal(envelope.meta.totalCount, 1);
+  assert.equal(envelope.meta.nextCursor, null);
+  assert.equal(items.length, 1);
+  assert.equal(items[0]?.bookingId, bookingId);
+  assert.equal(items[0]?.status, "submitted");
+  assert.equal(items[0]?.explanation, null);
+  assert.equal("explanationCiphertextBase64" in (items[0] ?? {}), false);
+  assert.deepEqual(items[0]?.decisions, []);
+  assert.equal(mock.bookingCancellationBookingGetCalls, 1);
+  const call = mock.commandCalls.find((entry) => entry.sql.includes("eogp.get_booking_cancellation_requests_for_booking("));
+  assert.ok(call);
+  assert.deepEqual(call.values, [principal.organizationId, bookingId, principal.membershipId]);
 });

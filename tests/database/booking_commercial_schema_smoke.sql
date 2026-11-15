@@ -15,6 +15,8 @@ DECLARE
     'booking_offer_email_deliveries',
     'booking_price_lists','booking_price_list_revisions','booking_price_items',
     'cancellation_policies','cancellation_policy_revisions',
+    'booking_cancellation_requests','booking_cancellation_decisions',
+    'booking_cancellation_effects','booking_disruption_notices',
     'booking_tax_profiles','booking_tax_profile_revisions'
   ];
   v_required_functions text[] := ARRAY[
@@ -46,6 +48,11 @@ DECLARE
     'eogp.create_booking_cancellation_policy_revision(uuid,uuid,uuid,text,text,jsonb,jsonb,jsonb)',
     'eogp.update_booking_cancellation_policy_draft_revision(uuid,uuid,uuid,uuid,text,text,jsonb,jsonb,jsonb)',
     'eogp.publish_booking_cancellation_policy_revision(uuid,uuid,uuid,uuid)',
+    'eogp.get_booking_cancellation_requests(uuid,uuid,text,integer,integer)',
+    'eogp.get_booking_cancellation_requests_for_booking(uuid,uuid,uuid)',
+    'eogp.submit_booking_cancellation_request(uuid,uuid,uuid,text,bytea)',
+    'eogp.decide_booking_cancellation_request(uuid,uuid,uuid,text,text)',
+    'eogp.assert_booking_cancellation_request_permission(uuid,uuid,uuid,text)',
     'eogp.get_booking_tax_profiles(uuid,uuid)',
     'eogp.create_booking_tax_profile(uuid,uuid,text,text,text,text,text,text)',
     'eogp.create_booking_tax_profile_revision(uuid,uuid,uuid,text,text,text,text,text,integer,timestamptz,timestamptz)',
@@ -98,6 +105,23 @@ BEGIN
    WHERE has_table_privilege(current_user,format('eogp.%I',table_name),'SELECT');
   IF v_name IS NOT NULL THEN
     RAISE EXCEPTION 'runtime role has direct table read access to protected commercial data: %',v_name;
+  END IF;
+
+  FOREACH v_name IN ARRAY ARRAY[
+    'booking_cancellation_requests','booking_cancellation_decisions',
+    'booking_cancellation_effects','booking_disruption_notices'
+  ] LOOP
+    IF has_table_privilege(current_user,format('eogp.%I',v_name),'SELECT')
+       OR has_table_privilege(current_user,format('eogp.%I',v_name),'INSERT')
+       OR has_table_privilege(current_user,format('eogp.%I',v_name),'UPDATE')
+       OR has_table_privilege(current_user,format('eogp.%I',v_name),'DELETE') THEN
+      RAISE EXCEPTION 'runtime role must access cancellation table % only through scoped commands',v_name;
+    END IF;
+  END LOOP;
+
+  IF has_function_privilege(current_user,
+       'eogp.assert_booking_cancellation_permission(uuid,uuid,uuid,text)','EXECUTE') THEN
+    RAISE EXCEPTION 'runtime role must not call the internal booking cancellation permission helper directly';
   END IF;
 
   IF has_function_privilege(current_user,

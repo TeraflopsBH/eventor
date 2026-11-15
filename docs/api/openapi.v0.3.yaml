@@ -4193,6 +4193,72 @@ paths:
         '401': { $ref: '#/components/responses/Unauthorized' }
         '403': { $ref: '#/components/responses/Forbidden' }
         '409': { $ref: '#/components/responses/Conflict' }
+  "/booking-cancellation-requests/{requestId}/decision":
+    post:
+      tags: ["Booking Cancellation"]
+      operationId: decideBookingCancellationRequest
+      summary: "Approve, reject or return a booking cancellation request for changes"
+      security: [{ StaffSession: [], StaffCsrf: [] }]
+      parameters:
+        - name: requestId
+          in: path
+          required: true
+          schema: { type: string, format: uuid }
+        - $ref: '#/components/parameters/IdempotencyKey'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [decision, reason]
+              properties:
+                decision: { type: string, enum: [approved, rejected, returned_for_changes] }
+                reason: { type: string, minLength: 3, maxLength: 1000 }
+              additionalProperties: false
+      responses:
+        '201':
+          description: "Cancellation request decision recorded."
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/DataEnvelope' }
+        '400': { $ref: '#/components/responses/BadRequest' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '404': { $ref: '#/components/responses/NotFound' }
+        '409': { $ref: '#/components/responses/Conflict' }
+        '500': { $ref: '#/components/responses/InternalServerError' }
+  "/organization/booking-cancellation-requests":
+    get:
+      tags: ["Booking Cancellation"]
+      operationId: listOrganizationBookingCancellationRequests
+      summary: "List the current organization's booking cancellation review queue"
+      security: [{ StaffSession: [] }]
+      parameters:
+        - name: status
+          in: query
+          required: false
+          schema:
+            type: string
+            enum: [submitted, under_review, approved, rejected, withdrawn, expired, effective]
+        - name: limit
+          in: query
+          required: false
+          schema: { type: integer, minimum: 1, maximum: 100, default: 50 }
+        - name: offset
+          in: query
+          required: false
+          schema: { type: integer, minimum: 0, maximum: 100000, default: 0 }
+      responses:
+        '200':
+          description: "Cancellation requests and pagination metadata. Contact data and encrypted explanations are intentionally excluded."
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/DataEnvelope' }
+        '400': { $ref: '#/components/responses/BadRequest' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '500': { $ref: '#/components/responses/InternalServerError' }
   "/organization/booking-cancellation-policies":
     get:
       tags: ["Cancellation Policy"]
@@ -6145,7 +6211,11 @@ components:
       type: object
       required: [reasonCode]
       properties:
-        reasonCode: { type: string, minLength: 2, maxLength: 100 }
+        reasonCode:
+          type: string
+          minLength: 2
+          maxLength: 100
+          pattern: '^[a-z][a-z0-9_]{1,99}'
         explanation: { type: string, maxLength: 4000 }
     CancellationDecisionRequest:
       type: object
