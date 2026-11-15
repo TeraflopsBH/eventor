@@ -1503,7 +1503,7 @@ export function buildApi(dependencies: ApiDependencies): FastifyInstance {
     client: PoolClient,
     principal: StaffPrincipal,
     bookingId: string,
-    permissionCode: "booking.manage" | "booking.cancellation.request" | "booking.cancellation.review" | "booking.cancellation.approve",
+    permissionCode: "booking.manage" | "booking.cancellation.request" | "booking.cancellation.review" | "booking.cancellation.approve" | "booking.cancellation.execute" | "booking.cancellation.override",
   ): Promise<void> => {
     const membership = await client.query(
       "SELECT 1 FROM eogp.organization_memberships WHERE organization_id=$1 AND id=$2 AND status='active' FOR SHARE",
