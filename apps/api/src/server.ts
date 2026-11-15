@@ -2922,7 +2922,7 @@ export function buildApi(dependencies: ApiDependencies): FastifyInstance {
             explanation: decryptPrivateText(ciphertext, dependencies.privateFieldEncryptionKey),
           };
         });
-        return reply.header("cache-control", "no-store, private").code(200).send({ data });
+        return reply.header("cache-control", "no-store, private").code(200).send({ data, meta: { limit: data.length, totalCount: data.length, nextCursor: null } });
       } catch (error) {
         try { await client.query("ROLLBACK"); } catch { /* preserve the read error */ }
         throw databaseError(error);
