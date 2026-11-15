@@ -1393,9 +1393,14 @@ export function buildApi(dependencies: ApiDependencies): FastifyInstance {
       request.method === "POST" &&
       (pathname === "/guest/invitation/resolve" || pathname === "/guest/invitation/me/rsvp")
     );
-    const publicExternalBookingAction = request.method === "POST" &&
+    const publicExternalBookingAction = (
+      request.method === "POST" &&
       (pathname === "/external/booking-actions/resolve"
-        || pathname === "/external/booking-actions/cancellation-requests");
+        || pathname === "/external/booking-actions/cancellation-requests")
+    ) || (
+      request.method === "GET" &&
+      /^\/external\/booking-actions\/cancellation-requests\/[0-9a-f-]{36}$/i.test(pathname)
+    );
     if (publicBookingFormRead || publicBookingInquiryWrite || publicOfferDecision || publicOfferView || publicGuestInvitation || publicExternalBookingAction) {
       // Public intake and purpose-bound offer decisions authenticate through their own capability.
       request.staffPrincipal = null;
@@ -3016,6 +3021,49 @@ export function buildApi(dependencies: ApiDependencies): FastifyInstance {
         return reply.code(200).send({ data });
       } catch (error) {
         try { await client.query("ROLLBACK"); } catch { /* preserve the resolve error */ }
+        throw databaseError(error);
+      } finally {
+        client.release();
+      }
+    },
+  );
+
+  server.get<{
+    Params: { requestId: string };
+  }>(
+    "/external/booking-actions/cancellation-requests/:requestId",
+    {
+      schema: {
+        params: {
+          type: "object", required: ["requestId"],
+          properties: { requestId: { type: "string", pattern: uuidPattern } },
+          additionalProperties: false,
+        },
+        headers: publicOfferCapabilityHeaders,
+      },
+    },
+    async (request, reply) => {
+      const token = request.headers["x-external-booking-token"];
+      if (typeof token !== "string" || !/^[A-Za-z0-9_-]{43}$/.test(token)) {
+        throw new ApiError(401, "BOOKING_ACTION_CAPABILITY_REQUIRED", "A valid external booking action capability is required.");
+      }
+      const tokenHash = createHash("sha256").update(token, "utf8").digest("hex");
+      const client = await dependencies.pool.connect();
+      try {
+        await client.query("BEGIN");
+        const result = await client.query<ResultRow>(
+          "SELECT eogp.get_external_booking_cancellation_request_status($1::text,$2::uuid) AS result",
+          [tokenHash, request.params.requestId],
+        );
+        await client.query("COMMIT");
+        const data = result.rows[0]?.result as Record<string, unknown> | undefined;
+        if (!data) throw new ApiError(404, "BOOKING_CANCELLATION_REQUEST_NOT_FOUND", "The cancellation request is not available.");
+        reply.header("Cache-Control", "no-store, private");
+        reply.header("Referrer-Policy", "no-referrer");
+        reply.header("X-Robots-Tag", "noindex, nofollow, noarchive");
+        return reply.code(200).send({ data });
+      } catch (error) {
+        try { await client.query("ROLLBACK"); } catch { /* preserve the status lookup error */ }
         throw databaseError(error);
       } finally {
         client.release();
