@@ -356,6 +356,14 @@ jobs:
           psql "$MIGRATOR_URL" -X -v ON_ERROR_STOP=1 \
             -c "SET ROLE eventor_owner; SELECT version, filename, execution_ms FROM eogp.schema_migrations ORDER BY version;"
 
+      - name: Verify isolated logical backup and restore
+        env:
+          EVENTOR_CI_BACKUP_RESTORE: "true"
+          ADMIN_EVENTOR_URL: postgresql://postgres:postgres_ci_password@127.0.0.1:5432/eventor
+        run: |
+          bash -n scripts/db/test-ci-logical-backup-restore.sh
+          bash scripts/db/test-ci-logical-backup-restore.sh
+
 
   systemd:
     name: systemd service unit verification
