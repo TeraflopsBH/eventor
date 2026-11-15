@@ -38,7 +38,18 @@ const smtpFactory = (settings, credentials) => {
   };
 };
 
+const transientFailureFactory = () => ({
+  async verify() { return true; },
+  async sendMail() {
+    throw Object.assign(new Error("synthetic connection reset"), { code: "ECONNRESET" });
+  },
+  close() {},
+});
+
 try {
+  const session = await worker.query("SELECT session_user");
+  assert.equal(session.rows[0]?.session_user, "eventor_worker", "worker test must use the real eventor_worker login");
+
   const emailCiphertext = encryptContactValue("booking-offer-worker@example.invalid", contactKey, {
     organizationId,
     contactKind: "email",
@@ -87,8 +98,45 @@ try {
     owner.release();
   }
 
-  // Two independent worker invocations contend for one queued offer. The
-  // database claim must allow exactly one SMTP submission.
+  // First submission fails transiently. The database must schedule a bounded
+  // retry rather than losing the delivery or marking it permanently failed.
+  const failed = await processPendingBookingOfferEmailDeliveries(
+    worker, contactKey, deliveryKey, "https://app.example.invalid", 1, 10, transientFailureFactory,
+  );
+  assert.equal(failed.bookingOfferEmailAttempts, 1);
+  assert.equal(failed.bookingOfferEmailFailed, 1);
+  assert.equal(failed.bookingOfferEmailRetriesScheduled, 1);
+
+  const retryPreparation = await migrator.connect();
+  try {
+    await retryPreparation.query("BEGIN");
+    await retryPreparation.query("SET LOCAL ROLE eventor_owner");
+    await retryPreparation.query("SELECT set_config('app.organization_id',$1,true)", [organizationId]);
+    const queued = await retryPreparation.query(
+      "SELECT status,attempt_count,last_failure_code FROM eogp.booking_offer_email_deliveries WHERE organization_id=$1 AND id=$2::uuid",
+      [organizationId, deliveryId],
+    );
+    assert.equal(queued.rows[0]?.status, "queued");
+    assert.equal(Number(queued.rows[0]?.attempt_count), 1);
+    assert.equal(queued.rows[0]?.last_failure_code, "SMTP_CONNECTION");
+    await retryPreparation.query(
+      "UPDATE eogp.booking_offer_email_deliveries SET next_attempt_at=clock_timestamp()-interval '1 second' WHERE organization_id=$1 AND id=$2::uuid",
+      [organizationId, deliveryId],
+    );
+    await retryPreparation.query(
+      "UPDATE eogp.booking_offer_email_delivery_tenant_queue SET available_at=clock_timestamp()-interval '1 second' WHERE organization_id=$1",
+      [organizationId],
+    );
+    await retryPreparation.query("COMMIT");
+  } catch (error) {
+    await retryPreparation.query("ROLLBACK");
+    throw error;
+  } finally {
+    retryPreparation.release();
+  }
+
+  // Two independent worker invocations contend for the retry. The database
+  // claim must allow exactly one SMTP submission.
   const [first, second] = await Promise.all([
     processPendingBookingOfferEmailDeliveries(
       worker, contactKey, deliveryKey, "https://app.example.invalid", 1, 10, smtpFactory,
@@ -133,7 +181,7 @@ try {
   }
 
   assert.equal(stored?.status, "sent");
-  assert.equal(Number(stored?.attempt_count), 1);
+  assert.equal(Number(stored?.attempt_count), 2);
   assert.equal(stored?.lease_expires_at, null);
   assert.equal(stored?.last_failure_code, null);
   assert.equal(stored?.provider_message_reference, "<ci-booking-offer-worker@delivery.eventor.invalid>");
@@ -147,6 +195,7 @@ try {
     status: "passed",
     concurrentWorkers: 2,
     smtpSubmissions: submitted.length,
+    transientRetries: 1,
     offerDeliveryStatus: stored.status,
     attemptCount: Number(stored.attempt_count),
     providerReference: stored.provider_message_reference,
