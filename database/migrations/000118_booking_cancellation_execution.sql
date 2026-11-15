@@ -112,7 +112,11 @@ SECURITY DEFINER
 SET search_path = pg_catalog,eogp
 AS $function$
 BEGIN
-  PERFORM eogp.assert_booking_cancellation_request_policy(NEW.organization_id,NEW.booking_id);
+  -- Historical/effective fixture rows are not new customer requests. Enforce
+  -- the pinned customer-mode gate on the initial submitted request only.
+  IF NEW.status='submitted' THEN
+    PERFORM eogp.assert_booking_cancellation_request_policy(NEW.organization_id,NEW.booking_id);
+  END IF;
   RETURN NEW;
 END;
 $function$;
