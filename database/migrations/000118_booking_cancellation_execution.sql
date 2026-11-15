@@ -281,7 +281,6 @@ DECLARE
   v_snapshot eogp.booking_confirmed_snapshots%ROWTYPE;
   v_policy eogp.cancellation_policy_revisions%ROWTYPE;
   v_request eogp.booking_cancellation_requests%ROWTYPE;
-  v_resource_ids uuid[];
   v_space_ids uuid[];
   v_resource_count bigint;
   v_space_count bigint;
@@ -333,19 +332,18 @@ BEGIN
     END IF;
   END IF;
 
-  SELECT coalesce(array_agg(active.reservation_id ORDER BY active.reservation_id),ARRAY[]::uuid[]),
-         count(*) FILTER (WHERE active.reservation_kind='resource'),
+  SELECT count(*) FILTER (WHERE active.reservation_kind='resource'),
          count(*) FILTER (WHERE active.reservation_kind='space')
-    INTO v_resource_ids,v_resource_count,v_space_count
+    INTO v_resource_count,v_space_count
     FROM (
-      SELECT reservation.id AS reservation_id,'resource'::text AS reservation_kind
+      SELECT 'resource'::text AS reservation_kind
         FROM eogp.resource_reservations reservation
        WHERE reservation.organization_id=p_organization_id
          AND reservation.booking_id=p_booking_id
          AND reservation.status IN ('held','confirmed')
          AND reservation.ends_at>clock_timestamp()
       UNION ALL
-      SELECT reservation.id AS reservation_id,'space'::text AS reservation_kind
+      SELECT 'space'::text AS reservation_kind
         FROM eogp.venue_space_time_blocks reservation
        WHERE reservation.organization_id=p_organization_id
          AND reservation.booking_id=p_booking_id
