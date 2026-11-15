@@ -16,6 +16,7 @@ on:
       - feat/postgresql18-migrations-openapi-v0.3
       - fix/pr26-high-risk-integrity-review
       - feat/booking-draft-allocation-availability-preview
+      - feat/booking-allocation-alternatives
 
 permissions:
   contents: read
