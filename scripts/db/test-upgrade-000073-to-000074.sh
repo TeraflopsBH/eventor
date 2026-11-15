@@ -101,7 +101,8 @@ echo "=== Apply forward migration 000077 and verify the legacy capability copy i
 cp "$ROOT_DIR"/database/migrations/000077_*.sql "$forward_dir/"
 DATABASE_URL="$MIGRATOR_URL" MIGRATIONS_DIR="$forward_dir" \
   bash "$ROOT_DIR/scripts/db/migrate.sh"
-psql "$MIGRATOR_URL" -X -v ON_ERROR_STOP=1 \
+admin_eventor_url="${ADMIN_URL%/postgres}/eventor"
+psql "$admin_eventor_url" -X -v ON_ERROR_STOP=1 \
   -f "$ROOT_DIR/tests/database/guest_invitation_forward_migration_smoke.sql"
 
 echo "=== Apply remaining forward migrations from 000078 onward ==="
