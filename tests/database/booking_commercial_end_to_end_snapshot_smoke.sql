@@ -191,6 +191,38 @@ BEGIN
     'ci-e2e-amendment-space-hold',v_creator
   ) RETURNING id INTO v_draft_hold_space_id;
 
+  -- The release command must bind its actor argument to the transaction
+  -- context before inspecting or changing any reservation.
+  PERFORM set_config('app.actor_membership_id',v_approver::text,true);
+  BEGIN
+    PERFORM eogp.release_booking_draft_reservations(
+      v_org,v_draft_revision_id,ARRAY[v_draft_hold_resource_id],
+      v_creator,'ci_actor_context_mismatch'
+    );
+    RAISE EXCEPTION 'draft release accepted an actor different from transaction context';
+  EXCEPTION WHEN SQLSTATE '42501' THEN NULL;
+  END;
+  PERFORM set_config('app.actor_membership_id',v_creator::text,true);
+  IF (SELECT status FROM eogp.resource_reservations
+       WHERE organization_id=v_org AND id=v_draft_hold_resource_id)<>'held' THEN
+    RAISE EXCEPTION 'actor-context mismatch changed a draft resource hold';
+  END IF;
+
+  -- Duplicate IDs must be rejected before any partial release.
+  BEGIN
+    PERFORM eogp.release_booking_draft_reservations(
+      v_org,v_draft_revision_id,
+      ARRAY[v_draft_hold_resource_id,v_draft_hold_resource_id],
+      v_creator,'ci_duplicate_draft_release'
+    );
+    RAISE EXCEPTION 'draft release accepted duplicate reservation IDs';
+  EXCEPTION WHEN SQLSTATE '22023' THEN NULL;
+  END;
+  IF (SELECT status FROM eogp.resource_reservations
+       WHERE organization_id=v_org AND id=v_draft_hold_resource_id)<>'held' THEN
+    RAISE EXCEPTION 'duplicate-ID rejection changed a draft resource hold';
+  END IF;
+
   -- A draft amendment/reallocation may explicitly release selected active
   -- resource and space holds without cancelling the draft or affecting other
   -- reservations. The command records the actor, reason and exact changed IDs.
@@ -748,6 +780,31 @@ BEGIN
          AND reservation.status='held')<>0 THEN
     RAISE EXCEPTION 'draft resource holds remained active after booking confirmation';
   END IF;
+
+  -- Once confirmation has made the draft non-editable, even a newly-created
+  -- residual hold cannot be released through the draft-amendment command.
+  INSERT INTO eogp.resource_reservations(
+    organization_id,resource_pool_id,booking_draft_revision_id,
+    quantity,starts_at,ends_at,status,expires_at,idempotency_key
+  ) VALUES(
+    v_org,v_resource_pool_id,v_draft_revision_id,1,
+    v_space_starts_at,v_space_ends_at,'held',
+    clock_timestamp()+interval '1 day','ci-e2e-noneditable-draft-release'
+  ) RETURNING id INTO v_invalid_draft_hold_id;
+  BEGIN
+    PERFORM eogp.release_booking_draft_reservations(
+      v_org,v_draft_revision_id,ARRAY[v_invalid_draft_hold_id],
+      v_creator,'ci_noneditable_draft_release'
+    );
+    RAISE EXCEPTION 'draft release accepted a non-editable confirmed draft';
+  EXCEPTION WHEN SQLSTATE '55000' THEN NULL;
+  END;
+  IF (SELECT status FROM eogp.resource_reservations
+       WHERE organization_id=v_org AND id=v_invalid_draft_hold_id)<>'held' THEN
+    RAISE EXCEPTION 'non-editable draft rejection changed a reservation';
+  END IF;
+  DELETE FROM eogp.resource_reservations
+   WHERE organization_id=v_org AND id=v_invalid_draft_hold_id;
   IF (SELECT count(*) FROM eogp.resource_reservations reservation
        JOIN eogp.booking_resource_lines line
          ON line.organization_id=reservation.organization_id
