@@ -1,3 +1,32 @@
+# Current integration baseline — 2026-11-15
+
+**Current main:** `046a2466a4bbb6d391f75f3afa4ca3f876c1151a` (includes PRs #85, #99, #101, #102 and #103).
+
+**Current product assessment:** Eventor has a substantial PostgreSQL/security foundation, a working venue-booking/commercial workflow slice, staff authentication and workspace, notification campaign/delivery operations, and guest invitation/RSVP functionality. It is **not yet a complete event-operations product**. The authoritative feature-by-feature assessment is [Blueprint-to-repository gap analysis v1.0](BLUEPRINT_TO_REPOSITORY_GAP_ANALYSIS_v1.0.md).
+
+**Latest integration evidence on main:** PR #103's exact-head PostgreSQL/contracts workflow #43752618746 and secret-history scan #43752618806 passed. Post-merge main workflow #43749936914 and secret-history scan #43749936957 also passed on the preceding main SHA `3addc1466c15ffa81a1aba110f64e6b263d0198a`. Optional external acceptance probes were skipped because no public endpoint or SMTP sandbox was configured. These are repository CI results, not production or deployed-host acceptance.
+
+**Merged product/test integrations:**
+- PR #85 — PostgreSQL migrations and feature stack; merge `3377fe0ab9016c57884d15a5353242dfa876bfa5`.
+- PR #99 — PostgreSQL worker and browser acceptance coverage; merge `071eceb874dc2f6322f767c67f1814ddf56c5d6f`.
+- PR #101 — guest invitation browser acceptance (mocked HTTP boundary); merge `3addc1466c15ffa81a1aba110f64e6b263d0198a`.
+- PR #102 — OpenAPI/runtime invitation alignment; merge `2aea2f96c87609263db153ddeec7f6af531f793b`.
+- PR #103 — blueprint-to-repository gap analysis; merge `046a2466a4bbb6d391f75f3afa4ca3f876c1151a`.
+
+**Sequencing decision:** complete the product workflows and installer before final acceptance. The `eventor-acceptance` QEMU/KVM VM is reserved for the final integrated release-candidate validation stage; it is not a prerequisite for ordinary GitHub-based design, implementation and CI work.
+
+**Deployment deliverable:** one supported Linux release with two first-class installation modes:
+1. Native Linux installation using managed system services and documented host dependencies.
+2. Docker Compose installation with equivalent application behavior, persistent storage, secret handling, health checks, upgrade and backup/restore procedures.
+
+Docker is optional and must not become a mandatory runtime dependency. Both installation modes must deploy the same modular-monolith application and use the same migrations, configuration contract and acceptance criteria.
+
+**Known external acceptance items remain deferred:** target-host service behavior, public HTTPS/reverse proxy, real SMTP provider sandbox, upgrade from a representative deployed database, off-host backup/PITR/key recovery and full operator workflow. These must be tested only after the product and installer are ready.
+
+> Historical status entries below are retained as an audit trail. Where they conflict with this current baseline, this section and the current roadmap supersede them.
+
+---
+
 ## Integration result — 2026-11-15
 
 **Cumulative integration PR #85:** [squash-merged into `main`](https://github.com/TeraflopsBH/eventor/pull/85). Merge commit: `3377fe0ab9016c57884d15a5353242dfa876bfa5`; merged PR head: `69cb8a44882b7ece99ba9be987a345a5bd569395`. GitHub reports the PR closed and merged. The merge commit is the current `main` tip at the time of this checkpoint.
