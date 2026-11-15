@@ -405,6 +405,32 @@ BEGIN
   END IF;
   PERFORM set_config('app.actor_membership_id',v_creator::text,true);
 
+  -- Once the customer has accepted this exact offer revision, draft amendment
+  -- must not release its holds out from under the confirmation workflow.
+  INSERT INTO eogp.resource_reservations(
+    organization_id,resource_pool_id,booking_draft_revision_id,
+    quantity,starts_at,ends_at,status,expires_at,idempotency_key
+  ) VALUES(
+    v_org,v_resource_pool_id,v_draft_revision_id,1,
+    v_space_starts_at,v_space_ends_at,'held',
+    clock_timestamp()+interval '1 day','ci-e2e-accepted-offer-hold-release-guard'
+  ) RETURNING id INTO v_draft_hold_resource_id;
+  BEGIN
+    PERFORM eogp.release_booking_draft_reservations(
+      v_org,v_draft_revision_id,ARRAY[v_draft_hold_resource_id],
+      v_creator,'ci_accepted_offer_release_rejected'
+    );
+    RAISE EXCEPTION 'draft release unexpectedly changed holds for an accepted offer revision';
+  EXCEPTION WHEN SQLSTATE '55000' THEN
+    NULL;
+  END;
+  IF (SELECT status FROM eogp.resource_reservations
+       WHERE organization_id=v_org AND id=v_draft_hold_resource_id)<>'held' THEN
+    RAISE EXCEPTION 'accepted offer hold was changed by a rejected draft release';
+  END IF;
+  DELETE FROM eogp.resource_reservations
+   WHERE organization_id=v_org AND id=v_draft_hold_resource_id;
+
   -- A missing hold must block commercial confirmation without partially
   -- creating a booking or changing the accepted offer.
   BEGIN
