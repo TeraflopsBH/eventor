@@ -53,6 +53,7 @@ rm "$pre_dir/000109_booking_reservation_authorization_before_lookup.sql"
 rm "$pre_dir/000110_booking_reservation_release_authorization_before_lookup.sql"
 rm "$pre_dir/000111_guest_invitation_idempotency_request_binding.sql"
 rm "$pre_dir/000112_internal_authorization_helper_privileges.sql"
+rm "$pre_dir/000113_audit_system_actor_support.sql"
 
 echo "=== Apply schema through 000073 ==="
 DATABASE_URL="$MIGRATOR_URL" MIGRATIONS_DIR="$pre_dir" \
