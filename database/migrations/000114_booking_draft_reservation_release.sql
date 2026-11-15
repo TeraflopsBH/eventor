@@ -81,6 +81,18 @@ BEGIN
       USING ERRCODE = '55000';
   END IF;
 
+  -- Serialize against customer acceptance (which locks offer then
+  -- revision). Draft edits/confirmation use draft -> offer -> revision order.
+  PERFORM offer.id
+    FROM eogp.booking_offers AS offer
+    JOIN eogp.booking_offer_revisions AS offer_revision
+      ON offer_revision.organization_id = offer.organization_id
+     AND offer_revision.offer_id = offer.id
+   WHERE offer.organization_id = p_organization_id
+     AND offer_revision.draft_revision_id = p_draft_revision_id
+   ORDER BY offer.id, offer_revision.id
+   FOR UPDATE OF offer, offer_revision;
+
   -- Once a customer has accepted an offer for this exact revision, its holds
   -- are part of the accepted commercial path and cannot be released here.
   IF EXISTS (
