@@ -72,7 +72,7 @@ DECLARE
   v_offer_id uuid;
   v_token text := repeat('A',43);
   v_token_hash text;
-  v_tax_codes jsonb := '[{"taxCode":"STANDARD","label":"Standard rate","treatment":"percentage","rate":0}]'::jsonb;
+  v_tax_codes jsonb := '[{"taxCode":"STANDARD","label":"Standard rate","treatment":"percentage","rate":17}]'::jsonb;
   v_approval_rules jsonb := '[{"code":"commercial-review","condition":{"kind":"always"},"requiredApprovals":1,"permission":"booking.approve","separationOfDuties":true}]'::jsonb;
 BEGIN
   v_submitted := eogp.submit_public_booking_inquiry_with_locale(
