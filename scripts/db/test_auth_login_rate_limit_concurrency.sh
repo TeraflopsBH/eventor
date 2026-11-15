@@ -2,7 +2,7 @@
 set -euo pipefail
 
 : "${AUTH_URL:?AUTH_URL must point to the dedicated eventor_auth database role}"
-: "${ADMIN_URL:?ADMIN_URL must point to the migration/owner database role}"
+: "${ADMIN_URL:?ADMIN_URL must point to the isolated CI database administrator}"
 
 work_dir="$(mktemp -d)"
 email_fingerprint="$(openssl rand -hex 32)"
