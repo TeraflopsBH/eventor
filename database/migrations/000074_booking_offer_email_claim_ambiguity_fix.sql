@@ -1,6 +1,8 @@
 -- Qualify UPDATE RETURNING columns that collide with RETURNS TABLE output variables.
 -- Without qualification, PL/pgSQL cannot resolve offer_id in the expired/stale CTEs.
-CREATE OR REPLACE FUNCTION eogp.claim_booking_offer_email_delivery(
+DROP FUNCTION eogp.claim_booking_offer_email_delivery(uuid);
+
+CREATE FUNCTION eogp.claim_booking_offer_email_delivery(
   p_organization_id uuid
 ) RETURNS TABLE(
   delivery_id uuid,offer_id uuid,offer_revision_id uuid,
@@ -122,3 +124,7 @@ BEGIN
      AND config.id=v_delivery.delivery_config_revision_id;
 END;
 $function$;
+
+
+REVOKE ALL ON FUNCTION eogp.claim_booking_offer_email_delivery(uuid) FROM PUBLIC,eventor_runtime,eventor_auth;
+GRANT EXECUTE ON FUNCTION eogp.claim_booking_offer_email_delivery(uuid) TO eventor_worker;
