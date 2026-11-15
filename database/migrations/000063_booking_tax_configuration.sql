@@ -389,10 +389,16 @@ RETURNS trigger LANGUAGE plpgsql SECURITY DEFINER SET search_path=pg_catalog,eog
 DECLARE v_tax eogp.booking_tax_profile_revisions%ROWTYPE; v_profile_status text;
 BEGIN
   IF NEW.state='published' AND NEW.tax_profile_revision_id IS NOT NULL THEN
-    SELECT r,p.status INTO v_tax,v_profile_status
+    SELECT r INTO v_tax
       FROM eogp.booking_tax_profile_revisions r
       JOIN eogp.booking_tax_profiles p ON p.organization_id=r.organization_id AND p.id=r.tax_profile_id
-     WHERE r.organization_id=NEW.organization_id AND r.id=NEW.tax_profile_revision_id;
+     WHERE r.organization_id=NEW.organization_id AND r.id=NEW.tax_profile_revision_id
+     FOR SHARE OF r,p;
+    IF FOUND THEN
+      SELECT p.status INTO v_profile_status
+        FROM eogp.booking_tax_profiles p
+       WHERE p.organization_id=v_tax.organization_id AND p.id=v_tax.tax_profile_id;
+    END IF;
     IF NOT FOUND OR v_tax.state<>'published' OR v_profile_status<>'active'
        OR v_tax.currency<>NEW.currency OR v_tax.tax_basis<>NEW.tax_basis
        OR (v_tax.effective_from IS NOT NULL AND (NEW.effective_from IS NULL OR v_tax.effective_from>NEW.effective_from))
@@ -431,16 +437,27 @@ CREATE TRIGGER booking_price_list_tax_profile_publish_guard
 -- Enrich each new offer's terms with the immutable tax-profile revision selected by its price list.
 CREATE FUNCTION eogp.snapshot_booking_offer_tax_profile()
 RETURNS trigger LANGUAGE plpgsql SECURITY DEFINER SET search_path=pg_catalog,eogp AS $function$
-DECLARE v_tax eogp.booking_tax_profile_revisions%ROWTYPE; v_profile eogp.booking_tax_profiles%ROWTYPE;
+DECLARE
+  v_tax eogp.booking_tax_profile_revisions%ROWTYPE;
+  v_profile eogp.booking_tax_profiles%ROWTYPE;
+  v_tax_found boolean := false;
 BEGIN
-  SELECT r,p INTO v_tax,v_profile
+  SELECT r INTO v_tax
     FROM eogp.booking_price_list_revisions price
     JOIN eogp.booking_tax_profile_revisions r
       ON r.organization_id=price.organization_id AND r.id=price.tax_profile_revision_id
     JOIN eogp.booking_tax_profiles p
       ON p.organization_id=r.organization_id AND p.id=r.tax_profile_id
-   WHERE price.organization_id=NEW.organization_id AND price.id=NEW.price_list_revision_id;
-  IF FOUND THEN
+   WHERE price.organization_id=NEW.organization_id AND price.id=NEW.price_list_revision_id
+   FOR SHARE OF r,p;
+  v_tax_found := FOUND;
+  IF v_tax_found THEN
+    SELECT p INTO v_profile
+      FROM eogp.booking_tax_profiles p
+     WHERE p.organization_id=v_tax.organization_id AND p.id=v_tax.tax_profile_id;
+    IF NOT FOUND THEN
+      RAISE EXCEPTION 'selected tax profile revision has no owning profile' USING ERRCODE='23514';
+    END IF;
     NEW.terms_snapshot:=NEW.terms_snapshot || jsonb_build_object(
       'taxConfiguration',jsonb_build_object(
         'taxProfileId',v_profile.id,'taxProfileCode',v_profile.code,'taxProfileName',v_profile.name,
