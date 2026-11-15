@@ -6,13 +6,13 @@ This runbook describes what the GitHub-hosted acceptance workflow verifies witho
 
 - PostgreSQL 18.6 migration, RLS, tenant-isolation and concurrency suite.
 - API/OpenAPI and staff-web tests, type-checks, production build and dependency audits.
-- Real PostgreSQL-backed execution of the TypeScript SMTP notification worker using a deterministic in-memory SMTP transport. No external mail is sent.
+- Real PostgreSQL-backed execution of both the event-notification and booking-offer TypeScript SMTP workers using deterministic in-memory SMTP transports. The booking-offer lane verifies encrypted recipient/capability handling, a retryable SMTP failure, a subsequent successful attempt, and concurrent worker claims without duplicate submission. No external mail is sent.
 - Chromium and Firefox browser checks for staff login, Secure/HttpOnly cookie persistence, session restoration through `GET /me`, CSRF-protected mutation, logout and revocation.
 - Upgrade rehearsal from the immediately preceding committed migration baseline (version 72) to version 73, with representative data present across the upgrade.
 - Logical PostgreSQL backup/restore rehearsal into a separate ephemeral database, followed by schema-ledger and data-count verification.
 - Full reachable Git-history secret scanning.
 
-The worker E2E uses synthetic addresses under `example.invalid`, synthetic encryption keys and a fake SMTP transport. It exercises the real worker code and real PostgreSQL claim/complete functions, but it does not prove delivery to an external mail provider.
+The worker E2E uses synthetic addresses under `example.invalid`, synthetic encryption keys and fake SMTP transports. It exercises the real worker code and real PostgreSQL claim/complete functions for event notifications and booking offers, but it does not prove delivery to an external mail provider.
 
 ## Optional live checks
 
