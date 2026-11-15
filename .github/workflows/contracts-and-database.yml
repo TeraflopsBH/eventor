@@ -390,11 +390,11 @@ jobs:
 
       - name: Rehearse PostgreSQL logical backup and restore into an isolated database
         run: |
-          pg_dump --role=eventor_owner --format=custom --no-owner --file=/tmp/eventor-ci-backup.dump "$MIGRATOR_URL"
-          pg_restore --list /tmp/eventor-ci-backup.dump > /tmp/eventor-ci-backup.list
+          /usr/lib/postgresql/18/bin/pg_dump --role=eventor_owner --format=custom --no-owner --file=/tmp/eventor-ci-backup.dump "$MIGRATOR_URL"
+          /usr/lib/postgresql/18/bin/pg_restore --list /tmp/eventor-ci-backup.dump > /tmp/eventor-ci-backup.list
           psql "$ADMIN_URL" -X -v ON_ERROR_STOP=1 -c "CREATE DATABASE eventor_restore OWNER eventor_owner;"
           restore_url="postgresql://eventor_migrator:eventor_ci_migrator_password@127.0.0.1:5432/eventor_restore"
-          pg_restore --exit-on-error --no-owner --role=eventor_owner --dbname="$restore_url" /tmp/eventor-ci-backup.dump
+          /usr/lib/postgresql/18/bin/pg_restore --exit-on-error --no-owner --role=eventor_owner --dbname="$restore_url" /tmp/eventor-ci-backup.dump
           source_counts="$(psql "$MIGRATOR_URL" -X -qAt -v ON_ERROR_STOP=1 -c "SET ROLE eventor_owner; SELECT (SELECT count(*) FROM eogp.schema_migrations)||':'||(SELECT count(*) FROM eogp.organizations)||':'||(SELECT count(*) FROM eogp.event_notification_delivery_attempts);")"
           restored_counts="$(psql "$restore_url" -X -qAt -v ON_ERROR_STOP=1 -c "SET ROLE eventor_owner; SELECT (SELECT count(*) FROM eogp.schema_migrations)||':'||(SELECT count(*) FROM eogp.organizations)||':'||(SELECT count(*) FROM eogp.event_notification_delivery_attempts);")"
           test "$source_counts" = "$restored_counts"
