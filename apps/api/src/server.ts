@@ -2812,6 +2812,46 @@ export function buildApi(dependencies: ApiDependencies): FastifyInstance {
     },
   );
 
+  server.get<{
+    Querystring: { status?: "submitted" | "under_review" | "approved" | "rejected" | "withdrawn" | "expired" | "effective"; limit?: number; offset?: number };
+  }>(
+    "/organization/booking-cancellation-requests",
+    {
+      schema: {
+        querystring: {
+          type: "object",
+          properties: {
+            status: { type: "string", enum: ["submitted", "under_review", "approved", "rejected", "withdrawn", "expired", "effective"] },
+            limit: { type: "integer", minimum: 1, maximum: 100, default: 50 },
+            offset: { type: "integer", minimum: 0, maximum: 100000, default: 0 },
+          },
+          additionalProperties: false,
+        },
+      },
+    },
+    async (request, reply) => {
+      const principal = request.staffPrincipal!;
+      const client = await dependencies.pool.connect();
+      try {
+        await client.query("BEGIN");
+        await client.query("SELECT set_config('app.organization_id',$1,true)", [principal.organizationId]);
+        await client.query("SELECT set_config('app.actor_membership_id',$1,true)", [principal.membershipId]);
+        const result = await client.query<ResultRow>(
+          "SELECT eogp.get_booking_cancellation_requests($1::uuid,$2::uuid,$3::text,$4::integer,$5::integer) AS result",
+          [principal.organizationId, principal.membershipId, request.query.status ?? null,
+            request.query.limit ?? 50, request.query.offset ?? 0],
+        );
+        await client.query("COMMIT");
+        return reply.code(200).send({ data: result.rows[0]?.result ?? { items: [], total: 0, limit: request.query.limit ?? 50, offset: request.query.offset ?? 0 } });
+      } catch (error) {
+        try { await client.query("ROLLBACK"); } catch { /* preserve the read error */ }
+        throw databaseError(error);
+      } finally {
+        client.release();
+      }
+    },
+  );
+
   server.get(
     "/organization/booking-cancellation-policies",
     async (request, reply) => {
