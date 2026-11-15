@@ -14,11 +14,19 @@ VALUES (
   'event_organizer'
 );
 
+INSERT INTO eogp.users (id,email,display_name,status)
+VALUES (
+  'cccccccc-cccc-4ccc-8ccc-cccccccccccc',
+  'ci-forward@example.invalid',
+  'CI Forward Migration User',
+  'active'
+);
+
 INSERT INTO eogp.organization_memberships (id,organization_id,user_id,status,joined_at)
 VALUES (
   '97000000-0000-4000-8000-000000000002',
   '97000000-0000-4000-8000-000000000001',
-  'bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb',
+  'cccccccc-cccc-4ccc-8ccc-cccccccccccc',
   'active',clock_timestamp()
 );
 
