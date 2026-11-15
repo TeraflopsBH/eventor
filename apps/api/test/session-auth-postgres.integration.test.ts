@@ -122,7 +122,7 @@ test("real PostgreSQL staff sessions survive HTTP cookie round-trips and enforce
     } as never);
     assert.ok(expiredPrincipal?.sessionId);
     await maintenancePool.query(
-      "UPDATE eogp.user_sessions SET expires_at=clock_timestamp()-interval '1 second' WHERE id=$1",
+      "UPDATE eogp.user_sessions SET created_at=clock_timestamp()-interval '2 minutes', last_seen_at=clock_timestamp()-interval '2 minutes', expires_at=clock_timestamp()-interval '1 second' WHERE id=$1",
       [expiredPrincipal.sessionId],
     );
     const expiredResponse = await app.inject({
