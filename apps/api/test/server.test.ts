@@ -3205,7 +3205,7 @@ test("external booking action bootstrap resolves to a scoped capability context 
   const data = response.json<{ data: Record<string, unknown> }>().data;
   assert.equal(data.bookingCode, "BKG-CANCEL-001");
   assert.equal(data.action, "booking_cancellation_request");
-  assert.equal(data.capabilityToken, token);
+  assert.equal("capabilityToken" in data, false);
   assert.equal("organizationId" in data, false);
   assert.equal("bookingId" in data, false);
   assert.equal(response.headers["cache-control"], "no-store, private");
