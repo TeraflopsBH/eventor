@@ -77,7 +77,7 @@ jobs:
               if line.startswith("HTTP/"):
                   if current is not None:
                       blocks.append(current)
-                  match = re.match(r"^HTTP/\\S+\\s+(\\d{3})", line)
+                  match = re.match(r"^HTTP/\S+\s+(\d{3})", line)
                   if not match:
                       raise SystemExit(f"Unrecognized HTTP status line: {line}")
                   current = {"status": int(match.group(1)), "headers": {}}
