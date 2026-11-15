@@ -278,16 +278,51 @@ export class PostgresStaffSessionAuth {
       request.ip || "unknown",
     );
 
-    const blocked = await this.authPool.query<QueryResultRow & { blocked: boolean }>(
-      `SELECT coalesce(
-         (SELECT blocked_until > clock_timestamp()
-            FROM eogp.auth_login_attempts
-           WHERE email_fingerprint = $1 AND source_fingerprint = $2),
-         false
-       ) AS blocked`,
-      [emailFingerprint, sourceFingerprint],
+    // Reserve this attempt atomically before expensive password verification.
+    // The unique-key UPSERT serializes concurrent requests for the same
+    // email/source pair, so a burst cannot all pass a stale pre-check.
+    const reservation = await this.authPool.query<QueryResultRow & { blocked: boolean }>(
+      `INSERT INTO eogp.auth_login_attempts (
+         email_fingerprint, source_fingerprint,
+         window_started_at, failed_attempts, updated_at
+       ) VALUES ($1,$2,clock_timestamp(),1,clock_timestamp())
+       ON CONFLICT (email_fingerprint, source_fingerprint)
+       DO UPDATE SET
+         failed_attempts = CASE
+           WHEN eogp.auth_login_attempts.window_started_at
+                < clock_timestamp() - make_interval(secs => $3)
+             THEN 1
+           WHEN eogp.auth_login_attempts.blocked_until > clock_timestamp()
+             THEN eogp.auth_login_attempts.failed_attempts
+           ELSE eogp.auth_login_attempts.failed_attempts + 1
+         END,
+         window_started_at = CASE
+           WHEN eogp.auth_login_attempts.window_started_at
+                < clock_timestamp() - make_interval(secs => $3)
+             THEN clock_timestamp()
+           ELSE eogp.auth_login_attempts.window_started_at
+         END,
+         blocked_until = CASE
+           WHEN eogp.auth_login_attempts.window_started_at
+                < clock_timestamp() - make_interval(secs => $3)
+             THEN NULL
+           WHEN eogp.auth_login_attempts.blocked_until > clock_timestamp()
+             THEN eogp.auth_login_attempts.blocked_until
+           WHEN eogp.auth_login_attempts.failed_attempts + 1 > $4
+             THEN clock_timestamp() + make_interval(secs => $5)
+           ELSE NULL
+         END,
+         updated_at = clock_timestamp()
+       RETURNING coalesce(blocked_until > clock_timestamp(), false) AS blocked`,
+      [
+        emailFingerprint,
+        sourceFingerprint,
+        this.loginWindowSeconds,
+        this.maxFailedLogins,
+        this.loginBlockSeconds,
+      ],
     );
-    if (blocked.rows[0]?.blocked) {
+    if (reservation.rows[0]?.blocked !== false) {
       throw new SessionAuthError(429, "LOGIN_THROTTLED", "Too many failed sign-in attempts. Try again later.");
     }
 
@@ -332,7 +367,6 @@ export class PostgresStaffSessionAuth {
     );
 
     if (!validIdentity || !row) {
-      await this.recordFailedLogin(emailFingerprint, sourceFingerprint);
       throw new SessionAuthError(401, "INVALID_CREDENTIALS", "The supplied sign-in details are not valid.");
     }
 
@@ -481,49 +515,4 @@ export class PostgresStaffSessionAuth {
     }
   }
 
-  private async recordFailedLogin(
-    emailFingerprint: string,
-    sourceFingerprint: string,
-  ): Promise<void> {
-    await this.authPool.query(
-      `INSERT INTO eogp.auth_login_attempts (
-         email_fingerprint, source_fingerprint,
-         window_started_at, failed_attempts, updated_at
-       ) VALUES ($1,$2,clock_timestamp(),1,clock_timestamp())
-       ON CONFLICT (email_fingerprint, source_fingerprint)
-       DO UPDATE SET
-         failed_attempts = CASE
-           WHEN eogp.auth_login_attempts.window_started_at
-                < clock_timestamp() - make_interval(secs => $3)
-             THEN 1
-           ELSE eogp.auth_login_attempts.failed_attempts + 1
-         END,
-         window_started_at = CASE
-           WHEN eogp.auth_login_attempts.window_started_at
-                < clock_timestamp() - make_interval(secs => $3)
-             THEN clock_timestamp()
-           ELSE eogp.auth_login_attempts.window_started_at
-         END,
-         blocked_until = CASE
-           WHEN (
-             CASE
-               WHEN eogp.auth_login_attempts.window_started_at
-                    < clock_timestamp() - make_interval(secs => $3)
-                 THEN 1
-               ELSE eogp.auth_login_attempts.failed_attempts + 1
-             END
-           ) >= $4
-             THEN clock_timestamp() + make_interval(secs => $5)
-           ELSE NULL
-         END,
-         updated_at = clock_timestamp()`,
-      [
-        emailFingerprint,
-        sourceFingerprint,
-        this.loginWindowSeconds,
-        this.maxFailedLogins,
-        this.loginBlockSeconds,
-      ],
-    );
-  }
 }
