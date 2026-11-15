@@ -52,6 +52,7 @@ DECLARE
     'eogp.update_booking_tax_profile_draft_revision(uuid,uuid,uuid,uuid,text,text,text,text,text,integer,timestamptz,timestamptz,jsonb)',
     'eogp.publish_booking_tax_profile_revision(uuid,uuid,uuid,uuid)',
     'eogp.set_booking_price_list_tax_profile_revision(uuid,uuid,uuid,uuid,uuid)',
+  'eogp.release_booking_draft_reservations(uuid,uuid,uuid[],uuid,text)',
   'eogp.preview_booking_draft_allocation_availability(uuid,uuid,uuid,jsonb,jsonb,timestamptz,timestamptz)'
   ];
 BEGIN
