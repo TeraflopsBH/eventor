@@ -4193,6 +4193,37 @@ paths:
         '401': { $ref: '#/components/responses/Unauthorized' }
         '403': { $ref: '#/components/responses/Forbidden' }
         '409': { $ref: '#/components/responses/Conflict' }
+  "/organization/booking-cancellation-requests":
+    get:
+      tags: ["Booking Cancellation"]
+      operationId: listOrganizationBookingCancellationRequests
+      summary: "List the current organization's booking cancellation review queue"
+      security: [{ StaffSession: [] }]
+      parameters:
+        - name: status
+          in: query
+          required: false
+          schema:
+            type: string
+            enum: [submitted, under_review, approved, rejected, withdrawn, expired, effective]
+        - name: limit
+          in: query
+          required: false
+          schema: { type: integer, minimum: 1, maximum: 100, default: 50 }
+        - name: offset
+          in: query
+          required: false
+          schema: { type: integer, minimum: 0, maximum: 100000, default: 0 }
+      responses:
+        '200':
+          description: "Cancellation requests and pagination metadata. Contact data and encrypted explanations are intentionally excluded."
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/DataEnvelope' }
+        '400': { $ref: '#/components/responses/BadRequest' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '500': { $ref: '#/components/responses/InternalServerError' }
   "/organization/booking-cancellation-policies":
     get:
       tags: ["Cancellation Policy"]
