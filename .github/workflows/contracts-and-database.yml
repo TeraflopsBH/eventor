@@ -397,7 +397,11 @@ jobs:
 
       - name: Rehearse PostgreSQL logical backup and restore into an isolated database
         run: |
-          /usr/lib/postgresql/18/bin/pg_dump --role=eventor_owner --format=custom --no-owner --file=/tmp/eventor-ci-backup.dump "$MIGRATOR_URL"
+          # Use the PostgreSQL administrator for a complete logical backup:
+          # FORCE ROW LEVEL SECURITY prevents the non-superuser owner from
+          # dumping every tenant's rows without a tenant context.
+          admin_eventor_url="${ADMIN_URL%/postgres}/eventor"
+          /usr/lib/postgresql/18/bin/pg_dump --format=custom --no-owner --file=/tmp/eventor-ci-backup.dump "$admin_eventor_url"
           /usr/lib/postgresql/18/bin/pg_restore --list /tmp/eventor-ci-backup.dump > /tmp/eventor-ci-backup.list
           psql "$ADMIN_URL" -X -v ON_ERROR_STOP=1 -c "CREATE DATABASE eventor_restore OWNER eventor_owner;"
           restore_url="postgresql://eventor_migrator:eventor_ci_migrator_password@127.0.0.1:5432/eventor_restore"
