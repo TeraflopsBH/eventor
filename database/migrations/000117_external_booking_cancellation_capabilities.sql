@@ -122,6 +122,15 @@ BEGIN
   IF p_action_code='booking_cancellation_request' AND v_booking_status<>'confirmed' THEN
     RAISE EXCEPTION 'cancellation request capability requires a confirmed booking' USING ERRCODE='55000';
   END IF;
+  IF p_action_code='booking_cancellation_status' AND NOT EXISTS (
+    SELECT 1
+      FROM eogp.booking_cancellation_requests request
+     WHERE request.organization_id=p_organization_id
+       AND request.booking_id=p_booking_id
+       AND request.requester_contact_id=p_booking_contact_id
+  ) THEN
+    RAISE EXCEPTION 'no cancellation request exists for this booking contact' USING ERRCODE='P0002';
+  END IF;
 
   -- Issuing a successor link invalidates older links for the same contact/action.
   UPDATE eogp.external_action_capabilities
@@ -497,10 +506,12 @@ $function$;
 REVOKE ALL ON FUNCTION eogp.issue_external_booking_action_capability(uuid,uuid,uuid,uuid,text,text,timestamptz,integer),
   eogp.revoke_external_booking_action_capability(uuid,uuid,uuid,uuid,text),
   eogp.resolve_external_booking_action_capability(text,text),
+  eogp.get_external_booking_cancellation_request_status(text,uuid),
   eogp.submit_external_booking_cancellation_request(text,text,text,text,bytea)
   FROM PUBLIC,eventor_worker,eventor_auth;
 GRANT EXECUTE ON FUNCTION eogp.issue_external_booking_action_capability(uuid,uuid,uuid,uuid,text,text,timestamptz,integer),
   eogp.revoke_external_booking_action_capability(uuid,uuid,uuid,uuid,text),
   eogp.resolve_external_booking_action_capability(text,text),
+  eogp.get_external_booking_cancellation_request_status(text,uuid),
   eogp.submit_external_booking_cancellation_request(text,text,text,text,bytea)
   TO eventor_runtime;
