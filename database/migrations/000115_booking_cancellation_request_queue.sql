@@ -35,7 +35,7 @@ BEGIN
     INTO v_total
     FROM eogp.booking_cancellation_requests request
    WHERE request.organization_id = p_organization_id
-     AND (p_status IS NULL OR request.status = p_status);
+     AND ((p_status IS NULL AND request.status IN ('submitted','under_review','approved')) OR request.status = p_status);
 
   SELECT coalesce(jsonb_agg(item ORDER BY item->>'requestedAt' DESC, item->>'requestId'), '[]'::jsonb)
     INTO v_items
@@ -71,7 +71,7 @@ BEGIN
         ON snapshot.organization_id = booking.organization_id
        AND snapshot.booking_id = booking.id
       WHERE request.organization_id = p_organization_id
-        AND (p_status IS NULL OR request.status = p_status)
+        AND ((p_status IS NULL AND request.status IN ('submitted','under_review','approved')) OR request.status = p_status)
       ORDER BY request.requested_at DESC, request.id
       LIMIT p_limit OFFSET p_offset
     ) page;
