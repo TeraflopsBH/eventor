@@ -2976,6 +2976,26 @@ test("staff can submit a booking cancellation request idempotently", async (t) =
   assert.equal(mock.bookingCancellationRequestSubmitCalls, 1);
 });
 
+test("staff can return a cancellation request for changes without resolving it", async (t) => {
+  const mock = makePool();
+  const app = makeApi(mock.pool);
+  t.after(async () => app.close());
+  const requestId = "19191919-1919-4191-8191-191919191919";
+  const response = await app.inject({
+    method: "POST",
+    url: `/booking-cancellation-requests/${requestId}/decision`,
+    headers: { "idempotency-key": "booking-cancel-return-01" },
+    payload: { decision: "returned_for_changes", reason: "Please provide the revised schedule." },
+  });
+  assert.equal(response.statusCode, 201);
+  const data = response.json<{ data: { decision: string; status: string } }>().data;
+  assert.equal(data.decision, "returned_for_changes");
+  assert.equal(data.status, "submitted");
+  assert.equal(mock.bookingCancellationDecisionCalls, 1);
+  const call = mock.commandCalls.find((entry) => entry.sql.includes("eogp.decide_booking_cancellation_request("));
+  assert.ok(call);
+  assert.equal(call.values[3], "returned_for_changes");
+});
 test("staff cancellation decision records approval with an explicit reason", async (t) => {
   const mock = makePool();
   const app = makeApi(mock.pool);
