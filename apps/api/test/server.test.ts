@@ -3108,3 +3108,130 @@ test("booking cancellation request detail projection is permission-scoped and om
   assert.ok(call);
   assert.deepEqual(call.values, [principal.organizationId, bookingId, principal.membershipId]);
 });
+
+
+test("external booking cancellation capability issuance is idempotent and returns the bearer token once", async (t) => {
+  const mock = makePool();
+  const app = makeApi(mock.pool);
+  t.after(async () => app.close());
+  const bookingId = "17171717-1717-4171-8171-171717171717";
+  const bookingContactId = "23232323-2323-4323-8323-232323232323";
+  const payload = {
+    bookingContactId,
+    action: "booking_cancellation_request",
+    expiresAt: "2026-12-01T00:00:00.000Z",
+  };
+  const headers = { "idempotency-key": "external-cancel-cap-01" };
+  const first = await app.inject({
+    method: "POST",
+    url: `/bookings/${bookingId}/external-action-capabilities`,
+    headers,
+    payload,
+  });
+  assert.equal(first.statusCode, 201);
+  const firstData = first.json<{ data: { capabilityId: string; action: string; token: string; maxUses: number } }>().data;
+  assert.equal(firstData.capabilityId, "21212121-2121-4121-8121-212121212121");
+  assert.equal(firstData.action, "booking_cancellation_request");
+  assert.equal(firstData.maxUses, 1);
+  assert.match(firstData.token, /^[A-Za-z0-9_-]{43}$/);
+  assert.equal(first.headers["cache-control"], "no-store, private");
+  const call = mock.commandCalls.find((entry) => entry.sql.includes("eogp.issue_external_booking_action_capability("));
+  assert.ok(call);
+  assert.equal(call.values[5], createHash("sha256").update(firstData.token, "utf8").digest("hex"));
+  assert.equal(call.values.includes(firstData.token), false);
+
+  const replay = await app.inject({
+    method: "POST",
+    url: `/bookings/${bookingId}/external-action-capabilities`,
+    headers,
+    payload,
+  });
+  assert.equal(replay.statusCode, 201);
+  assert.equal(replay.json().data.token, firstData.token);
+  assert.equal(mock.externalBookingCapabilityIssueCalls, 1);
+});
+
+test("staff can revoke an external booking action capability with a reason", async (t) => {
+  const mock = makePool();
+  const app = makeApi(mock.pool);
+  t.after(async () => app.close());
+  const bookingId = "17171717-1717-4171-8171-171717171717";
+  const capabilityId = "21212121-2121-4121-8121-212121212121";
+  const response = await app.inject({
+    method: "POST",
+    url: `/bookings/${bookingId}/external-action-capabilities/${capabilityId}/revoke`,
+    headers: { "idempotency-key": "external-cancel-revoke-01" },
+    payload: { reason: "The customer link was sent to the wrong contact." },
+  });
+  assert.equal(response.statusCode, 201);
+  assert.equal(response.json().data.state, "revoked");
+  assert.equal(mock.externalBookingCapabilityRevokeCalls, 1);
+  const call = mock.commandCalls.find((entry) => entry.sql.includes("eogp.revoke_external_booking_action_capability("));
+  assert.ok(call);
+  assert.deepEqual(call.values, [
+    principal.organizationId, bookingId, capabilityId, principal.membershipId,
+    "The customer link was sent to the wrong contact.",
+  ]);
+});
+
+test("external booking action bootstrap resolves to a scoped capability context without exposing tenant IDs", async (t) => {
+  const mock = makePool();
+  const app = makeApi(mock.pool, { authenticated: false });
+  t.after(async () => app.close());
+  const token = "T".repeat(43);
+  const response = await app.inject({
+    method: "POST",
+    url: "/external/booking-actions/resolve",
+    headers: {
+      "idempotency-key": "external-cancel-resolve-01",
+      "x-external-booking-action-token": token,
+    },
+    payload: { action: "booking_cancellation_request" },
+  });
+  assert.equal(response.statusCode, 200);
+  const data = response.json<{ data: Record<string, unknown> }>().data;
+  assert.equal(data.bookingCode, "BKG-CANCEL-001");
+  assert.equal(data.action, "booking_cancellation_request");
+  assert.equal(data.capabilityToken, token);
+  assert.equal("organizationId" in data, false);
+  assert.equal("bookingId" in data, false);
+  assert.equal(response.headers["cache-control"], "no-store, private");
+  assert.equal(mock.externalBookingCapabilityResolveCalls, 1);
+  const call = mock.commandCalls.find((entry) => entry.sql.includes("eogp.resolve_external_booking_action_capability("));
+  assert.ok(call);
+  assert.deepEqual(call.values, [
+    createHash("sha256").update(token, "utf8").digest("hex"),
+    "booking_cancellation_request",
+  ]);
+});
+
+test("external customer cancellation request encrypts the explanation and uses capability-bound idempotency", async (t) => {
+  const mock = makePool();
+  const app = makeApi(mock.pool, { authenticated: false });
+  t.after(async () => app.close());
+  const token = "U".repeat(43);
+  const explanation = "The event date no longer works for our group.";
+  const response = await app.inject({
+    method: "POST",
+    url: "/external/booking-actions/cancellation-requests",
+    headers: {
+      "idempotency-key": "external-cancel-submit-01",
+      "x-external-booking-token": token,
+    },
+    payload: { reasonCode: "schedule_change", explanation },
+  });
+  assert.equal(response.statusCode, 201);
+  const data = response.json<{ data: { requestId: string; status: string } }>().data;
+  assert.equal(data.requestId, "22222222-2222-4222-8222-222222222222");
+  assert.equal(data.status, "submitted");
+  assert.equal(response.headers["cache-control"], "no-store, private");
+  assert.equal(mock.externalBookingCancellationSubmitCalls, 1);
+  const call = mock.commandCalls.find((entry) => entry.sql.includes("eogp.submit_external_booking_cancellation_request("));
+  assert.ok(call);
+  assert.equal(call.values[0], createHash("sha256").update(token, "utf8").digest("hex"));
+  assert.equal(call.values[1], createHash("sha256").update("external-cancel-submit-01", "utf8").digest("hex"));
+  assert.match(String(call.values[2]), /^[0-9a-f]{64}$/);
+  assert.ok(Buffer.isBuffer(call.values[4]));
+  assert.equal((call.values[4] as Buffer).subarray(0, 3).toString("ascii"), "EV1");
+  assert.equal((call.values[4] as Buffer).includes(Buffer.from(explanation)), false);
+});
