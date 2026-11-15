@@ -1,0 +1,70 @@
+name: Optional external acceptance probes
+
+on:
+  workflow_dispatch:
+  push:
+    branches:
+      - feat/guest-invitation-runtime-phase1
+  pull_request:
+    branches:
+      - main
+
+permissions:
+  contents: read
+
+jobs:
+  smtp-sandbox:
+    name: Optional live SMTP sandbox delivery
+    if: ${{ vars.EVENTOR_SMTP_SANDBOX_ENABLED == 'true' }}
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
+      - name: Set up Node.js
+        uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020
+        with:
+          node-version: "22.16.0"
+      - name: Install API dependencies and build
+        working-directory: apps/api
+        run: |
+          npm ci --no-audit --no-fund
+          npm run build
+      - name: Verify provider TLS/authentication and send one explicit sandbox test message
+        env:
+          EVENTOR_SMTP_HOST: ${{ secrets.EVENTOR_SMTP_HOST }}
+          EVENTOR_SMTP_PORT: ${{ secrets.EVENTOR_SMTP_PORT }}
+          EVENTOR_SMTP_TRANSPORT_SECURITY: ${{ secrets.EVENTOR_SMTP_TRANSPORT_SECURITY }}
+          EVENTOR_SMTP_AUTH_MODE: ${{ secrets.EVENTOR_SMTP_AUTH_MODE }}
+          EVENTOR_SMTP_USERNAME: ${{ secrets.EVENTOR_SMTP_USERNAME }}
+          EVENTOR_SMTP_PASSWORD: ${{ secrets.EVENTOR_SMTP_PASSWORD }}
+          EVENTOR_SMTP_SENDER_EMAIL: ${{ secrets.EVENTOR_SMTP_SENDER_EMAIL }}
+          EVENTOR_SMTP_SENDER_NAME: ${{ secrets.EVENTOR_SMTP_SENDER_NAME }}
+          EVENTOR_SMTP_REPLY_TO: ${{ secrets.EVENTOR_SMTP_REPLY_TO }}
+          EVENTOR_SMTP_TO: ${{ secrets.EVENTOR_SMTP_TO }}
+        run: node apps/api/scripts/smtp-sandbox-smoke.mjs
+
+  public-tls:
+    name: Optional public HTTPS and security-header probe
+    if: ${{ vars.EVENTOR_PUBLIC_BASE_URL != '' }}
+    runs-on: ubuntu-latest
+    steps:
+      - name: Validate public HTTPS endpoint, certificate and HSTS
+        env:
+          EVENTOR_PUBLIC_BASE_URL: ${{ vars.EVENTOR_PUBLIC_BASE_URL }}
+        run: |
+          python - <<'PY'
+          import os
+          import urllib.parse
+          url = os.environ["EVENTOR_PUBLIC_BASE_URL"].strip()
+          parsed = urllib.parse.urlparse(url)
+          if parsed.scheme != "https" or not parsed.hostname or parsed.username or parsed.password:
+              raise SystemExit("EVENTOR_PUBLIC_BASE_URL must be an absolute HTTPS URL without credentials")
+          print(f"Probing configured public endpoint: {parsed.hostname}")
+          PY
+          curl --silent --show-error --location --proto '=https' --tlsv1.2 \
+            --max-time 30 --dump-header /tmp/eventor-public-headers.txt \
+            --output /dev/null --write-out 'http_code=%{http_code} ssl_verify_result=%{ssl_verify_result} effective_url=%{url_effective}\n' \
+            "$EVENTOR_PUBLIC_BASE_URL"
+          grep -Eiq '^strict-transport-security:' /tmp/eventor-public-headers.txt
+          grep -Eiq '^x-content-type-options:' /tmp/eventor-public-headers.txt
+          grep -Eiq '^referrer-policy:' /tmp/eventor-public-headers.txt
