@@ -6,6 +6,10 @@
 
 This record is intentionally a template. Empty fields are not evidence of a pass.
 
+## Repository CI boundary
+
+The integration branch's `docs/operations/REMOTE_ACCEPTANCE.md` records the checks available in GitHub-hosted CI. CI now includes an isolated logical PostgreSQL dump/restore rehearsal and provides opt-in SMTP sandbox and public HTTPS probes. These checks do not establish a production backup/PITR drill, full browser business acceptance, a real deployed-database upgrade, or target-host/network acceptance. A skipped optional probe is not a pass. Record the exact candidate SHA and sanitized run evidence when an external activity is actually completed.
+
 ## 1. Acceptance environment
 
 - Environment name:
