@@ -461,21 +461,11 @@ DECLARE
   v_capability_id uuid;
   v_result jsonb;
 BEGIN
-  IF p_token_sha256 IS NULL OR p_token_sha256 !~ '^[0-9a-f]{64}
-  eogp.revoke_external_booking_action_capability(uuid,uuid,uuid,uuid,text),
-  eogp.resolve_external_booking_action_capability(text,text),
-  eogp.get_external_booking_cancellation_request_status(text,uuid),
-  eogp.submit_external_booking_cancellation_request(text,text,text,text,bytea)
-  FROM PUBLIC,eventor_worker,eventor_auth;
-GRANT EXECUTE ON FUNCTION eogp.issue_external_booking_action_capability(uuid,uuid,uuid,uuid,text,text,timestamptz,integer),
-  eogp.revoke_external_booking_action_capability(uuid,uuid,uuid,uuid,text),
-  eogp.resolve_external_booking_action_capability(text,text),
-  eogp.submit_external_booking_cancellation_request(text,text,text,text,bytea)
-  TO eventor_runtime;
-
+  IF p_token_sha256 IS NULL OR p_token_sha256 !~ '^[0-9a-f]{64}$'
      OR p_request_id IS NULL THEN
     RAISE EXCEPTION 'invalid external cancellation status request' USING ERRCODE='22023';
   END IF;
+
   SELECT organization_id,capability_id
     INTO v_organization_id,v_capability_id
     FROM eogp.external_booking_action_capability_lookup
@@ -484,6 +474,8 @@ GRANT EXECUTE ON FUNCTION eogp.issue_external_booking_action_capability(uuid,uui
     RAISE EXCEPTION 'external booking action capability not found' USING ERRCODE='P0002';
   END IF;
   PERFORM set_config('app.organization_id',v_organization_id::text,true);
+
+  -- Hold a shared lock so revocation cannot race a successful status read.
   PERFORM 1
     FROM eogp.external_action_capabilities capability
    WHERE capability.organization_id=v_organization_id
@@ -527,13 +519,16 @@ GRANT EXECUTE ON FUNCTION eogp.issue_external_booking_action_capability(uuid,uui
 END;
 $function$;
 
-REVOKE ALL ON FUNCTION eogp.issue_external_booking_action_capability(uuid,uuid,uuid,uuid,text,text,timestamptz,integer),
+REVOKE ALL ON FUNCTION
+  eogp.issue_external_booking_action_capability(uuid,uuid,uuid,uuid,text,text,timestamptz,integer),
   eogp.revoke_external_booking_action_capability(uuid,uuid,uuid,uuid,text),
   eogp.resolve_external_booking_action_capability(text,text),
   eogp.get_external_booking_cancellation_request_status(text,uuid),
   eogp.submit_external_booking_cancellation_request(text,text,text,text,bytea)
   FROM PUBLIC,eventor_worker,eventor_auth;
-GRANT EXECUTE ON FUNCTION eogp.issue_external_booking_action_capability(uuid,uuid,uuid,uuid,text,text,timestamptz,integer),
+
+GRANT EXECUTE ON FUNCTION
+  eogp.issue_external_booking_action_capability(uuid,uuid,uuid,uuid,text,text,timestamptz,integer),
   eogp.revoke_external_booking_action_capability(uuid,uuid,uuid,uuid,text),
   eogp.resolve_external_booking_action_capability(text,text),
   eogp.get_external_booking_cancellation_request_status(text,uuid),
