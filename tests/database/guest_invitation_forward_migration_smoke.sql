@@ -1,5 +1,6 @@
 \set ON_ERROR_STOP on
 
+SET ROLE eventor_owner;
 DO $guest_invitation_forward_migration$
 BEGIN
   IF EXISTS (
