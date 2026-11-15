@@ -42,7 +42,7 @@ All mutations use the existing session, CSRF, origin and idempotency controls. O
 
 ## Validation still required
 
-- Execute migration 000060 on PostgreSQL 18 and run the commercial schema smoke test.
+- Execute migration 000061 on PostgreSQL 18 and run the commercial schema smoke test.
 - Add PostgreSQL functional tests for cross-tenant IDs, permission denial, duplicate item codes, invalid quantities, empty publication, draft correction, successor creation, publication immutability and concurrent publish/revision creation.
 - Run API and staff-web typecheck/build/test suites when a local PostgreSQL-capable validation environment or CI allowance is available.
 - Verify the offer preparation effective-period checks against this revision model before production use.
