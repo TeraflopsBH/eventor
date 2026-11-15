@@ -265,6 +265,16 @@ jobs:
           WORKER_URL: ${{ env.WORKER_URL }}
         run: node --test dist/test/booking-offer-email-worker.integration.test.js
 
+      - name: Seed isolated staff authentication integration identity
+        run: psql "$MIGRATOR_URL" -X -v ON_ERROR_STOP=1 -f tests/database/session_auth_integration_fixture.sql
+
+      - name: Verify real PostgreSQL login, session cookies, /me, expiry, CSRF and logout
+        working-directory: apps/api
+        env:
+          AUTH_URL: ${{ env.AUTH_URL }}
+          ADMIN_URL: ${{ env.ADMIN_URL }}
+        run: node --test dist/test/session-auth-postgres.integration.test.js
+
       - name: Verify delivery result under forced-RLS owner
         run: psql "$MIGRATOR_URL" -X -v ON_ERROR_STOP=1 -c "SET ROLE eventor_owner" -f tests/database/event_notification_delivery_result_smoke.sql
       - name: Verify authenticated Resend webhook endpoint, correlation and idempotency
