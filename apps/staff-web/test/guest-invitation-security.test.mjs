@@ -30,8 +30,8 @@ const publicOfferPage = await readFile(
 );
 
 test("public booking offer bearer token is removed from browser history", () => {
-  assert.match(publicOfferPage, /window\\.history\\.replaceState\\(window\\.history\\.state, "",/);
-  assert.match(publicOfferPage, /window\\.location\\.pathname/);
-  assert.match(publicOfferPage, /window\\.location\\.search/);
-  assert.match(publicOfferPage, /\\^\\[A-Za-z0-9_-\\]\\{43\\}\\$/);
+  assert.match(publicOfferPage, /window\.history\.replaceState\(window\.history\.state, "",/);
+  assert.match(publicOfferPage, /window\.location\.pathname/);
+  assert.match(publicOfferPage, /window\.location\.search/);
+  assert.match(publicOfferPage, /\^\[A-Za-z0-9_-\]\{43\}\$/);
 });
