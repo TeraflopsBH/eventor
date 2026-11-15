@@ -31,14 +31,14 @@ BEGIN
            last_failure_code='SMTP_UNKNOWN',updated_at=clock_timestamp()
      WHERE organization_id=p_organization_id AND status='sending'
        AND lease_expires_at<=clock_timestamp()
-     RETURNING delivery.id,delivery.offer_id,delivery.offer_revision_id
+     RETURNING delivery.id,delivery.offer_id,delivery.offer_revision_id,delivery.requested_by_membership_id
   )
   INSERT INTO eogp.audit_events(
-    organization_id,actor_kind,action,aggregate_type,aggregate_id,
-    reason_code,safe_metadata,occurred_at
+    organization_id,actor_organization_id,actor_membership_id,actor_kind,
+    action,aggregate_type,aggregate_id,reason_code,safe_metadata,occurred_at
   )
-  SELECT p_organization_id,'system','booking.offer.email_uncertain',
-         'booking_offer',expired.offer_id,'SMTP_UNKNOWN',
+  SELECT p_organization_id,p_organization_id,expired.requested_by_membership_id,'membership',
+         'booking.offer.email_uncertain','booking_offer',expired.offer_id,'SMTP_UNKNOWN',
          jsonb_build_object('deliveryId',expired.id,'offerRevisionId',expired.offer_revision_id,
            'source','expired_worker_lease'),
          clock_timestamp()
@@ -65,14 +65,14 @@ BEGIN
              WHERE latest.organization_id=offer.organization_id AND latest.offer_id=offer.id
           )
      )
-     RETURNING delivery.id,delivery.offer_id,delivery.offer_revision_id
+     RETURNING delivery.id,delivery.offer_id,delivery.offer_revision_id,delivery.requested_by_membership_id
   )
   INSERT INTO eogp.audit_events(
-    organization_id,actor_kind,action,aggregate_type,aggregate_id,
-    reason_code,safe_metadata,occurred_at
+    organization_id,actor_organization_id,actor_membership_id,actor_kind,
+    action,aggregate_type,aggregate_id,reason_code,safe_metadata,occurred_at
   )
-  SELECT p_organization_id,'system','booking.offer.email_failed',
-         'booking_offer',stale.offer_id,'OFFER_NO_LONGER_CURRENT',
+  SELECT p_organization_id,p_organization_id,stale.requested_by_membership_id,'membership',
+         'booking.offer.email_failed','booking_offer',stale.offer_id,'OFFER_NO_LONGER_CURRENT',
          jsonb_build_object('deliveryId',stale.id,'offerRevisionId',stale.offer_revision_id,
            'source','offer_no_longer_current'),
          clock_timestamp()
