@@ -103,6 +103,8 @@ function makePool() {
   let bookingOfferApprovalStatusCalls = 0;
   let bookingConfirmationCalls = 0;
   let bookingCancellationQueueCalls = 0;
+  let bookingCancellationRequestSubmitCalls = 0;
+  let bookingCancellationDecisionCalls = 0;
   let bookingApprovalPolicyListCalls = 0;
   let bookingApprovalPolicyCreateCalls = 0;
   let bookingApprovalPolicyRevisionCalls = 0;
@@ -800,6 +802,30 @@ function makePool() {
         commandCalls.push({ sql: normalized, values });
         return { rows: [{ result: { accepted: true, duplicate: false, attemptId: "95000000-0000-4000-8000-000000000001", status: values[4] } }], rowCount: 1 };
       }
+      if (normalized.includes("eogp.submit_booking_cancellation_request(")) {
+        bookingCancellationRequestSubmitCalls += 1;
+        commandCalls.push({ sql: normalized, values });
+        return { rows: [{ result: {
+          requestId: "19191919-1919-4191-8191-191919191919",
+          bookingId: values[1],
+          status: "submitted",
+          reasonCode: values[3],
+          requestedAt: "2026-11-15T13:00:00.000Z",
+        } }], rowCount: 1 };
+      }
+      if (normalized.includes("eogp.decide_booking_cancellation_request(")) {
+        bookingCancellationDecisionCalls += 1;
+        commandCalls.push({ sql: normalized, values });
+        const decision = String(values[3]);
+        return { rows: [{ result: {
+          requestId: values[1],
+          bookingId: "17171717-1717-4171-8171-171717171717",
+          decisionId: "20202020-2020-4020-8020-202020202020",
+          decision,
+          status: decision === "returned_for_changes" ? "submitted" : decision,
+          decidedAt: "2026-11-15T13:10:00.000Z",
+        } }], rowCount: 1 };
+      }
       if (normalized.includes("eogp.get_booking_cancellation_requests(")) {
         bookingCancellationQueueCalls += 1;
         commandCalls.push({ sql: normalized, values });
@@ -1016,6 +1042,8 @@ function makePool() {
     get bookingOfferApprovalStatusCalls() { return bookingOfferApprovalStatusCalls; },
     get bookingConfirmationCalls() { return bookingConfirmationCalls; },
     get bookingCancellationQueueCalls() { return bookingCancellationQueueCalls; },
+    get bookingCancellationRequestSubmitCalls() { return bookingCancellationRequestSubmitCalls; },
+    get bookingCancellationDecisionCalls() { return bookingCancellationDecisionCalls; },
     get bookingApprovalPolicyListCalls() { return bookingApprovalPolicyListCalls; },
     get bookingApprovalPolicyCreateCalls() { return bookingApprovalPolicyCreateCalls; },
     get bookingApprovalPolicyRevisionCalls() { return bookingApprovalPolicyRevisionCalls; },
@@ -2887,4 +2915,70 @@ test("booking cancellation review queue is tenant-scoped, paginated and excludes
   assert.deepEqual(call.values, [principal.organizationId, principal.membershipId, "submitted", 25, 5]);
   assert.equal(JSON.stringify(body).includes("email"), false);
   assert.equal(JSON.stringify(body).includes("explanation"), false);
+});
+
+
+test("staff can submit a booking cancellation request idempotently", async (t) => {
+  const mock = makePool();
+  const app = makeApi(mock.pool);
+  t.after(async () => app.close());
+  const bookingId = "17171717-1717-4171-8171-171717171717";
+  const headers = { "idempotency-key": "booking-cancel-request-01" };
+  const payload = { reasonCode: "schedule_change" };
+
+  const first = await app.inject({
+    method: "POST",
+    url: `/bookings/${bookingId}/cancellation-requests`,
+    headers,
+    payload,
+  });
+  assert.equal(first.statusCode, 201);
+  const data = first.json<{ data: { requestId: string; bookingId: string; status: string; reasonCode: string } }>().data;
+  assert.equal(data.requestId, "19191919-1919-4191-8191-191919191919");
+  assert.equal(data.bookingId, bookingId);
+  assert.equal(data.status, "submitted");
+  assert.equal(data.reasonCode, "schedule_change");
+  assert.equal(mock.bookingCancellationRequestSubmitCalls, 1);
+  const call = mock.commandCalls.find((entry) => entry.sql.includes("eogp.submit_booking_cancellation_request("));
+  assert.ok(call);
+  assert.deepEqual(call.values, [principal.organizationId, bookingId, principal.membershipId, "schedule_change"]);
+  assert.match(call.sql, /NULL::bytea/);
+
+  const replay = await app.inject({
+    method: "POST",
+    url: `/bookings/${bookingId}/cancellation-requests`,
+    headers,
+    payload,
+  });
+  assert.equal(replay.statusCode, 201);
+  assert.deepEqual(replay.json(), first.json());
+  assert.equal(mock.bookingCancellationRequestSubmitCalls, 1);
+});
+
+test("staff cancellation decision records approval with an explicit reason", async (t) => {
+  const mock = makePool();
+  const app = makeApi(mock.pool);
+  t.after(async () => app.close());
+  const requestId = "19191919-1919-4191-8191-191919191919";
+  const headers = { "idempotency-key": "booking-cancel-decision-01" };
+  const payload = { decision: "approved", reason: "The request was reviewed and approved." };
+
+  const response = await app.inject({
+    method: "POST",
+    url: `/booking-cancellation-requests/${requestId}/decision`,
+    headers,
+    payload,
+  });
+  assert.equal(response.statusCode, 201);
+  const data = response.json<{ data: { requestId: string; decision: string; status: string } }>().data;
+  assert.equal(data.requestId, requestId);
+  assert.equal(data.decision, "approved");
+  assert.equal(data.status, "approved");
+  assert.equal(mock.bookingCancellationDecisionCalls, 1);
+  const call = mock.commandCalls.find((entry) => entry.sql.includes("eogp.decide_booking_cancellation_request("));
+  assert.ok(call);
+  assert.deepEqual(call.values, [
+    principal.organizationId, requestId, principal.membershipId,
+    "approved", "The request was reviewed and approved.",
+  ]);
 });
