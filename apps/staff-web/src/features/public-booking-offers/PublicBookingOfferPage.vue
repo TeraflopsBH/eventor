@@ -23,6 +23,11 @@ function changePublicLocale(event: Event): void {
 const publicOfferMatch = window.location.pathname.match(/^\/offers\/([0-9a-fA-F-]{36})\/?$/);
 const publicOfferId = publicOfferMatch?.[1] ?? "";
 const publicOfferToken = ref(new URLSearchParams(window.location.hash.slice(1)).get("token") ?? "");
+// The offer capability is a bearer credential. Keep it in memory, not in the
+// address bar or the current browser-history entry.
+if (/^[A-Za-z0-9_-]{43}$/.test(publicOfferToken.value)) {
+  window.history.replaceState(window.history.state, "", `${window.location.pathname}${window.location.search}`);
+}
 const publicOffer = ref<PublicBookingOffer | null>(null);
 const publicOfferLoading = ref(true);
 const publicOfferError = ref("");
