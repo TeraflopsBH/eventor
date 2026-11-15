@@ -204,20 +204,51 @@ $function$;
 
 -- All cancellation lifecycle writes must pass through the audited command boundary.
 -- Runtime keeps tenant-scoped SELECT access for queue/history projections only.
-REVOKE INSERT, UPDATE, DELETE ON
+CREATE FUNCTION eogp.assert_booking_cancellation_request_permission(
+  p_organization_id uuid,
+  p_request_id uuid,
+  p_actor_membership_id uuid,
+  p_permission_code text
+) RETURNS void
+LANGUAGE plpgsql
+SECURITY DEFINER
+SET search_path = pg_catalog, eogp
+AS $function$
+DECLARE
+  v_booking_id uuid;
+BEGIN
+  IF eogp.current_organization_id() IS DISTINCT FROM p_organization_id THEN
+    RAISE EXCEPTION 'organization context mismatch' USING ERRCODE='42501';
+  END IF;
+  SELECT booking_id INTO v_booking_id
+    FROM eogp.booking_cancellation_requests
+   WHERE organization_id=p_organization_id AND id=p_request_id;
+  IF NOT FOUND THEN
+    RAISE EXCEPTION 'booking cancellation request not found' USING ERRCODE='P0002';
+  END IF;
+  PERFORM eogp.assert_booking_cancellation_permission(
+    p_organization_id,v_booking_id,p_actor_membership_id,p_permission_code
+  );
+END;
+$function$;
+
+REVOKE ALL ON
   eogp.booking_cancellation_requests,
   eogp.booking_cancellation_decisions,
   eogp.booking_cancellation_effects,
   eogp.booking_disruption_notices
 FROM eventor_runtime, eventor_worker, eventor_auth;
 
-REVOKE ALL ON FUNCTION eogp.assert_booking_cancellation_permission(uuid,uuid,uuid,text)
+REVOKE ALL ON FUNCTION eogp.assert_booking_cancellation_permission(uuid,uuid,uuid,text),
+  eogp.assert_booking_cancellation_request_permission(uuid,uuid,uuid,text)
   FROM PUBLIC,eventor_runtime,eventor_worker,eventor_auth;
 REVOKE ALL ON FUNCTION eogp.submit_booking_cancellation_request(uuid,uuid,uuid,text,bytea)
   FROM PUBLIC,eventor_runtime,eventor_worker,eventor_auth;
 REVOKE ALL ON FUNCTION eogp.decide_booking_cancellation_request(uuid,uuid,uuid,text,text)
   FROM PUBLIC,eventor_runtime,eventor_worker,eventor_auth;
-GRANT EXECUTE ON FUNCTION eogp.submit_booking_cancellation_request(uuid,uuid,uuid,text,bytea),
+GRANT EXECUTE ON FUNCTION eogp.get_booking_cancellation_requests(uuid,uuid,text,integer,integer),
+  eogp.assert_booking_cancellation_request_permission(uuid,uuid,uuid,text),
+  eogp.submit_booking_cancellation_request(uuid,uuid,uuid,text,bytea),
   eogp.decide_booking_cancellation_request(uuid,uuid,uuid,text,text)
   TO eventor_runtime;
 
