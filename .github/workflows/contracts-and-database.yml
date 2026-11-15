@@ -1,6 +1,7 @@
 name: Contracts and PostgreSQL migrations
 
 on:
+  workflow_dispatch:
   push:
     branches:
       - feat/postgresql18-migrations-openapi-v0.3

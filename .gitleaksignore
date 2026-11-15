@@ -21,3 +21,6 @@ c3d021642d0f1ffd510641b7f8b54a3ce8fa8fd0:apps/api/test/server.test.ts:generic-ap
 
 # Synthetic invalid-correction idempotency key fixture, not a credential.
 6fb4101b070709e86964936fb7b0a0becb1f81fb:apps/api/test/guest-invitation-runtime.test.ts:376
+# Reviewed synthetic idempotency-key values in staff RSVP regression fixtures.
+# Exact historical fingerprints only; no live credentials or broad path allowlists.
+6fb4101b070709e86964936fb7b0a0becb1f81fb:apps/api/test/guest-invitation-runtime.test.ts:generic-api-key:376
