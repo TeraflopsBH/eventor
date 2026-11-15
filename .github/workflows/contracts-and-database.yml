@@ -371,6 +371,33 @@ jobs:
           EVENTOR_BROWSER_BASE_URL: http://localhost:8080
         run: node apps/api/scripts/session-browser-smoke.mjs
 
+      - name: Start the built staff web preview for guest browser acceptance
+        working-directory: apps/staff-web
+        run: |
+          npm run preview -- --host 0.0.0.0 --port 4173 --strictPort > /tmp/eventor-staff-web.log 2>&1 &
+          echo $! > /tmp/eventor-staff-web.pid
+          for attempt in $(seq 1 30); do
+            if curl --fail --silent --show-error --output /dev/null http://localhost:4173/; then
+              exit 0
+            fi
+            sleep 1
+          done
+          cat /tmp/eventor-staff-web.log
+          exit 1
+
+      - name: Verify guest invitation browser flow in Chromium and Firefox
+        working-directory: apps/api
+        env:
+          EVENTOR_GUEST_BROWSER_BASE_URL: http://localhost:4173
+        run: node scripts/guest-invitation-browser-smoke.mjs
+
+      - name: Stop the staff web preview
+        if: always()
+        run: |
+          if [ -f /tmp/eventor-staff-web.pid ]; then
+            kill "$(cat /tmp/eventor-staff-web.pid)" 2>/dev/null || true
+          fi
+
       - name: Stop the CI API process
         if: always()
         run: |
