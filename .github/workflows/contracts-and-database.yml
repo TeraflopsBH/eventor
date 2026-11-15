@@ -371,18 +371,7 @@ jobs:
       - name: Rehearse forward upgrade from migration 72 to migration 73 with existing data
         env:
           UPGRADE_MIGRATOR_URL: postgresql://eventor_migrator:eventor_ci_migrator_password@127.0.0.1:5432/eventor_upgrade
-        run: |
-          psql "$ADMIN_URL" -X -v ON_ERROR_STOP=1 -c "CREATE DATABASE eventor_upgrade OWNER eventor_owner;"
-          mkdir -p /tmp/eventor-migrations-v72
-          find database/migrations -maxdepth 1 -type f -name '*.sql' ! -name '000073_*' -print0 \
-            | sort -z | xargs -0 -r cp -t /tmp/eventor-migrations-v72
-          test "$(find /tmp/eventor-migrations-v72 -maxdepth 1 -type f -name '*.sql' | wc -l)" -eq 72
-          DATABASE_URL="$UPGRADE_MIGRATOR_URL" MIGRATIONS_DIR=/tmp/eventor-migrations-v72 bash scripts/db/migrate.sh
-          psql "$UPGRADE_MIGRATOR_URL" -X -v ON_ERROR_STOP=1 -f tests/database/migration_smoke.sql
-          pre_upgrade_count="$(psql "$UPGRADE_MIGRATOR_URL" -X -qAt -v ON_ERROR_STOP=1 -c "SET ROLE eventor_owner; SELECT count(*) FROM eogp.schema_migrations;")"
-          test "$pre_upgrade_count" = "72"
-          DATABASE_URL="$UPGRADE_MIGRATOR_URL" bash scripts/db/migrate.sh
-          psql "$UPGRADE_MIGRATOR_URL" -X -v ON_ERROR_STOP=1 -c "SET ROLE eventor_owner; DO \$verify\$ BEGIN IF (SELECT count(*) FROM eogp.schema_migrations) <> 73 THEN RAISE EXCEPTION 'expected 73 migrations after upgrade'; END IF; IF (SELECT count(*) FROM eogp.organizations) <> 2 OR (SELECT count(*) FROM eogp.venues) <> 3 OR (SELECT count(*) FROM eogp.booking_resource_lines) <> 2 THEN RAISE EXCEPTION 'representative pre-upgrade rows were not preserved'; END IF; IF to_regprocedure('eogp.confirm_booking_from_offer(uuid,uuid,uuid,text)') IS NULL THEN RAISE EXCEPTION 'migration 73 booking confirmation function is missing'; END IF; END \$verify\$;"
+        run: bash scripts/ci/upgrade-rehearsal.sh
 
       - name: Rehearse PostgreSQL logical backup and restore into an isolated database
         run: |
