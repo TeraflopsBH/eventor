@@ -1299,8 +1299,8 @@ test("staff inquiry inbox decrypts authorized projections and routes assignment,
     "21212121-2121-4121-8121-212121212121",
   ]);
   assert.match(prepareCall.sql, /,NULL::uuid,/);
-  assert.deepEqual(JSON.parse(String(prepareCall.values[10])), offerBody.lineItems);
-  assert.deepEqual(JSON.parse(String(prepareCall.values[11])), []);
+  assert.deepEqual(JSON.parse(String(prepareCall.values[9])), offerBody.lineItems);
+  assert.deepEqual(JSON.parse(String(prepareCall.values[10])), []);
 
   const offerRead = await app.inject({
     method: "GET",
