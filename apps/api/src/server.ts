@@ -2962,16 +2962,11 @@ export function buildApi(dependencies: ApiDependencies): FastifyInstance {
           return result.rows[0]?.result as Record<string, unknown>;
         },
         async (client) => {
-          const requestRow = await client.query<{ booking_id: string }>(
-            "SELECT booking_id FROM eogp.booking_cancellation_requests WHERE organization_id=$1 AND id=$2",
-            [principal.organizationId, request.params.requestId],
-          );
-          const bookingId = requestRow.rows[0]?.booking_id;
-          if (!bookingId) throw new ApiError(404, "NOT_FOUND", "The booking cancellation request was not found.");
-          await authorizeBookingCancellationReplay(
-            client, principal, bookingId,
-            request.body.decision === "returned_for_changes"
-              ? "booking.cancellation.review" : "booking.cancellation.approve",
+          await client.query(
+            "SELECT eogp.assert_booking_cancellation_request_permission($1::uuid,$2::uuid,$3::uuid,$4::text)",
+            [principal.organizationId, request.params.requestId, principal.membershipId,
+              request.body.decision === "returned_for_changes"
+                ? "booking.cancellation.review" : "booking.cancellation.approve"],
           );
         },
       );
