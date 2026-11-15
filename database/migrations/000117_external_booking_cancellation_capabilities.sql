@@ -11,6 +11,13 @@ CREATE TABLE eogp.external_booking_action_capability_lookup (
     REFERENCES eogp.external_action_capabilities(organization_id,id)
 );
 
+ALTER TABLE eogp.external_booking_action_capability_lookup ENABLE ROW LEVEL SECURITY;
+ALTER TABLE eogp.external_booking_action_capability_lookup FORCE ROW LEVEL SECURITY;
+CREATE POLICY external_booking_action_capability_lookup_tenant_isolation
+  ON eogp.external_booking_action_capability_lookup
+  USING (organization_id=eogp.current_organization_id())
+  WITH CHECK (organization_id=eogp.current_organization_id());
+
 REVOKE ALL ON eogp.external_booking_action_capability_lookup
   FROM PUBLIC,eventor_runtime,eventor_worker,eventor_auth;
 
