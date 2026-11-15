@@ -371,6 +371,12 @@ jobs:
           EVENTOR_BROWSER_BASE_URL: http://localhost:8080
         run: node apps/api/scripts/session-browser-smoke.mjs
 
+      - name: Install and build staff web for guest browser acceptance
+        working-directory: apps/staff-web
+        run: |
+          npm ci --no-audit --no-fund
+          npm run build
+
       - name: Start the built staff web preview for guest browser acceptance
         working-directory: apps/staff-web
         run: |
