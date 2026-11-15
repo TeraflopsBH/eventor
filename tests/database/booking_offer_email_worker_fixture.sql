@@ -71,6 +71,7 @@ DECLARE
   v_approval jsonb;
   v_offer jsonb;
   v_queued jsonb;
+  v_duplicate jsonb;
   v_inquiry_id uuid;
   v_draft_revision_id uuid;
   v_tax_profile_id uuid;
@@ -190,6 +191,16 @@ BEGIN
   );
   IF v_queued->>'status'<>'queued' OR v_queued->>'created'<>'true' THEN
     RAISE EXCEPTION 'booking offer email was not queued: %',v_queued;
+  END IF;
+
+  v_duplicate := eogp.queue_booking_offer_email_delivery(
+    v_org,v_offer_id,v_actor,
+    repeat('4',64),v_token_hash,
+    convert_to('ECP1'||repeat('x',64),'UTF8')
+  );
+  IF v_duplicate->>'created'<>'false'
+     OR v_duplicate->>'deliveryId'<>v_queued->>'deliveryId' THEN
+    RAISE EXCEPTION 'booking offer email queue command is not idempotent: %',v_duplicate;
   END IF;
 
 END;
