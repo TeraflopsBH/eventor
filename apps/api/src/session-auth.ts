@@ -289,25 +289,27 @@ export class PostgresStaffSessionAuth {
        ON CONFLICT (email_fingerprint, source_fingerprint)
        DO UPDATE SET
          failed_attempts = CASE
+           WHEN eogp.auth_login_attempts.blocked_until > clock_timestamp()
+             THEN eogp.auth_login_attempts.failed_attempts
            WHEN eogp.auth_login_attempts.window_started_at
                 < clock_timestamp() - make_interval(secs => $3)
              THEN 1
-           WHEN eogp.auth_login_attempts.blocked_until > clock_timestamp()
-             THEN eogp.auth_login_attempts.failed_attempts
            ELSE eogp.auth_login_attempts.failed_attempts + 1
          END,
          window_started_at = CASE
+           WHEN eogp.auth_login_attempts.blocked_until > clock_timestamp()
+             THEN eogp.auth_login_attempts.window_started_at
            WHEN eogp.auth_login_attempts.window_started_at
                 < clock_timestamp() - make_interval(secs => $3)
              THEN clock_timestamp()
            ELSE eogp.auth_login_attempts.window_started_at
          END,
          blocked_until = CASE
+           WHEN eogp.auth_login_attempts.blocked_until > clock_timestamp()
+             THEN eogp.auth_login_attempts.blocked_until
            WHEN eogp.auth_login_attempts.window_started_at
                 < clock_timestamp() - make_interval(secs => $3)
              THEN NULL
-           WHEN eogp.auth_login_attempts.blocked_until > clock_timestamp()
-             THEN eogp.auth_login_attempts.blocked_until
            WHEN eogp.auth_login_attempts.failed_attempts + 1 > $4
              THEN clock_timestamp() + make_interval(secs => $5)
            ELSE NULL
