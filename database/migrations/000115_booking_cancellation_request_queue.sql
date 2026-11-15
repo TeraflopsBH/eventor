@@ -1,5 +1,45 @@
 -- Read-only, tenant-scoped booking cancellation review queue.
 -- Request details intentionally exclude encrypted explanations and contact data.
+CREATE FUNCTION eogp.assert_booking_cancellation_queue_permission(
+  p_organization_id uuid,
+  p_actor_membership_id uuid
+) RETURNS void
+LANGUAGE plpgsql
+SECURITY DEFINER
+SET search_path = pg_catalog, eogp
+AS $function$
+DECLARE
+  v_member_status text;
+BEGIN
+  IF eogp.current_organization_id() IS DISTINCT FROM p_organization_id THEN
+    RAISE EXCEPTION 'organization context mismatch' USING ERRCODE='42501';
+  END IF;
+  SELECT status INTO v_member_status
+    FROM eogp.organization_memberships
+   WHERE organization_id=p_organization_id AND id=p_actor_membership_id
+   FOR SHARE;
+  IF NOT FOUND OR v_member_status <> 'active' THEN
+    RAISE EXCEPTION 'active organization membership is required' USING ERRCODE='42501';
+  END IF;
+  PERFORM 1
+    FROM eogp.user_role_grants user_grant
+    JOIN eogp.role_permissions role_permission
+      ON role_permission.organization_id=user_grant.organization_id
+     AND role_permission.role_id=user_grant.role_id
+   WHERE user_grant.organization_id=p_organization_id
+     AND user_grant.membership_id=p_actor_membership_id
+     AND user_grant.scope_kind='organization'
+     AND user_grant.revoked_at IS NULL
+     AND (user_grant.expires_at IS NULL OR user_grant.expires_at>clock_timestamp())
+     AND role_permission.permission_code IN ('booking.cancellation.review','booking.cancellation.approve')
+   FOR SHARE OF user_grant, role_permission;
+  IF NOT FOUND THEN
+    RAISE EXCEPTION 'booking cancellation review or approval permission is required'
+      USING ERRCODE='42501';
+  END IF;
+END;
+$function$;
+
 CREATE FUNCTION eogp.get_booking_cancellation_requests(
   p_organization_id uuid,
   p_actor_membership_id uuid,
@@ -19,8 +59,8 @@ BEGIN
        IS DISTINCT FROM p_organization_id THEN
     RAISE EXCEPTION 'organization context mismatch' USING ERRCODE = '42501';
   END IF;
-  PERFORM eogp.assert_booking_commercial_permission(
-    p_organization_id, p_actor_membership_id, ARRAY['booking.manage']::text[]
+  PERFORM eogp.assert_booking_cancellation_queue_permission(
+    p_organization_id, p_actor_membership_id
   );
   IF p_status IS NOT NULL AND p_status NOT IN
       ('submitted','under_review','approved','rejected','withdrawn','expired','effective') THEN
@@ -85,7 +125,8 @@ BEGIN
 END;
 $function$;
 
-REVOKE ALL ON FUNCTION eogp.get_booking_cancellation_requests(uuid,uuid,text,integer,integer)
+REVOKE ALL ON FUNCTION eogp.assert_booking_cancellation_queue_permission(uuid,uuid),
+  eogp.get_booking_cancellation_requests(uuid,uuid,text,integer,integer)
   FROM PUBLIC, eventor_worker, eventor_auth;
 GRANT EXECUTE ON FUNCTION eogp.get_booking_cancellation_requests(uuid,uuid,text,integer,integer)
   TO eventor_runtime;
