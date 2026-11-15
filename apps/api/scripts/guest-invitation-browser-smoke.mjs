@@ -24,6 +24,7 @@ const invitation = {
 };
 
 for (const [name, browserType] of [["chromium", chromium], ["firefox", firefox]]) {
+  invitation.currentResponse = null;
   const browser = await browserType.launch({ headless: true });
   try {
     const context = await browser.newContext();
