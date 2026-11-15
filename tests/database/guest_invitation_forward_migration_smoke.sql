@@ -1,6 +1,7 @@
 \set ON_ERROR_STOP on
 
 SET ROLE eventor_owner;
+SELECT set_config('app.organization_id','97000000-0000-4000-8000-000000000001',true);
 DO $guest_invitation_forward_migration$
 BEGIN
   IF EXISTS (
@@ -24,6 +25,16 @@ BEGIN
   IF position('v_delivery.capability_ciphertext' IN
       pg_get_functiondef('eogp.claim_invitation_email_delivery(uuid)'::regprocedure))=0 THEN
     RAISE EXCEPTION 'invitation delivery claim does not read the restricted delivery envelope';
+  END IF;
+
+  IF NOT EXISTS (
+    SELECT 1
+      FROM eogp.invitation_deliveries delivery
+     WHERE delivery.organization_id='97000000-0000-4000-8000-000000000001'
+       AND delivery.id='97000000-0000-4000-8000-000000000012'
+       AND delivery.capability_ciphertext=decode('45435031' || repeat('aa',32),'hex')
+  ) THEN
+    RAISE EXCEPTION 'pre-existing link capability ciphertext was not preserved on its delivery row';
   END IF;
 END;
 $guest_invitation_forward_migration$;
