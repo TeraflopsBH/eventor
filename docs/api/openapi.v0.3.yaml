@@ -6709,8 +6709,6 @@ components:
           properties:
             draftRevisionId: { type: string, format: uuid }
             supersedeCurrentOffer: { type: boolean, default: false }
- }
-        explanation: { type: string, maxLength: 4000 }
     CancellationDecisionRequest:
       type: object
       required: [reason]
