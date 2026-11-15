@@ -51,7 +51,6 @@ BEGIN
        AND delivery.event_id=link.event_id
        AND delivery.invitation_id=link.invitation_id
        AND delivery.invitation_revision_id=link.invitation_revision_id
-       AND delivery.capability_ciphertext IS NULL
        AND link.capability_ciphertext IS NOT NULL;
   END LOOP;
   PERFORM set_config('app.organization_id','',true);
