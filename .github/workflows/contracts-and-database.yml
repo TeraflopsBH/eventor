@@ -206,6 +206,9 @@ jobs:
           ADMIN_EVENTOR_URL="${ADMIN_URL%/postgres}/eventor"
           psql "$ADMIN_EVENTOR_URL" -X -v ON_ERROR_STOP=1 -f tests/database/guest_invitation_delivery_attempt_history_smoke.sql
 
+      - name: Verify system audit actor constraints used by invitation delivery workers
+        run: psql "$MIGRATOR_URL" -X -v ON_ERROR_STOP=1 -f tests/database/audit_system_actor_smoke.sql
+
       - name: Prepare an expired guest invitation delivery lease
         run: psql "$MIGRATOR_URL" -X -v ON_ERROR_STOP=1 -f tests/database/guest_invitation_expired_lease_claim_fixture.sql
 
