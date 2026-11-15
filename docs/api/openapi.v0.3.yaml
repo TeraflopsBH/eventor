@@ -6198,14 +6198,13 @@ components:
       properties:
         bookingContactId: { type: string, format: uuid }
         action: { type: string, enum: [booking_cancellation_request, booking_cancellation_status] }
-        offerRevisionId: { type: string, format: uuid }
         expiresAt: { type: string, format: date-time }
         maxUses: { type: integer, minimum: 1, maximum: 20, default: 1 }
     ExternalActionResolveRequest:
       type: object
       required: [action]
       properties:
-        action: { type: string, enum: [offer_accept, booking_cancellation_request, booking_cancellation_status] }
+        action: { type: string, enum: [booking_cancellation_request, booking_cancellation_status] }
     BookingCancellationRequest:
       type: object
       required: [reasonCode]
