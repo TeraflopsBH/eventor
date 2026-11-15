@@ -61,7 +61,7 @@ jobs:
               raise SystemExit("EVENTOR_PUBLIC_BASE_URL must be an absolute HTTPS URL without credentials")
           print(f"Probing configured public endpoint: {parsed.hostname}")
           PY
-          curl --silent --show-error --location --proto '=https' --tlsv1.2 \
+          curl --silent --show-error --location --proto '=https' --proto-redir '=https' --tlsv1.2 \
             --max-time 30 --dump-header /tmp/eventor-public-headers.txt \
             --output /dev/null "$EVENTOR_PUBLIC_BASE_URL"
           python - <<'PY'
