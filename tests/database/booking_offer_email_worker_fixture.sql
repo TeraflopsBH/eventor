@@ -1,7 +1,19 @@
 \set ON_ERROR_STOP on
+\if :{?ci_booking_offer_email_ciphertext_base64}
+\else
+\echo 'ci_booking_offer_email_ciphertext_base64 is required'
+\quit
+\endif
+\if :{?ci_booking_offer_capability_ciphertext_base64}
+\else
+\echo 'ci_booking_offer_capability_ciphertext_base64 is required'
+\quit
+\endif
 BEGIN;
 SET LOCAL ROLE eventor_owner;
 SELECT set_config('app.organization_id','22222222-2222-4222-8222-222222222222',true);
+SELECT set_config('eventor.ci_booking_offer_email_ciphertext_base64', :'ci_booking_offer_email_ciphertext_base64', true);
+SELECT set_config('eventor.ci_booking_offer_capability_ciphertext_base64', :'ci_booking_offer_capability_ciphertext_base64', true);
 
 INSERT INTO eogp.roles(id,organization_id,code,name,scope_kind)
 VALUES (
@@ -50,7 +62,7 @@ DO $fixture$
 DECLARE
   v_org uuid := '22222222-2222-4222-8222-222222222222';
   v_actor uuid := 'bbbbbbbb-2222-4222-8222-bbbbbbbbbbbb';
-  v_ciphertext bytea := decode('45435031'||repeat('00',29),'hex');
+  v_ciphertext bytea := decode(current_setting('eventor.ci_booking_offer_email_ciphertext_base64'),'base64');
   v_submitted jsonb;
   v_conversion jsonb;
   v_tax jsonb;
@@ -174,7 +186,7 @@ BEGIN
   v_queued := eogp.queue_booking_offer_email_delivery(
     v_org,v_offer_id,v_actor,
     repeat('4',64),v_token_hash,
-    convert_to('ECP1'||repeat('x',64),'UTF8')
+    decode(current_setting('eventor.ci_booking_offer_capability_ciphertext_base64'),'base64')
   );
   IF v_queued->>'status'<>'queued' OR v_queued->>'created'<>'true' THEN
     RAISE EXCEPTION 'booking offer email was not queued: %',v_queued;
