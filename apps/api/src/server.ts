@@ -2897,7 +2897,10 @@ export function buildApi(dependencies: ApiDependencies): FastifyInstance {
         headers: idempotencyHeaders,
         body: {
           type: "object", required: ["reasonCode"],
-          properties: { reasonCode: { type: "string", minLength: 2, maxLength: 80, pattern: "^[a-z][a-z0-9_]*$" } },
+          properties: {
+            reasonCode: { type: "string", minLength: 2, maxLength: 100, pattern: "^[a-z][a-z0-9_]*$" },
+            explanation: { type: "string", maxLength: 4000 },
+          },
           additionalProperties: false,
         },
       },
