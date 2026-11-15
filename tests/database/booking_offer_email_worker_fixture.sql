@@ -88,6 +88,15 @@ BEGIN
     RAISE EXCEPTION 'synthetic booking inquiry was not accepted: %',v_submitted;
   END IF;
   v_inquiry_id := (v_submitted->>'inquiryId')::uuid;
+  -- Public submission keeps the email envelope opaque; install a valid synthetic
+  -- ECP1 envelope explicitly for the worker fixture, then replace it with real
+  -- contact encryption in the Node smoke before any SMTP submission.
+  UPDATE eogp.booking_inquiries
+     SET requester_email_ciphertext=v_ciphertext
+   WHERE organization_id=v_org AND id=v_inquiry_id;
+  IF NOT FOUND THEN
+    RAISE EXCEPTION 'synthetic booking inquiry email fixture could not be persisted';
+  END IF;
 
   v_conversion := eogp.convert_booking_inquiry_to_draft(v_org,v_inquiry_id,v_actor);
   IF v_conversion->>'status'<>'converted' THEN
