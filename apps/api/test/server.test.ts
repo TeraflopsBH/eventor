@@ -2945,7 +2945,7 @@ test("staff can submit a booking cancellation request idempotently", async (t) =
   assert.ok(Buffer.isBuffer(call.values[4]));
   assert.equal((call.values[4] as Buffer).includes(Buffer.from(payload.explanation)), false);
   assert.equal(JSON.stringify(call.values).includes(payload.explanation), false);
-  assert.match(call.sql, /\\$5::bytea/);
+  assert.match(call.sql, /\$5::bytea/);
 
   const replay = await app.inject({
     method: "POST",
