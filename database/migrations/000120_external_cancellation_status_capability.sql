@@ -111,6 +111,7 @@ BEGIN
   IF NOT FOUND OR v_booking.status<>'confirmed' THEN
     RAISE EXCEPTION 'booking is no longer eligible for cancellation request' USING ERRCODE='55000';
   END IF;
+  PERFORM eogp.assert_booking_cancellation_request_policy(v_organization_id,v_booking.id);
   IF EXISTS (
     SELECT 1 FROM eogp.booking_cancellation_requests request
      WHERE request.organization_id=v_organization_id
