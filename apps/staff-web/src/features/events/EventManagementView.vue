@@ -1,19 +1,12 @@
 <script setup lang="ts">
-import { computed, reactive, ref } from "vue";
+import { computed, reactive, ref, type Ref } from "vue";
+import type { useOrganizerEvents } from "./useOrganizerEvents";
 import type { CreateOrganizerEventInput, OrganizerEvent } from "../../api";
 
-interface Workspace {
-  events: OrganizerEvent[];
-  selectedEvent: OrganizerEvent | null;
-  busy: boolean;
-  canArchive: (event: OrganizerEvent) => boolean;
-  refresh: () => void;
-  createEvent: (input: CreateOrganizerEventInput) => void;
-  updateEvent: (event: OrganizerEvent, input: { title: string; descriptionInternal: string | null }) => void;
-  archiveEvent: (event: OrganizerEvent) => void;
-}
+type Workspace = ReturnType<typeof useOrganizerEvents> & { busy: Ref<boolean> };
 
 const props = defineProps<{ workspace: Workspace; t: (key: string, params?: Record<string, string | number>) => string }>();
+const { events, busy, canArchive, refresh, createEvent, updateEvent, archiveEvent } = props.workspace;
 const createOpen = ref(false);
 const editingEventId = ref("");
 const createForm = reactive({
@@ -25,12 +18,12 @@ const createForm = reactive({
   timezoneName: "Europe/Sarajevo",
 });
 const editForm = reactive({ title: "", descriptionInternal: "" });
-const sortedEvents = computed(() => [...props.workspace.events].sort((a, b) => {
+const sortedEvents = computed(() => [...events.value].sort((a, b) => {
   const left = a.startsAt ? Date.parse(a.startsAt) : Number.MAX_SAFE_INTEGER;
   const right = b.startsAt ? Date.parse(b.startsAt) : Number.MAX_SAFE_INTEGER;
   return left - right;
 }));
-const editingEvent = computed(() => props.workspace.events.find((event) => event.eventId === editingEventId.value) ?? null);
+const editingEvent = computed(() => props.events.find((event) => event.eventId === editingEventId.value) ?? null);
 
 function toIso(value: string): string {
   return new Date(value).toISOString();
@@ -60,7 +53,7 @@ function submitCreate(): void {
   const startsAt = toIso(createForm.startsAt);
   const endsAt = toIso(createForm.endsAt);
   if (Date.parse(endsAt) <= Date.parse(startsAt)) return;
-  props.workspace.createEvent({
+  createEvent({
     eventCode: createForm.eventCode.trim(),
     title: createForm.title.trim(),
     descriptionInternal: createForm.descriptionInternal.trim() || null,
@@ -85,7 +78,7 @@ function cancelEdit(): void {
 function submitUpdate(): void {
   const event = editingEvent.value;
   if (!event || !editForm.title.trim()) return;
-  props.workspace.updateEvent(event, {
+  updateEvent(event, {
     title: editForm.title.trim(),
     descriptionInternal: editForm.descriptionInternal.trim() || null,
   });
@@ -102,7 +95,7 @@ function submitUpdate(): void {
         <p class="muted">{{ t("events.description") }}</p>
       </div>
       <div class="toolbar">
-        <button class="button button-secondary" type="button" :disabled="workspace.busy" @click="workspace.refresh">
+        <button class="button button-secondary" type="button" :disabled="busy" @click="refresh">
           {{ t("common.refresh") }}
         </button>
         <button class="button button-primary" type="button" :disabled="workspace.busy" @click="createOpen = !createOpen">
@@ -177,7 +170,7 @@ function submitUpdate(): void {
                 <button class="button button-secondary button-small" type="button" :disabled="workspace.busy || event.status === 'archived'" @click="startEdit(event)">
                   {{ t("common.edit") }}
                 </button>
-                <button class="button button-danger button-small" type="button" :disabled="workspace.busy || !workspace.canArchive(event)" @click="workspace.archiveEvent(event)">
+                <button class="button button-danger button-small" type="button" :disabled="workspace.busy || !canArchive(event)" @click="archiveEvent(event)">
                   {{ t("events.archive") }}
                 </button>
               </div>
