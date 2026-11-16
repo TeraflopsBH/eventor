@@ -23,7 +23,7 @@ const sortedEvents = computed(() => [...events.value].sort((a, b) => {
   const right = b.startsAt ? Date.parse(b.startsAt) : Number.MAX_SAFE_INTEGER;
   return left - right;
 }));
-const editingEvent = computed(() => props.events.find((event) => event.eventId === editingEventId.value) ?? null);
+const editingEvent = computed(() => events.value.find((event) => event.eventId === editingEventId.value) ?? null);
 
 function toIso(value: string): string {
   return new Date(value).toISOString();
@@ -98,7 +98,7 @@ function submitUpdate(): void {
         <button class="button button-secondary" type="button" :disabled="busy" @click="refresh">
           {{ t("common.refresh") }}
         </button>
-        <button class="button button-primary" type="button" :disabled="workspace.busy" @click="createOpen = !createOpen">
+        <button class="button button-primary" type="button" :disabled="busy" @click="createOpen = !createOpen">
           {{ createOpen ? t("common.close") : t("events.create") }}
         </button>
       </div>
@@ -133,12 +133,12 @@ function submitUpdate(): void {
         </label>
       </div>
       <div class="toolbar">
-        <button class="button button-primary" type="submit" :disabled="workspace.busy">{{ t("events.saveCreate") }}</button>
+        <button class="button button-primary" type="submit" :disabled="busy">{{ t("events.saveCreate") }}</button>
         <button class="button button-secondary" type="button" @click="resetCreate">{{ t("common.cancel") }}</button>
       </div>
     </form>
 
-    <div v-if="!workspace.events.length" class="empty-state">
+    <div v-if="!events.length" class="empty-state">
       <h3>{{ t("events.emptyTitle") }}</h3>
       <p>{{ t("events.emptyDescription") }}</p>
     </div>
@@ -167,10 +167,10 @@ function submitUpdate(): void {
             <td>{{ event.detailsRevision }}</td>
             <td>
               <div class="toolbar compact">
-                <button class="button button-secondary button-small" type="button" :disabled="workspace.busy || event.status === 'archived'" @click="startEdit(event)">
+                <button class="button button-secondary button-small" type="button" :disabled="busy || event.status === 'archived'" @click="startEdit(event)">
                   {{ t("common.edit") }}
                 </button>
-                <button class="button button-danger button-small" type="button" :disabled="workspace.busy || !canArchive(event)" @click="archiveEvent(event)">
+                <button class="button button-danger button-small" type="button" :disabled="busy || !canArchive(event)" @click="archiveEvent(event)">
                   {{ t("events.archive") }}
                 </button>
               </div>
@@ -184,7 +184,7 @@ function submitUpdate(): void {
                   <textarea v-model="editForm.descriptionInternal" rows="2" maxlength="10000" />
                 </label>
                 <div class="toolbar compact">
-                  <button class="button button-primary button-small" type="submit" :disabled="workspace.busy">{{ t("common.save") }}</button>
+                  <button class="button button-primary button-small" type="submit" :disabled="busy">{{ t("common.save") }}</button>
                   <button class="button button-secondary button-small" type="button" @click="cancelEdit">{{ t("common.cancel") }}</button>
                 </div>
               </form>
