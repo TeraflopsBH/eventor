@@ -3382,6 +3382,6 @@ test("staff execution commits an approved cancellation through the audited comma
 const apiSourceForSecurityAssertions = await readFile(new URL("../src/server.ts", import.meta.url), "utf8");
 
 test("external booking action bearer headers are redacted from request logs", () => {
-  assert.match(apiSourceForSecurityAssertions, /req\\.headers\\["x-external-booking-token"\\]/);
-  assert.match(apiSourceForSecurityAssertions, /req\\.headers\\["x-external-booking-action-token"\\]/);
+  assert.ok(apiSourceForSecurityAssertions.includes('req.headers["x-external-booking-token"]'));
+  assert.ok(apiSourceForSecurityAssertions.includes('req.headers["x-external-booking-action-token"]'));
 });
