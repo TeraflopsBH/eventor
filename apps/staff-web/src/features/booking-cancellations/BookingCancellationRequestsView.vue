@@ -22,7 +22,7 @@ const decisionLabel = (value: string): string => {
 const {
   queueItems, queueTotal, queueStatusFilter, selectedRequest, selectedRequestId,
   selectedQueueItem, decisionReason, preview, executionResult, canDecide, canExecute,
-  refresh, selectRequest, applyDecision, previewCancellation, executeCancellation, loadQueue,
+  refresh, selectRequest, applyDecision, previewCancellation, executeCancellation,
 } = props.workspace;
 </script>
 
@@ -37,7 +37,7 @@ const {
       <div class="form-actions">
         <label class="compact-field">
           <span>{{ t("cancellationRequests.filter") }}</span>
-          <select v-model="queueStatusFilter" :disabled="busy" @change="loadQueue">
+          <select v-model="queueStatusFilter" :disabled="busy" @change="refresh">
             <option value="">{{ t("cancellationRequests.unresolved") }}</option>
             <option value="submitted">{{ statusLabel("submitted") }}</option>
             <option value="under_review">{{ statusLabel("under_review") }}</option>
