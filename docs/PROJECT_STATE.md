@@ -531,3 +531,17 @@ Added a permission-scoped organizer read projection and endpoint for complete ap
 
 
 The staff RSVP response-history slice at commit `e19449ffac52dfdc4b0a0d06deb9bc83c77a2ac3` passed both required PR workflows: [Contracts and PostgreSQL migrations #43641739115](https://github.com/TeraflopsBH/eventor/actions/runs/43641739115) and [Secret history scan #43641739117](https://github.com/TeraflopsBH/eventor/actions/runs/43641739117). Verification included OpenAPI 3.1 validation, PostgreSQL 18.6 full migration chain and RSVP history smoke assertions, staff-web type-check/production build, systemd unit validation and full-history secret scanning. PR #81 remains a draft and is not merged.
+
+
+## Booking cancellation vertical — 2026-11-16
+
+The current review stack is #120–#125:
+- #120 staff cancellation request queue, submission and decisions.
+- #121 external customer request/status capabilities.
+- #122 pinned-policy preview, approved execution and atomic eligible-reservation release.
+- #123 staff cancellation review workspace.
+- #125 public customer request and status pages, including a separate 30-day status capability returned with successful submission.
+
+The request capability is single-use. The status capability is read-only, contact/booking scoped, and stored as a hash; the raw token is returned only by the API. Public links carry tokens in URL fragments, remove them from browser history, and send them in headers. The public form does not rely on a staff session.
+
+Commercial consequences remain manual until the policy JSON semantics and settlement rules are formally defined. Eventor preserves the confirmed price and pinned policy snapshots, but does not infer fees or initiate deposits, refunds, credits or payment movements. Customer `self_service` mode remains blocked from the request path until a dedicated atomic direct-execution workflow exists. Provider disruption notices/follow-ups and customer-facing email delivery remain outstanding.

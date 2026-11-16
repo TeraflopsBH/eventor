@@ -593,6 +593,45 @@ export interface BookingCancellationPreview {
   };
   selfServiceExecutionAvailable: false;
 }
+export interface ExternalBookingActionCapability {
+  capabilityId: string;
+  bookingId: string;
+  bookingContactId: string;
+  action: "booking_cancellation_request" | "booking_cancellation_status";
+  expiresAt: string;
+  maxUses: number;
+  state: string;
+  token: string;
+}
+export interface ExternalBookingActionContext {
+  bookingCode: string;
+  bookingStatus: string;
+  action: "booking_cancellation_request" | "booking_cancellation_status";
+  expiresAt: string;
+  cancellationTerms: string | null;
+  latestCancellationRequest: {
+    requestId: string;
+    status: string;
+    requestedAt: string;
+    resolvedAt: string | null;
+  } | null;
+}
+export interface ExternalBookingCancellationSubmission {
+  requestId: string;
+  bookingCode: string;
+  status: string;
+  requestedAt: string;
+  replayed: boolean;
+  statusToken: string;
+}
+export interface ExternalBookingCancellationStatus {
+  requestId: string;
+  bookingCode: string;
+  status: string;
+  requestedAt: string;
+  resolvedAt: string | null;
+}
+
 export interface BookingCancellationExecutionResult {
   bookingId: string;
   cancellationRequestId: string;
@@ -1484,6 +1523,57 @@ export const api = {
     request<Envelope<{ responseId: string; participationId: string; response: string; sequenceNumber: number }>>(
       `/events/${encodeURIComponent(eventId)}/participations/${encodeURIComponent(participationId)}/rsvp-records`,
       { method: "POST", body, idempotent: true },
+    ),
+  issueExternalBookingActionCapability: (
+    bookingId: string,
+    body: {
+      bookingContactId: string;
+      action: "booking_cancellation_request" | "booking_cancellation_status";
+      expiresAt: string;
+      maxUses?: number;
+    },
+    idempotencyKey: string,
+  ) =>
+    request<Envelope<ExternalBookingActionCapability>>(
+      `/bookings/${encodeURIComponent(bookingId)}/external-action-capabilities`,
+      { method: "POST", body, idempotent: true, idempotencyKey },
+    ),
+  resolveExternalBookingAction: (
+    token: string,
+    action: "booking_cancellation_request" | "booking_cancellation_status",
+  ) =>
+    request<Envelope<ExternalBookingActionContext>>("/external/booking-actions/resolve", {
+      method: "POST",
+      body: { action },
+      idempotent: true,
+      credentials: "omit",
+      skipCsrf: true,
+      extraHeaders: { "X-External-Booking-Action-Token": token },
+    }),
+  submitExternalBookingCancellationRequest: (
+    token: string,
+    body: { reasonCode: string; explanation?: string },
+    idempotencyKey: string,
+  ) =>
+    request<Envelope<ExternalBookingCancellationSubmission>>(
+      "/external/booking-actions/cancellation-requests",
+      {
+        method: "POST",
+        body,
+        idempotent: true,
+        idempotencyKey,
+        credentials: "omit",
+        skipCsrf: true,
+        extraHeaders: { "X-External-Booking-Token": token },
+      },
+    ),
+  getExternalBookingCancellationRequestStatus: (token: string, requestId: string) =>
+    request<Envelope<ExternalBookingCancellationStatus>>(
+      `/external/booking-actions/cancellation-requests/${encodeURIComponent(requestId)}`,
+      {
+        credentials: "omit",
+        extraHeaders: { "X-External-Booking-Token": token },
+      },
     ),
   getGuestInvitation: (token: string) =>
     request<Envelope<GuestInvitation>>("/guest/invitation/me", {
