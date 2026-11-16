@@ -64,6 +64,9 @@ DECLARE
   v_external_request jsonb;
   v_external_replay jsonb;
   v_external_status jsonb;
+  v_cancellation_preview jsonb;
+  v_cancellation_decision jsonb;
+  v_cancellation_execution jsonb;
   v_external_request_id uuid;
   v_draft_hold_resource_id uuid;
   v_draft_hold_space_id uuid;
@@ -116,7 +119,10 @@ BEGIN
     (v_org,v_creator_role,'booking.draft.manage'),
     (v_org,v_creator_role,'booking.approve'),
     (v_org,v_creator_role,'booking.confirm'),
-    (v_org,v_approver_role,'booking.approve');
+    (v_org,v_approver_role,'booking.approve'),
+    (v_org,v_approver_role,'booking.cancellation.review'),
+    (v_org,v_approver_role,'booking.cancellation.approve'),
+    (v_org,v_approver_role,'booking.cancellation.execute');
   INSERT INTO eogp.user_role_grants(
     organization_id,membership_id,role_id,scope_kind,granted_by_membership_id
   ) VALUES
@@ -1159,6 +1165,64 @@ BEGIN
   EXCEPTION WHEN SQLSTATE 'P0002' THEN NULL;
   END;
 
+  -- The approved staff workflow previews the exact pinned policy and
+  -- reservation set, then commits status, release, effect and follow-up in
+  -- one transaction. No refund or payment action is performed.
+  PERFORM set_config('app.actor_membership_id',v_approver::text,true);
+  v_cancellation_preview:=eogp.preview_booking_cancellation(
+    v_org,v_booking_id,v_approver,1,v_external_request_id
+  );
+  IF v_cancellation_preview->>'customerMode'<>'request_only'
+     OR v_cancellation_preview->>'policyRevisionId'<>v_cancellation_revision_1::text
+     OR coalesce((v_cancellation_preview->'reservationRelease'->>'totalReservationCount')::integer,0)<1
+     OR v_cancellation_preview->'commercialEvaluation'->>'state'<>'manual_review_required'
+     OR coalesce((v_cancellation_preview->'commercialEvaluation'->>'moneyMovementExecuted')::boolean,true) IS NOT FALSE THEN
+    RAISE EXCEPTION 'cancellation preview did not preserve pinned policy and reservation consequences: %',v_cancellation_preview;
+  END IF;
+
+  v_cancellation_decision:=eogp.decide_booking_cancellation_request(
+    v_org,v_booking_id,v_external_request_id,v_approver,
+    'approved','The authorized venue approver approved the cancellation request.'
+  );
+  IF v_cancellation_decision->>'status'<>'approved' THEN
+    RAISE EXCEPTION 'cancellation approval decision was not recorded: %',v_cancellation_decision;
+  END IF;
+
+  v_cancellation_execution:=eogp.execute_booking_cancellation(
+    v_org,v_booking_id,v_external_request_id,v_approver,1,
+    'booking_cancellation_effective'
+  );
+  IF v_cancellation_execution->>'status'<>'cancelled'
+     OR coalesce((v_cancellation_execution->>'reservationsReleased')::bigint,0)<1
+     OR coalesce((v_cancellation_execution->>'moneyMovementExecuted')::boolean,true) IS NOT FALSE
+     OR (SELECT status FROM eogp.booking_records
+          WHERE organization_id=v_org AND id=v_booking_id)<>'cancelled'
+     OR (SELECT status FROM eogp.booking_cancellation_requests
+          WHERE organization_id=v_org AND id=v_external_request_id)<>'effective'
+     OR (SELECT count(*) FROM eogp.booking_cancellation_effects
+          WHERE organization_id=v_org AND booking_id=v_booking_id)<>1
+     OR (SELECT count(*) FROM eogp.booking_cancellation_followups followup
+          JOIN eogp.booking_cancellation_effects effect
+            ON effect.organization_id=followup.organization_id
+           AND effect.id=followup.cancellation_effect_id
+          WHERE effect.organization_id=v_org AND effect.booking_id=v_booking_id)<>1
+     OR (SELECT count(*) FROM eogp.resource_reservations
+          WHERE organization_id=v_org AND booking_id=v_booking_id
+            AND status='confirmed' AND ends_at>clock_timestamp())<>0
+     OR (SELECT count(*) FROM eogp.venue_space_time_blocks
+          WHERE organization_id=v_org AND booking_id=v_booking_id
+            AND status='confirmed' AND ends_at>clock_timestamp())<>0 THEN
+    RAISE EXCEPTION 'effective cancellation did not atomically release reservations and create one effect/follow-up: %',v_cancellation_execution;
+  END IF;
+
+  v_external_status:=eogp.get_external_booking_cancellation_request_status(
+    v_status_capability_hash,v_external_request_id
+  );
+  IF v_external_status->>'status'<>'effective' THEN
+    RAISE EXCEPTION 'external customer status did not reflect the effective cancellation: %',v_external_status;
+  END IF;
+
+  PERFORM set_config('app.actor_membership_id',v_creator::text,true);
   PERFORM eogp.revoke_external_booking_action_capability(
     v_org,v_booking_id,(v_status_capability->>'capabilityId')::uuid,
     v_creator,'Customer status link was replaced.'
