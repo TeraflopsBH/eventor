@@ -1112,7 +1112,7 @@ BEGIN
 
   v_external_replay:=eogp.submit_external_booking_cancellation_request(
     v_request_capability_hash,v_external_idempotency_hash,v_external_request_hash,
-    'schedule_change',convert_to('EV1synthetic-encrypted-explanation','UTF8')
+    'schedule_change',convert_to('EV1synthetic-encrypted-explanation','UTF8'),v_status_capability_hash
   );
   IF (v_external_replay->>'requestId')::uuid<>v_external_request_id
      OR coalesce((v_external_replay->>'replayed')::boolean,false) IS NOT TRUE
