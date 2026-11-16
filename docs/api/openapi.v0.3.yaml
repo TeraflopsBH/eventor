@@ -61,7 +61,7 @@ paths:
           description: "Successful response."
           content:
             application/json:
-              schema: { $ref: '#/components/schemas/ExternalBookingCancellationSubmissionEnvelope' }
+              schema: { $ref: '#/components/schemas/DataEnvelope' }
         '400': { $ref: '#/components/responses/BadRequest' }
         '401': { $ref: '#/components/responses/Unauthorized' }
         '403': { $ref: '#/components/responses/Forbidden' }
@@ -3469,7 +3469,7 @@ paths:
           description: "Successful response."
           content:
             application/json:
-              schema: { $ref: '#/components/schemas/DataEnvelope' }
+              schema: { $ref: '#/components/schemas/ExternalBookingCancellationSubmissionEnvelope' }
         '400': { $ref: '#/components/responses/BadRequest' }
         '401': { $ref: '#/components/responses/Unauthorized' }
         '403': { $ref: '#/components/responses/Forbidden' }
