@@ -3433,6 +3433,87 @@ test("staff execution commits an approved cancellation through the audited comma
 });
 
 
+
+
+test("organizer event administration lists, creates, updates and archives with idempotent scoped commands", async (t) => {
+  const mock = makePool();
+  const app = makeApi(mock.pool);
+  t.after(async () => app.close());
+
+  const list = await app.inject({
+    method: "GET",
+    url: `/organizations/${principal.organizationId}/events`,
+  });
+  assert.equal(list.statusCode, 200);
+  assert.equal(list.json().data[0].eventCode, "CI-EVENT");
+
+  const createBody = {
+    eventCode: "CI-EVENT",
+    title: "Community gathering",
+    descriptionInternal: "Initial planning details",
+    startsAt: "2027-01-18T10:00:00.000Z",
+    endsAt: "2027-01-18T13:00:00.000Z",
+    timezoneName: "Europe/Sarajevo",
+    venueSummary: {},
+    scheduleSnapshot: {},
+  };
+  const create = await app.inject({
+    method: "POST",
+    url: `/organizations/${principal.organizationId}/events`,
+    headers: { "idempotency-key": "event-create-0001" },
+    payload: createBody,
+  });
+  assert.equal(create.statusCode, 201);
+  assert.equal(create.json().data.status, "draft");
+  assert.equal(create.json().data.detailsRevision, 1);
+
+  const replay = await app.inject({
+    method: "POST",
+    url: `/organizations/${principal.organizationId}/events`,
+    headers: { "idempotency-key": "event-create-0001" },
+    payload: createBody,
+  });
+  assert.equal(replay.statusCode, 201);
+  assert.equal(replay.json().data.eventId, create.json().data.eventId);
+  assert.equal(mock.eventReplayAuthorizationCalls, 1);
+
+  const eventId = create.json().data.eventId as string;
+  const update = await app.inject({
+    method: "PATCH",
+    url: `/organizations/${principal.organizationId}/events/${eventId}`,
+    headers: { "idempotency-key": "event-update-0001" },
+    payload: {
+      expectedDetailsRevision: 1,
+      title: "Community gathering updated",
+      descriptionInternal: "Updated planning details",
+    },
+  });
+  assert.equal(update.statusCode, 200);
+  assert.equal(update.json().data.detailsRevision, 2);
+
+  const archive = await app.inject({
+    method: "POST",
+    url: `/organizations/${principal.organizationId}/events/${eventId}/archive`,
+    headers: { "idempotency-key": "event-archive-0001" },
+    payload: { expectedDetailsRevision: 2 },
+  });
+  assert.equal(archive.statusCode, 200);
+  assert.equal(archive.json().data.status, "archived");
+
+  assert.ok(mock.commandCalls.some((call) => call.sql.includes("eogp.create_organizer_event(")));
+  assert.ok(mock.commandCalls.some((call) => call.sql.includes("eogp.update_organizer_event_details(")));
+  assert.ok(mock.commandCalls.some((call) => call.sql.includes("eogp.archive_organizer_event(")));
+
+  mock.setEventPermissionAllowed(false);
+  const revokedReplay = await app.inject({
+    method: "POST",
+    url: `/organizations/${principal.organizationId}/events`,
+    headers: { "idempotency-key": "event-create-0001" },
+    payload: createBody,
+  });
+  assert.equal(revokedReplay.statusCode, 403);
+});
+
 const apiSourceForSecurityAssertions = await readFile(new URL("../../src/server.ts", import.meta.url), "utf8");
 
 test("external booking action bearer headers are redacted from request logs", () => {
