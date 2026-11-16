@@ -2,6 +2,12 @@ export default {
   common: {
     notProvided: "Not provided",
       "unexpectedError": "An unexpected error occurred.",
+      refresh: "Refresh",
+      close: "Close",
+      cancel: "Cancel",
+      actions: "Actions",
+      edit: "Edit",
+      save: "Save",
   },
   cancellationRequests: {
     eyebrow: "BOOKING OPERATIONS",
