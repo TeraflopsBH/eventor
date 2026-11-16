@@ -3,8 +3,13 @@ import type { Ref } from "vue";
 import { useI18n } from "vue-i18n";
 import { useInquiryPresentation } from "../booking-inquiries/useInquiryPresentation";
 import type { useBookingCancellationPolicies } from "./useBookingCancellationPolicies";
+import type { useBookingCancellationRequests } from "./useBookingCancellationRequests";
+import BookingCancellationRequestsView from "./BookingCancellationRequestsView.vue";
 
-type Workspace = ReturnType<typeof useBookingCancellationPolicies> & { busy: Ref<boolean> };
+type Workspace = ReturnType<typeof useBookingCancellationPolicies> & {
+  requests: ReturnType<typeof useBookingCancellationRequests> & { busy: Ref<boolean> };
+  busy: Ref<boolean>;
+};
 
 const props = defineProps<{ workspace: Workspace }>();
 const { formatDate } = useInquiryPresentation();
@@ -33,6 +38,7 @@ const {
 </script>
 
 <template>
+<BookingCancellationRequestsView :workspace="props.workspace.requests" />
 <section class="panel inquiry-panel approval-policy-workspace">
         <div class="section-heading"><div><p class="eyebrow">{{ t("commercialConfiguration.cancelView.organization_commercial_controls") }}</p><h2>{{ t("commercialConfiguration.cancelView.booking_cancellation_policies") }}</h2>
           <p class="muted">{{ t("commercialConfiguration.cancelView.configure_customer_facing_terms_and_rules_offers_and_co") }}</p></div>
