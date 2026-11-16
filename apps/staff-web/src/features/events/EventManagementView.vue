@@ -203,7 +203,7 @@ async function submitUpdate(): Promise<void> {
               <small v-if="event.descriptionInternal" class="muted block">{{ event.descriptionInternal }}</small>
             </td>
             <td><code>{{ event.eventCode }}</code></td>
-            <td>{{ formatDate(event.startsAt) }} – {{ formatDate(event.endsAt) }}</td>
+            <td>{{ formatDate(event.startsAt, event.scheduleTimezoneName ?? event.timezoneName) }} – {{ formatDate(event.endsAt, event.scheduleTimezoneName ?? event.timezoneName) }}</td>
             <td><span class="status-pill">{{ statusLabel(event.status) }}</span></td>
             <td>{{ event.detailsRevision }}</td>
             <td>
