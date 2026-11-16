@@ -31,6 +31,8 @@ import CommercialBookingWorkspaceView from "./features/booking-drafts/Commercial
 import { api } from "./api";
 import { useBookingForms } from "./features/booking-forms/useBookingForms";
 import BookingFormsView from "./features/booking-forms/BookingFormsView.vue";
+import { useOrganizerEvents } from "./features/events/useOrganizerEvents";
+import EventManagementView from "./features/events/EventManagementView.vue";
 
 const { locale, t } = useI18n();
 const translate = (key: string, params?: Record<string, string | number>): string => t(key as never, params as never);
@@ -45,7 +47,7 @@ const isPublicBookingFormPage = /^\/book\/[A-Za-z0-9][A-Za-z0-9-]{1,79}\/[A-Za-z
 const isGuestInvitationPage = /(?:^|\/)guest\/invitation\/?$/.test(window.location.pathname);
 const isPublicBookingCancellationRequestPage = /^\/booking\/cancellation\/?$/.test(window.location.pathname);
 const isPublicBookingCancellationStatusPage = /^\/booking\/cancellation-status\/?$/.test(window.location.pathname);
-const activeTab = ref<"delivery" | "campaign" | "inquiries" | "approvals" | "prices" | "cancellations" | "taxes" | "forms" | "guest-invitations" | "settings">("delivery");
+const activeTab = ref<"delivery" | "campaign" | "inquiries" | "approvals" | "prices" | "cancellations" | "taxes" | "forms" | "guest-invitations" | "events" | "settings">("delivery");
 const busy = ref(false);
 const pageError = ref("");
 const pageNotice = ref("");
@@ -135,6 +137,18 @@ const bookingApprovalPoliciesWorkspace = { ...bookingApprovalPolicyState, busy }
 
 
 const bookingFormState = useBookingForms({ api, busy, pageError, pageNotice, clearMessages, showError, translate });
+const organizerEventState = useOrganizerEvents({
+  api,
+  organizationId: computed(() => principal.value?.organizationId ?? ""),
+  busy,
+  pageError,
+  pageNotice,
+  clearMessages,
+  showError,
+  translate,
+});
+const organizerEventsWorkspace = { ...organizerEventState, busy };
+
 const bookingFormsWorkspace = { ...bookingFormState, busy };
 
 const bookingCancellationPolicyState = useBookingCancellationPolicies({
@@ -164,6 +178,7 @@ resetWorkspace = (): void => {
   emailDeliveryState.reset();
   campaignState.reset();
   resetBookingInquiries();
+  organizerEventState.reset();
 };
 const staffShellWorkspace = {
   ...staffSessionState, busy, pageError, pageNotice, activeTab, locale, localeOptions,
@@ -173,6 +188,7 @@ const staffShellWorkspace = {
   openBookingCancellationPolicies: openBookingCancellationWorkspace,
   openBookingTaxProfiles: bookingTaxProfileState.openBookingTaxProfiles,
   openBookingForms: async () => { activeTab.value = "forms"; await bookingFormState.open(); },
+  openEvents: async () => { activeTab.value = "events"; await organizerEventState.open(); },
 };
 const campaignWorkspace = { ...campaignState, busy, configuration };
 const emailDeliveryWorkspace = { ...emailDeliveryState, busy };
@@ -244,6 +260,7 @@ onMounted(() => {
 
 
       <BookingFormsView v-else-if="activeTab === 'forms'" :workspace="bookingFormsWorkspace" />
+      <EventManagementView v-else-if="activeTab === 'events'" :workspace="organizerEventsWorkspace" :t="translate" />
 
       <BookingPriceListsView v-else-if="activeTab === 'prices'" :workspace="bookingPriceListsWorkspace" />
 

@@ -138,6 +138,13 @@ function makePool() {
         }
         return { rows: [], rowCount: 1 };
       }
+      if (normalized.includes("rp.permission_code = 'event.manage'")) {
+        eventReplayAuthorizationCalls += 1;
+        if (!eventPermissionAllowed) {
+          throw Object.assign(new Error("event permission revoked"), { code: "42501" });
+        }
+        return { rows: [{ "?column?": 1 }], rowCount: 1 };
+      }
       if (normalized.startsWith("SELECT 1 FROM eogp.organization_memberships")) {
         return { rows: [{ "?column?": 1 }], rowCount: 1 };
       }
@@ -658,8 +665,8 @@ function makePool() {
         const key = [values[0], values[1], values[2], values[3]].join("|");
         const found = idempotency.get(key);
         if (found) {
-          found.responseStatus = 201;
-          found.responseBody = JSON.parse(String(values[5])) as Record<string, unknown>;
+          found.responseStatus = Number(values[5]);
+          found.responseBody = JSON.parse(String(values[6])) as Record<string, unknown>;
         }
         return { rows: [], rowCount: found ? 1 : 0 };
       }
@@ -952,6 +959,53 @@ function makePool() {
           decision,
           status: decision === "returned_for_changes" ? "submitted" : decision,
           decidedAt: "2026-11-15T13:10:00.000Z",
+        } }], rowCount: 1 };
+      }
+      if (normalized.includes("eogp.list_organizer_events(")) {
+        commandCalls.push({ sql: normalized, values });
+        return { rows: [{ result: [{
+          eventId: "94000000-0000-4000-8000-000000000002",
+          eventCode: "CI-EVENT",
+          title: "CI Event",
+          status: "draft",
+          currentRevision: 1,
+          detailsRevision: 1,
+          timezoneName: "Europe/Sarajevo",
+          startsAt: "2027-01-18T10:00:00.000Z",
+          endsAt: "2027-01-18T13:00:00.000Z",
+        }] }], rowCount: 1 };
+      }
+      if (normalized.includes("eogp.create_organizer_event(")) {
+        commandCalls.push({ sql: normalized, values });
+        return { rows: [{ result: {
+          eventId: "94000000-0000-4000-8000-000000000002",
+          eventCode: values[2],
+          title: values[3],
+          status: "draft",
+          detailsRevision: 1,
+          currentRevision: 1,
+          scheduleRevisionId: "95000000-0000-4000-8000-000000000002",
+        } }], rowCount: 1 };
+      }
+      if (normalized.includes("eogp.update_organizer_event_details(")) {
+        commandCalls.push({ sql: normalized, values });
+        return { rows: [{ result: {
+          eventId: values[1],
+          eventCode: "CI-EVENT",
+          title: values[4],
+          descriptionInternal: values[5] ?? null,
+          status: "draft",
+          detailsRevision: 2,
+          currentRevision: 1,
+        } }], rowCount: 1 };
+      }
+      if (normalized.includes("eogp.archive_organizer_event(")) {
+        commandCalls.push({ sql: normalized, values });
+        return { rows: [{ result: {
+          eventId: values[1],
+          status: "archived",
+          detailsRevision: 3,
+          alreadyArchived: false,
         } }], rowCount: 1 };
       }
       if (normalized.includes("eogp.get_booking_cancellation_requests(")) {
@@ -3378,6 +3432,102 @@ test("staff execution commits an approved cancellation through the audited comma
   ]);
 });
 
+
+
+
+test("organizer event administration lists, creates, updates and archives with idempotent scoped commands", async (t) => {
+  const mock = makePool();
+  const app = makeApi(mock.pool);
+  t.after(async () => app.close());
+
+  const list = await app.inject({
+    method: "GET",
+    url: `/organizations/${principal.organizationId}/events`,
+  });
+  assert.equal(list.statusCode, 200);
+  assert.equal(list.json().data[0].eventCode, "CI-EVENT");
+
+  const createBody = {
+    eventCode: "CI-EVENT",
+    title: "Community gathering",
+    descriptionInternal: "Initial planning details",
+    startsAt: "2027-01-18T10:00:00.000Z",
+    endsAt: "2027-01-18T13:00:00.000Z",
+    timezoneName: "Europe/Sarajevo",
+    venueSummary: {},
+    scheduleSnapshot: {},
+  };
+  const create = await app.inject({
+    method: "POST",
+    url: `/organizations/${principal.organizationId}/events`,
+    headers: { "idempotency-key": "event-create-0001" },
+    payload: createBody,
+  });
+  assert.equal(create.statusCode, 201);
+  assert.equal(create.json().data.status, "draft");
+  assert.equal(create.json().data.detailsRevision, 1);
+
+  const replay = await app.inject({
+    method: "POST",
+    url: `/organizations/${principal.organizationId}/events`,
+    headers: { "idempotency-key": "event-create-0001" },
+    payload: createBody,
+  });
+  assert.equal(replay.statusCode, 201);
+  assert.equal(replay.json().data.eventId, create.json().data.eventId);
+  assert.equal(mock.eventReplayAuthorizationCalls, 1);
+
+  const eventId = create.json().data.eventId as string;
+  const update = await app.inject({
+    method: "PATCH",
+    url: `/organizations/${principal.organizationId}/events/${eventId}`,
+    headers: { "idempotency-key": "event-update-0001" },
+    payload: {
+      expectedDetailsRevision: 1,
+      title: "Community gathering updated",
+      descriptionInternal: "Updated planning details",
+    },
+  });
+  assert.equal(update.statusCode, 200);
+  assert.equal(update.json().data.detailsRevision, 2);
+
+  const archive = await app.inject({
+    method: "POST",
+    url: `/organizations/${principal.organizationId}/events/${eventId}/archive`,
+    headers: { "idempotency-key": "event-archive-0001" },
+    payload: { expectedDetailsRevision: 2 },
+  });
+  assert.equal(archive.statusCode, 200);
+  assert.equal(archive.json().data.status, "archived");
+
+  for (const method of ["PATCH", "POST"] as const) {
+    const crossEventReplay = await app.inject({
+      method,
+      url: `/organizations/${principal.organizationId}/events/eeeeeeee-eeee-4eee-8eee-eeeeeeeeeeee${method === "POST" ? "/archive" : ""}`,
+      headers: { "idempotency-key": method === "POST" ? "event-archive-0001" : "event-update-0001" },
+      payload: method === "POST" ? { expectedDetailsRevision: 2 } : {
+        expectedDetailsRevision: 1,
+        title: "Community gathering updated",
+        descriptionInternal: "Updated planning details",
+      },
+    });
+    assert.equal(crossEventReplay.statusCode, 409);
+  }
+
+
+  assert.ok(mock.commandCalls.some((call) => call.sql.includes("eogp.create_organizer_event(")));
+  assert.ok(mock.commandCalls.some((call) => call.sql.includes("eogp.update_organizer_event_details(")));
+  assert.ok(mock.commandCalls.some((call) => call.sql.includes("eogp.archive_organizer_event(")));
+
+  mock.setEventPermissionAllowed(false);
+  const revokedReplay = await app.inject({
+    method: "POST",
+    url: `/organizations/${principal.organizationId}/events`,
+    headers: { "idempotency-key": "event-create-0001" },
+    payload: createBody,
+  });
+  assert.equal(revokedReplay.statusCode, 403);
+});
 
 const apiSourceForSecurityAssertions = await readFile(new URL("../../src/server.ts", import.meta.url), "utf8");
 

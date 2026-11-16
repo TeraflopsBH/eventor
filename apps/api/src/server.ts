@@ -1256,6 +1256,58 @@ function databaseError(error: unknown): ApiError {
     default: return new ApiError(500, "INTERNAL_ERROR", "An unexpected error occurred.");
   }
 }
+async function assertEventManagePermission(
+  client: PoolClient,
+  principal: StaffPrincipal,
+  eventId?: string,
+): Promise<void> {
+  const result = eventId
+    ? await client.query(
+        `SELECT 1
+           FROM eogp.organization_memberships m
+           JOIN eogp.user_role_grants ug
+             ON ug.organization_id = m.organization_id
+            AND ug.membership_id = m.id
+           JOIN eogp.role_permissions rp
+             ON rp.organization_id = ug.organization_id
+            AND rp.role_id = ug.role_id
+          WHERE m.organization_id = $1
+            AND m.id = $2
+            AND m.status = 'active'
+            AND ug.revoked_at IS NULL
+            AND (ug.expires_at IS NULL OR ug.expires_at > clock_timestamp())
+            AND rp.permission_code = 'event.manage'
+            AND (
+              ug.scope_kind = 'organization'
+              OR (ug.scope_kind = 'event' AND ug.scope_event_id = $3)
+            )
+          FOR SHARE OF m, ug, rp`,
+        [principal.organizationId, principal.membershipId, eventId],
+      )
+    : await client.query(
+        `SELECT 1
+           FROM eogp.organization_memberships m
+           JOIN eogp.user_role_grants ug
+             ON ug.organization_id = m.organization_id
+            AND ug.membership_id = m.id
+           JOIN eogp.role_permissions rp
+             ON rp.organization_id = ug.organization_id
+            AND rp.role_id = ug.role_id
+          WHERE m.organization_id = $1
+            AND m.id = $2
+            AND m.status = 'active'
+            AND ug.scope_kind = 'organization'
+            AND ug.revoked_at IS NULL
+            AND (ug.expires_at IS NULL OR ug.expires_at > clock_timestamp())
+            AND rp.permission_code = 'event.manage'
+          FOR SHARE OF m, ug, rp`,
+        [principal.organizationId, principal.membershipId],
+      );
+  if (!result.rowCount) {
+    throw new ApiError(403, "FORBIDDEN", "You are not permitted to manage this event.");
+  }
+}
+
 function parseStoredBody(value: Record<string, unknown> | string): Record<string, unknown> {
   return typeof value === "string" ? JSON.parse(value) as Record<string, unknown> : value;
 }
@@ -1268,6 +1320,7 @@ async function runIdempotentCommand(
   requestBody: unknown,
   command: Command,
   authorizeReplay: (client: PoolClient) => Promise<void>,
+  responseStatus = 201,
 ): Promise<CommandResponse> {
   const client = await dependencies.pool.connect();
   const hash = requestHash(requestBody, dependencies.privateFieldEncryptionKey);
@@ -1322,11 +1375,11 @@ async function runIdempotentCommand(
     const data = await command(client);
     const responseBody = { data };
     await client.query(
-      "UPDATE eogp.idempotency_records SET response_status=201,response_body=$6::jsonb WHERE organization_id=$1 AND principal_kind='membership' AND principal_id=$2 AND operation_id=$3 AND idempotency_key=$4 AND request_sha256=$5",
-      [principal.organizationId, principal.membershipId, operationId, idempotencyKey, hash, JSON.stringify(responseBody)],
+      "UPDATE eogp.idempotency_records SET response_status=$6,response_body=$7::jsonb WHERE organization_id=$1 AND principal_kind='membership' AND principal_id=$2 AND operation_id=$3 AND idempotency_key=$4 AND request_sha256=$5",
+      [principal.organizationId, principal.membershipId, operationId, idempotencyKey, hash, responseStatus, JSON.stringify(responseBody)],
     );
     await client.query("COMMIT");
-    return { status: 201, body: responseBody };
+    return { status: responseStatus, body: responseBody };
   } catch (error) {
     try { await client.query("ROLLBACK"); } catch { /* preserve the command error */ }
     throw databaseError(error);
@@ -3757,6 +3810,208 @@ export function buildApi(dependencies: ApiDependencies): FastifyInstance {
       },
     },
     async (request, reply) => submitPublicOfferDecision(request, reply, "rejected", request.body),
+  );
+
+  server.get<{ Params: { organizationId: string } }>(
+    "/organizations/:organizationId/events",
+    { schema: { params: { type: "object", required: ["organizationId"], properties: { organizationId: { type: "string", pattern: uuidPattern } } } } },
+    async (request, reply) => {
+      const principal = request.staffPrincipal!;
+      if (request.params.organizationId !== principal.organizationId) {
+        throw new ApiError(403, "ORGANIZATION_SCOPE_MISMATCH", "The requested organization is not available to this session.");
+      }
+      const client = await dependencies.pool.connect();
+      try {
+        await client.query("BEGIN");
+        await client.query("SELECT set_config('app.organization_id',$1,true)", [principal.organizationId]);
+        await client.query("SELECT set_config('app.actor_membership_id',$1,true)", [principal.membershipId]);
+        const result = await client.query<ResultRow>(
+          "SELECT eogp.list_organizer_events($1::uuid,$2::uuid) AS result",
+          [principal.organizationId, principal.membershipId],
+        );
+        await client.query("COMMIT");
+        return reply.code(200).send({ data: result.rows[0]?.result ?? [] });
+      } catch (error) {
+        try { await client.query("ROLLBACK"); } catch { /* preserve the read error */ }
+        throw databaseError(error);
+      } finally { client.release(); }
+    },
+  );
+
+  server.post<{
+    Params: { organizationId: string };
+    Body: {
+      eventCode: string;
+      title: string;
+      descriptionInternal?: string | null;
+      startsAt: string;
+      endsAt: string;
+      timezoneName: string;
+      venueSummary?: Record<string, unknown>;
+      scheduleSnapshot?: Record<string, unknown>;
+    };
+  }>(
+    "/organizations/:organizationId/events",
+    {
+      schema: {
+        headers: idempotencyHeaders,
+        params: { type: "object", required: ["organizationId"], properties: { organizationId: { type: "string", pattern: uuidPattern } } },
+        body: {
+          type: "object",
+          required: ["eventCode", "title", "startsAt", "endsAt", "timezoneName"],
+          properties: {
+            eventCode: { type: "string", minLength: 2, maxLength: 80 },
+            title: { type: "string", minLength: 2, maxLength: 250 },
+            descriptionInternal: { type: ["string", "null"], maxLength: 10000 },
+            startsAt: { type: "string", format: "date-time" },
+            endsAt: { type: "string", format: "date-time" },
+            timezoneName: { type: "string", minLength: 2, maxLength: 80 },
+            venueSummary: { type: "object", additionalProperties: true },
+            scheduleSnapshot: { type: "object", additionalProperties: true },
+          },
+          additionalProperties: false,
+        },
+      },
+    },
+    async (request, reply) => {
+      const principal = request.staffPrincipal!;
+      if (request.params.organizationId !== principal.organizationId) {
+        throw new ApiError(403, "ORGANIZATION_SCOPE_MISMATCH", "The requested organization is not available to this session.");
+      }
+      const idempotencyKey = request.headers["idempotency-key"];
+      if (typeof idempotencyKey !== "string") {
+        throw new ApiError(400, "IDEMPOTENCY_KEY_REQUIRED", "An idempotency key is required.");
+      }
+      const body = request.body;
+      const response = await runIdempotentCommand(
+        dependencies,
+        principal,
+        "event.create",
+        idempotencyKey,
+        body,
+        async (client) => {
+          const result = await client.query<ResultRow>(
+            "SELECT eogp.create_organizer_event($1::uuid,$2::uuid,$3::text,$4::text,$5::text,$6::timestamptz,$7::timestamptz,$8::text,$9::jsonb,$10::jsonb) AS result",
+            [
+              principal.organizationId, principal.membershipId, body.eventCode, body.title,
+              body.descriptionInternal ?? null, body.startsAt, body.endsAt, body.timezoneName,
+              body.venueSummary ?? {}, body.scheduleSnapshot ?? {},
+            ],
+          );
+          return (result.rows[0]?.result ?? {}) as Record<string, unknown>;
+        },
+        async (client) => {
+          await assertEventManagePermission(client, principal);
+        },
+      );
+      return reply.code(response.status).send(response.body);
+    },
+  );
+
+  server.patch<{
+    Params: { organizationId: string; eventId: string };
+    Body: { expectedDetailsRevision: number; title: string; descriptionInternal?: string | null };
+  }>(
+    "/organizations/:organizationId/events/:eventId",
+    {
+      schema: {
+        headers: idempotencyHeaders,
+        params: {
+          type: "object", required: ["organizationId", "eventId"],
+          properties: {
+            organizationId: { type: "string", pattern: uuidPattern },
+            eventId: { type: "string", pattern: uuidPattern },
+          },
+        },
+        body: {
+          type: "object", required: ["expectedDetailsRevision", "title"],
+          properties: {
+            expectedDetailsRevision: { type: "integer", minimum: 1 },
+            title: { type: "string", minLength: 2, maxLength: 250 },
+            descriptionInternal: { type: ["string", "null"], maxLength: 10000 },
+          },
+          additionalProperties: false,
+        },
+      },
+    },
+    async (request, reply) => {
+      const principal = request.staffPrincipal!;
+      if (request.params.organizationId !== principal.organizationId) {
+        throw new ApiError(403, "ORGANIZATION_SCOPE_MISMATCH", "The requested organization is not available to this session.");
+      }
+      const idempotencyKey = request.headers["idempotency-key"];
+      if (typeof idempotencyKey !== "string") {
+        throw new ApiError(400, "IDEMPOTENCY_KEY_REQUIRED", "An idempotency key is required.");
+      }
+      const body = request.body;
+      const response = await runIdempotentCommand(
+        dependencies, principal, "event.details.update", idempotencyKey, { eventId: request.params.eventId, ...body },
+        async (client) => {
+          const result = await client.query<ResultRow>(
+            "SELECT eogp.update_organizer_event_details($1::uuid,$2::uuid,$3::uuid,$4::integer,$5::text,$6::text) AS result",
+            [principal.organizationId, request.params.eventId, principal.membershipId, body.expectedDetailsRevision, body.title, body.descriptionInternal ?? null],
+          );
+          return (result.rows[0]?.result ?? {}) as Record<string, unknown>;
+        },
+        async (client) => {
+          await assertEventManagePermission(client, principal, request.params.eventId);
+        },
+        200,
+      );
+      return reply.code(response.status).send(response.body);
+    },
+  );
+
+  server.post<{
+    Params: { organizationId: string; eventId: string };
+    Body: { expectedDetailsRevision: number };
+  }>(
+    "/organizations/:organizationId/events/:eventId/archive",
+    {
+      schema: {
+        headers: idempotencyHeaders,
+        params: {
+          type: "object", required: ["organizationId", "eventId"],
+          properties: {
+            organizationId: { type: "string", pattern: uuidPattern },
+            eventId: { type: "string", pattern: uuidPattern },
+          },
+        },
+        body: {
+          type: "object", required: ["expectedDetailsRevision"],
+          properties: { expectedDetailsRevision: { type: "integer", minimum: 1 } },
+          additionalProperties: false,
+        },
+      },
+    },
+    async (request, reply) => {
+      const principal = request.staffPrincipal!;
+      if (request.params.organizationId !== principal.organizationId) {
+        throw new ApiError(403, "ORGANIZATION_SCOPE_MISMATCH", "The requested organization is not available to this session.");
+      }
+      const idempotencyKey = request.headers["idempotency-key"];
+      if (typeof idempotencyKey !== "string") {
+        throw new ApiError(400, "IDEMPOTENCY_KEY_REQUIRED", "An idempotency key is required.");
+      }
+      const response = await runIdempotentCommand(
+        dependencies, principal, "event.archive", idempotencyKey, { eventId: request.params.eventId, ...request.body },
+        async (client) => {
+          const result = await client.query<ResultRow>(
+            "SELECT eogp.archive_organizer_event($1::uuid,$2::uuid,$3::uuid,$4::integer) AS result",
+            [principal.organizationId, request.params.eventId, principal.membershipId, request.body.expectedDetailsRevision],
+          );
+          return (result.rows[0]?.result ?? {}) as Record<string, unknown>;
+        },
+        async (client) => {
+          await client.query(
+            "SELECT eogp.assert_event_command_permission($1::uuid,$2::uuid,$3::uuid,'event.manage')",
+            [principal.organizationId, request.params.eventId, principal.membershipId],
+          );
+        },
+        200,
+      );
+      return reply.code(response.status).send(response.body);
+    },
   );
 
   server.get<{ Params: { organizationId: string } }>(

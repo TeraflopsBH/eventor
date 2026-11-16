@@ -294,3 +294,10 @@ Until these gates pass, the schema remains a reviewed design or draft migration 
 - Exact PostgreSQL major version and deployment packaging.
 
 These require explicit product, GHB or infrastructure validation. They must not be invented as seed configuration.
+
+
+## Event administration command boundary (000121–000122)
+
+Events now have `details_revision` for optimistic metadata updates, separate from the immutable schedule revision counter. Creation atomically records the event, original schedule, empty draft capability revision and audit entry. Existing `event.manage` grants govern list/create/update/archive. Migration 000122 revokes direct INSERT/UPDATE/DELETE on `events` from `eventor_runtime`; writes must pass through permissioned commands. Session administration and persistent Guest Registry workflows remain outside this slice.
+
+Migration 000123 pins the four event-administration SECURITY DEFINER functions to `pg_catalog, eogp`, excluding the public schema in accordance with the authentication-role security audit.
