@@ -12,7 +12,7 @@ const apiServer = await readFile(new URL("../../api/src/server.ts", import.meta.
 
 test("public cancellation bearer tokens are captured from fragments and removed from history", () => {
   assert.ok(page.includes("window.location.hash"));
-  assert.ok(page.includes('window.history.replaceState(window.history.state, "", window.location.pathname)'));
+  assert.ok(page.includes('window.history.replaceState(window.history.state, "", window.location.pathname + window.location.search)'));
   assert.ok(page.includes("^[A-Za-z0-9_-]{43}$"));
   assert.ok(!page.includes("localStorage"));
   assert.ok(!page.includes("sessionStorage"));
