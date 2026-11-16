@@ -120,6 +120,7 @@ export default {
     startsAt: "Starts",
     endsAt: "Ends",
     timezone: "Time zone",
+    invalidSchedule: "Enter valid start and end times in the selected time zone.",
     internalDescription: "Internal description",
     saveCreate: "Create draft",
     emptyTitle: "No events yet",
