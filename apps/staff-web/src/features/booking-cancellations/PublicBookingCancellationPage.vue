@@ -7,6 +7,8 @@ import { setLocale } from "../../i18n";
 
 const props = defineProps<{ mode: "request" | "status" }>();
 const { locale } = useI18n();
+const requestedLocale = new URLSearchParams(window.location.search).get("locale");
+if (requestedLocale) setLocale(requestedLocale);
 const hash = new URLSearchParams(window.location.hash.slice(1));
 const token = ref(hash.get("token") ?? "");
 const requestId = ref(hash.get("requestId") ?? "");
@@ -29,7 +31,7 @@ const hasOpenRequest = computed(() => {
   return Boolean(existing && ["submitted", "under_review", "approved"].includes(existing.status));
 });
 const statusLink = computed(() => submission.value
-  ? `${window.location.origin}/booking/cancellation-status#token=${encodeURIComponent(submission.value.statusToken)}&requestId=${encodeURIComponent(submission.value.requestId)}`
+  ? `${window.location.origin}/booking/cancellation-status?locale=${encodeURIComponent(locale.value)}#token=${encodeURIComponent(submission.value.statusToken)}&requestId=${encodeURIComponent(submission.value.requestId)}`
   : "");
 
 const bs = computed(() => locale.value === "bs-BA");
