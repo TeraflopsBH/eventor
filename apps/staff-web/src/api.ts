@@ -1077,7 +1077,58 @@ export interface PageMeta {
   counts?: Record<string, number>;
 }
 
+export interface OrganizerEvent {
+  eventId: string;
+  eventCode: string;
+  title: string;
+  descriptionInternal?: string | null;
+  status: "draft" | "planned" | "scheduled" | "active" | "completed" | "cancelled" | "postponed" | "archived";
+  currentRevision: number;
+  detailsRevision: number;
+  timezoneName?: string;
+  createdAt?: string;
+  updatedAt?: string;
+  scheduleRevisionId?: string | null;
+  scheduleRevisionNumber?: number | null;
+  startsAt?: string | null;
+  endsAt?: string | null;
+  scheduleTimezoneName?: string | null;
+  venueSummary?: Record<string, unknown>;
+}
+
+export interface CreateOrganizerEventInput {
+  eventCode: string;
+  title: string;
+  descriptionInternal?: string | null;
+  startsAt: string;
+  endsAt: string;
+  timezoneName: string;
+  venueSummary?: Record<string, unknown>;
+  scheduleSnapshot?: Record<string, unknown>;
+}
+
+export interface UpdateOrganizerEventDetailsInput {
+  expectedDetailsRevision: number;
+  title: string;
+  descriptionInternal?: string | null;
+}
+
+export interface OrganizerEventArchiveResult {
+  eventId: string;
+  status: "archived";
+  detailsRevision: number;
+  alreadyArchived: boolean;
+}
+
 export const api = {
+  getOrganizerEvents: (organizationId: string) =>
+    request<Envelope<OrganizerEvent[]>>(`/organizations/${encodeURIComponent(organizationId)}/events`),
+  createOrganizerEvent: (organizationId: string, body: CreateOrganizerEventInput) =>
+    request<Envelope<OrganizerEvent>>(`/organizations/${encodeURIComponent(organizationId)}/events`, { method: "POST", body, idempotent: true }),
+  updateOrganizerEventDetails: (organizationId: string, eventId: string, body: UpdateOrganizerEventDetailsInput) =>
+    request<Envelope<OrganizerEvent>>(`/organizations/${encodeURIComponent(organizationId)}/events/${encodeURIComponent(eventId)}`, { method: "PATCH", body, idempotent: true }),
+  archiveOrganizerEvent: (organizationId: string, eventId: string, expectedDetailsRevision: number) =>
+    request<Envelope<OrganizerEventArchiveResult>>(`/organizations/${encodeURIComponent(organizationId)}/events/${encodeURIComponent(eventId)}/archive`, { method: "POST", body: { expectedDetailsRevision }, idempotent: true }),
   getBookingForms: () => request<Envelope<BookingForm[]>>("/organization/booking-forms"),
   createBookingForm: (body: { code: string; name: string; locale: "bs-BA" | "en"; fieldSchema: BookingFormSchema }) =>
     request<Envelope<BookingFormMutationResult>>("/organization/booking-forms", { method: "POST", body, idempotent: true }),
