@@ -16,7 +16,9 @@ VALUES ('30000000-0000-0000-0000-00000000000a',
 INSERT INTO eogp.roles(id,organization_id,code,name,scope_kind)
 VALUES ('e8200000-0000-4000-8000-00000000000a','10000000-0000-0000-0000-00000000000a','CI-COLLAB-MANAGER-A','CI Collaboration Manager A','organization');
 INSERT INTO eogp.role_permissions(organization_id,role_id,permission_code)
-VALUES ('10000000-0000-0000-0000-00000000000a','e8200000-0000-4000-8000-00000000000a','collaboration.manage');
+VALUES
+ ('10000000-0000-0000-0000-00000000000a','e8200000-0000-4000-8000-00000000000a','collaboration.manage'),
+ ('10000000-0000-0000-0000-00000000000a','e8200000-0000-4000-8000-00000000000a','event.manage');
 INSERT INTO eogp.user_role_grants(id,organization_id,membership_id,role_id,scope_kind,granted_by_membership_id)
 VALUES ('e8300000-0000-4000-8000-00000000000a','10000000-0000-0000-0000-00000000000a','30000000-0000-0000-0000-00000000000a','e8200000-0000-4000-8000-00000000000a','organization','30000000-0000-0000-0000-00000000000a');
 
@@ -1366,6 +1368,138 @@ BEGIN
   END;
 END;
 $test$;
+
+-- Event administration commands use the existing event.manage authorization
+-- boundary, immutable schedule revision and separate metadata revision.
+DO $test$
+DECLARE
+  v_created jsonb;
+  v_updated jsonb;
+  v_archived jsonb;
+  v_event_id uuid;
+  v_list jsonb;
+  v_count integer;
+BEGIN
+  v_created := eogp.create_organizer_event(
+    '10000000-0000-0000-0000-00000000000a',
+    '30000000-0000-0000-0000-00000000000a',
+    'CI-EVENT-ADMIN',
+    'CI Event Administration',
+    'Initial event details',
+    clock_timestamp() + interval '1 day',
+    clock_timestamp() + interval '1 day 3 hours',
+    'Europe/Sarajevo',
+    '{"venue":"not assigned"}'::jsonb,
+    '{"source":"rls_and_constraints"}'::jsonb
+  );
+  v_event_id := (v_created->>'eventId')::uuid;
+
+  IF v_created->>'status' <> 'draft'
+     OR (v_created->>'detailsRevision')::integer <> 1
+     OR (v_created->>'currentRevision')::integer <> 1 THEN
+    RAISE EXCEPTION 'event creation did not initialize draft and revision state';
+  END IF;
+
+  SELECT count(*) INTO v_count
+    FROM eogp.event_schedule_revisions
+   WHERE organization_id = '10000000-0000-0000-0000-00000000000a'
+     AND event_id = v_event_id
+     AND revision_number = 1
+     AND schedule_kind = 'original';
+  IF v_count <> 1 THEN
+    RAISE EXCEPTION 'event creation must create exactly one original schedule revision';
+  END IF;
+
+  SELECT count(*) INTO v_count
+    FROM eogp.event_capability_revisions r
+    JOIN eogp.event_capability_sets s
+      ON s.organization_id = r.organization_id
+     AND s.id = r.capability_set_id
+   WHERE s.organization_id = '10000000-0000-0000-0000-00000000000a'
+     AND s.event_id = v_event_id
+     AND r.revision_number = 1
+     AND r.state = 'draft';
+  IF v_count <> 1 THEN
+    RAISE EXCEPTION 'event creation must initialize an empty capability revision';
+  END IF;
+
+  v_list := eogp.list_organizer_events(
+    '10000000-0000-0000-0000-00000000000a',
+    '30000000-0000-0000-0000-00000000000a'
+  );
+  IF NOT v_list @> jsonb_build_array(jsonb_build_object('eventId',v_event_id)) THEN
+    RAISE EXCEPTION 'event manager must see the event in the organizer list';
+  END IF;
+
+  v_updated := eogp.update_organizer_event_details(
+    '10000000-0000-0000-0000-00000000000a',
+    v_event_id,
+    '30000000-0000-0000-0000-00000000000a',
+    1,
+    'CI Event Administration Updated',
+    'Updated details'
+  );
+  IF v_updated->>'title' <> 'CI Event Administration Updated'
+     OR (v_updated->>'detailsRevision')::integer <> 2 THEN
+    RAISE EXCEPTION 'event metadata update must increment its own revision';
+  END IF;
+
+  BEGIN
+    PERFORM eogp.update_organizer_event_details(
+      '10000000-0000-0000-0000-00000000000a',
+      v_event_id,
+      '30000000-0000-0000-0000-00000000000a',
+      1,
+      'Stale update',
+      NULL
+    );
+    RAISE EXCEPTION 'stale event details revision unexpectedly succeeded';
+  EXCEPTION WHEN SQLSTATE '40001' THEN
+    NULL;
+  END;
+
+  v_archived := eogp.archive_organizer_event(
+    '10000000-0000-0000-0000-00000000000a',
+    v_event_id,
+    '30000000-0000-0000-0000-00000000000a',
+    2
+  );
+  IF v_archived->>'status' <> 'archived'
+     OR (v_archived->>'detailsRevision')::integer <> 3 THEN
+    RAISE EXCEPTION 'draft event archive must advance the metadata revision';
+  END IF;
+
+  BEGIN
+    PERFORM eogp.update_organizer_event_details(
+      '10000000-0000-0000-0000-00000000000a',
+      v_event_id,
+      '30000000-0000-0000-0000-00000000000a',
+      3,
+      'Edit archived event',
+      NULL
+    );
+    RAISE EXCEPTION 'archived event unexpectedly accepted metadata edits';
+  EXCEPTION WHEN SQLSTATE '55000' THEN
+    NULL;
+  END;
+
+  IF NOT has_function_privilege(
+       'eventor_runtime',
+       'eogp.create_organizer_event(uuid,uuid,text,text,text,timestamp with time zone,timestamp with time zone,text,jsonb,jsonb)',
+       'EXECUTE'
+     )
+     OR has_function_privilege(
+       'eventor_worker',
+       'eogp.create_organizer_event(uuid,uuid,text,text,text,timestamp with time zone,timestamp with time zone,text,jsonb,jsonb)',
+       'EXECUTE'
+     )
+     OR has_table_privilege('eventor_runtime','eogp.events','INSERT') THEN
+    RAISE EXCEPTION 'event administration must expose only the scoped runtime command';
+  END IF;
+END;
+$test$;
+
+
 COMMIT;
 
 \echo 'PostgreSQL migration smoke tests passed.'
