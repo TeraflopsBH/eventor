@@ -23,6 +23,8 @@ const explanation = ref("");
 const submissionKey = ref("");
 const submissionSignature = computed(() => explanation.value.trim());
 watch(submissionSignature, () => { submissionKey.value = ""; });
+const hasOpenRequest = computed(() => Boolean(context.value?.latestCancellationRequest
+  && ["submitted", "under_review", "approved"].includes(context.value.latestCancellationRequest.status)));
 const statusLink = computed(() => submission.value
   ? `${window.location.origin}/booking/cancellation-status#token=${encodeURIComponent(submission.value.statusToken)}&requestId=${encodeURIComponent(submission.value.requestId)}`
   : "");
@@ -50,6 +52,7 @@ const labels = computed(() => bs.value ? {
   requested: "Podneseno",
   resolved: "Riješeno",
   requestOnly: "Vaš zahtjev će pregledati nadležna služba. Slanje zahtjeva ne otkazuje automatski rezervaciju.",
+  existingRequest: "Za ovu rezervaciju već postoji otvoren zahtjev za otkazivanje. Nije potrebno slati novi zahtjev.",
   noTerms: "Uslovi otkazivanja nisu dostupni u ovoj vezi.",
   statusSubmitted: "Zahtjev je zaprimljen i čeka pregled.",
   statusUnderReview: "Zahtjev je u razmatranju.",
@@ -80,6 +83,7 @@ const labels = computed(() => bs.value ? {
   requested: "Requested",
   resolved: "Resolved",
   requestOnly: "Your request will be reviewed by the venue. Submitting a request does not automatically cancel the booking.",
+  existingRequest: "An open cancellation request already exists for this booking. You do not need to submit another request.",
   noTerms: "Cancellation terms are not available through this link.",
   statusSubmitted: "Your request has been received and is awaiting review.",
   statusUnderReview: "Your request is being reviewed.",
@@ -202,7 +206,12 @@ onMounted(() => { void load(); });
         <p class="muted">{{ props.mode === "request" ? labels.requestOnly : labels.secure }}</p>
       </section>
 
-      <section v-if="props.mode === 'request' && !submission" class="public-offer-panel">
+      <section v-if="props.mode === 'request' && !submission && hasOpenRequest" class="public-offer-panel">
+        <span class="pill pill-warning">{{ statusDescription(context.latestCancellationRequest!.status) }}</span>
+        <p>{{ labels.existingRequest }}</p>
+      </section>
+
+      <section v-else-if="props.mode === 'request' && !submission" class="public-offer-panel">
         <h2>{{ labels.terms }}</h2>
         <p class="public-offer-copy">{{ context.cancellationTerms || labels.noTerms }}</p>
         <label class="public-form-field">
