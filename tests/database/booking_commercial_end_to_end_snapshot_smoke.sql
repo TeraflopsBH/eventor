@@ -1115,7 +1115,10 @@ BEGIN
     'schedule_change',convert_to('EV1synthetic-encrypted-explanation','UTF8'),v_status_capability_hash
   );
   IF (v_external_replay->>'requestId')::uuid<>v_external_request_id
+     OR (v_external_replay->>'statusCapabilityId')::uuid<>(v_external_request->>'statusCapabilityId')::uuid
      OR coalesce((v_external_replay->>'replayed')::boolean,false) IS NOT TRUE
+     OR (SELECT count(*) FROM eogp.external_action_capabilities
+          WHERE organization_id=v_org AND token_sha256=v_status_capability_hash)<>1
      OR (SELECT count(*) FROM eogp.booking_cancellation_requests
           WHERE organization_id=v_org AND booking_id=v_booking_id)<>1
      OR NOT EXISTS (
