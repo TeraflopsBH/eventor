@@ -1,6 +1,7 @@
 import assert from "node:assert/strict";
 import { createHash, createHmac } from "node:crypto";
 import test from "node:test";
+import { readFile } from "node:fs/promises";
 import type { Pool, PoolClient } from "pg";
 import { buildApi, type StaffPrincipal } from "../src/server.js";
 import { encryptDeliveryCredentialBundle } from "../src/delivery-credentials-crypto.js";
@@ -3375,4 +3376,12 @@ test("staff execution commits an approved cancellation through the audited comma
     principal.organizationId, bookingId, requestId, principal.membershipId,
     1, "booking_cancellation_effective",
   ]);
+});
+
+
+const apiSourceForSecurityAssertions = await readFile(new URL("../src/server.ts", import.meta.url), "utf8");
+
+test("external booking action bearer headers are redacted from request logs", () => {
+  assert.match(apiSourceForSecurityAssertions, /req\\.headers\\["x-external-booking-token"\\]/);
+  assert.match(apiSourceForSecurityAssertions, /req\\.headers\\["x-external-booking-action-token"\\]/);
 });
