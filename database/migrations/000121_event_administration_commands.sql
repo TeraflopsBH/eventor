@@ -58,6 +58,12 @@ BEGIN
     RAISE EXCEPTION 'event details or schedule are invalid' USING ERRCODE='22023';
   END IF;
 
+  -- The new event has no event-scoped grants yet. The helper accepts an
+  -- organization-scoped event.manage grant and serializes permission revocation.
+  PERFORM eogp.assert_event_command_permission(
+    p_organization_id, v_event_id, p_actor_membership_id, 'event.manage'
+  );
+
   INSERT INTO eogp.events (
     id, organization_id, event_code, title, description_internal,
     status, timezone_name, current_revision, details_revision,
@@ -65,12 +71,6 @@ BEGIN
   ) VALUES (
     v_event_id, p_organization_id, v_code, v_title, nullif(btrim(p_description_internal),''),
     'draft', p_timezone_name, 1, 1, p_actor_membership_id
-  );
-
-  -- The new event has no event-scoped grants yet. The helper accepts an
-  -- organization-scoped event.manage grant and serializes permission revocation.
-  PERFORM eogp.assert_event_command_permission(
-    p_organization_id, v_event_id, p_actor_membership_id, 'event.manage'
   );
 
   INSERT INTO eogp.event_schedule_revisions (
@@ -228,6 +228,10 @@ BEGIN
     RAISE EXCEPTION 'organization context mismatch' USING ERRCODE='42501';
   END IF;
 
+  PERFORM eogp.assert_event_command_permission(
+    p_organization_id, p_event_id, p_actor_membership_id, 'event.manage'
+  );
+
   SELECT * INTO v_event
     FROM eogp.events
    WHERE organization_id = p_organization_id
@@ -236,10 +240,6 @@ BEGIN
   IF NOT FOUND THEN
     RAISE EXCEPTION 'event not found' USING ERRCODE='P0002';
   END IF;
-
-  PERFORM eogp.assert_event_command_permission(
-    p_organization_id, p_event_id, p_actor_membership_id, 'event.manage'
-  );
 
   IF v_event.status = 'archived' THEN
     RAISE EXCEPTION 'archived events cannot be edited' USING ERRCODE='55000';
@@ -302,6 +302,10 @@ BEGIN
     RAISE EXCEPTION 'organization context mismatch' USING ERRCODE='42501';
   END IF;
 
+  PERFORM eogp.assert_event_command_permission(
+    p_organization_id, p_event_id, p_actor_membership_id, 'event.manage'
+  );
+
   SELECT * INTO v_event
     FROM eogp.events
    WHERE organization_id = p_organization_id
@@ -311,19 +315,15 @@ BEGIN
     RAISE EXCEPTION 'event not found' USING ERRCODE='P0002';
   END IF;
 
-  PERFORM eogp.assert_event_command_permission(
-    p_organization_id, p_event_id, p_actor_membership_id, 'event.manage'
-  );
-
-  IF p_expected_details_revision IS NULL
-     OR p_expected_details_revision <> v_event.details_revision THEN
-    RAISE EXCEPTION 'event details revision conflict' USING ERRCODE='40001';
-  END IF;
   IF v_event.status = 'archived' THEN
     RETURN jsonb_build_object(
       'eventId', v_event.id, 'status', 'archived',
       'detailsRevision', v_event.details_revision, 'alreadyArchived', true
     );
+  END IF;
+  IF p_expected_details_revision IS NULL
+     OR p_expected_details_revision <> v_event.details_revision THEN
+    RAISE EXCEPTION 'event details revision conflict' USING ERRCODE='40001';
   END IF;
   IF v_event.status IN ('active','scheduled')
      OR EXISTS (
