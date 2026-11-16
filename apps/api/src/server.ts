@@ -1350,6 +1350,7 @@ export function buildApi(dependencies: ApiDependencies): FastifyInstance {
         "req.headers.authorization",
         'req.headers["x-csrf-token"]',
         'req.headers["x-external-booking-token"]',
+        'req.headers["x-external-booking-action-token"]',
         'req.headers["x-guest-invitation-token"]',
         'req.headers["svix-signature"]',
         'res.headers["set-cookie"]',
@@ -3095,6 +3096,10 @@ export function buildApi(dependencies: ApiDependencies): FastifyInstance {
           || typeof idempotencyKey !== "string" || idempotencyKey.length < 8 || idempotencyKey.length > 200) {
         throw new ApiError(401, "BOOKING_ACTION_CAPABILITY_REQUIRED", "A valid external booking action capability and idempotency key are required.");
       }
+      const capabilityKey = dependencies.bookingCapabilityKey;
+      if (!capabilityKey || capabilityKey.length !== 32) {
+        throw new ApiError(503, "BOOKING_CAPABILITY_KEY_UNAVAILABLE", "External booking status links are not configured.");
+      }
       const explanation = request.body.explanation?.trim() || null;
       const explanationCiphertext = explanation
         ? encryptPrivateText(explanation, dependencies.privateFieldEncryptionKey)
@@ -3105,12 +3110,21 @@ export function buildApi(dependencies: ApiDependencies): FastifyInstance {
         { reasonCode: request.body.reasonCode, explanation },
         dependencies.privateFieldEncryptionKey,
       );
+      const statusToken = createHmac("sha256", capabilityKey)
+        .update(JSON.stringify({
+          purpose: "eventor:external-booking-cancellation-status:v1",
+          requestCapabilityTokenHash: tokenHash,
+          idempotencyKeyHash: idempotencyHash,
+          requestHash: payloadHash,
+        }), "utf8")
+        .digest("base64url");
+      const statusTokenHash = createHash("sha256").update(statusToken, "utf8").digest("hex");
       const client = await dependencies.pool.connect();
       try {
         await client.query("BEGIN");
         const result = await client.query<ResultRow>(
-          "SELECT eogp.submit_external_booking_cancellation_request($1::text,$2::text,$3::text,$4::text,$5::bytea) AS result",
-          [tokenHash, idempotencyHash, payloadHash, request.body.reasonCode, explanationCiphertext],
+          "SELECT eogp.submit_external_booking_cancellation_request($1::text,$2::text,$3::text,$4::text,$5::bytea,$6::text) AS result",
+          [tokenHash, idempotencyHash, payloadHash, request.body.reasonCode, explanationCiphertext, statusTokenHash],
         );
         await client.query("COMMIT");
         const data = result.rows[0]?.result as Record<string, unknown> | undefined;
@@ -3118,7 +3132,7 @@ export function buildApi(dependencies: ApiDependencies): FastifyInstance {
         reply.header("Cache-Control", "no-store, private");
         reply.header("Referrer-Policy", "no-referrer");
         reply.header("X-Robots-Tag", "noindex, nofollow, noarchive");
-        return reply.code(201).send({ data });
+        return reply.code(201).send({ data: { ...data, statusToken } });
       } catch (error) {
         try { await client.query("ROLLBACK"); } catch { /* preserve the submission error */ }
         throw databaseError(error);

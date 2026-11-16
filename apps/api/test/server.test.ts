@@ -1,6 +1,7 @@
 import assert from "node:assert/strict";
 import { createHash, createHmac } from "node:crypto";
 import test from "node:test";
+import { readFile } from "node:fs/promises";
 import type { Pool, PoolClient } from "pg";
 import { buildApi, type StaffPrincipal } from "../src/server.js";
 import { encryptDeliveryCredentialBundle } from "../src/delivery-credentials-crypto.js";
@@ -863,6 +864,7 @@ function makePool() {
         commandCalls.push({ sql: normalized, values });
         return { rows: [{ result: {
           requestId: "22222222-2222-4222-8222-222222222222",
+          statusCapabilityId: "29292929-2929-4929-8929-292929292929",
           bookingCode: "BKG-CANCEL-001",
           status: "submitted",
           requestedAt: "2026-11-15T14:10:00.000Z",
@@ -3282,9 +3284,10 @@ test("external customer cancellation request encrypts the explanation and uses c
     payload: { reasonCode: "schedule_change", explanation },
   });
   assert.equal(response.statusCode, 201);
-  const data = response.json<{ data: { requestId: string; status: string } }>().data;
+  const data = response.json<{ data: { requestId: string; status: string; statusToken: string } }>().data;
   assert.equal(data.requestId, "22222222-2222-4222-8222-222222222222");
   assert.equal(data.status, "submitted");
+  assert.match(data.statusToken, /^[A-Za-z0-9_-]{43}$/);
   assert.equal(response.headers["cache-control"], "no-store, private");
   assert.equal(mock.externalBookingCancellationSubmitCalls, 1);
   const call = mock.commandCalls.find((entry) => entry.sql.includes("eogp.submit_external_booking_cancellation_request("));
@@ -3295,6 +3298,8 @@ test("external customer cancellation request encrypts the explanation and uses c
   assert.ok(Buffer.isBuffer(call.values[4]));
   assert.equal((call.values[4] as Buffer).subarray(0, 3).toString("ascii"), "EV1");
   assert.equal((call.values[4] as Buffer).includes(Buffer.from(explanation)), false);
+  assert.equal(call.values[5], createHash("sha256").update(data.statusToken, "utf8").digest("hex"));
+  assert.equal(call.values.includes(data.statusToken), false);
 });
 
 
@@ -3371,4 +3376,12 @@ test("staff execution commits an approved cancellation through the audited comma
     principal.organizationId, bookingId, requestId, principal.membershipId,
     1, "booking_cancellation_effective",
   ]);
+});
+
+
+const apiSourceForSecurityAssertions = await readFile(new URL("../../src/server.ts", import.meta.url), "utf8");
+
+test("external booking action bearer headers are redacted from request logs", () => {
+  assert.ok(apiSourceForSecurityAssertions.includes('req.headers["x-external-booking-token"]'));
+  assert.ok(apiSourceForSecurityAssertions.includes('req.headers["x-external-booking-action-token"]'));
 });

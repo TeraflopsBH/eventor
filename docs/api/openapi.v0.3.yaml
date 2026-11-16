@@ -3455,7 +3455,7 @@ paths:
       tags: ["Booking Cancellation"]
       operationId: submitExternalBookingCancellationRequest
       summary: "Submit an authorized external booking cancellation request"
-      description: "The purpose-bound token is supplied in X-External-Booking-Token. A cancellation-request capability is single-use; retries with the same Idempotency-Key and payload replay the original result. Private explanations are encrypted before persistence."
+      description: "The purpose-bound token is supplied in X-External-Booking-Token. A cancellation-request capability is single-use; retries with the same Idempotency-Key and payload replay the original result. A separate 30-day, contact-scoped status capability is returned for follow-up. Private explanations are encrypted before persistence."
       security: [{ BookingActionCapability: [] }]
       parameters:
         - $ref: '#/components/parameters/IdempotencyKey'
@@ -3469,7 +3469,7 @@ paths:
           description: "Successful response."
           content:
             application/json:
-              schema: { $ref: '#/components/schemas/DataEnvelope' }
+              schema: { $ref: '#/components/schemas/ExternalBookingCancellationSubmissionEnvelope' }
         '400': { $ref: '#/components/responses/BadRequest' }
         '401': { $ref: '#/components/responses/Unauthorized' }
         '403': { $ref: '#/components/responses/Forbidden' }
@@ -6215,6 +6215,25 @@ components:
           maxLength: 100
           pattern: '^[a-z][a-z0-9_]{1,99}'
         explanation: { type: string, maxLength: 4000 }
+    ExternalBookingCancellationSubmissionEnvelope:
+      type: object
+      required: [data]
+      properties:
+        data:
+          type: object
+          required: [requestId, status, statusToken]
+          properties:
+            requestId: { type: string, format: uuid }
+            bookingCode: { type: string }
+            status: { type: string, enum: [submitted, under_review, approved, rejected, effective] }
+            requestedAt: { type: string, format: date-time }
+            replayed: { type: boolean }
+            statusToken:
+              type: string
+              minLength: 43
+              maxLength: 43
+          additionalProperties: true
+      additionalProperties: false
     CancellationDecisionRequest:
       type: object
       required: [reason]

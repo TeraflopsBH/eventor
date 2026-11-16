@@ -1,27 +1,24 @@
-# Current integration baseline — 2026-11-15
+# Current integration baseline — 2026-11-16
 
-**Current main:** `046a2466a4bbb6d391f75f3afa4ca3f876c1151a` (includes PRs #85, #99, #101, #102 and #103).
+**Current main:** `43a157d4f2eb25c06a76aefd094c5a8000b1ee17` (includes the previously integrated PostgreSQL/booking/invitation stack and PR #128 staff cancellation workspace).
 
-**Current product assessment:** Eventor has a substantial PostgreSQL/security foundation, a working venue-booking/commercial workflow slice, staff authentication and workspace, notification campaign/delivery operations, and guest invitation/RSVP functionality. It is **not yet a complete event-operations product**. The authoritative feature-by-feature assessment is [Blueprint-to-repository gap analysis v1.0](BLUEPRINT_TO_REPOSITORY_GAP_ANALYSIS_v1.0.md).
+**Current product assessment:** Eventor is not yet a complete event-operations product. The venue-booking/commercial vertical and invitation/RSVP slice are substantial; the staff booking-cancellation workspace is now integrated. Persistent Guest Registry CRUD/import/merge, event administration, venue spatial editing, guest seating, admission/check-in, the operations cockpit, vendor/prerequisite workflows, branding/template authoring and both production installers remain incomplete or foundation-only. The static baseline remains [Blueprint-to-repository gap analysis v1.0](BLUEPRINT_TO_REPOSITORY_GAP_ANALYSIS_v1.0.md); refresh it as product slices merge.
 
-**Latest integration evidence on main:** PR #103's exact-head PostgreSQL/contracts workflow #43752618746 and secret-history scan #43752618806 passed. Post-merge main workflow #43749936914 and secret-history scan #43749936957 also passed on the preceding main SHA `3addc1466c15ffa81a1aba110f64e6b263d0198a`. Optional external acceptance probes were skipped because no public endpoint or SMTP sandbox was configured. These are repository CI results, not production or deployed-host acceptance.
+**Latest integration evidence:**
+- PR #128 — staff booking-cancellation workspace; squash-merged at `43a157d4f2eb25c06a76aefd094c5a8000b1ee17`. Exact-head OpenAPI 3.1, PostgreSQL 18.6 migrations/RLS/concurrency, staff-web tests/type-check/build, systemd verification and secret-history scan passed. Post-merge `main` contracts/PostgreSQL and secret-history workflows passed.
+- PR #129 — clean main-based public customer cancellation request/status journey, including migration 000120; open and undergoing exact-head CI. The first OpenAPI run exposed an unresolved submission-envelope schema reference; the schema has been added and CI is rerunning. Do not treat the failed first attempt as a pass.
+- Backend cancellation request/review/capability/approved-execution foundation and migrations 000115–000118 were already integrated on `main` through PR #116. PR #128 adds the staff UI and migration 000119. Public status-capability migration 000120 is pending PR #129.
+- Optional external HTTPS/SMTP acceptance probes are skipped when no endpoint or sandbox is configured. CI results are not production or deployed-host acceptance.
 
-**Merged product/test integrations:**
-- PR #85 — PostgreSQL migrations and feature stack; merge `3377fe0ab9016c57884d15a5353242dfa876bfa5`.
-- PR #99 — PostgreSQL worker and browser acceptance coverage; merge `071eceb874dc2f6322f767c67f1814ddf56c5d6f`.
-- PR #101 — guest invitation browser acceptance (mocked HTTP boundary); merge `3addc1466c15ffa81a1aba110f64e6b263d0198a`.
-- PR #102 — OpenAPI/runtime invitation alignment; merge `2aea2f96c87609263db153ddeec7f6af531f793b`.
-- PR #103 — blueprint-to-repository gap analysis; merge `046a2466a4bbb6d391f75f3afa4ca3f876c1151a`.
+**Current delivery sequence:** complete the public cancellation status-flow integration, then proceed with the event administration and persistent Guest Registry vertical (#104), venue geometry (#105), allocation (#106), admission/check-in/cockpit (#107), collaboration/prerequisites (#110), communications/reporting (#111), and the two-mode installer (#108). Keep automated CI running throughout. Reserve the `eventor-acceptance` QEMU/KVM VM for final integrated release-candidate validation after product and installer completion.
 
-**Sequencing decision:** complete the product workflows and installer before final acceptance. The `eventor-acceptance` QEMU/KVM VM is reserved for the final integrated release-candidate validation stage; it is not a prerequisite for ordinary GitHub-based design, implementation and CI work.
+**Installation deliverable:** one release with two equivalent first-class Linux modes:
+1. Native Linux installation using managed service users, PostgreSQL, systemd, secure secrets, bootstrap, upgrade/rollback and backup/restore.
+2. Docker Compose installation with non-root services, persistent storage, health/readiness checks, controlled migrations, secure secrets, upgrade and backup/restore.
 
-**Deployment deliverable:** one supported Linux release with two first-class installation modes:
-1. Native Linux installation using managed system services and documented host dependencies.
-2. Docker Compose installation with equivalent application behavior, persistent storage, secret handling, health checks, upgrade and backup/restore procedures.
+Docker remains optional; both modes must run the same application build, migrations and configuration contract.
 
-Docker is optional and must not become a mandatory runtime dependency. Both installation modes must deploy the same modular-monolith application and use the same migrations, configuration contract and acceptance criteria.
-
-**Known external acceptance items remain deferred:** target-host service behavior, public HTTPS/reverse proxy, real SMTP provider sandbox, upgrade from a representative deployed database, off-host backup/PITR/key recovery and full operator workflow. These must be tested only after the product and installer are ready.
+**Current repository inventory:** `deploy/systemd` exists, but the repository has no production Compose topology or Dockerfile and no complete native installer. The API route inventory has invitation/RSVP and event-change routes but no event CRUD or Guest Registry CRUD/import/merge routes. Migration foundations must not be counted as complete workflows.
 
 > Historical status entries below are retained as an audit trail. Where they conflict with this current baseline, this section and the current roadmap supersede them.
 
@@ -531,3 +528,17 @@ Added a permission-scoped organizer read projection and endpoint for complete ap
 
 
 The staff RSVP response-history slice at commit `e19449ffac52dfdc4b0a0d06deb9bc83c77a2ac3` passed both required PR workflows: [Contracts and PostgreSQL migrations #43641739115](https://github.com/TeraflopsBH/eventor/actions/runs/43641739115) and [Secret history scan #43641739117](https://github.com/TeraflopsBH/eventor/actions/runs/43641739117). Verification included OpenAPI 3.1 validation, PostgreSQL 18.6 full migration chain and RSVP history smoke assertions, staff-web type-check/production build, systemd unit validation and full-history secret scanning. PR #81 remains a draft and is not merged.
+
+
+## Booking cancellation vertical — 2026-11-16
+
+The current review stack is #120–#125:
+- #120 staff cancellation request queue, submission and decisions.
+- #121 external customer request/status capabilities.
+- #122 pinned-policy preview, approved execution and atomic eligible-reservation release.
+- #123 staff cancellation review workspace.
+- #125 public customer request and status pages, including a separate 30-day status capability returned with successful submission.
+
+The request capability is single-use. The status capability is read-only, contact/booking scoped, and stored as a hash; the raw token is returned only by the API. Public links carry tokens in URL fragments, remove them from browser history, and send them in headers. The public form does not rely on a staff session.
+
+Commercial consequences remain manual until the policy JSON semantics and settlement rules are formally defined. Eventor preserves the confirmed price and pinned policy snapshots, but does not infer fees or initiate deposits, refunds, credits or payment movements. Customer `self_service` mode remains blocked from the request path until a dedicated atomic direct-execution workflow exists. Provider disruption notices/follow-ups and customer-facing email delivery remain outstanding.

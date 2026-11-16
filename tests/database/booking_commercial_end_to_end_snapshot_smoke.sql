@@ -1101,7 +1101,7 @@ BEGIN
 
   v_external_request:=eogp.submit_external_booking_cancellation_request(
     v_request_capability_hash,v_external_idempotency_hash,v_external_request_hash,
-    'schedule_change',convert_to('EV1synthetic-encrypted-explanation','UTF8')
+    'schedule_change',convert_to('EV1synthetic-encrypted-explanation','UTF8'),v_status_capability_hash
   );
   v_external_request_id:=(v_external_request->>'requestId')::uuid;
   IF v_external_request->>'status'<>'submitted'
@@ -1112,10 +1112,13 @@ BEGIN
 
   v_external_replay:=eogp.submit_external_booking_cancellation_request(
     v_request_capability_hash,v_external_idempotency_hash,v_external_request_hash,
-    'schedule_change',convert_to('EV1synthetic-encrypted-explanation','UTF8')
+    'schedule_change',convert_to('EV1synthetic-encrypted-explanation','UTF8'),v_status_capability_hash
   );
   IF (v_external_replay->>'requestId')::uuid<>v_external_request_id
+     OR (v_external_replay->>'statusCapabilityId')::uuid<>(v_external_request->>'statusCapabilityId')::uuid
      OR coalesce((v_external_replay->>'replayed')::boolean,false) IS NOT TRUE
+     OR (SELECT count(*) FROM eogp.external_action_capabilities
+          WHERE organization_id=v_org AND token_sha256=v_status_capability_hash)<>1
      OR (SELECT count(*) FROM eogp.booking_cancellation_requests
           WHERE organization_id=v_org AND booking_id=v_booking_id)<>1
      OR NOT EXISTS (
@@ -1131,17 +1134,24 @@ BEGIN
     PERFORM eogp.submit_external_booking_cancellation_request(
       v_request_capability_hash,v_external_idempotency_hash,
       encode(eogp.digest(convert_to('different payload','UTF8'),'sha256'),'hex'),
-      'schedule_change',convert_to('EV1different-explanation','UTF8')
+      'schedule_change',convert_to('EV1different-explanation','UTF8'),v_status_capability_hash
     );
     RAISE EXCEPTION 'external cancellation idempotency key accepted a different request payload';
   EXCEPTION WHEN SQLSTATE '55000' THEN NULL;
   END;
 
-  v_status_capability:=eogp.issue_external_booking_action_capability(
-    v_org,v_booking_id,v_booking_contact_id,v_creator,
-    'booking_cancellation_status',v_status_capability_hash,
-    clock_timestamp()+interval '30 days',1
+  v_status_capability:=jsonb_build_object(
+    'capabilityId',v_external_request->>'statusCapabilityId',
+    'action','booking_cancellation_status','state','active'
   );
+  IF v_status_capability->>'capabilityId' IS NULL
+     OR (SELECT count(*) FROM eogp.external_action_capabilities
+          WHERE organization_id=v_org
+            AND id=(v_status_capability->>'capabilityId')::uuid
+            AND token_sha256=v_status_capability_hash
+            AND action_code='booking_cancellation_status')<>1 THEN
+    RAISE EXCEPTION 'external cancellation submission did not issue exactly one status capability';
+  END IF;
   v_external_context:=eogp.resolve_external_booking_action_capability(
     v_status_capability_hash,'booking_cancellation_status'
   );
