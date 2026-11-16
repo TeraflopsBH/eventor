@@ -11,7 +11,7 @@ const hash = new URLSearchParams(window.location.hash.slice(1));
 const token = ref(hash.get("token") ?? "");
 const requestId = ref(hash.get("requestId") ?? "");
 if (/^[A-Za-z0-9_-]{43}$/.test(token.value)) {
-  window.history.replaceState(window.history.state, "", window.location.pathname);
+  window.history.replaceState(window.history.state, "", window.location.pathname + window.location.search);
 }
 const loading = ref(true);
 const busy = ref(false);
