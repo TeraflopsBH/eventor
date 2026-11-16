@@ -138,6 +138,13 @@ function makePool() {
         }
         return { rows: [], rowCount: 1 };
       }
+      if (normalized.includes("rp.permission_code = 'event.manage'")) {
+        eventReplayAuthorizationCalls += 1;
+        if (!eventPermissionAllowed) {
+          throw Object.assign(new Error("event permission revoked"), { code: "42501" });
+        }
+        return { rows: [{ "?column?": 1 }], rowCount: 1 };
+      }
       if (normalized.startsWith("SELECT 1 FROM eogp.organization_memberships")) {
         return { rows: [{ "?column?": 1 }], rowCount: 1 };
       }
@@ -658,8 +665,8 @@ function makePool() {
         const key = [values[0], values[1], values[2], values[3]].join("|");
         const found = idempotency.get(key);
         if (found) {
-          found.responseStatus = 201;
-          found.responseBody = JSON.parse(String(values[5])) as Record<string, unknown>;
+          found.responseStatus = Number(values[5]);
+          found.responseBody = JSON.parse(String(values[6])) as Record<string, unknown>;
         }
         return { rows: [], rowCount: found ? 1 : 0 };
       }
@@ -952,6 +959,53 @@ function makePool() {
           decision,
           status: decision === "returned_for_changes" ? "submitted" : decision,
           decidedAt: "2026-11-15T13:10:00.000Z",
+        } }], rowCount: 1 };
+      }
+      if (normalized.includes("eogp.list_organizer_events(")) {
+        commandCalls.push({ sql: normalized, values });
+        return { rows: [{ result: [{
+          eventId: "94000000-0000-4000-8000-000000000002",
+          eventCode: "CI-EVENT",
+          title: "CI Event",
+          status: "draft",
+          currentRevision: 1,
+          detailsRevision: 1,
+          timezoneName: "Europe/Sarajevo",
+          startsAt: "2027-01-18T10:00:00.000Z",
+          endsAt: "2027-01-18T13:00:00.000Z",
+        }] }], rowCount: 1 };
+      }
+      if (normalized.includes("eogp.create_organizer_event(")) {
+        commandCalls.push({ sql: normalized, values });
+        return { rows: [{ result: {
+          eventId: "94000000-0000-4000-8000-000000000002",
+          eventCode: values[2],
+          title: values[3],
+          status: "draft",
+          detailsRevision: 1,
+          currentRevision: 1,
+          scheduleRevisionId: "95000000-0000-4000-8000-000000000002",
+        } }], rowCount: 1 };
+      }
+      if (normalized.includes("eogp.update_organizer_event_details(")) {
+        commandCalls.push({ sql: normalized, values });
+        return { rows: [{ result: {
+          eventId: values[1],
+          eventCode: "CI-EVENT",
+          title: values[4],
+          descriptionInternal: values[5] ?? null,
+          status: "draft",
+          detailsRevision: 2,
+          currentRevision: 1,
+        } }], rowCount: 1 };
+      }
+      if (normalized.includes("eogp.archive_organizer_event(")) {
+        commandCalls.push({ sql: normalized, values });
+        return { rows: [{ result: {
+          eventId: values[1],
+          status: "archived",
+          detailsRevision: 3,
+          alreadyArchived: false,
         } }], rowCount: 1 };
       }
       if (normalized.includes("eogp.get_booking_cancellation_requests(")) {
