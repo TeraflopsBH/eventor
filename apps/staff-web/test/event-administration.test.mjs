@@ -31,6 +31,6 @@ test("event writes use the idempotent API client and both supported locales", ()
   assert.ok(api.includes("archiveOrganizerEvent"));
   assert.ok(english.includes('events: {'));
   assert.ok(bosnian.includes('events: {'));
-  assert.ok(english.includes('navigation.events:') === false);
-  assert.ok(english.includes('events: "Events"') === false);
+  assert.ok(english.includes('events: "Events"'));
+  assert.ok(bosnian.includes('events: "Događaji"'));
 });
