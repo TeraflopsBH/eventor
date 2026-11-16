@@ -276,6 +276,7 @@ $function$;
 
   v_result:=jsonb_build_object(
     'requestId',v_request_id,'bookingCode',v_booking.booking_code,
+    'statusCapabilityId',v_status_capability_id,
     'status','submitted','requestedAt',v_now,'replayed',false
   );
   INSERT INTO eogp.booking_cancellation_capability_idempotency(
