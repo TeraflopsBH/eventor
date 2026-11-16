@@ -59,22 +59,24 @@ export function useOrganizerEvents({
     selectedEventId.value = "";
   }
 
-  async function createEvent(input: CreateOrganizerEventInput): Promise<void> {
+  async function createEvent(input: CreateOrganizerEventInput): Promise<boolean> {
     clearMessages();
     busy.value = true;
     try {
       const result = await api.createOrganizerEvent(organizationId.value, input);
       selectedEventId.value = result.data.eventId;
       pageNotice.value = translate("events.created");
-      await loadEvents();
+      try { await loadEvents(); } catch (error) { showError(error); }
+      return true;
     } catch (error) {
       showError(error);
+      return false;
     } finally {
       busy.value = false;
     }
   }
 
-  async function updateEvent(event: OrganizerEvent, input: Omit<UpdateOrganizerEventDetailsInput, "expectedDetailsRevision">): Promise<void> {
+  async function updateEvent(event: OrganizerEvent, input: Omit<UpdateOrganizerEventDetailsInput, "expectedDetailsRevision">): Promise<boolean> {
     clearMessages();
     busy.value = true;
     try {
@@ -83,9 +85,11 @@ export function useOrganizerEvents({
         expectedDetailsRevision: event.detailsRevision,
       });
       pageNotice.value = translate("events.updated");
-      await loadEvents();
+      try { await loadEvents(); } catch (error) { showError(error); }
+      return true;
     } catch (error) {
       showError(error);
+      return false;
     } finally {
       busy.value = false;
     }
