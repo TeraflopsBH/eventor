@@ -5,6 +5,7 @@ import type { SupportedLocale } from "./i18n";
 import PublicBookingOfferPage from "./features/public-booking-offers/PublicBookingOfferPage.vue";
 import PublicBookingFormPage from "./features/public-booking-forms/PublicBookingFormPage.vue";
 import GuestInvitationPage from "./features/guest-invitations/GuestInvitationPage.vue";
+import PublicBookingCancellationPage from "./features/booking-cancellations/PublicBookingCancellationPage.vue";
 import GuestInvitationManagementView from "./features/guest-invitations/GuestInvitationManagementView.vue";
 import StaffApplicationShell from "./features/application-shell/StaffApplicationShell.vue";
 import OrganizationLocaleView from "./features/application-shell/OrganizationLocaleView.vue";
@@ -42,6 +43,8 @@ const localeOptions: Array<{ value: SupportedLocale; label: string }> = [
 const isPublicOfferPage = /^\/offers\/[0-9a-fA-F-]{36}\/?$/.test(window.location.pathname);
 const isPublicBookingFormPage = /^\/book\/[A-Za-z0-9][A-Za-z0-9-]{1,79}\/[A-Za-z0-9][A-Za-z0-9_-]{1,79}\/?$/.test(window.location.pathname);
 const isGuestInvitationPage = /(?:^|\/)guest\/invitation\/?$/.test(window.location.pathname);
+const isPublicBookingCancellationRequestPage = /^\/booking\/cancellation\/?$/.test(window.location.pathname);
+const isPublicBookingCancellationStatusPage = /^\/booking\/cancellation-status\/?$/.test(window.location.pathname);
 const activeTab = ref<"delivery" | "campaign" | "inquiries" | "approvals" | "prices" | "cancellations" | "taxes" | "forms" | "guest-invitations" | "settings">("delivery");
 const busy = ref(false);
 const pageError = ref("");
@@ -221,6 +224,8 @@ onMounted(() => {
   <PublicBookingFormPage v-if="isPublicBookingFormPage" />
   <PublicBookingOfferPage v-else-if="isPublicOfferPage" />
   <GuestInvitationPage v-else-if="isGuestInvitationPage" />
+  <PublicBookingCancellationPage v-else-if="isPublicBookingCancellationRequestPage" mode="request" />
+  <PublicBookingCancellationPage v-else-if="isPublicBookingCancellationStatusPage" mode="status" />
   <StaffApplicationShell v-else :workspace="staffShellWorkspace">
     <EmailDeliveryView v-if="activeTab === 'delivery'" :workspace="emailDeliveryWorkspace" />
     <GuestInvitationManagementView v-else-if="activeTab === 'guest-invitations'" :organization-id="principal?.organizationId ?? ''" />
