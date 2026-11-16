@@ -875,6 +875,7 @@ function makePool() {
         return { rows: [{ result: [{
           requestId: "19191919-1919-4191-8191-191919191919",
           bookingId: values[1],
+          bookingRevision: 3,
           requesterKind: "organization_member",
           status: "submitted",
           reasonCode: "schedule_change",
@@ -3158,6 +3159,7 @@ test("booking cancellation request detail projection is permission-scoped and om
   assert.equal(envelope.meta.nextCursor, null);
   assert.equal(items.length, 1);
   assert.equal(items[0]?.bookingId, bookingId);
+  assert.equal(items[0]?.bookingRevision, 3);
   assert.equal(items[0]?.status, "submitted");
   assert.equal(items[0]?.explanation, null);
   assert.equal("explanationCiphertextBase64" in (items[0] ?? {}), false);
