@@ -526,6 +526,86 @@ export interface BookingInquiryAssignee {
 }
 
 
+export interface BookingCancellationDecisionItem {
+  decision: "approved" | "rejected" | "returned_for_changes";
+  reason: string;
+  decidedAt: string;
+}
+export interface BookingCancellationRequestQueueItem {
+  requestId: string;
+  bookingId: string;
+  bookingCode: string;
+  bookingStatus: string;
+  requesterKind: string;
+  status: string;
+  reasonCode: string;
+  requestedAt: string;
+  resolvedAt: string | null;
+  policyRevisionId: string | null;
+  decisions: BookingCancellationDecisionItem[];
+}
+export interface BookingCancellationRequestDetail {
+  requestId: string;
+  bookingId: string;
+  bookingRevision: number;
+  requesterKind: string;
+  status: string;
+  reasonCode: string;
+  explanation: string | null;
+  requestedAt: string;
+  resolvedAt: string | null;
+  policyRevisionId: string | null;
+  decisions: BookingCancellationDecisionItem[];
+}
+export interface BookingCancellationRequestQueue {
+  items: BookingCancellationRequestQueueItem[];
+  total: number;
+  limit: number;
+  offset: number;
+}
+export interface BookingCancellationPreview {
+  bookingId: string;
+  bookingCode: string;
+  bookingStatus: string;
+  bookingRevision: number;
+  cancellationRequestId: string | null;
+  requestStatus: string | null;
+  policyRevisionId: string;
+  customerMode: "request_only" | "approval_required" | "self_service";
+  publicTerms: string;
+  approvalRules: Record<string, unknown>;
+  commercialRules: Record<string, unknown>;
+  noticeRules: Record<string, unknown>;
+  priceSnapshot: Record<string, unknown>;
+  reservationRelease: {
+    resourceReservationIds: string[];
+    spaceReservationIds: string[];
+    resourceReservationCount: number;
+    spaceReservationCount: number;
+    totalReservationCount: number;
+  };
+  commercialEvaluation: {
+    state: "manual_review_required";
+    automaticFeeCalculation: false;
+    calculatedFee: null;
+    moneyMovementExecuted: false;
+    note: string;
+  };
+  selfServiceExecutionAvailable: false;
+}
+export interface BookingCancellationExecutionResult {
+  bookingId: string;
+  cancellationRequestId: string;
+  effectId: string;
+  followupId: string;
+  status: "cancelled";
+  effectiveAt: string;
+  reservationsReleased: number;
+  commercialEvaluationState: "manual_review_required";
+  moneyMovementExecuted: false;
+  replayed: boolean;
+}
+
 export interface BookingCancellationPolicyRevision {
   revisionId: string;
   revisionNumber: number;
@@ -1213,6 +1293,43 @@ export const api = {
     request<Envelope<BookingApprovalPolicyMutationResult>>(
       `/booking-approval-policies/${encodeURIComponent(policyId)}/revisions/${encodeURIComponent(revisionId)}/publish`,
       { method: "POST", body: {}, idempotent: true },
+    ),
+
+  getBookingCancellationRequestQueue: (status?: string) => {
+    const query = new URLSearchParams({ limit: "50", offset: "0" });
+    if (status) query.set("status", status);
+    return request<Envelope<BookingCancellationRequestQueue>>(
+      `/organization/booking-cancellation-requests?${query.toString()}`,
+    );
+  },
+  getBookingCancellationRequestsForBooking: (bookingId: string) =>
+    request<Envelope<BookingCancellationRequestDetail[]>>(
+      `/bookings/${encodeURIComponent(bookingId)}/cancellation-requests`,
+    ),
+  decideBookingCancellationRequest: (
+    bookingId: string,
+    requestId: string,
+    body: { decision: "approved" | "rejected" | "returned_for_changes"; reason: string },
+  ) =>
+    request<Envelope<Record<string, unknown>>>(
+      `/bookings/${encodeURIComponent(bookingId)}/cancellation-requests/${encodeURIComponent(requestId)}/decision`,
+      { method: "POST", body, idempotent: true },
+    ),
+  previewBookingCancellation: (
+    bookingId: string,
+    body: { expectedBookingRevision: number; cancellationRequestId?: string },
+  ) =>
+    request<Envelope<BookingCancellationPreview>>(
+      `/bookings/${encodeURIComponent(bookingId)}/cancellation-preview`,
+      { method: "POST", body },
+    ),
+  executeBookingCancellation: (
+    bookingId: string,
+    body: { expectedBookingRevision: number; cancellationRequestId: string },
+  ) =>
+    request<Envelope<BookingCancellationExecutionResult>>(
+      `/bookings/${encodeURIComponent(bookingId)}/cancellation-execution`,
+      { method: "POST", body, idempotent: true },
     ),
 
   getBookingCancellationPolicies: () =>
