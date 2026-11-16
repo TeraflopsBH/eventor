@@ -102,10 +102,17 @@ function makePool() {
   let bookingOfferApprovalDecisionCalls = 0;
   let bookingOfferApprovalStatusCalls = 0;
   let bookingConfirmationCalls = 0;
+  let externalBookingCapabilityIssueCalls = 0;
+  let externalBookingCapabilityRevokeCalls = 0;
+  let externalBookingCapabilityResolveCalls = 0;
+  let externalBookingCancellationSubmitCalls = 0;
+  let externalBookingCancellationStatusCalls = 0;
   let bookingCancellationQueueCalls = 0;
   let bookingCancellationBookingGetCalls = 0;
   let bookingCancellationRequestSubmitCalls = 0;
   let bookingCancellationDecisionCalls = 0;
+  let bookingCancellationPreviewCalls = 0;
+  let bookingCancellationExecutionCalls = 0;
   let bookingApprovalPolicyListCalls = 0;
   let bookingApprovalPolicyCreateCalls = 0;
   let bookingApprovalPolicyRevisionCalls = 0;
@@ -803,6 +810,65 @@ function makePool() {
         commandCalls.push({ sql: normalized, values });
         return { rows: [{ result: { accepted: true, duplicate: false, attemptId: "95000000-0000-4000-8000-000000000001", status: values[4] } }], rowCount: 1 };
       }
+      if (normalized.includes("eogp.issue_external_booking_action_capability(")) {
+        externalBookingCapabilityIssueCalls += 1;
+        commandCalls.push({ sql: normalized, values });
+        return { rows: [{ result: {
+          capabilityId: "21212121-2121-4121-8121-212121212121",
+          bookingId: values[1],
+          bookingContactId: values[2],
+          action: values[4],
+          expiresAt: values[6],
+          maxUses: values[7],
+          state: "active",
+        } }], rowCount: 1 };
+      }
+      if (normalized.includes("eogp.revoke_external_booking_action_capability(")) {
+        externalBookingCapabilityRevokeCalls += 1;
+        commandCalls.push({ sql: normalized, values });
+        return { rows: [{ result: {
+          capabilityId: values[2],
+          bookingId: values[1],
+          state: "revoked",
+          revokedAt: "2026-11-15T14:00:00.000Z",
+        } }], rowCount: 1 };
+      }
+      if (normalized.includes("eogp.resolve_external_booking_action_capability(")) {
+        externalBookingCapabilityResolveCalls += 1;
+        commandCalls.push({ sql: normalized, values });
+        return { rows: [{ result: {
+          organizationId: principal.organizationId,
+          bookingId: values[0],
+          bookingCode: "BKG-CANCEL-001",
+          bookingStatus: "confirmed",
+          action: values[1],
+          expiresAt: "2026-12-01T00:00:00.000Z",
+          cancellationTerms: "Cancellation requests are subject to review.",
+          latestCancellationRequest: null,
+        } }], rowCount: 1 };
+      }
+      if (normalized.includes("eogp.get_external_booking_cancellation_request_status(")) {
+        externalBookingCancellationStatusCalls += 1;
+        commandCalls.push({ sql: normalized, values });
+        return { rows: [{ result: {
+          requestId: values[1],
+          bookingCode: "BKG-CANCEL-001",
+          status: "under_review",
+          requestedAt: "2026-11-15T14:10:00.000Z",
+          resolvedAt: null,
+        } }], rowCount: 1 };
+      }
+      if (normalized.includes("eogp.submit_external_booking_cancellation_request(")) {
+        externalBookingCancellationSubmitCalls += 1;
+        commandCalls.push({ sql: normalized, values });
+        return { rows: [{ result: {
+          requestId: "22222222-2222-4222-8222-222222222222",
+          bookingCode: "BKG-CANCEL-001",
+          status: "submitted",
+          requestedAt: "2026-11-15T14:10:00.000Z",
+          replayed: false,
+        } }], rowCount: 1 };
+      }
       if (normalized.includes("eogp.get_booking_cancellation_requests_for_booking(")) {
         bookingCancellationBookingGetCalls += 1;
         commandCalls.push({ sql: normalized, values });
@@ -830,13 +896,55 @@ function makePool() {
           requestedAt: "2026-11-15T13:00:00.000Z",
         } }], rowCount: 1 };
       }
+      if (normalized.includes("eogp.preview_booking_cancellation(")) {
+        bookingCancellationPreviewCalls += 1;
+        commandCalls.push({ sql: normalized, values });
+        return { rows: [{ result: {
+          bookingId: values[1],
+          bookingCode: "BKG-ABC123",
+          bookingStatus: "confirmed",
+          bookingRevision: values[3],
+          cancellationRequestId: values[4],
+          policyRevisionId: "18181818-1818-4181-8181-181818181818",
+          customerMode: "request_only",
+          commercialEvaluation: {
+            state: "manual_review_required",
+            automaticFeeCalculation: false,
+            calculatedFee: null,
+            moneyMovementExecuted: false,
+          },
+          reservationRelease: {
+            resourceReservationIds: ["25252525-2525-4525-8525-252525252525"],
+            spaceReservationIds: ["26262626-2626-4626-8626-262626262626"],
+            resourceReservationCount: 1,
+            spaceReservationCount: 1,
+            totalReservationCount: 2,
+          },
+          selfServiceExecutionAvailable: false,
+        } }], rowCount: 1 };
+      }
+      if (normalized.includes("eogp.execute_booking_cancellation(")) {
+        bookingCancellationExecutionCalls += 1;
+        commandCalls.push({ sql: normalized, values });
+        return { rows: [{ result: {
+          bookingId: values[1],
+          cancellationRequestId: values[2],
+          effectId: "27272727-2727-4727-8727-272727272727",
+          followupId: "28282828-2828-4828-8828-282828282828",
+          status: "cancelled",
+          reservationsReleased: 2,
+          commercialEvaluationState: "manual_review_required",
+          moneyMovementExecuted: false,
+          replayed: false,
+        } }], rowCount: 1 };
+      }
       if (normalized.includes("eogp.decide_booking_cancellation_request(")) {
         bookingCancellationDecisionCalls += 1;
         commandCalls.push({ sql: normalized, values });
-        const decision = String(values[3]);
+        const decision = String(values[4]);
         return { rows: [{ result: {
-          requestId: values[1],
-          bookingId: "17171717-1717-4171-8171-171717171717",
+          requestId: values[2],
+          bookingId: values[1],
           decisionId: "20202020-2020-4020-8020-202020202020",
           decision,
           status: decision === "returned_for_changes" ? "submitted" : decision,
@@ -1058,10 +1166,17 @@ function makePool() {
     get bookingOfferApprovalDecisionCalls() { return bookingOfferApprovalDecisionCalls; },
     get bookingOfferApprovalStatusCalls() { return bookingOfferApprovalStatusCalls; },
     get bookingConfirmationCalls() { return bookingConfirmationCalls; },
+    get externalBookingCapabilityIssueCalls() { return externalBookingCapabilityIssueCalls; },
+    get externalBookingCapabilityRevokeCalls() { return externalBookingCapabilityRevokeCalls; },
+    get externalBookingCapabilityResolveCalls() { return externalBookingCapabilityResolveCalls; },
+    get externalBookingCancellationSubmitCalls() { return externalBookingCancellationSubmitCalls; },
+    get externalBookingCancellationStatusCalls() { return externalBookingCancellationStatusCalls; },
     get bookingCancellationQueueCalls() { return bookingCancellationQueueCalls; },
     get bookingCancellationBookingGetCalls() { return bookingCancellationBookingGetCalls; },
     get bookingCancellationRequestSubmitCalls() { return bookingCancellationRequestSubmitCalls; },
     get bookingCancellationDecisionCalls() { return bookingCancellationDecisionCalls; },
+    get bookingCancellationPreviewCalls() { return bookingCancellationPreviewCalls; },
+    get bookingCancellationExecutionCalls() { return bookingCancellationExecutionCalls; },
     get bookingApprovalPolicyListCalls() { return bookingApprovalPolicyListCalls; },
     get bookingApprovalPolicyCreateCalls() { return bookingApprovalPolicyCreateCalls; },
     get bookingApprovalPolicyRevisionCalls() { return bookingApprovalPolicyRevisionCalls; },
@@ -2983,7 +3098,7 @@ test("staff can return a cancellation request for changes without resolving it",
   const requestId = "19191919-1919-4191-8191-191919191919";
   const response = await app.inject({
     method: "POST",
-    url: `/booking-cancellation-requests/${requestId}/decision`,
+    url: `/bookings/17171717-1717-4171-8171-171717171717/cancellation-requests/${requestId}/decision`,
     headers: { "idempotency-key": "booking-cancel-return-01" },
     payload: { decision: "returned_for_changes", reason: "Please provide the revised schedule." },
   });
@@ -2994,7 +3109,7 @@ test("staff can return a cancellation request for changes without resolving it",
   assert.equal(mock.bookingCancellationDecisionCalls, 1);
   const call = mock.commandCalls.find((entry) => entry.sql.includes("eogp.decide_booking_cancellation_request("));
   assert.ok(call);
-  assert.equal(call.values[3], "returned_for_changes");
+  assert.equal(call.values[4], "returned_for_changes");
 });
 test("staff cancellation decision records approval with an explicit reason", async (t) => {
   const mock = makePool();
@@ -3006,7 +3121,7 @@ test("staff cancellation decision records approval with an explicit reason", asy
 
   const response = await app.inject({
     method: "POST",
-    url: `/booking-cancellation-requests/${requestId}/decision`,
+    url: `/bookings/17171717-1717-4171-8171-171717171717/cancellation-requests/${requestId}/decision`,
     headers,
     payload,
   });
@@ -3019,8 +3134,8 @@ test("staff cancellation decision records approval with an explicit reason", asy
   const call = mock.commandCalls.find((entry) => entry.sql.includes("eogp.decide_booking_cancellation_request("));
   assert.ok(call);
   assert.deepEqual(call.values, [
-    principal.organizationId, requestId, principal.membershipId,
-    "approved", "The request was reviewed and approved.",
+    principal.organizationId, "17171717-1717-4171-8171-171717171717",
+    requestId, principal.membershipId, "approved", "The request was reviewed and approved.",
   ]);
 });
 
@@ -3051,4 +3166,207 @@ test("booking cancellation request detail projection is permission-scoped and om
   const call = mock.commandCalls.find((entry) => entry.sql.includes("eogp.get_booking_cancellation_requests_for_booking("));
   assert.ok(call);
   assert.deepEqual(call.values, [principal.organizationId, bookingId, principal.membershipId]);
+});
+
+
+test("external booking cancellation capability issuance is idempotent and returns the bearer token once", async (t) => {
+  const mock = makePool();
+  const app = makeApi(mock.pool);
+  t.after(async () => app.close());
+  const bookingId = "17171717-1717-4171-8171-171717171717";
+  const bookingContactId = "23232323-2323-4323-8323-232323232323";
+  const payload = {
+    bookingContactId,
+    action: "booking_cancellation_request",
+    expiresAt: "2026-12-01T00:00:00.000Z",
+  };
+  const headers = { "idempotency-key": "external-cancel-cap-01" };
+  const first = await app.inject({
+    method: "POST",
+    url: `/bookings/${bookingId}/external-action-capabilities`,
+    headers,
+    payload,
+  });
+  assert.equal(first.statusCode, 201);
+  const firstData = first.json<{ data: { capabilityId: string; action: string; token: string; maxUses: number } }>().data;
+  assert.equal(firstData.capabilityId, "21212121-2121-4121-8121-212121212121");
+  assert.equal(firstData.action, "booking_cancellation_request");
+  assert.equal(firstData.maxUses, 1);
+  assert.match(firstData.token, /^[A-Za-z0-9_-]{43}$/);
+  assert.equal(first.headers["cache-control"], "no-store, private");
+  const call = mock.commandCalls.find((entry) => entry.sql.includes("eogp.issue_external_booking_action_capability("));
+  assert.ok(call);
+  assert.equal(call.values[5], createHash("sha256").update(firstData.token, "utf8").digest("hex"));
+  assert.equal(call.values.includes(firstData.token), false);
+
+  const replay = await app.inject({
+    method: "POST",
+    url: `/bookings/${bookingId}/external-action-capabilities`,
+    headers,
+    payload,
+  });
+  assert.equal(replay.statusCode, 201);
+  assert.equal(replay.json().data.token, firstData.token);
+  assert.equal(mock.externalBookingCapabilityIssueCalls, 1);
+});
+
+test("staff can revoke an external booking action capability with a reason", async (t) => {
+  const mock = makePool();
+  const app = makeApi(mock.pool);
+  t.after(async () => app.close());
+  const bookingId = "17171717-1717-4171-8171-171717171717";
+  const capabilityId = "21212121-2121-4121-8121-212121212121";
+  const response = await app.inject({
+    method: "POST",
+    url: `/bookings/${bookingId}/external-action-capabilities/${capabilityId}/revoke`,
+    headers: { "idempotency-key": "external-cancel-revoke-01" },
+    payload: { reason: "The customer link was sent to the wrong contact." },
+  });
+  assert.equal(response.statusCode, 201);
+  assert.equal(response.json().data.state, "revoked");
+  assert.equal(mock.externalBookingCapabilityRevokeCalls, 1);
+  const call = mock.commandCalls.find((entry) => entry.sql.includes("eogp.revoke_external_booking_action_capability("));
+  assert.ok(call);
+  assert.deepEqual(call.values, [
+    principal.organizationId, bookingId, capabilityId, principal.membershipId,
+    "The customer link was sent to the wrong contact.",
+  ]);
+});
+
+test("external booking action bootstrap resolves to a scoped capability context without exposing tenant IDs", async (t) => {
+  const mock = makePool();
+  const app = makeApi(mock.pool, { authenticated: false });
+  t.after(async () => app.close());
+  const token = "T".repeat(43);
+  const response = await app.inject({
+    method: "POST",
+    url: "/external/booking-actions/resolve",
+    headers: {
+      "idempotency-key": "external-cancel-resolve-01",
+      "x-external-booking-action-token": token,
+    },
+    payload: { action: "booking_cancellation_request" },
+  });
+  assert.equal(response.statusCode, 200);
+  const data = response.json<{ data: Record<string, unknown> }>().data;
+  assert.equal(data.bookingCode, "BKG-CANCEL-001");
+  assert.equal(data.action, "booking_cancellation_request");
+  assert.equal("capabilityToken" in data, false);
+  assert.equal("organizationId" in data, false);
+  assert.equal("bookingId" in data, false);
+  assert.equal(response.headers["cache-control"], "no-store, private");
+  assert.equal(mock.externalBookingCapabilityResolveCalls, 1);
+  const call = mock.commandCalls.find((entry) => entry.sql.includes("eogp.resolve_external_booking_action_capability("));
+  assert.ok(call);
+  assert.deepEqual(call.values, [
+    createHash("sha256").update(token, "utf8").digest("hex"),
+    "booking_cancellation_request",
+  ]);
+});
+
+test("external customer cancellation request encrypts the explanation and uses capability-bound idempotency", async (t) => {
+  const mock = makePool();
+  const app = makeApi(mock.pool, { authenticated: false });
+  t.after(async () => app.close());
+  const token = "U".repeat(43);
+  const explanation = "The event date no longer works for our group.";
+  const response = await app.inject({
+    method: "POST",
+    url: "/external/booking-actions/cancellation-requests",
+    headers: {
+      "idempotency-key": "external-cancel-submit-01",
+      "x-external-booking-token": token,
+    },
+    payload: { reasonCode: "schedule_change", explanation },
+  });
+  assert.equal(response.statusCode, 201);
+  const data = response.json<{ data: { requestId: string; status: string } }>().data;
+  assert.equal(data.requestId, "22222222-2222-4222-8222-222222222222");
+  assert.equal(data.status, "submitted");
+  assert.equal(response.headers["cache-control"], "no-store, private");
+  assert.equal(mock.externalBookingCancellationSubmitCalls, 1);
+  const call = mock.commandCalls.find((entry) => entry.sql.includes("eogp.submit_external_booking_cancellation_request("));
+  assert.ok(call);
+  assert.equal(call.values[0], createHash("sha256").update(token, "utf8").digest("hex"));
+  assert.equal(call.values[1], createHash("sha256").update("external-cancel-submit-01", "utf8").digest("hex"));
+  assert.match(String(call.values[2]), /^[0-9a-f]{64}$/);
+  assert.ok(Buffer.isBuffer(call.values[4]));
+  assert.equal((call.values[4] as Buffer).subarray(0, 3).toString("ascii"), "EV1");
+  assert.equal((call.values[4] as Buffer).includes(Buffer.from(explanation)), false);
+});
+
+
+test("external customer can read only their cancellation request status using a status capability", async (t) => {
+  const mock = makePool();
+  const app = makeApi(mock.pool, { authenticated: false });
+  t.after(async () => app.close());
+  const token = "V".repeat(43);
+  const requestId = "24242424-2424-4424-8424-242424242424";
+  const response = await app.inject({
+    method: "GET",
+    url: `/external/booking-actions/cancellation-requests/${requestId}`,
+    headers: { "x-external-booking-token": token },
+  });
+  assert.equal(response.statusCode, 200);
+  const data = response.json<{ data: { requestId: string; bookingCode: string; status: string } }>().data;
+  assert.equal(data.requestId, requestId);
+  assert.equal(data.bookingCode, "BKG-CANCEL-001");
+  assert.equal(data.status, "under_review");
+  assert.equal(response.headers["cache-control"], "no-store, private");
+  assert.equal(mock.externalBookingCancellationStatusCalls, 1);
+  const call = mock.commandCalls.find((entry) => entry.sql.includes("eogp.get_external_booking_cancellation_request_status("));
+  assert.ok(call);
+  assert.deepEqual(call.values, [
+    createHash("sha256").update(token, "utf8").digest("hex"),
+    requestId,
+  ]);
+});
+
+
+test("staff cancellation preview returns the pinned policy and exact reservation release set", async (t) => {
+  const mock = makePool();
+  const app = makeApi(mock.pool);
+  t.after(async () => app.close());
+  const bookingId = "17171717-1717-4171-8171-171717171717";
+  const requestId = "19191919-1919-4191-8191-191919191919";
+  const response = await app.inject({
+    method: "POST",
+    url: `/bookings/${bookingId}/cancellation-preview`,
+    payload: { expectedBookingRevision: 1, cancellationRequestId: requestId },
+  });
+  assert.equal(response.statusCode, 200);
+  const data = response.json<{ data: { policyRevisionId: string; customerMode: string; reservationRelease: { totalReservationCount: number }; commercialEvaluation: { state: string; moneyMovementExecuted: boolean } } }>().data;
+  assert.equal(data.policyRevisionId, "18181818-1818-4181-8181-181818181818");
+  assert.equal(data.customerMode, "request_only");
+  assert.equal(data.reservationRelease.totalReservationCount, 2);
+  assert.equal(data.commercialEvaluation.state, "manual_review_required");
+  assert.equal(data.commercialEvaluation.moneyMovementExecuted, false);
+  assert.equal(response.headers["cache-control"], "no-store, private");
+  assert.equal(mock.bookingCancellationPreviewCalls, 1);
+});
+
+test("staff execution commits an approved cancellation through the audited command", async (t) => {
+  const mock = makePool();
+  const app = makeApi(mock.pool);
+  t.after(async () => app.close());
+  const bookingId = "17171717-1717-4171-8171-171717171717";
+  const requestId = "19191919-1919-4191-8191-191919191919";
+  const response = await app.inject({
+    method: "POST",
+    url: `/bookings/${bookingId}/cancellation-execution`,
+    headers: { "idempotency-key": "booking-cancel-execute-01" },
+    payload: { expectedBookingRevision: 1, cancellationRequestId: requestId },
+  });
+  assert.equal(response.statusCode, 201);
+  const data = response.json<{ data: { status: string; reservationsReleased: number; moneyMovementExecuted: boolean } }>().data;
+  assert.equal(data.status, "cancelled");
+  assert.equal(data.reservationsReleased, 2);
+  assert.equal(data.moneyMovementExecuted, false);
+  assert.equal(mock.bookingCancellationExecutionCalls, 1);
+  const call = mock.commandCalls.find((entry) => entry.sql.includes("eogp.execute_booking_cancellation("));
+  assert.ok(call);
+  assert.deepEqual(call.values, [
+    principal.organizationId, bookingId, requestId, principal.membershipId,
+    1, "booking_cancellation_effective",
+  ]);
 });
