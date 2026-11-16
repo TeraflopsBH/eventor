@@ -20,7 +20,7 @@ const decisionLabel = (value: string): string => {
   return translated === key ? value.replaceAll("_", " ") : translated;
 };
 const {
-  queueItems, queueTotal, queueStatusFilter, selectedRequest, selectedRequestId,
+  busy, queueItems, queueTotal, queueStatusFilter, selectedRequest, selectedRequestId,
   selectedQueueItem, decisionReason, preview, executionResult, canDecide, canExecute,
   refresh, selectRequest, applyDecision, previewCancellation, executeCancellation,
 } = props.workspace;
