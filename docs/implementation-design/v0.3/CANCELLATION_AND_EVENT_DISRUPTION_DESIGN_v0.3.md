@@ -536,3 +536,10 @@ Do not infer answers from the historical rental form or generic industry practic
 - [Issue #21](https://github.com/TeraflopsBH/eventor/issues/21) — design review and successor implementation alignment.
 
 Historical v0.2 SQL/OpenAPI remain reference snapshots. This document does not authorize applying schema changes to them. Successor schema and OpenAPI contracts must model these workflows explicitly, be reviewed together and be validated before implementation.
+
+
+## Implementation status (2026-11-16)
+
+The current runtime implementation is being delivered in stacked PRs #120–#125. The booking-side staff path now supports request review, pinned-policy preview, approved cancellation execution, and atomic release through the existing reservation-release command. The customer request path uses a single-use capability and returns a separate 30-day, read-only status capability. The public page keeps bearer tokens in URL fragments only and sends them in request headers.
+
+Commercial consequences remain deliberately manual until the policy JSON schema and settlement rules are formally defined: the confirmed price and pinned policy snapshot are preserved, but Eventor does not infer fees or initiate deposits, refunds, credits or payment movements. Customer `self_service` mode is rejected by the request path until a dedicated direct-execution workflow is implemented. Provider disruption notices and follow-ups remain separate work.
