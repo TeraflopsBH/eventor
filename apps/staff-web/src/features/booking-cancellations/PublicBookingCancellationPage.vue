@@ -23,8 +23,11 @@ const explanation = ref("");
 const submissionKey = ref("");
 const submissionSignature = computed(() => explanation.value.trim());
 watch(submissionSignature, () => { submissionKey.value = ""; });
-const hasOpenRequest = computed(() => Boolean(context.value?.latestCancellationRequest
-  && ["submitted", "under_review", "approved"].includes(context.value.latestCancellationRequest.status)));
+const existingRequestStatus = computed(() => context.value?.latestCancellationRequest?.status ?? "");
+const hasOpenRequest = computed(() => {
+  const existing = context.value?.latestCancellationRequest;
+  return Boolean(existing && ["submitted", "under_review", "approved"].includes(existing.status));
+});
 const statusLink = computed(() => submission.value
   ? `${window.location.origin}/booking/cancellation-status#token=${encodeURIComponent(submission.value.statusToken)}&requestId=${encodeURIComponent(submission.value.requestId)}`
   : "");
@@ -207,7 +210,7 @@ onMounted(() => { void load(); });
       </section>
 
       <section v-if="props.mode === 'request' && !submission && hasOpenRequest" class="public-offer-panel">
-        <span class="pill pill-warning">{{ statusDescription(context.latestCancellationRequest!.status) }}</span>
+        <span class="pill pill-warning">{{ statusDescription(existingRequestStatus) }}</span>
         <p>{{ labels.existingRequest }}</p>
       </section>
 
