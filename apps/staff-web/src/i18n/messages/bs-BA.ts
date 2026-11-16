@@ -120,6 +120,7 @@ export default {
     startsAt: "Početak",
     endsAt: "Završetak",
     timezone: "Vremenska zona",
+    invalidSchedule: "Unesite ispravno vrijeme početka i završetka u odabranoj vremenskoj zoni.",
     internalDescription: "Interni opis",
     saveCreate: "Kreiraj nacrt",
     emptyTitle: "Još nema događaja",
