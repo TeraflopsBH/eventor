@@ -6,6 +6,7 @@ import type { CreateOrganizerEventInput, OrganizerEvent } from "../../api";
 type Workspace = ReturnType<typeof useOrganizerEvents> & { busy: Ref<boolean> };
 
 const props = defineProps<{ workspace: Workspace; t: (key: string, params?: Record<string, string | number>) => string }>();
+const t = props.t;
 const { events, busy, canArchive, refresh, createEvent, updateEvent, archiveEvent } = props.workspace;
 const createOpen = ref(false);
 const editingEventId = ref("");
