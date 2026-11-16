@@ -94,7 +94,7 @@ function submitUpdate(): void {
 </script>
 
 <template>
-  <section class="workspace-panel event-management">
+  <section class="panel event-management">
     <header class="workspace-heading">
       <div>
         <p class="eyebrow">{{ t("events.eyebrow") }}</p>
@@ -202,3 +202,33 @@ function submitUpdate(): void {
     </div>
   </section>
 </template>
+
+<style scoped>
+.event-management { display: grid; gap: 22px; }
+.workspace-heading { display: flex; align-items: flex-start; justify-content: space-between; gap: 18px; }
+.workspace-heading h2 { margin-bottom: 8px; }
+.toolbar { display: flex; align-items: center; gap: 9px; flex-wrap: wrap; }
+.toolbar.compact { gap: 6px; }
+.button-small { padding: 7px 10px; font-size: 11px; }
+.event-form { padding: 20px; border: 1px solid var(--border); border-radius: 12px; background: #171717; display: grid; gap: 18px; }
+.form-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 16px; }
+.form-wide { grid-column: 1 / -1; }
+.event-management textarea { width: 100%; min-width: 0; resize: vertical; color: #f1f1f1; background: #141414; border: 1px solid #414141; border-radius: 8px; padding: 11px 12px; font: inherit; font-size: 13px; }
+.event-management textarea:focus { outline: none; border-color: var(--accent); box-shadow: 0 0 0 3px #f5863420; }
+.table-scroll { overflow-x: auto; border: 1px solid var(--border); border-radius: 11px; }
+.data-table { width: 100%; min-width: 850px; border-collapse: collapse; font-size: 12px; }
+.data-table th, .data-table td { padding: 13px 14px; border-bottom: 1px solid var(--border); text-align: left; vertical-align: top; }
+.data-table th { color: var(--muted); background: #191919; font-size: 10px; text-transform: uppercase; letter-spacing: .08em; }
+.data-table tr:last-child td { border-bottom: 0; }
+.data-table small.block { display: block; margin-top: 5px; max-width: 280px; }
+.status-pill { display: inline-flex; padding: 4px 8px; border-radius: 999px; background: #f5863418; color: #f5b27f; font-size: 10px; font-weight: 750; }
+.inline-edit { display: grid; gap: 10px; min-width: 240px; margin-top: 12px; padding: 12px; border: 1px solid var(--border); border-radius: 9px; background: #171717; }
+.empty-state { padding: 34px; text-align: center; border: 1px dashed var(--border); border-radius: 12px; }
+.empty-state h3 { margin-bottom: 8px; }
+.empty-state p { margin-bottom: 0; color: var(--muted); font-size: 13px; }
+@media (max-width: 720px) {
+  .workspace-heading { flex-direction: column; }
+  .form-grid { grid-template-columns: 1fr; }
+  .form-wide { grid-column: auto; }
+}
+</style>
