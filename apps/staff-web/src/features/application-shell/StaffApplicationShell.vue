@@ -24,7 +24,7 @@ const {
   principal, loadingSession, loginForm, selectedOrganization, signIn, signOut,
   busy, pageError, pageNotice, activeTab, locale, localeOptions,
   openInquiryWorkspace, openBookingApprovalPolicies, openBookingPriceLists,
-  openBookingCancellationPolicies, openBookingTaxProfiles, openBookingForms,
+  openBookingCancellationPolicies, openBookingTaxProfiles, openBookingForms, openEvents,
 } = props.workspace;
 const selectedLocale = computed({
   get: () => locale.value as SupportedLocale,
