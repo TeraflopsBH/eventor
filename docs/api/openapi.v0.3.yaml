@@ -4601,59 +4601,6 @@ paths:
         '422': { $ref: '#/components/responses/UnprocessableEntity' }
         '429': { $ref: '#/components/responses/TooManyRequests' }
         '500': { $ref: '#/components/responses/InternalServerError' }
-  "/organizations/{organizationId}/events":
-    get:
-      tags: ["Events"]
-      operationId: listEvents
-      summary: "List organizer-owned events"
-      security: [{ StaffSession: [] }]
-      parameters:
-        - $ref: '#/components/parameters/POrganizationId'
-      responses:
-        '200':
-          description: "Successful response."
-          content:
-            application/json:
-              schema: { $ref: '#/components/schemas/ListEnvelope' }
-        '400': { $ref: '#/components/responses/BadRequest' }
-        '401': { $ref: '#/components/responses/Unauthorized' }
-        '403': { $ref: '#/components/responses/Forbidden' }
-        '404': { $ref: '#/components/responses/NotFound' }
-        '409': { $ref: '#/components/responses/Conflict' }
-        '410': { $ref: '#/components/responses/Gone' }
-        '412': { $ref: '#/components/responses/PreconditionFailed' }
-        '422': { $ref: '#/components/responses/UnprocessableEntity' }
-        '429': { $ref: '#/components/responses/TooManyRequests' }
-        '500': { $ref: '#/components/responses/InternalServerError' }
-    post:
-      tags: ["Events"]
-      operationId: createEvent
-      summary: "Create an explicit organizer-owned operational event"
-      security: [{ StaffSession: [], StaffCsrf: [] }]
-      parameters:
-        - $ref: '#/components/parameters/POrganizationId'
-        - $ref: '#/components/parameters/IdempotencyKey'
-      requestBody:
-        required: true
-        content:
-          application/json:
-            schema: { $ref: '#/components/schemas/EventCreateRequest' }
-      responses:
-        '201':
-          description: "Successful response."
-          content:
-            application/json:
-              schema: { $ref: '#/components/schemas/DataEnvelope' }
-        '400': { $ref: '#/components/responses/BadRequest' }
-        '401': { $ref: '#/components/responses/Unauthorized' }
-        '403': { $ref: '#/components/responses/Forbidden' }
-        '404': { $ref: '#/components/responses/NotFound' }
-        '409': { $ref: '#/components/responses/Conflict' }
-        '410': { $ref: '#/components/responses/Gone' }
-        '412': { $ref: '#/components/responses/PreconditionFailed' }
-        '422': { $ref: '#/components/responses/UnprocessableEntity' }
-        '429': { $ref: '#/components/responses/TooManyRequests' }
-        '500': { $ref: '#/components/responses/InternalServerError' }
   "/organizations/{organizationId}/memberships":
     get:
       tags: ["Authorization"]

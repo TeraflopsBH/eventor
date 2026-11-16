@@ -1369,6 +1369,9 @@ BEGIN
 END;
 $test$;
 
+SELECT set_config('app.organization_id', '10000000-0000-0000-0000-00000000000a', true);
+SELECT set_config('app.actor_membership_id', '30000000-0000-0000-0000-00000000000a', true);
+
 -- Event administration commands use the existing event.manage authorization
 -- boundary, immutable schedule revision and separate metadata revision.
 DO $test$

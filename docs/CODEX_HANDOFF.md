@@ -202,3 +202,24 @@ For each feature:
 - Keep PRs focused, tests meaningful and commit history understandable.
 - At each handoff/session end, update this file and the project-state docs with current branch/PR/commit/check status, completed work, outstanding risks and the exact next action.
 - The goal is a complete, secure, maintainable, production-quality, self-hostable EVENTOR product — not simply a green CI pipeline.
+
+
+## Cloud development checkpoint — 2026-11-16
+
+Remote main matched `ff24d14ffe91c8d70c7f6f04d0907852b2b7394b`; initial branch `work` was clean. Local Node 24.22.1 validation: API 108 passed/2 skipped, staff web 48 passed, API and frontend builds passed. PostgreSQL 18.6 applied all 120 migrations ; the event-change command smoke failed at fixture setup because its referenced organization was absent (foreign-key violation), so runtime behavior remains unvalidated. Vite served the application HTML locally; this is not browser acceptance or full API startup validation. README and project baseline were refreshed. No feature implementation, commit, push or merge was performed.
+
+GitHub REST/GraphQL access returned HTTP 403; PR #129 and latest Actions status remain independently unverified, and live issues #104/#112 could not be read. The cloud draft saves dependency/build instructions, startup guidance and api.github.com access. Review/save settings and publish; then retry GitHub access before reconciling issues. Next: read the complete design/contract for #104, implement an authorized event-administration vertical slice, and validate PostgreSQL authorization plus API/UI behavior. Keep both installation modes required and defer final VM acceptance.
+
+
+### Follow-up environment verification — 2026-11-16
+
+The network diagnosis is confirmed: the enforced runtime allowlist lacks `api.github.com`, while saved draft revision 3 includes it. The proxy rejects CONNECT before GitHub authentication; token access has not yet been tested. Activate the saved network configuration before retrying REST/GraphQL.
+
+An isolated `eventor_validation` database in the existing development PostgreSQL container now contains the committed synthetic CI fixtures and all 120 migrations. Populated upgrades through 000074 and the 000077 forward-migration assertion passed. The repository upgrade script stopped because ADMIN_URL was absent; its forward assertion and remaining migration steps were then executed explicitly against eventor_validation, without resetting the original database. Event-change command authorization and cancellation/postponement SQL smoke tests passed as eventor_migrator; guest invitation capability smoke passed as eventor_runtime. The earlier missing-fixture failure is resolved. This is selected database validation, not the complete CI suite or final acceptance.
+
+
+### Verified GitHub access and event administration follow-up — 2026-11-16
+
+GitHub API access is now working in the newly published environment. PR #129 is merged at da421567f68fd93976582374bf1ad8b493549d02. Its post-merge runs 43934221982 and 43934221882 passed; latest main ff24d14 also passed contracts/PostgreSQL run 43936836187 and secret-history run 43936836236. This supersedes the earlier access limitation.
+
+Live inspection discovered existing PR #132 (event administration core), so development continued there instead of duplicating it. Repairs remove the duplicate OpenAPI event collection path, align staff tab types, bind the database fixture tenant/actor, and add migration 000122 to revoke direct runtime event writes. Local contract validation, API tests (109 pass, 2 skip), staff tests (51 pass), production builds, and the event administration SQL test passed. Full updated-head CI and broader product review remain required before merging. Issue #104 remains open for session administration and the persistent Guest Registry. Issue #112 remains open for disruption notices, linked-event follow-up, amendment/postponement integration and final workflow acceptance. No final VM acceptance is claimed.

@@ -1,10 +1,12 @@
 # Current integration baseline — 2026-11-16
 
-**Current main:** `da421567f68fd93976582374bf1ad8b493549d02` (includes PR #128 staff cancellation workspace and PR #129 public customer cancellation request/status journey).
+**Current main (remote ref verified 2026-11-16):** `ff24d14ffe91c8d70c7f6f04d0907852b2b7394b` (includes PR #128 staff cancellation workspace and PR #129 public customer cancellation request/status journey).
 
 **Current product assessment:** Eventor is not yet a complete event-operations product. The venue-booking/commercial and invitation/RSVP slices are substantial; booking cancellation now has a staff request/review/approved-execution workspace and a public customer request/read-only status journey. Persistent Guest Registry CRUD/import/merge, event administration, venue spatial editing, guest seating, admission/check-in, the operations cockpit, vendor/prerequisite workflows, branding/template authoring and both production installers remain incomplete or foundation-only. The feature-by-feature audit is [Blueprint-to-repository gap analysis v1.0](BLUEPRINT_TO_REPOSITORY_GAP_ANALYSIS_v1.0.md), refreshed alongside this baseline.
 
-**Latest integration evidence:**
+**Live verification limitation:** Git reads succeeded, but GitHub REST and GraphQL requests returned HTTP 403 in the cloud environment. The CI results below are retained historical evidence, not independently reverified results for the current main. The checkout began clean on branch `work`. Issue #112 still requires live reconciliation; its documented remaining scope includes disruption notices, follow-up, amendment/postponement integration and dedicated public-cancellation browser acceptance. No issue completion is inferred from that inventory.
+
+**Latest recorded integration evidence:**
 - PR #128 — staff booking-cancellation workspace and booking-revision-aware detail projection (migration 000119); squash-merged at `43a157d4f2eb25c06a76aefd094c5a8000b1ee17`. Exact-head OpenAPI 3.1, PostgreSQL 18.6 migrations/RLS/concurrency, staff-web tests/type-check/build, systemd verification and secret-history scan passed. Post-merge `main` contracts/PostgreSQL and secret-history workflows passed.
 - PR #129 — public customer cancellation request/status journey and status-capability persistence (migration 000120); squash-merged at `da421567f68fd93976582374bf1ad8b493549d02`. Exact-head OpenAPI/API tests, PostgreSQL 18.6 migrations/RLS/concurrency (including populated upgrade and logical backup/restore), staff-web regression tests/build, systemd verification and secret-history scan passed. Post-merge `main` contracts/PostgreSQL workflow #43934221982 and secret-history scan #43934221882 also passed.
 - Cancellation backend commands and migrations 000115–000118 were integrated earlier through PR #116. The full integrated cancellation slice now includes staff review, approved execution with atomic reservation release, a public single-use request capability and a separate reusable read-only status capability. Customer request submission does not itself execute cancellation or move money.
@@ -543,3 +545,24 @@ The current review stack is #120–#125:
 The request capability is single-use. The status capability is read-only, contact/booking scoped, and stored as a hash; the raw token is returned only by the API. Public links carry tokens in URL fragments, remove them from browser history, and send them in headers. The public form does not rely on a staff session.
 
 Commercial consequences remain manual until the policy JSON semantics and settlement rules are formally defined. Eventor preserves the confirmed price and pinned policy snapshots, but does not infer fees or initiate deposits, refunds, credits or payment movements. Customer `self_service` mode remains blocked from the request path until a dedicated atomic direct-execution workflow exists. Provider disruption notices/follow-ups and customer-facing email delivery remain outstanding.
+
+
+## Cloud development checkpoint — 2026-11-16
+
+Remote main matched `ff24d14ffe91c8d70c7f6f04d0907852b2b7394b`; initial branch `work` was clean. Local Node 24.22.1 validation: API 108 passed/2 skipped, staff web 48 passed, API and frontend builds passed. PostgreSQL 18.6 applied all 120 migrations ; the event-change command smoke failed at fixture setup because its referenced organization was absent (foreign-key violation), so runtime behavior remains unvalidated. Vite served the application HTML locally; this is not browser acceptance or full API startup validation. README and project baseline were refreshed. No feature implementation, commit, push or merge was performed.
+
+GitHub REST/GraphQL access returned HTTP 403; PR #129 and latest Actions status remain independently unverified, and live issues #104/#112 could not be read. The cloud draft saves dependency/build instructions, startup guidance and api.github.com access. Review/save settings and publish; then retry GitHub access before reconciling issues. Next: read the complete design/contract for #104, implement an authorized event-administration vertical slice, and validate PostgreSQL authorization plus API/UI behavior. Keep both installation modes required and defer final VM acceptance.
+
+
+### Follow-up environment verification — 2026-11-16
+
+The network diagnosis is confirmed: the enforced runtime allowlist lacks `api.github.com`, while saved draft revision 3 includes it. The proxy rejects CONNECT before GitHub authentication; token access has not yet been tested. Activate the saved network configuration before retrying REST/GraphQL.
+
+An isolated `eventor_validation` database in the existing development PostgreSQL container now contains the committed synthetic CI fixtures and all 120 migrations. Populated upgrades through 000074 and the 000077 forward-migration assertion passed. The repository upgrade script stopped because ADMIN_URL was absent; its forward assertion and remaining migration steps were then executed explicitly against eventor_validation, without resetting the original database. Event-change command authorization and cancellation/postponement SQL smoke tests passed as eventor_migrator; guest invitation capability smoke passed as eventor_runtime. The earlier missing-fixture failure is resolved. This is selected database validation, not the complete CI suite or final acceptance.
+
+
+### Verified GitHub access and event administration follow-up — 2026-11-16
+
+GitHub API access is now working in the newly published environment. PR #129 is merged at da421567f68fd93976582374bf1ad8b493549d02. Its post-merge runs 43934221982 and 43934221882 passed; latest main ff24d14 also passed contracts/PostgreSQL run 43936836187 and secret-history run 43936836236. This supersedes the earlier access limitation.
+
+Live inspection discovered existing PR #132 (event administration core), so development continued there instead of duplicating it. Repairs remove the duplicate OpenAPI event collection path, align staff tab types, bind the database fixture tenant/actor, and add migration 000122 to revoke direct runtime event writes. Local contract validation, API tests (109 pass, 2 skip), staff tests (51 pass), production builds, and the event administration SQL test passed. Full updated-head CI and broader product review remain required before merging. Issue #104 remains open for session administration and the persistent Guest Registry. Issue #112 remains open for disruption notices, linked-event follow-up, amendment/postponement integration and final workflow acceptance. No final VM acceptance is claimed.

@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import { computed, reactive, ref, type Ref } from "vue";
 import type { useOrganizerEvents } from "./useOrganizerEvents";
-import type { CreateOrganizerEventInput, OrganizerEvent } from "../../api";
+import type { OrganizerEvent } from "../../api";
 
 type Workspace = ReturnType<typeof useOrganizerEvents> & { busy: Ref<boolean> };
 
