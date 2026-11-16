@@ -178,6 +178,7 @@ resetWorkspace = (): void => {
   emailDeliveryState.reset();
   campaignState.reset();
   resetBookingInquiries();
+  organizerEventState.reset();
 };
 const staffShellWorkspace = {
   ...staffSessionState, busy, pageError, pageNotice, activeTab, locale, localeOptions,
