@@ -32,7 +32,9 @@ DECLARE
 BEGIN
   IF p_token_sha256 IS NULL OR p_token_sha256 !~ '^[0-9a-f]{64}$'
      OR p_idempotency_key_sha256 IS NULL OR p_idempotency_key_sha256 !~ '^[0-9a-f]{64}$'
-     OR p_request_sha256 IS NULL OR p_request_sha256 !~ '^[0-9a-f]{64}     OR p_reason_code IS NULL OR length(btrim(p_reason_code)) NOT BETWEEN 2 AND 100
+     OR p_request_sha256 IS NULL OR p_request_sha256 !~ '^[0-9a-f]{64}$'
+     OR p_status_token_sha256 IS NULL OR p_status_token_sha256 !~ '^[0-9a-f]{64}$'
+     OR p_reason_code IS NULL OR length(btrim(p_reason_code)) NOT BETWEEN 2 AND 100
      OR p_reason_code NOT SIMILAR TO '[a-z][a-z0-9_]{1,99}'
      OR (p_explanation_ciphertext IS NOT NULL AND
          (octet_length(p_explanation_ciphertext)>16384
