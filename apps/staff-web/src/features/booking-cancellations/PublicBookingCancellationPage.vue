@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed, onMounted, ref } from "vue";
+import { computed, onMounted, ref, watch } from "vue";
 import { useI18n } from "vue-i18n";
 import { api, ApiError, type ExternalBookingActionContext, type ExternalBookingCancellationStatus, type ExternalBookingCancellationSubmission } from "../../api";
 import { formatApiError } from "../../i18n/api-errors";
@@ -20,6 +20,9 @@ const context = ref<ExternalBookingActionContext | null>(null);
 const status = ref<ExternalBookingCancellationStatus | null>(null);
 const submission = ref<ExternalBookingCancellationSubmission | null>(null);
 const explanation = ref("");
+const submissionKey = ref("");
+const submissionSignature = computed(() => explanation.value.trim());
+watch(submissionSignature, () => { submissionKey.value = ""; });
 const statusLink = computed(() => submission.value
   ? `${window.location.origin}/booking/cancellation-status#token=${encodeURIComponent(submission.value.statusToken)}&requestId=${encodeURIComponent(submission.value.requestId)}`
   : "");
@@ -142,12 +145,14 @@ async function submit(): Promise<void> {
   busy.value = true;
   error.value = "";
   try {
+    if (!submissionKey.value) submissionKey.value = globalThis.crypto.randomUUID();
     const result = await api.submitExternalBookingCancellationRequest(
       token.value,
       { reasonCode: "customer_request", ...(explanation.value.trim() ? { explanation: explanation.value.trim() } : {}) },
-      globalThis.crypto.randomUUID(),
+      submissionKey.value,
     );
     submission.value = result.data;
+    submissionKey.value = "";
   } catch (value) {
     error.value = formatError(value);
   } finally {
