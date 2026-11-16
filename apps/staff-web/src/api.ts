@@ -593,6 +593,16 @@ export interface BookingCancellationPreview {
   };
   selfServiceExecutionAvailable: false;
 }
+export interface ExternalBookingActionCapability {
+  capabilityId: string;
+  bookingId: string;
+  bookingContactId: string;
+  action: "booking_cancellation_request" | "booking_cancellation_status";
+  expiresAt: string;
+  maxUses: number;
+  state: string;
+  token: string;
+}
 export interface ExternalBookingActionContext {
   bookingCode: string;
   bookingStatus: string;
@@ -1513,6 +1523,20 @@ export const api = {
     request<Envelope<{ responseId: string; participationId: string; response: string; sequenceNumber: number }>>(
       `/events/${encodeURIComponent(eventId)}/participations/${encodeURIComponent(participationId)}/rsvp-records`,
       { method: "POST", body, idempotent: true },
+    ),
+  issueExternalBookingActionCapability: (
+    bookingId: string,
+    body: {
+      bookingContactId: string;
+      action: "booking_cancellation_request" | "booking_cancellation_status";
+      expiresAt: string;
+      maxUses?: number;
+    },
+    idempotencyKey: string,
+  ) =>
+    request<Envelope<ExternalBookingActionCapability>>(
+      `/bookings/${encodeURIComponent(bookingId)}/external-action-capabilities`,
+      { method: "POST", body, idempotent: true, idempotencyKey },
     ),
   resolveExternalBookingAction: (
     token: string,
