@@ -23,7 +23,9 @@ test("customer request and status calls use purpose-bound headers without cookie
   assert.ok(api.includes("X-External-Booking-Action-Token"));
   assert.ok(api.includes("X-External-Booking-Token"));
   assert.ok(api.includes('credentials: "omit"'));
-  assert.ok(page.includes("booking/cancellation-status#token="));
+  assert.ok(page.includes("booking/cancellation-status?locale="));
+  assert.ok(page.includes("encodeURIComponent(locale.value)"));
+  assert.ok(page.includes('new URLSearchParams(window.location.search).get("locale")'));
   assert.ok(page.includes("getExternalBookingCancellationRequestStatus"));
   assert.ok(page.includes("submitExternalBookingCancellationRequest"));
 });
