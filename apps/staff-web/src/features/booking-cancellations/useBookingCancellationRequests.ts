@@ -146,10 +146,10 @@ export function useBookingCancellationRequests({
         expectedBookingRevision: currentPreview.bookingRevision,
         cancellationRequestId: request.requestId,
       });
-      executionResult.value = result.data;
       pageNotice.value = translate("cancellationRequests.executionCompleted");
       preview.value = null;
       await loadQueue();
+      executionResult.value = result.data;
     } catch (error) {
       showError(error);
     } finally {
