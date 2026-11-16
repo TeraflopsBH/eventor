@@ -1469,6 +1469,17 @@ BEGIN
     RAISE EXCEPTION 'draft event archive must advance the metadata revision';
   END IF;
 
+  v_archived := eogp.archive_organizer_event(
+    '10000000-0000-0000-0000-00000000000a',
+    v_event_id,
+    '30000000-0000-0000-0000-00000000000a',
+    2
+  );
+  IF v_archived->>'alreadyArchived' <> 'true'
+     OR (v_archived->>'detailsRevision')::integer <> 3 THEN
+    RAISE EXCEPTION 'repeated archive command should return the already-archived result';
+  END IF;
+
   BEGIN
     PERFORM eogp.update_organizer_event_details(
       '10000000-0000-0000-0000-00000000000a',
