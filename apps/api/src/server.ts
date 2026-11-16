@@ -1503,7 +1503,7 @@ export function buildApi(dependencies: ApiDependencies): FastifyInstance {
     client: PoolClient,
     principal: StaffPrincipal,
     bookingId: string,
-    permissionCode: "booking.manage" | "booking.cancellation.request" | "booking.cancellation.review" | "booking.cancellation.approve",
+    permissionCode: "booking.manage" | "booking.cancellation.request" | "booking.cancellation.review" | "booking.cancellation.approve" | "booking.cancellation.execute" | "booking.cancellation.override",
   ): Promise<void> => {
     const membership = await client.query(
       "SELECT 1 FROM eogp.organization_memberships WHERE organization_id=$1 AND id=$2 AND status='active' FOR SHARE",
@@ -3258,13 +3258,20 @@ export function buildApi(dependencies: ApiDependencies): FastifyInstance {
   );
 
   server.post<{
-    Params: { requestId: string };
+    Params: { bookingId: string; requestId: string };
     Body: { decision: "approved" | "rejected" | "returned_for_changes"; reason: string };
   }>(
-    "/booking-cancellation-requests/:requestId/decision",
+    "/bookings/:bookingId/cancellation-requests/:requestId/decision",
     {
       schema: {
-        params: { type: "object", required: ["requestId"], properties: { requestId: { type: "string", pattern: uuidPattern } }, additionalProperties: false },
+        params: {
+          type: "object", required: ["bookingId", "requestId"],
+          properties: {
+            bookingId: { type: "string", pattern: uuidPattern },
+            requestId: { type: "string", pattern: uuidPattern },
+          },
+          additionalProperties: false,
+        },
         headers: idempotencyHeaders,
         body: {
           type: "object", required: ["decision", "reason"],
@@ -3280,23 +3287,104 @@ export function buildApi(dependencies: ApiDependencies): FastifyInstance {
       const principal = request.staffPrincipal!;
       return withCommand(
         request, reply, "decideBookingCancellationRequest",
-        { requestId: request.params.requestId, ...request.body },
+        { ...request.params, ...request.body },
         async (client) => {
           const result = await client.query<ResultRow>(
-            "SELECT eogp.decide_booking_cancellation_request($1::uuid,$2::uuid,$3::uuid,$4::text,$5::text) AS result",
-            [principal.organizationId, request.params.requestId, principal.membershipId,
-              request.body.decision, request.body.reason],
+            "SELECT eogp.decide_booking_cancellation_request($1::uuid,$2::uuid,$3::uuid,$4::uuid,$5::text,$6::text) AS result",
+            [principal.organizationId, request.params.bookingId, request.params.requestId,
+              principal.membershipId, request.body.decision, request.body.reason],
           );
           return result.rows[0]?.result as Record<string, unknown>;
         },
         async (client) => {
           await client.query(
-            "SELECT eogp.assert_booking_cancellation_request_permission($1::uuid,$2::uuid,$3::uuid,$4::text)",
-            [principal.organizationId, request.params.requestId, principal.membershipId,
-              request.body.decision === "returned_for_changes"
+            "SELECT eogp.assert_booking_cancellation_request_permission($1::uuid,$2::uuid,$3::uuid,$4::uuid,$5::text)",
+            [principal.organizationId, request.params.bookingId, request.params.requestId,
+              principal.membershipId, request.body.decision === "returned_for_changes"
                 ? "booking.cancellation.review" : "booking.cancellation.approve"],
           );
         },
+      );
+    },
+  );
+
+  server.post<{
+    Params: { bookingId: string };
+    Body: { expectedBookingRevision: number; cancellationRequestId?: string };
+  }>(
+    "/bookings/:bookingId/cancellation-preview",
+    {
+      schema: {
+        params: { type: "object", required: ["bookingId"], properties: { bookingId: { type: "string", pattern: uuidPattern } }, additionalProperties: false },
+        body: {
+          type: "object", required: ["expectedBookingRevision"],
+          properties: {
+            expectedBookingRevision: { type: "integer", minimum: 1 },
+            cancellationRequestId: { type: "string", pattern: uuidPattern },
+          },
+          additionalProperties: false,
+        },
+      },
+    },
+    async (request, reply) => {
+      const principal = request.staffPrincipal!;
+      const client = await dependencies.pool.connect();
+      try {
+        await client.query("BEGIN");
+        await client.query("SELECT set_config('app.organization_id',$1,true)", [principal.organizationId]);
+        await client.query("SELECT set_config('app.actor_membership_id',$1,true)", [principal.membershipId]);
+        const result = await client.query<ResultRow>(
+          "SELECT eogp.preview_booking_cancellation($1::uuid,$2::uuid,$3::uuid,$4::integer,$5::uuid) AS result",
+          [principal.organizationId, request.params.bookingId, principal.membershipId,
+            request.body.expectedBookingRevision, request.body.cancellationRequestId ?? null],
+        );
+        await client.query("COMMIT");
+        reply.header("Cache-Control", "no-store, private");
+        return reply.code(200).send({ data: result.rows[0]?.result ?? null });
+      } catch (error) {
+        try { await client.query("ROLLBACK"); } catch { /* preserve the original preview error */ }
+        throw databaseError(error);
+      } finally {
+        client.release();
+      }
+    },
+  );
+
+  server.post<{
+    Params: { bookingId: string };
+    Body: { expectedBookingRevision: number; cancellationRequestId: string };
+  }>(
+    "/bookings/:bookingId/cancellation-execution",
+    {
+      schema: {
+        params: { type: "object", required: ["bookingId"], properties: { bookingId: { type: "string", pattern: uuidPattern } }, additionalProperties: false },
+        headers: idempotencyHeaders,
+        body: {
+          type: "object", required: ["expectedBookingRevision", "cancellationRequestId"],
+          properties: {
+            expectedBookingRevision: { type: "integer", minimum: 1 },
+            cancellationRequestId: { type: "string", pattern: uuidPattern },
+          },
+          additionalProperties: false,
+        },
+      },
+    },
+    async (request, reply) => {
+      const principal = request.staffPrincipal!;
+      return withCommand(
+        request, reply, "executeBookingCancellation",
+        { bookingId: request.params.bookingId, ...request.body },
+        async (client) => {
+          const result = await client.query<ResultRow>(
+            "SELECT eogp.execute_booking_cancellation($1::uuid,$2::uuid,$3::uuid,$4::uuid,$5::integer,$6::text) AS result",
+            [principal.organizationId, request.params.bookingId, request.body.cancellationRequestId,
+              principal.membershipId, request.body.expectedBookingRevision, "booking_cancellation_effective"],
+          );
+          return result.rows[0]?.result as Record<string, unknown>;
+        },
+        async (client) => authorizeBookingCancellationReplay(
+          client, principal, request.params.bookingId, "booking.cancellation.execute",
+        ),
       );
     },
   );
