@@ -48,12 +48,12 @@ function resetCreate(): void {
   });
   createOpen.value = false;
 }
-function submitCreate(): void {
+async function submitCreate(): Promise<void> {
   if (!createForm.eventCode.trim() || !createForm.title.trim() || !createForm.startsAt || !createForm.endsAt) return;
   const startsAt = toIso(createForm.startsAt);
   const endsAt = toIso(createForm.endsAt);
   if (Date.parse(endsAt) <= Date.parse(startsAt)) return;
-  createEvent({
+  const created = await createEvent({
     eventCode: createForm.eventCode.trim(),
     title: createForm.title.trim(),
     descriptionInternal: createForm.descriptionInternal.trim() || null,
@@ -63,7 +63,7 @@ function submitCreate(): void {
     venueSummary: {},
     scheduleSnapshot: {},
   });
-  resetCreate();
+  if (created) resetCreate();
 }
 function startEdit(event: OrganizerEvent): void {
   editingEventId.value = event.eventId;
@@ -75,14 +75,14 @@ function cancelEdit(): void {
   editForm.title = "";
   editForm.descriptionInternal = "";
 }
-function submitUpdate(): void {
+async function submitUpdate(): Promise<void> {
   const event = editingEvent.value;
   if (!event || !editForm.title.trim()) return;
-  updateEvent(event, {
+  const saved = await updateEvent(event, {
     title: editForm.title.trim(),
     descriptionInternal: editForm.descriptionInternal.trim() || null,
   });
-  cancelEdit();
+  if (saved) cancelEdit();
 }
 </script>
 
