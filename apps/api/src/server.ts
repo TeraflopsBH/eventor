@@ -1256,6 +1256,58 @@ function databaseError(error: unknown): ApiError {
     default: return new ApiError(500, "INTERNAL_ERROR", "An unexpected error occurred.");
   }
 }
+async function assertEventManagePermission(
+  client: PoolClient,
+  principal: StaffPrincipal,
+  eventId?: string,
+): Promise<void> {
+  const result = eventId
+    ? await client.query(
+        `SELECT 1
+           FROM eogp.organization_memberships m
+           JOIN eogp.user_role_grants ug
+             ON ug.organization_id = m.organization_id
+            AND ug.membership_id = m.id
+           JOIN eogp.role_permissions rp
+             ON rp.organization_id = ug.organization_id
+            AND rp.role_id = ug.role_id
+          WHERE m.organization_id = $1
+            AND m.id = $2
+            AND m.status = 'active'
+            AND ug.revoked_at IS NULL
+            AND (ug.expires_at IS NULL OR ug.expires_at > clock_timestamp())
+            AND rp.permission_code = 'event.manage'
+            AND (
+              ug.scope_kind = 'organization'
+              OR (ug.scope_kind = 'event' AND ug.scope_event_id = $3)
+            )
+          FOR SHARE OF m, ug, rp`,
+        [principal.organizationId, principal.membershipId, eventId],
+      )
+    : await client.query(
+        `SELECT 1
+           FROM eogp.organization_memberships m
+           JOIN eogp.user_role_grants ug
+             ON ug.organization_id = m.organization_id
+            AND ug.membership_id = m.id
+           JOIN eogp.role_permissions rp
+             ON rp.organization_id = ug.organization_id
+            AND rp.role_id = ug.role_id
+          WHERE m.organization_id = $1
+            AND m.id = $2
+            AND m.status = 'active'
+            AND ug.scope_kind = 'organization'
+            AND ug.revoked_at IS NULL
+            AND (ug.expires_at IS NULL OR ug.expires_at > clock_timestamp())
+            AND rp.permission_code = 'event.manage'
+          FOR SHARE OF m, ug, rp`,
+        [principal.organizationId, principal.membershipId],
+      );
+  if (!result.rowCount) {
+    throw new ApiError(403, "FORBIDDEN", "You are not permitted to manage this event.");
+  }
+}
+
 function parseStoredBody(value: Record<string, unknown> | string): Record<string, unknown> {
   return typeof value === "string" ? JSON.parse(value) as Record<string, unknown> : value;
 }
@@ -3849,28 +3901,7 @@ export function buildApi(dependencies: ApiDependencies): FastifyInstance {
           return (result.rows[0]?.result ?? {}) as Record<string, unknown>;
         },
         async (client) => {
-          const permission = await client.query(
-            `SELECT 1
-               FROM eogp.organization_memberships m
-               JOIN eogp.user_role_grants ug
-                 ON ug.organization_id = m.organization_id
-                AND ug.membership_id = m.id
-               JOIN eogp.role_permissions rp
-                 ON rp.organization_id = ug.organization_id
-                AND rp.role_id = ug.role_id
-              WHERE m.organization_id = $1
-                AND m.id = $2
-                AND m.status = 'active'
-                AND ug.scope_kind = 'organization'
-                AND ug.revoked_at IS NULL
-                AND (ug.expires_at IS NULL OR ug.expires_at > clock_timestamp())
-                AND rp.permission_code = 'event.manage'
-              FOR SHARE OF m, ug, rp`,
-            [principal.organizationId, principal.membershipId],
-          );
-          if (!permission.rowCount) {
-            throw new ApiError(403, "FORBIDDEN", "You are not permitted to create events in this organization.");
-          }
+          await assertEventManagePermission(client, principal);
         },
       );
       return reply.code(response.status).send(response.body);
@@ -3923,10 +3954,7 @@ export function buildApi(dependencies: ApiDependencies): FastifyInstance {
           return (result.rows[0]?.result ?? {}) as Record<string, unknown>;
         },
         async (client) => {
-          await client.query(
-            "SELECT eogp.assert_event_command_permission($1::uuid,$2::uuid,$3::uuid,'event.manage')",
-            [principal.organizationId, request.params.eventId, principal.membershipId],
-          );
+          await assertEventManagePermission(client, principal, request.params.eventId);
         },
         200,
       );
