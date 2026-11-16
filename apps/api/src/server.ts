@@ -1268,6 +1268,7 @@ async function runIdempotentCommand(
   requestBody: unknown,
   command: Command,
   authorizeReplay: (client: PoolClient) => Promise<void>,
+  responseStatus = 201,
 ): Promise<CommandResponse> {
   const client = await dependencies.pool.connect();
   const hash = requestHash(requestBody, dependencies.privateFieldEncryptionKey);
@@ -1322,11 +1323,11 @@ async function runIdempotentCommand(
     const data = await command(client);
     const responseBody = { data };
     await client.query(
-      "UPDATE eogp.idempotency_records SET response_status=201,response_body=$6::jsonb WHERE organization_id=$1 AND principal_kind='membership' AND principal_id=$2 AND operation_id=$3 AND idempotency_key=$4 AND request_sha256=$5",
-      [principal.organizationId, principal.membershipId, operationId, idempotencyKey, hash, JSON.stringify(responseBody)],
+      "UPDATE eogp.idempotency_records SET response_status=$6,response_body=$7::jsonb WHERE organization_id=$1 AND principal_kind='membership' AND principal_id=$2 AND operation_id=$3 AND idempotency_key=$4 AND request_sha256=$5",
+      [principal.organizationId, principal.membershipId, operationId, idempotencyKey, hash, responseStatus, JSON.stringify(responseBody)],
     );
     await client.query("COMMIT");
-    return { status: 201, body: responseBody };
+    return { status: responseStatus, body: responseBody };
   } catch (error) {
     try { await client.query("ROLLBACK"); } catch { /* preserve the command error */ }
     throw databaseError(error);
