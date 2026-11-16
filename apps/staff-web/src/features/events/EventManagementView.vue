@@ -9,6 +9,7 @@ const props = defineProps<{ workspace: Workspace; t: (key: string, params?: Reco
 const { events, busy, canArchive, refresh, createEvent, updateEvent, archiveEvent } = props.workspace;
 const createOpen = ref(false);
 const editingEventId = ref("");
+const formError = ref("");
 const createForm = reactive({
   eventCode: "",
   title: "",
@@ -25,14 +26,41 @@ const sortedEvents = computed(() => [...events.value].sort((a, b) => {
 }));
 const editingEvent = computed(() => events.value.find((event) => event.eventId === editingEventId.value) ?? null);
 
-function toIso(value: string): string {
-  return new Date(value).toISOString();
+function zonedLocalDateTimeToIso(value: string, timeZone: string): string {
+  const [datePart, timePart] = value.split("T");
+  if (!datePart || !timePart) throw new Error(props.t("events.invalidSchedule"));
+  const [year, month, day] = datePart.split("-").map(Number);
+  const [hour, minute] = timePart.split(":").map(Number);
+  if (![year, month, day, hour, minute].every(Number.isFinite)) throw new Error(props.t("events.invalidSchedule"));
+  const wallClock = Date.UTC(year, month - 1, day, hour, minute, 0);
+  const formatter = new Intl.DateTimeFormat("en-US", {
+    timeZone, year: "numeric", month: "2-digit", day: "2-digit",
+    hour: "2-digit", minute: "2-digit", second: "2-digit", hourCycle: "h23",
+  });
+  let instant = wallClock;
+  for (let attempt = 0; attempt < 4; attempt += 1) {
+    const parts = Object.fromEntries(formatter.formatToParts(new Date(instant)).map((part) => [part.type, part.value]));
+    const represented = Date.UTC(
+      Number(parts.year), Number(parts.month) - 1, Number(parts.day),
+      Number(parts.hour), Number(parts.minute), Number(parts.second),
+    );
+    instant = wallClock - (represented - instant);
+  }
+  const finalParts = Object.fromEntries(formatter.formatToParts(new Date(instant)).map((part) => [part.type, part.value]));
+  if (
+    Number(finalParts.year) !== year || Number(finalParts.month) !== month ||
+    Number(finalParts.day) !== day || Number(finalParts.hour) !== hour ||
+    Number(finalParts.minute) !== minute
+  ) {
+    throw new Error(props.t("events.invalidSchedule"));
+  }
+  return new Date(instant).toISOString();
 }
-function formatDate(value?: string | null): string {
+function formatDate(value?: string | null, timeZone?: string): string {
   if (!value) return "—";
   const date = new Date(value);
   if (Number.isNaN(date.getTime())) return "—";
-  return new Intl.DateTimeFormat(undefined, { dateStyle: "medium", timeStyle: "short" }).format(date);
+  return new Intl.DateTimeFormat(undefined, { dateStyle: "medium", timeStyle: "short", ...(timeZone ? { timeZone } : {}) }).format(date);
 }
 function statusLabel(status: OrganizerEvent["status"]): string {
   return props.t(`events.status.${status}`);
@@ -47,12 +75,24 @@ function resetCreate(): void {
     timezoneName: "Europe/Sarajevo",
   });
   createOpen.value = false;
+  formError.value = "";
 }
 async function submitCreate(): Promise<void> {
+  formError.value = "";
   if (!createForm.eventCode.trim() || !createForm.title.trim() || !createForm.startsAt || !createForm.endsAt) return;
-  const startsAt = toIso(createForm.startsAt);
-  const endsAt = toIso(createForm.endsAt);
-  if (Date.parse(endsAt) <= Date.parse(startsAt)) return;
+  let startsAt: string;
+  let endsAt: string;
+  try {
+    startsAt = zonedLocalDateTimeToIso(createForm.startsAt, createForm.timezoneName.trim());
+    endsAt = zonedLocalDateTimeToIso(createForm.endsAt, createForm.timezoneName.trim());
+  } catch (error) {
+    formError.value = error instanceof Error ? error.message : props.t("events.invalidSchedule");
+    return;
+  }
+  if (Date.parse(endsAt) <= Date.parse(startsAt)) {
+    formError.value = props.t("events.invalidSchedule");
+    return;
+  }
   const created = await createEvent({
     eventCode: createForm.eventCode.trim(),
     title: createForm.title.trim(),
@@ -106,6 +146,7 @@ async function submitUpdate(): Promise<void> {
 
     <form v-if="createOpen" class="event-form" @submit.prevent="submitCreate">
       <h3>{{ t("events.createTitle") }}</h3>
+      <p v-if="formError" class="form-error">{{ formError }}</p>
       <div class="form-grid">
         <label>
           <span>{{ t("events.eventCode") }}</span>
@@ -203,7 +244,7 @@ async function submitUpdate(): Promise<void> {
 .toolbar { display: flex; align-items: center; gap: 9px; flex-wrap: wrap; }
 .toolbar.compact { gap: 6px; }
 .button-small { padding: 7px 10px; font-size: 11px; }
-.event-form { padding: 20px; border: 1px solid var(--border); border-radius: 12px; background: #171717; display: grid; gap: 18px; }
+.form-error { color: var(--danger); font-size: 12px; margin: 0; }\n.event-form { padding: 20px; border: 1px solid var(--border); border-radius: 12px; background: #171717; display: grid; gap: 18px; }
 .form-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 16px; }
 .form-wide { grid-column: 1 / -1; }
 .event-management textarea { width: 100%; min-width: 0; resize: vertical; color: #f1f1f1; background: #141414; border: 1px solid #414141; border-radius: 8px; padding: 11px 12px; font: inherit; font-size: 13px; }
