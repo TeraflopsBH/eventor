@@ -54,6 +54,11 @@ export function useOrganizerEvents({
     await refresh();
   }
 
+  function reset(): void {
+    events.value = [];
+    selectedEventId.value = "";
+  }
+
   async function createEvent(input: CreateOrganizerEventInput): Promise<void> {
     clearMessages();
     busy.value = true;
@@ -113,6 +118,7 @@ export function useOrganizerEvents({
     loadEvents,
     refresh,
     open,
+    reset,
     createEvent,
     updateEvent,
     archiveEvent,
