@@ -21,6 +21,7 @@ BEGIN
     RAISE EXCEPTION 'actor membership context mismatch' USING ERRCODE='42501';
   END IF;
   IF p_permission_code NOT IN (
+    'booking.manage',
     'booking.cancellation.request',
     'booking.cancellation.review',
     'booking.cancellation.approve'
