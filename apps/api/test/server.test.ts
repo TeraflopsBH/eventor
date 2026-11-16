@@ -3500,6 +3500,21 @@ test("organizer event administration lists, creates, updates and archives with i
   assert.equal(archive.statusCode, 200);
   assert.equal(archive.json().data.status, "archived");
 
+  for (const method of ["PATCH", "POST"] as const) {
+    const crossEventReplay = await app.inject({
+      method,
+      url: `/organizations/${principal.organizationId}/events/eeeeeeee-eeee-4eee-8eee-eeeeeeeeeeee${method === "POST" ? "/archive" : ""}`,
+      headers: { "idempotency-key": method === "POST" ? "event-archive-0001" : "event-update-0001" },
+      payload: method === "POST" ? { expectedDetailsRevision: 2 } : {
+        expectedDetailsRevision: 1,
+        title: "Community gathering updated",
+        descriptionInternal: "Updated planning details",
+      },
+    });
+    assert.equal(crossEventReplay.statusCode, 409);
+  }
+
+
   assert.ok(mock.commandCalls.some((call) => call.sql.includes("eogp.create_organizer_event(")));
   assert.ok(mock.commandCalls.some((call) => call.sql.includes("eogp.update_organizer_event_details(")));
   assert.ok(mock.commandCalls.some((call) => call.sql.includes("eogp.archive_organizer_event(")));

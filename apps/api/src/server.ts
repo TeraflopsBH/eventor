@@ -3945,7 +3945,7 @@ export function buildApi(dependencies: ApiDependencies): FastifyInstance {
       }
       const body = request.body;
       const response = await runIdempotentCommand(
-        dependencies, principal, "event.details.update", idempotencyKey, body,
+        dependencies, principal, "event.details.update", idempotencyKey, { eventId: request.params.eventId, ...body },
         async (client) => {
           const result = await client.query<ResultRow>(
             "SELECT eogp.update_organizer_event_details($1::uuid,$2::uuid,$3::uuid,$4::integer,$5::text,$6::text) AS result",
@@ -3994,7 +3994,7 @@ export function buildApi(dependencies: ApiDependencies): FastifyInstance {
         throw new ApiError(400, "IDEMPOTENCY_KEY_REQUIRED", "An idempotency key is required.");
       }
       const response = await runIdempotentCommand(
-        dependencies, principal, "event.archive", idempotencyKey, request.body,
+        dependencies, principal, "event.archive", idempotencyKey, { eventId: request.params.eventId, ...request.body },
         async (client) => {
           const result = await client.query<ResultRow>(
             "SELECT eogp.archive_organizer_event($1::uuid,$2::uuid,$3::uuid,$4::integer) AS result",
