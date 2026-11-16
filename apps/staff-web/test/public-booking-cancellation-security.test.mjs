@@ -11,24 +11,24 @@ const app = await readFile(new URL("../src/App.vue", import.meta.url), "utf8");
 const apiServer = await readFile(new URL("../../api/src/server.ts", import.meta.url), "utf8");
 
 test("public cancellation bearer tokens are captured from fragments and removed from history", () => {
-  assert.match(page, /window\.location\.hash/);
-  assert.match(page, /window\.history\.replaceState\(window\.history\.state, "", window\.location\.pathname\)/);
-  assert.match(page, /\^\[A-Za-z0-9_-\]\{43\}\$/);
-  assert.doesNotMatch(page, /localStorage|sessionStorage|document\.cookie/);
+  assert.ok(page.includes("window.location.hash"));
+  assert.ok(page.includes('window.history.replaceState(window.history.state, "", window.location.pathname)'));
+  assert.ok(page.includes("^[A-Za-z0-9_-]{43}$"));
+  assert.ok(!/localStorage|sessionStorage|document\\.cookie/.test(page));
 });
 
 test("customer request and status calls use purpose-bound headers without cookies", () => {
-  assert.match(api, /X-External-Booking-Action-Token/);
-  assert.match(api, /X-External-Booking-Token/);
-  assert.match(api, /credentials: "omit"/);
-  assert.match(page, /booking\/cancellation-status#token=/);
-  assert.match(page, /getExternalBookingCancellationRequestStatus/);
-  assert.match(page, /submitExternalBookingCancellationRequest/);
+  assert.ok(api.includes("X-External-Booking-Action-Token"));
+  assert.ok(api.includes("X-External-Booking-Token"));
+  assert.ok(api.includes('credentials: "omit"'));
+  assert.ok(page.includes("booking/cancellation-status#token="));
+  assert.ok(page.includes("getExternalBookingCancellationRequestStatus"));
+  assert.ok(page.includes("submitExternalBookingCancellationRequest"));
 });
 
-test("public cancellation routes are explicitly mounted and capability headers are redacted", () => {
-  assert.match(app, /PublicBookingCancellationPage/);
-  assert.match(app, /booking\/cancellation/);
+test("public cancellation routes are mounted and capability headers are redacted", () => {
+  assert.ok(app.includes("PublicBookingCancellationPage"));
+  assert.ok(app.includes("booking/cancellation-status"));
   assert.ok(apiServer.includes('req.headers["x-external-booking-token"]'));
   assert.ok(apiServer.includes('req.headers["x-external-booking-action-token"]'));
 });
