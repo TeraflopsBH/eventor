@@ -2,6 +2,12 @@ export default {
   common: {
     notProvided: "Nije navedeno",
       "unexpectedError": "Došlo je do neočekivane greške.",
+      refresh: "Osvježi",
+      close: "Zatvori",
+      cancel: "Odustani",
+      actions: "Radnje",
+      edit: "Uredi",
+      save: "Sačuvaj",
   },
   cancellationRequests: {
     eyebrow: "OPERACIJE REZERVACIJA",
