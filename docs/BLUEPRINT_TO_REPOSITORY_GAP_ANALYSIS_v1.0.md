@@ -1,6 +1,6 @@
 # Blueprint-to-repository gap analysis — v1.0
 
-**Audit baseline:** `main` at `3addc1466c15ffa81a1aba110f64e6b263d0198a` (2026-11-15)  
+**Audit baseline:** `main` at `da421567f68fd93976582374bf1ad8b493549d02` (2026-11-16)  
 **Blueprint:** Technical Blueprint v1.2  
 **Purpose:** establish what exists in the repository, what is only a design/schema foundation, what is partially usable, and what remains to be built before Eventor is a ready-to-use event operations product.
 
@@ -8,7 +8,7 @@ This is a static repository audit of the source tree, API route registrations, V
 
 ## 1. Executive assessment
 
-Eventor is **not yet a complete event operations application**. The current implementation is materially weighted toward the venue-booking/commercial vertical. It has a substantial PostgreSQL/security foundation, working staff authentication, a Vue staff shell, public booking inquiry forms, booking inquiry/draft/offer workflows, commercial configuration, notification campaigns/delivery, and a meaningful invitation/RSVP slice.
+Eventor is **not yet a complete event operations application**. The current implementation is materially weighted toward the venue-booking/commercial vertical. It has a substantial PostgreSQL/security foundation, working staff authentication, a Vue staff shell, public booking inquiry forms, booking inquiry/draft/offer workflows, commercial configuration, notification campaigns/delivery, a meaningful invitation/RSVP slice, and an integrated booking-cancellation request/review/approved-execution workflow with a public customer request/status journey.
 
 The event-operations domains that make the product distinctive remain mostly unimplemented at runtime: persistent guest registry management, venue/floor-plan editing, guest seating and zone allocation, solver-assisted allocation, admission QR credentials, gate scanning, live operations cockpit, role-specific event-day workspaces, branding inheritance, CDI/prerequisite coordination, and reporting/print/display outputs.
 
@@ -28,7 +28,8 @@ The distinction is important: **a database table, migration, OpenAPI schema, tes
 |---|---|---|---|
 | Platform, tenancy, authentication and authorization | PostgreSQL migrations 000001–000015 and later hardening; RLS/least-privilege roles; Fastify staff sessions, CSRF/origin checks; staff login UI; audit commands and tests | **Partial / strong foundation** | Complete organization/user/membership administration, role assignment UX, event-scoped permission coverage, operational health/readiness and full admin workspace. |
 | Venue booking and public inquiry | Public booking form projection/submission, spam/rate protections, inquiry inbox/detail, assignment/status/notes/history, draft conversion and revisions, allocation availability preview | **Implemented slice** | Finish and acceptance-test the end-to-end commercial booking lifecycle, fulfilment tasks and operational communications; distinguish requested, approved and delivered service. |
-| Commercial offers, approval, pricing and tax | Offer lifecycle, approval policies, price lists, tax profiles/calculation, cancellation policies, public offer acceptance/rejection and booking reservation commands; staff views | **Implemented slice / needs end-to-end acceptance** | Close remaining workflow edges, customer-facing presentation, manual booking path, resource fulfilment and cancellation/change lifecycle acceptance. |
+| Commercial offers, approval, pricing and tax | Offer lifecycle, approval policies, price lists, tax profiles/calculation, cancellation policies, public offer acceptance/rejection and booking reservation commands; staff views | **Implemented slice / needs end-to-end acceptance** | Close remaining workflow edges, customer-facing presentation, manual booking path, resource fulfilment and cancellation/change lifecycle acceptance. 
+| Booking cancellation and disruption | Migrations 000115–000120; staff request queue/detail, approve/reject/return-for-changes, policy-pinned preview, approved execution with atomic reservation release, public single-use request capability and reusable read-only status capability | **Partial / implemented cancellation slice** | Complete venue/event disruption notices and follow-up projection, amendment/postponement lifecycle, and a dedicated public cancellation browser E2E journey. A customer request is not effective cancellation and does not move money. |
 | Event administration and sessions | Event foundations in migrations 000008–000010; event-related API projections used by invitation workspace | **Foundation / partial** | Full event create/edit/archive, session management, lifecycle transitions, event settings, capability activation, venue assignment and event overview UI. |
 | Persistent Guest Registry | Migration 000011 and related domain design; participation data used by invitation workflows | **Foundation only** | Registry CRUD, profile history, cross-event identity resolution, duplicate detection, supervised merge/rollback, bulk import/export, saved views and relationship/group management. |
 | Event participation and guest list | Participation/eligibility projections and RSVP/invitation runtime | **Partial** | Complete event guest-list CRUD, categories/tags/custom fields, groups, bulk actions, event-specific snapshots, search and data provenance. |
@@ -59,7 +60,7 @@ The distinction is important: **a database table, migration, OpenAPI schema, tes
 
 ### 3.1 Current staff application
 
-The current staff navigation is limited to:
+The current staff navigation includes:
 - Email delivery configuration.
 - Campaign review and delivery operations.
 - Guest invitation management (including staff RSVP capture/correction).
@@ -68,6 +69,7 @@ The current staff navigation is limited to:
 - Booking forms.
 - Price lists.
 - Cancellation policies.
+- Booking cancellation request/review workspace.
 - Tax profiles.
 - Organization locale settings.
 
@@ -75,7 +77,7 @@ This is a real staff application, not a blank shell. However, it is not yet the 
 
 ### 3.2 Runtime API boundary
 
-The current API route families include booking forms/inquiries/drafts/offers, price/tax/approval/cancellation policies, booking reservation commands, event invitation projections, guest invitation issue/revoke, guest RSVP and delivery configuration/campaign operations.
+The current API route families include booking forms/inquiries/drafts/offers, price/tax/approval/cancellation policies, booking reservation commands, staff booking-cancellation review/detail/decision/preview/execution, external booking-action capability issue/revoke/resolve, public cancellation request/status, event invitation projections, guest invitation issue/revoke, guest RSVP and delivery configuration/campaign operations.
 
 The audited route registrations did not reveal runtime route families for Guest Registry CRUD/import, venue/floor-plan editing, event guest allocation, admission QR, check-in stations/scanning, cockpit/realtime, external prerequisites, branding or vendor workspaces. Their appearance in design documents or early migrations must not be counted as implementation.
 
@@ -83,11 +85,21 @@ The current API has separate API and notification-worker entry points. The worke
 
 ### 3.3 Database maturity
 
-There are 114 ordered migrations. They provide a substantial foundation for tenancy, authorization, venue/resource booking, event/guest/invitation/attendance concepts, collaboration, notifications and commercial booking. The migration count is not a feature-completion metric: later runtime/API/UI work is still required for several domains.
+There are 120 ordered migrations. They provide a substantial foundation for tenancy, authorization, venue/resource booking, event/guest/invitation/attendance concepts, collaboration, notifications and commercial booking. The migration count is not a feature-completion metric: later runtime/API/UI work is still required for several domains. Migrations 000115–000120 add the cancellation request/review/execution and public status-capability slice; they do not complete event administration or the Guest Registry.
 
 ### 3.4 Email and forms
 
 There is already an email delivery configuration and test-send screen, campaign review/approval/queueing and delivery history. The campaign view displays the subject and body template for review, but no visual/template authoring interface was found. Likewise, public booking request forms are implemented; that does not mean guest registration forms, vendor forms or generic event submission forms are complete.
+
+### 3.6 Booking cancellation and disruption boundary
+
+The cancellation slice is now integrated rather than being only a schema foundation:
+- Staff can review a tenant-scoped request queue, inspect authorized request history, approve/reject/return requests for changes, preview the pinned cancellation policy and exact reservation effects, and execute an approved cancellation.
+- Approved execution is serialized on the booking and releases the exact booking reservations in the same transaction; the confirmed commercial snapshot and pinned policy revision remain auditable.
+- A customer can submit a purpose-bound single-use request and receive a separate reusable, contact-scoped, read-only status capability. Only token hashes are persisted; the raw status token is returned by the API.
+- Public tokens are carried in URL fragments, removed from browser history, omitted from cookies and redacted from request logs. The status link preserves the selected locale.
+
+This is not the whole disruption domain. Venue/event cancellation notices, customer-facing follow-up, amendment/postponement workflows and a dedicated browser E2E test for the public cancellation journey remain outstanding. A customer request does not itself cancel a booking; no refund, fee, credit or other money movement is inferred or initiated.
 
 ### 3.5 QR and check-in distinction
 
@@ -100,7 +112,7 @@ The following order prioritizes a coherent, usable product and avoids building a
 ### Track A — Complete the venue-booking product vertical
 
 1. Reconcile current booking implementation against the accepted Release 1 scope.
-2. Finish remaining booking lifecycle edges: manual booking, offer revision/approval/acceptance, confirmation, cancellation/amendment/postponement and resource release.
+2. Finish remaining booking lifecycle edges: manual booking, offer revision/approval/acceptance, confirmation, amendment/postponement and venue/event disruption notices. The staff/public cancellation request and approved-execution slice is integrated; it still needs dedicated browser E2E and full disruption follow-up acceptance.
 3. Complete venue-side fulfilment tasks and assigned responsibility workflows.
 4. Complete booking communication/template authoring and operational history.
 5. Add health/readiness and operator-facing diagnostics.

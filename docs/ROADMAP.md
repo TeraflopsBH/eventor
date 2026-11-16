@@ -2,16 +2,17 @@
 
 **Baseline date:** 2026-11-16  
 **Product/design baseline:** Technical Blueprint v1.2 and accepted v0.3 domain/architecture decisions.  
-**Implementation baseline:** `main` at `43a157d4f2eb25c06a76aefd094c5a8000b1ee17` (PR #128 staff cancellation workspace integrated).  
+**Implementation baseline:** `main` at `da421567f68fd93976582374bf1ad8b493549d02` (PRs #128 and #129 cancellation integrations merged).  
 **Detailed audit:** [Blueprint-to-repository gap analysis v1.0](BLUEPRINT_TO_REPOSITORY_GAP_ANALYSIS_v1.0.md).
 
 ## Current integration note — 2026-11-16
 
-- Booking cancellation request/review, purpose-bound customer capabilities and approved execution with atomic reservation release are integrated on `main` through PR #116 (migrations 000115–000118).
-- Staff cancellation workspace and booking-revision-aware detail projection are integrated through PR #128 (migration 000119); exact-head and post-merge repository CI passed.
-- Public customer request/status UI and replay-stable status capability are being integrated through PR #129 (migration 000120). The first exact-head OpenAPI run found a missing submission-envelope schema; it has been added and the updated exact-head CI is running. Do not mark the public flow complete until all required checks pass.
-- The next product implementation track is #104 (event administration and persistent Guest Registry), followed by #105–#107. The native and Docker Compose installers remain a required deliverable under #108.
-- Repository inventory currently has only systemd deployment templates, no production Compose topology/Dockerfile and no complete native installer. The final acceptance VM remains deferred until the product and both installers are ready.
+- Booking cancellation request/review, purpose-bound customer request capabilities and approved execution with atomic reservation release are integrated through PR #116 (migrations 000115–000118).
+- Staff cancellation workspace and booking-revision-aware detail projection are integrated through PR #128 (migration 000119).
+- Public customer cancellation request and reusable read-only status capability are integrated through PR #129 (migration 000120). The exact-head PostgreSQL 18.6 migration/RLS/concurrency suite, OpenAPI/API tests, staff-web tests/build, systemd verification and secret-history scan passed. Post-merge `main` contracts/PostgreSQL workflow #43934221982 and secret-history scan #43934221882 passed as well.
+- The public page's source-level security regression tests cover fragment-only tokens, history cleanup, locale continuity, cookie omission and logger redaction. A dedicated Chromium/Firefox public cancellation browser journey remains to be added; existing browser acceptance covers auth and guest invitations.
+- The next product implementation track is #104 (event administration and persistent Guest Registry), followed by #105–#107. The native and Docker Compose installers remain required under #108.
+- Repository inventory still has only systemd deployment templates, no production Compose topology/Dockerfile and no complete native installer. The final acceptance VM remains deferred until product and both installers are ready.
 
 ## Delivery principle
 
@@ -32,7 +33,7 @@ The product remains an API-first modular monolith:
 - [x] Merge guest invitation browser acceptance coverage (PR #101; mocked HTTP boundary).
 - [x] Align invitation OpenAPI paths with runtime behavior (PR #102).
 - [x] Audit Technical Blueprint v1.2 against actual runtime/API/UI/migrations/tests (PR #103).
-- [ ] Keep project-state, roadmap and issue tracker synchronized with the current implementation.
+- [x] Keep project-state, roadmap and issue tracker synchronized with the current implementation.
 - [ ] Reconcile stale historical issues and PRs; do not mistake historical checklists for current status.
 
 ## Phase 1 — Complete a coherent venue-booking vertical
