@@ -6215,6 +6215,515 @@ components:
           maxLength: 100
           pattern: '^[a-z][a-z0-9_]{1,99}'
         explanation: { type: string, maxLength: 4000 }
+    ExternalBookingCancellationSubmissionEnvelope:
+      type: object
+      required: [data]
+      properties:
+        data:
+          type: object
+          required: [requestId, status, statusToken]
+          properties:
+            requestId: { type: string, format: uuid }
+            bookingCode: { type: string }
+            status: { type: string, enum: [submitted, under_review, approved, rejected, effective] }
+            requestedAt: { type: string, format: date-time }
+            replayed: { type: boolean }
+            statusToken: { type: string, pattern: '^[A-Za-z0-9_-]{43}      type: object
+      required: [reason]
+      properties:
+        reason: { type: string, minLength: 3, maxLength: 2000 }
+        commercialConsequences: { type: object, additionalProperties: true }
+    VenueCancellationRequest:
+      type: object
+      required: [reasonCode, customerSummary]
+      properties:
+        reasonCode: { type: string, maxLength: 100 }
+        customerSummary: { type: string, minLength: 3, maxLength: 2000 }
+        internalExplanation: { type: string, maxLength: 4000 }
+        emergencyOverride: { type: boolean, default: false }
+    CancellationPreviewRequest:
+      type: object
+      required: [expectedBookingRevision]
+      properties:
+        expectedBookingRevision: { type: integer, minimum: 1 }
+        cancellationRequestId: { type: string, format: uuid }
+    CancellationExecutionRequest:
+      type: object
+      required: [expectedBookingRevision, cancellationRequestId]
+      properties:
+        expectedBookingRevision: { type: integer, minimum: 1 }
+        cancellationRequestId: { type: string, format: uuid }
+    CancellationPolicyCreateRequest:
+      type: object
+      required: [code, name]
+      properties:
+        code: { type: string, maxLength: 80 }
+        name: { type: string, maxLength: 250 }
+    CancellationPolicyRevisionRequest:
+      type: object
+      required: [customerMode, publicTerms, approvalRules, commercialRules, noticeRules]
+      properties:
+        customerMode: { type: string, enum: [request_only, approval_required, self_service] }
+        publicTerms: { type: string, minLength: 1, maxLength: 10000 }
+        approvalRules: { type: object, additionalProperties: true }
+        commercialRules: { type: object, additionalProperties: true }
+        noticeRules: { type: object, additionalProperties: true }
+    PublishRequest:
+      type: object
+      properties:
+        expectedRevision: { type: integer, minimum: 1 }
+    MembershipCreateRequest:
+      type: object
+      required: [email, roleIds]
+      properties:
+        email: { type: string, format: email }
+        roleIds: { type: array, items: { type: string, format: uuid } }
+    MembershipPatchRequest:
+      type: object
+      minProperties: 1
+      properties:
+        status: { type: string, enum: [active, suspended, revoked] }
+        roleIds: { type: array, items: { type: string, format: uuid } }
+    EventCreateRequest:
+      type: object
+      required: [eventCode, title, timezone]
+      properties:
+        eventCode: { type: string, maxLength: 80 }
+        title: { type: string, maxLength: 250 }
+        timezone: { type: string }
+        descriptionInternal: { type: string, maxLength: 10000 }
+    EventPatchRequest:
+      type: object
+      minProperties: 1
+      properties:
+        title: { type: string, maxLength: 250 }
+        descriptionInternal: { type: string, maxLength: 10000 }
+        timezone: { type: string }
+    EventCapabilitiesRequest:
+      type: object
+      required: [expectedRevision, capabilities]
+      properties:
+        expectedRevision: { type: integer, minimum: 0 }
+        capabilities:
+          type: object
+          additionalProperties: { type: boolean }
+    ResponsibilityAssignmentRequest:
+      type: object
+      required: [taskCode, taskLabel, accountableParty, performingParty]
+      properties:
+        taskCode: { type: string, maxLength: 100 }
+        taskLabel: { type: string, maxLength: 250 }
+        accountableParty: { type: object, additionalProperties: true }
+        performingParty: { type: object, additionalProperties: true }
+        approver: { type: object, additionalProperties: true }
+        informedParties: { type: array, items: { type: object, additionalProperties: true } }
+        collaborationGrantId: { type: string, format: uuid }
+        permittedProjection: { type: object, additionalProperties: true }
+        dueAt: { type: string, format: date-time }
+    ResponsibilityAssignmentPatchRequest:
+      type: object
+      minProperties: 1
+      properties:
+        status: { type: string, enum: [not_started, in_progress, blocked, completed, cancelled, waived] }
+        dueAt: { type: string, format: date-time }
+        permittedProjection: { type: object, additionalProperties: true }
+    BookingEventLinkRequest:
+      type: object
+      required: [bookingOwnerOrganizationId, bookingId, relationshipKind, collaborationGrantId]
+      properties:
+        bookingOwnerOrganizationId: { type: string, format: uuid }
+        bookingId: { type: string, format: uuid }
+        relationshipKind: { type: string, enum: [venue_for_event, service_for_event, other] }
+        collaborationGrantId: { type: string, format: uuid }
+    DisruptionResolutionRequest:
+      type: object
+      required: [resolutionKind]
+      properties:
+        resolutionKind: { type: string, enum: [relocate, amend_booking, postpone, cancel_event, unresolved] }
+        notes: { type: string, maxLength: 4000 }
+    CollaborationGrantCreateRequest:
+      type: object
+      required: [granteeOrganizationId, scope, purpose, allowedActions]
+      properties:
+        granteeOrganizationId: { type: string, format: uuid }
+        scope: { type: object, additionalProperties: true }
+        purpose: { type: string, maxLength: 1000 }
+        projection: { type: object, additionalProperties: true }
+        allowedActions: { type: array, uniqueItems: true, items: { type: string } }
+        validUntil: { type: string, format: date-time }
+    GrantAcceptanceRequest:
+      type: object
+      properties:
+        acknowledgement: { type: string, maxLength: 1000 }
+    VenueSnapshotShareRequest:
+      type: object
+      required: [eventOwnerOrganizationId, eventId, venueSpaceRevisionId, collaborationGrantId, sourceContentSha256]
+      properties:
+        eventOwnerOrganizationId: { type: string, format: uuid }
+        eventId: { type: string, format: uuid }
+        venueSpaceRevisionId: { type: string, format: uuid }
+        collaborationGrantId: { type: string, format: uuid }
+        sourceContentSha256: { type: string, pattern: '^[0-9a-f]{64}$' }
+        approvedLayerIds: { type: array, uniqueItems: true, description: "Spatial layer IDs belonging to the exact published venue-space revision. Only these layers and their source objects may be copied.", items: { type: string, format: uuid } }
+        approvedResourceIds: { type: array, uniqueItems: true, description: "Resource-pool or discrete-unit IDs belonging to the venue containing the selected source revision.", items: { type: string, format: uuid } }
+        expiresAt: { type: string, format: date-time }
+    EventVenueSnapshotCreateRequest:
+      type: object
+      required: [shareId]
+      properties:
+        shareId: { type: string, format: uuid }
+    PersonCreateRequest:
+      type: object
+      required: [firstName, lastName]
+      properties:
+        firstName: { type: string, maxLength: 200 }
+        lastName: { type: string, maxLength: 200 }
+        displayName: { type: string, maxLength: 250 }
+        preferredName: { type: string, maxLength: 200 }
+        contacts: { type: array, items: { type: object, additionalProperties: true } }
+    PersonPatchRequest:
+      type: object
+      minProperties: 1
+      properties:
+        firstName: { type: string, maxLength: 200 }
+        lastName: { type: string, maxLength: 200 }
+        displayName: { type: string, maxLength: 250 }
+        preferredName: { type: string, maxLength: 200 }
+        contacts: { type: array, items: { type: object, additionalProperties: true } }
+    ParticipationCreateRequest:
+      type: object
+      required: [personId]
+      properties:
+        personId: { type: string, format: uuid }
+        categoryCode: { type: string }
+        status: { type: string, enum: [eligible, waitlisted, ineligible] }
+    InvitationIssueRequest:
+      type: object
+      required: [participationIds, templateRevisionId, rsvpPolicyRevisionId]
+      properties:
+        participationIds: { type: array, minItems: 1, uniqueItems: true, items: { type: string, format: uuid } }
+        templateRevisionId: { type: string, format: uuid }
+        rsvpPolicyRevisionId: { type: string, format: uuid }
+        locale: { type: string, default: bs-BA }
+        channel: { type: string, enum: [email, sms], default: email }
+    InvitationDeliveryRequest:
+      type: object
+      properties:
+        channel: { type: string, enum: [email, sms] }
+    InvitationReissueRequest:
+      type: object
+      required: [templateRevisionId, rsvpPolicyRevisionId]
+      properties:
+        templateRevisionId: { type: string, format: uuid }
+        rsvpPolicyRevisionId: { type: string, format: uuid }
+        locale: { type: string }
+    GuestInvitationResolveRequest:
+      type: object
+      properties:
+        clientContext: { type: string, maxLength: 200 }
+    GuestRsvpRequest:
+      type: object
+      required: [response]
+      properties:
+        response: { type: string, enum: [accepted, declined, tentative] }
+        note: { type: string, maxLength: 1000 }
+    StaffRsvpRecordRequest:
+      type: object
+      required: [response, sourceChannel, respondentKind, receivedAt]
+      properties:
+        response: { type: string, enum: [accepted, declined, tentative] }
+        sourceChannel: { type: string, enum: [phone, in_person, email, written, representative, staff_entry, other] }
+        respondentKind: { type: string, enum: [guest, representative, staff] }
+        receivedAt: { type: string, format: date-time }
+        invitationId: { type: string, format: uuid }
+        noteRestricted: { type: string, maxLength: 4000, writeOnly: true, description: "Encrypted before persistence; never returned in response projections." }
+        correctionOfResponseId: { type: string, format: uuid, description: "When supplied, append a correction to this current response. Requires rsvp.correct." }
+        correctionReason: { type: string, minLength: 3, maxLength: 2000, description: "Required with correctionOfResponseId; retained as the auditable reason for the correction." }
+    RsvpCorrectionRequest:
+      type: object
+      required: [response, correctionReason]
+      properties:
+        response: { type: string, enum: [accepted, declined, tentative] }
+        correctionReason: { type: string, minLength: 3, maxLength: 2000 }
+    EventCancellationPreviewRequest:
+      type: object
+      properties:
+        expectedEventRevision: { type: integer, minimum: 1 }
+        proposedAudience: { type: string, enum: [accepted_tentative, all_active_invitees, all_previously_invited, custom] }
+    EventChangeRequest:
+      type: object
+      required: [changeKind, expectedEventRevision, reasonCode]
+      properties:
+        changeKind: { type: string, enum: [cancel, postpone, reschedule] }
+        expectedEventRevision: { type: integer, minimum: 1 }
+        reasonCode: { type: string, minLength: 2, maxLength: 100 }
+        reasonInternal: { type: string, maxLength: 4000, writeOnly: true, description: "Encrypted by the API before persistence; never stored or returned as plaintext." }
+        publicMessage: { type: string, maxLength: 4000 }
+        replacementSchedule:
+          type: object
+          required: [startsAt, endsAt, timezone]
+          properties:
+            startsAt: { type: string, format: date-time }
+            endsAt: { type: string, format: date-time }
+            timezone: { type: string, minLength: 1, maxLength: 100 }
+            venueSummary: { type: object, additionalProperties: true }
+            materialChange: { type: boolean, default: true }
+            reconfirmationPolicy: { type: string, enum: [none, accepted_tentative, all_active_invitees, all_invited], default: accepted_tentative }
+          additionalProperties: false
+      allOf:
+        - if:
+            properties: { changeKind: { enum: [postpone, reschedule] } }
+          then:
+            required: [replacementSchedule]
+        - if:
+            properties: { changeKind: { const: cancel } }
+          then:
+            not: { required: [replacementSchedule] }
+    EventChangeDecisionRequest:
+      type: object
+      required: [reason]
+      properties:
+        reason: { type: string, minLength: 3, maxLength: 2000 }
+    EventChangeExecutionRequest:
+      type: object
+      required: [expectedEventRevision]
+      properties:
+        expectedEventRevision: { type: integer, minimum: 1 }
+        campaignAudience: { type: string, enum: [accepted_tentative, all_active_invitees, all_previously_invited, custom] }
+        customParticipationIds: { type: array, minItems: 1, uniqueItems: true, items: { type: string, format: uuid }, description: "Required when campaignAudience is custom; omitted for other audience kinds." }
+        sendNotifications: { type: boolean, default: true }
+    EventScheduleRevisionRequest:
+      type: object
+      required: [startsAt, endsAt, timezone]
+      properties:
+        startsAt: { type: string, format: date-time }
+        endsAt: { type: string, format: date-time }
+        timezone: { type: string }
+        venueSummary: { type: object, additionalProperties: true }
+        materialChange: { type: boolean }
+        reconfirmationPolicy: { type: string, enum: [none, accepted_tentative, all_active_invitees, all_invited] }
+    NotificationCampaignPreviewRequest:
+      type: object
+      required: [purpose, audienceKind]
+      properties:
+        purpose: { type: string, enum: [event_cancellation, event_postponement, schedule_update, rsvp_reconfirmation] }
+        audienceKind: { type: string, enum: [accepted_tentative, all_active_invitees, all_previously_invited, custom] }
+        customParticipationIds: { type: array, items: { type: string, format: uuid } }
+        channel: { type: string, enum: [email, sms, other] }
+    NotificationCampaignCreateRequest:
+      allOf:
+        - $ref: '#/components/schemas/NotificationCampaignPreviewRequest'
+        - type: object
+          required: [eventDecisionId, templateRevisionId, previewToken]
+          properties:
+            eventDecisionId: { type: string, format: uuid }
+            templateRevisionId: { type: string, format: uuid }
+            previewToken: { type: string, minLength: 16, maxLength: 500 }
+            exclusions:
+              type: array
+              items:
+                type: object
+                required: [participationId, reason]
+                properties:
+                  participationId: { type: string, format: uuid }
+                  reason: { type: string, minLength: 3, maxLength: 1000 }
+    RetryFailuresRequest:
+      type: object
+      properties:
+        maximumRecipients: { type: integer, minimum: 1, maximum: 1000 }
+    AllocationRunRequest:
+      type: object
+      required: [allocationRevisionId, expectedRevision]
+      properties:
+        allocationRevisionId: { type: string, format: uuid }
+        expectedRevision: { type: integer, minimum: 1 }
+        solverOptions: { type: object, additionalProperties: true }
+    AllocationCommitRequest:
+      type: object
+      required: [expectedRevision, acceptance]
+      properties:
+        expectedRevision: { type: integer, minimum: 1 }
+        acceptance: { type: string, enum: [all, selected] }
+        acceptedAllocationIds: { type: array, items: { type: string, format: uuid } }
+        changeReason: { type: string, maxLength: 1000 }
+    AllocationApprovalRequest:
+      type: object
+      required: [decision]
+      properties:
+        decision: { type: string, enum: [approved, rejected, returned_for_changes] }
+        comment: { type: string, maxLength: 2000 }
+    AllocationPublishRequest:
+      type: object
+      required: [audiences]
+      properties:
+        audiences: { type: array, minItems: 1, uniqueItems: true, items: { type: string, enum: [staff, guest, print, management] } }
+    CheckinScanRequest:
+      type: object
+      required: [token, stationId, deviceSequence]
+      properties:
+        token: { type: string, minLength: 16, maxLength: 2048, writeOnly: true }
+        stationId: { type: string, format: uuid }
+        sessionId: { type: string, format: uuid }
+        deviceSequence: { type: integer, minimum: 0 }
+    PrerequisiteCreateRequest:
+      type: object
+      required: [responsibilityAssignmentId, requirementCode, title]
+      properties:
+        responsibilityAssignmentId: { type: string, format: uuid }
+        requirementCode: { type: string, maxLength: 100 }
+        title: { type: string, maxLength: 250 }
+        externalAuthorityLabel: { type: string, maxLength: 250 }
+        dueAt: { type: string, format: date-time }
+    PrerequisiteCompletionRequest:
+      type: object
+      required: [confirmedAt, confirmationNote]
+      properties:
+        confirmedAt: { type: string, format: date-time }
+        confirmationNote: { type: string, minLength: 3, maxLength: 2000 }
+        reference: { type: string, maxLength: 200 }
+
+        type:
+          type: string
+          enum: [text, textarea, email, phone, number, date, datetime, time, select, multiselect, checkbox]
+        label: { type: string, maxLength: 200 }
+        description: { type: string, maxLength: 1000 }
+        helpText: { type: string, maxLength: 1000 }
+        placeholder: { type: string, maxLength: 200 }
+        required: { type: boolean, default: false }
+        options:
+          type: array
+          minItems: 1
+          maxItems: 250
+          items: { $ref: '#/components/schemas/PublicBookingFormOptionV1' }
+        minLength: { type: integer, minimum: 0, maximum: 5000 }
+        maxLength: { type: integer, minimum: 1, maximum: 5000 }
+        min: { type: number }
+        max: { type: number }
+        integer: { type: boolean }
+        minItems: { type: integer, minimum: 0, maximum: 250 }
+        maxItems: { type: integer, minimum: 1, maximum: 250 }
+      additionalProperties: false
+      description: "A v1 field. Type-specific constraints are enforced by the public inquiry API; see docs/product/PUBLIC_BOOKING_FORM_SCHEMA_v1.md."
+    PublicBookingFormFieldSchemaV1:
+      type: object
+      required: [fields]
+      properties:
+        schemaVersion:
+          type: integer
+          enum: [1]
+          description: "Optional on legacy revisions; omission means version 1."
+        fields:
+          type: array
+          maxItems: 100
+          items: { $ref: '#/components/schemas/PublicBookingFormFieldV1' }
+        contentTranslations:
+          type: object
+          description: Optional immutable language-specific authored content included in this exact published revision. Missing entries fall back to the revision's base locale and are identified in the public form UI.
+          properties:
+            bs-BA: { $ref: '#/components/schemas/PublicBookingFormContentTranslationV1' }
+            en: { $ref: '#/components/schemas/PublicBookingFormContentTranslationV1' }
+          additionalProperties: false
+      additionalProperties: false
+    PublicBookingFormContentTranslationV1:
+      type: object
+      required: [formName, fields]
+      properties:
+        formName: { type: string, minLength: 1, maxLength: 200 }
+        fields:
+          type: object
+          additionalProperties:
+            type: object
+            properties:
+              label: { type: string, minLength: 1, maxLength: 200 }
+              description: { type: string, minLength: 1, maxLength: 1000 }
+              helpText: { type: string, minLength: 1, maxLength: 1000 }
+              placeholder: { type: string, minLength: 1, maxLength: 200 }
+              options:
+                type: object
+                additionalProperties: { type: string, minLength: 1, maxLength: 200 }
+            additionalProperties: false
+      additionalProperties: false
+    PublicBookingFormResponse:
+      type: object
+      required: [data]
+      properties:
+        data:
+          type: object
+          required: [organizationId, organizationSlug, organizationName, defaultLocale, defaultTimezone, formCode, formName, formRevisionId, revisionNumber, locale, fieldSchema, publishedAt]
+          properties:
+            organizationId: { type: string, format: uuid }
+            organizationSlug: { type: string }
+            organizationName: { type: string }
+            defaultLocale: { type: string, enum: [bs-BA, en], description: Organization customer-facing default; public form UI uses this as its initial locale. }
+            defaultTimezone: { type: string }
+            formCode: { type: string }
+            formName: { type: string }
+            formRevisionId: { type: string, format: uuid }
+            revisionNumber: { type: integer, minimum: 1 }
+            locale: { type: string }
+            fieldSchema: { $ref: '#/components/schemas/PublicBookingFormFieldSchemaV1' }
+            publishedAt: { type: string, format: date-time }
+          additionalProperties: false
+      additionalProperties: false
+    PublicBookingInquiryRequest:
+      type: object
+      required: [formCode, formRevisionId, requester, requested, answers]
+      properties:
+        formCode:
+          type: string
+          minLength: 2
+          maxLength: 80
+          pattern: '^[A-Za-z0-9][A-Za-z0-9_-]*$'
+          description: Stable code of the public booking form being submitted.
+        formRevisionId:
+          type: string
+          format: uuid
+          description: Published form revision returned by the public form endpoint.
+        customerLocale:
+          type: string
+          enum: [bs-BA, en]
+          description: Optional explicit language choice for this customer interaction. When omitted, the organization's configured default locale is used.
+        requester:
+          type: object
+          required: [displayName]
+          properties:
+            displayName: { type: string, minLength: 1, maxLength: 250 }
+            email: { type: string, format: email, maxLength: 320 }
+            phone: { type: string, maxLength: 50 }
+          additionalProperties: false
+        requested:
+          type: object
+          properties:
+            startAt: { type: string, format: date-time }
+            endAt: { type: string, format: date-time }
+            timezone: { type: string, minLength: 1, maxLength: 80, default: Europe/Sarajevo }
+            spaceCodes:
+              type: array
+              maxItems: 50
+              items: { type: string, minLength: 1, maxLength: 80 }
+          additionalProperties: false
+        answers:
+          type: object
+          maxProperties: 100
+          additionalProperties: true
+          description: Dynamic answers are stored encrypted and validated against the exact published revision. Keys must match field codes; values must satisfy the declared field type, required flag, length/range constraints and pinned option membership. Unknown keys are rejected.
+        attachmentReferences:
+          type: array
+          maxItems: 20
+          items: { type: string, minLength: 1, maxLength: 200 }
+          description: Reserved for future attachment upload support. Non-empty values currently receive 422.
+      additionalProperties: false
+    BookingOfferSuccessorRequest:
+      allOf:
+        - $ref: '#/components/schemas/BookingOfferCreateRequest'
+        - type: object
+          required: [draftRevisionId]
+          properties:
+            draftRevisionId: { type: string, format: uuid }
+            supersedeCurrentOffer: { type: boolean, default: false }
+ }
+          additionalProperties: true
+      additionalProperties: false
     CancellationDecisionRequest:
       type: object
       required: [reason]
