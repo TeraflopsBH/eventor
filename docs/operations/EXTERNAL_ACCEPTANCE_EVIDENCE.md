@@ -149,3 +149,6 @@ A database backup without the matching Eventor encryption keys is not a complete
 - Final decision and date:
 
 Production release remains blocked until all required activities have evidence, accountable owners and an explicit approval. CI success and this checklist do not constitute production certification.
+
+
+Temporary CI validation note (2026-11-16): this branch mirrors the current public booking-cancellation implementation stack for required CI only. It is not a deployment or external acceptance record.
