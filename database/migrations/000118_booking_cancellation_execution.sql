@@ -105,7 +105,7 @@ BEGIN
 END;
 $function$;
 
-REVOKE ALL ON FUNCTION eogp.assert_booking_cancellation_request_policy(uuid,uuid),
+REVOKE ALL ON FUNCTION eogp.assert_booking_cancellation_request_policy(uuid,uuid)
   FROM PUBLIC,eventor_runtime,eventor_worker,eventor_auth;
 
 -- Replace request-id-first authorization with booking-scoped authorization
