@@ -3153,7 +3153,7 @@ paths:
         '500': { $ref: '#/components/responses/InternalServerError' }
   "/organizations/{organizationId}/events":
     get:
-      tags: ["Event Administration"]
+      tags: ["Events"]
       operationId: listOrganizerEvents
       summary: "List events the staff member may manage"
       security: [{ StaffSession: [] }]
@@ -3169,7 +3169,7 @@ paths:
         '403': { $ref: '#/components/responses/Forbidden' }
         '500': { $ref: '#/components/responses/InternalServerError' }
     post:
-      tags: ["Event Administration"]
+      tags: ["Events"]
       operationId: createOrganizerEvent
       summary: "Create an organizer-owned event and its initial schedule revision"
       security: [{ StaffSession: [], StaffCsrf: [] }]
@@ -3198,7 +3198,7 @@ paths:
         '500': { $ref: '#/components/responses/InternalServerError' }
   "/organizations/{organizationId}/events/{eventId}":
     patch:
-      tags: ["Event Administration"]
+      tags: ["Events"]
       operationId: updateOrganizerEventDetails
       summary: "Update event metadata using optimistic revision control"
       security: [{ StaffSession: [], StaffCsrf: [] }]
@@ -3230,7 +3230,7 @@ paths:
         '500': { $ref: '#/components/responses/InternalServerError' }
   "/organizations/{organizationId}/events/{eventId}/archive":
     post:
-      tags: ["Event Administration"]
+      tags: ["Events"]
       operationId: archiveOrganizerEvent
       summary: "Archive a draft or inactive event"
       security: [{ StaffSession: [], StaffCsrf: [] }]
