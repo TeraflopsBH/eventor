@@ -48,7 +48,7 @@ Directories will be introduced as their corresponding implementation work begins
 
 ## Development status
 
-The checkout baseline verified on 2026-11-16 is `ff24d14ffe91c8d70c7f6f04d0907852b2b7394b`, matching the remote main ref. Earlier draft-stack status is historical. Live GitHub Actions, PR and issue metadata could not be independently checked because GitHub API access returned HTTP 403. Native Linux and Docker Compose are both required release deliverables; neither complete installer is present yet.
+The checkout baseline verified on 2026-11-16 is `ff24d14ffe91c8d70c7f6f04d0907852b2b7394b`, matching the remote main ref. Earlier draft-stack status is historical. GitHub API access is verified; current-main contracts/PostgreSQL and secret-history workflows passed. Event administration is under review in PR #132. Native Linux and Docker Compose are both required release deliverables; neither complete installer is present yet.
 
 ## Security and data handling
 
