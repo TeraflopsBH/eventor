@@ -16,6 +16,7 @@ import { useBookingPriceLists } from "./features/booking-prices/useBookingPriceL
 import { useBookingTaxProfiles } from "./features/booking-taxes/useBookingTaxProfiles";
 import { useBookingApprovalPolicies } from "./features/booking-approvals/useBookingApprovalPolicies";
 import { useBookingCancellationPolicies } from "./features/booking-cancellations/useBookingCancellationPolicies";
+import { useBookingCancellationRequests } from "./features/booking-cancellations/useBookingCancellationRequests";
 import BookingInquiryView from "./features/booking-inquiries/BookingInquiryView.vue";
 import BookingPriceListsView from "./features/booking-prices/BookingPriceListsView.vue";
 import BookingTaxProfilesView from "./features/booking-taxes/BookingTaxProfilesView.vue";
@@ -136,7 +137,17 @@ const bookingFormsWorkspace = { ...bookingFormState, busy };
 const bookingCancellationPolicyState = useBookingCancellationPolicies({
   api, busy, pageError, pageNotice, activeTab, clearMessages, showError, translate,
 });
-const bookingCancellationPoliciesWorkspace = { ...bookingCancellationPolicyState, busy };
+const bookingCancellationRequestState = useBookingCancellationRequests({
+  api, busy, pageError, pageNotice, clearMessages, showError, translate,
+});
+const bookingCancellationRequestsWorkspace = { ...bookingCancellationRequestState, busy };
+const bookingCancellationPoliciesWorkspace = {
+  ...bookingCancellationPolicyState, requests: bookingCancellationRequestsWorkspace, busy,
+};
+async function openBookingCancellationWorkspace(): Promise<void> {
+  await bookingCancellationPolicyState.openBookingCancellationPolicies();
+  await bookingCancellationRequestState.open();
+}
 
 const campaignState = useCampaigns({
   api, busy, pageError, pageNotice, clearMessages, showError, translate,
@@ -156,7 +167,7 @@ const staffShellWorkspace = {
   openInquiryWorkspace,
   openBookingApprovalPolicies: bookingApprovalPolicyState.openBookingApprovalPolicies,
   openBookingPriceLists: bookingPriceListState.openBookingPriceLists,
-  openBookingCancellationPolicies: bookingCancellationPolicyState.openBookingCancellationPolicies,
+  openBookingCancellationPolicies: openBookingCancellationWorkspace,
   openBookingTaxProfiles: bookingTaxProfileState.openBookingTaxProfiles,
   openBookingForms: async () => { activeTab.value = "forms"; await bookingFormState.open(); },
 };
