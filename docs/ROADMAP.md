@@ -1,9 +1,17 @@
 # Eventor delivery roadmap
 
-**Baseline date:** 2026-11-15  
+**Baseline date:** 2026-11-16  
 **Product/design baseline:** Technical Blueprint v1.2 and accepted v0.3 domain/architecture decisions.  
-**Implementation baseline:** `main` at `046a2466a4bbb6d391f75f3afa4ca3f876c1151a`.  
+**Implementation baseline:** `main` at `43a157d4f2eb25c06a76aefd094c5a8000b1ee17` (PR #128 staff cancellation workspace integrated).  
 **Detailed audit:** [Blueprint-to-repository gap analysis v1.0](BLUEPRINT_TO_REPOSITORY_GAP_ANALYSIS_v1.0.md).
+
+## Current integration note — 2026-11-16
+
+- Booking cancellation request/review, purpose-bound customer capabilities and approved execution with atomic reservation release are integrated on `main` through PR #116 (migrations 000115–000118).
+- Staff cancellation workspace and booking-revision-aware detail projection are integrated through PR #128 (migration 000119); exact-head and post-merge repository CI passed.
+- Public customer request/status UI and replay-stable status capability are being integrated through PR #129 (migration 000120). The first exact-head OpenAPI run found a missing submission-envelope schema; it has been added and the updated exact-head CI is running. Do not mark the public flow complete until all required checks pass.
+- The next product implementation track is #104 (event administration and persistent Guest Registry), followed by #105–#107. The native and Docker Compose installers remain a required deliverable under #108.
+- Repository inventory currently has only systemd deployment templates, no production Compose topology/Dockerfile and no complete native installer. The final acceptance VM remains deferred until the product and both installers are ready.
 
 ## Delivery principle
 
