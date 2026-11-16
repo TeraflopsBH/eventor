@@ -374,12 +374,13 @@ UPDATE eogp.booking_records
    AND id = 'f0000000-0000-0000-0000-00000000000a';
 
 INSERT INTO eogp.booking_cancellation_effects
- (organization_id, booking_id, cancellation_request_id, commercial_consequence_snapshot,
-  executed_by_membership_id, executed_by_external_capability_id, executed_by_kind)
+ (organization_id, booking_id, cancellation_request_id, policy_revision_id,
+  commercial_consequence_snapshot, executed_by_membership_id,
+  executed_by_external_capability_id, executed_by_kind)
 VALUES
  ('10000000-0000-0000-0000-00000000000a','f0000000-0000-0000-0000-00000000000a',
-  'a3000000-0000-0000-0000-00000000000a','{}'::jsonb,
-  NULL,'a2000000-0000-0000-0000-00000000000a','external_capability');
+  'a3000000-0000-0000-0000-00000000000a','a5000000-0000-0000-0000-00000000000a',
+  '{}'::jsonb,NULL,'a2000000-0000-0000-0000-00000000000a','external_capability');
 
 DO $test$
 BEGIN
