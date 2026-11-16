@@ -7,7 +7,7 @@ type Workspace = ReturnType<typeof useStaffSession> & {
   busy: Ref<boolean>;
   pageError: Ref<string>;
   pageNotice: Ref<string>;
-  activeTab: Ref<"delivery" | "campaign" | "inquiries" | "approvals" | "prices" | "cancellations" | "taxes" | "forms" | "guest-invitations" | "settings">;
+  activeTab: Ref<"delivery" | "campaign" | "inquiries" | "approvals" | "prices" | "cancellations" | "taxes" | "forms" | "guest-invitations" | "events" | "settings">;
   locale: WritableComputedRef<string>;
   localeOptions: Array<{ value: SupportedLocale; label: string }>;
   openInquiryWorkspace: () => Promise<void>;
@@ -16,6 +16,7 @@ type Workspace = ReturnType<typeof useStaffSession> & {
   openBookingCancellationPolicies: () => Promise<void>;
   openBookingTaxProfiles: () => Promise<void>;
   openBookingForms: () => Promise<void>;
+  openEvents: () => Promise<void>;
 };
 
 const props = defineProps<{ workspace: Workspace }>();
@@ -90,6 +91,7 @@ const selectedLocale = computed({
         <button :class="{ active: activeTab === 'delivery' }" @click="activeTab = 'delivery'">{{ $t("navigation.delivery") }}</button>
         <button :class="{ active: activeTab === 'campaign' }" @click="activeTab = 'campaign'">{{ $t("navigation.campaigns") }}</button>
         <button :class="{ active: activeTab === 'guest-invitations' }" @click="activeTab = 'guest-invitations'">{{ $t("navigation.guestInvitations") }}</button>
+        <button :class="{ active: activeTab === 'events' }" @click="openEvents">{{ $t("navigation.events") }}</button>
         <button :class="{ active: activeTab === 'inquiries' }" @click="openInquiryWorkspace">{{ $t("navigation.inquiries") }}</button>
         <button :class="{ active: activeTab === 'approvals' }" @click="openBookingApprovalPolicies">{{ $t("navigation.approvals") }}</button>
         <button :class="{ active: activeTab === 'forms' }" @click="openBookingForms">{{ $t("navigation.bookingForms") }}</button>
