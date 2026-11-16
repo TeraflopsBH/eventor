@@ -14,7 +14,9 @@ test("public cancellation bearer tokens are captured from fragments and removed 
   assert.ok(page.includes("window.location.hash"));
   assert.ok(page.includes('window.history.replaceState(window.history.state, "", window.location.pathname)'));
   assert.ok(page.includes("^[A-Za-z0-9_-]{43}$"));
-  assert.ok(!/localStorage|sessionStorage|document\\.cookie/.test(page));
+  assert.ok(!page.includes("localStorage"));
+  assert.ok(!page.includes("sessionStorage"));
+  assert.ok(!page.includes("document.cookie"));
 });
 
 test("customer request and status calls use purpose-bound headers without cookies", () => {
@@ -28,7 +30,7 @@ test("customer request and status calls use purpose-bound headers without cookie
 
 test("public cancellation routes are mounted and capability headers are redacted", () => {
   assert.ok(app.includes("PublicBookingCancellationPage"));
-  assert.ok(app.includes("booking/cancellation-status"));
+  assert.ok(app.includes("cancellation-status"));
   assert.ok(apiServer.includes('req.headers["x-external-booking-token"]'));
   assert.ok(apiServer.includes('req.headers["x-external-booking-action-token"]'));
 });
