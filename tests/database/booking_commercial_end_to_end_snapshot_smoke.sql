@@ -53,6 +53,18 @@ DECLARE
   v_offer_id uuid;
   v_offer_revision_id uuid;
   v_booking_id uuid;
+  v_booking_contact_id uuid := gen_random_uuid();
+  v_request_capability_hash text := encode(eogp.digest(convert_to(gen_random_uuid()::text,'UTF8'),'sha256'),'hex');
+  v_status_capability_hash text := encode(eogp.digest(convert_to(gen_random_uuid()::text,'UTF8'),'sha256'),'hex');
+  v_external_idempotency_hash text := encode(eogp.digest(convert_to(gen_random_uuid()::text,'UTF8'),'sha256'),'hex');
+  v_external_request_hash text := encode(eogp.digest(convert_to(gen_random_uuid()::text,'UTF8'),'sha256'),'hex');
+  v_request_capability jsonb;
+  v_status_capability jsonb;
+  v_external_context jsonb;
+  v_external_request jsonb;
+  v_external_replay jsonb;
+  v_external_status jsonb;
+  v_external_request_id uuid;
   v_draft_hold_resource_id uuid;
   v_draft_hold_space_id uuid;
   v_invalid_draft_hold_id uuid;
@@ -1045,6 +1057,120 @@ BEGIN
   IF NOT v_tenant_denied THEN
     RAISE EXCEPTION 'allocation preview unexpectedly accepted a cross-tenant organization context';
   END IF;
+
+  -- Exercise the public cancellation capability lifecycle against this real
+  -- confirmed booking and its immutable cancellation-policy snapshot.
+  INSERT INTO eogp.booking_party_contacts(
+    id,organization_id,booking_id,party_role,display_name_ciphertext,
+    email_hash,email_ciphertext,authorized_actions,is_primary
+  ) VALUES(
+    v_booking_contact_id,v_org,v_booking_id,'authorized_booking_contact',
+    convert_to('EV1synthetic-contact-name','UTF8'),
+    encode(eogp.digest(convert_to('customer@example.invalid','UTF8'),'sha256'),'hex'),
+    convert_to('EV1synthetic-contact-email','UTF8'),
+    ARRAY['booking_cancellation_request','booking_cancellation_status']::text[],
+    true
+  );
+
+  v_request_capability:=eogp.issue_external_booking_action_capability(
+    v_org,v_booking_id,v_booking_contact_id,v_creator,
+    'booking_cancellation_request',v_request_capability_hash,
+    clock_timestamp()+interval '7 days',1
+  );
+  IF v_request_capability->>'action'<>'booking_cancellation_request'
+     OR v_request_capability->>'state'<>'active'
+     OR (SELECT count(*) FROM eogp.external_booking_action_capability_lookup
+          WHERE token_sha256=v_request_capability_hash)<>1 THEN
+    RAISE EXCEPTION 'external cancellation request capability was not issued and indexed';
+  END IF;
+
+  v_external_context:=eogp.resolve_external_booking_action_capability(
+    v_request_capability_hash,'booking_cancellation_request'
+  );
+  IF v_external_context->>'bookingCode' IS NULL
+     OR v_external_context->>'cancellationTerms'<>'Cancellation terms version 1'
+     OR v_external_context->'latestCancellationRequest'<>'null'::jsonb THEN
+    RAISE EXCEPTION 'external cancellation capability did not return the limited, pinned public booking context: %',v_external_context;
+  END IF;
+
+  v_external_request:=eogp.submit_external_booking_cancellation_request(
+    v_request_capability_hash,v_external_idempotency_hash,v_external_request_hash,
+    'schedule_change',convert_to('EV1synthetic-encrypted-explanation','UTF8')
+  );
+  v_external_request_id:=(v_external_request->>'requestId')::uuid;
+  IF v_external_request->>'status'<>'submitted'
+     OR coalesce((v_external_request->>'replayed')::boolean,true) IS NOT FALSE
+     OR v_external_request_id IS NULL THEN
+    RAISE EXCEPTION 'external cancellation request was not submitted: %',v_external_request;
+  END IF;
+
+  v_external_replay:=eogp.submit_external_booking_cancellation_request(
+    v_request_capability_hash,v_external_idempotency_hash,v_external_request_hash,
+    'schedule_change',convert_to('EV1synthetic-encrypted-explanation','UTF8')
+  );
+  IF (v_external_replay->>'requestId')::uuid<>v_external_request_id
+     OR coalesce((v_external_replay->>'replayed')::boolean,false) IS NOT TRUE
+     OR (SELECT count(*) FROM eogp.booking_cancellation_requests
+          WHERE organization_id=v_org AND booking_id=v_booking_id)<>1
+     OR NOT EXISTS (
+       SELECT 1 FROM eogp.external_action_capabilities
+        WHERE organization_id=v_org
+          AND token_sha256=v_request_capability_hash
+          AND use_count=1 AND revoked_at IS NOT NULL
+     ) THEN
+    RAISE EXCEPTION 'external cancellation idempotency replay duplicated the request or failed to consume the single-use capability';
+  END IF;
+
+  BEGIN
+    PERFORM eogp.submit_external_booking_cancellation_request(
+      v_request_capability_hash,v_external_idempotency_hash,
+      encode(eogp.digest(convert_to('different payload','UTF8'),'sha256'),'hex'),
+      'schedule_change',convert_to('EV1different-explanation','UTF8')
+    );
+    RAISE EXCEPTION 'external cancellation idempotency key accepted a different request payload';
+  EXCEPTION WHEN SQLSTATE '55000' THEN NULL;
+  END;
+
+  v_status_capability:=eogp.issue_external_booking_action_capability(
+    v_org,v_booking_id,v_booking_contact_id,v_creator,
+    'booking_cancellation_status',v_status_capability_hash,
+    clock_timestamp()+interval '30 days',1
+  );
+  v_external_context:=eogp.resolve_external_booking_action_capability(
+    v_status_capability_hash,'booking_cancellation_status'
+  );
+  IF v_external_context->'latestCancellationRequest'->>'requestId'<>v_external_request_id::text THEN
+    RAISE EXCEPTION 'status capability did not return the contact-scoped cancellation request';
+  END IF;
+
+  v_external_status:=eogp.get_external_booking_cancellation_request_status(
+    v_status_capability_hash,v_external_request_id
+  );
+  IF v_external_status->>'status'<>'submitted'
+     OR v_external_status->>'bookingCode' IS NULL THEN
+    RAISE EXCEPTION 'external status capability did not return the cancellation request projection: %',v_external_status;
+  END IF;
+
+  BEGIN
+    PERFORM eogp.get_external_booking_cancellation_request_status(
+      v_status_capability_hash,gen_random_uuid()
+    );
+    RAISE EXCEPTION 'external status capability exposed a request outside its contact scope';
+  EXCEPTION WHEN SQLSTATE 'P0002' THEN NULL;
+  END;
+
+  PERFORM eogp.revoke_external_booking_action_capability(
+    v_org,v_booking_id,(v_status_capability->>'capabilityId')::uuid,
+    v_creator,'Customer status link was replaced.'
+  );
+  BEGIN
+    PERFORM eogp.get_external_booking_cancellation_request_status(
+      v_status_capability_hash,v_external_request_id
+    );
+    RAISE EXCEPTION 'revoked external status capability remained usable';
+  EXCEPTION WHEN SQLSTATE '55000' THEN NULL;
+  END;
+
 END;
 $test$;
 
