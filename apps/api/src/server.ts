@@ -8,6 +8,7 @@ import { verifyResendWebhookSignature } from "./resend-webhook.js";
 import { createGuestInvitationCapability, hashGuestInvitationToken } from "./guest-invitation-capability.js";
 import { guestInvitationIssuanceIdempotencyDigest } from "./guest-invitation-idempotency.js";
 import { classifySmtpFailure, sendSmtpTestMessage, type SmtpSettings, type SmtpTransportFactory } from "./smtp-transport.js";
+import { GuestImportCsvError, parseGuestImportCsv, type ImportNames } from "./guest-import-csv.js";
 import type { paths } from "./generated/openapi.js";
 import {
   clearStaffSessionCookies,
@@ -4067,6 +4068,82 @@ export function buildApi(dependencies: ApiDependencies): FastifyInstance {
     schema: { params: registryOrgParams },
   }, (request, reply) => withRegistryRead(reply, registryPrincipal(request, request.params.organizationId),
     "SELECT eogp.list_event_guest_workspaces($1::uuid,$2::uuid) AS result", []));
+
+  function guestImportKey(): Buffer {
+    return createHmac("sha256", registryContactKey()).update("eventor:guest-import-csv:v1").digest();
+  }
+
+  server.post<{ Params: { eventId: string }; Body: { csv: string } }>("/events/:eventId/guest-imports", {
+    bodyLimit: 256 * 1024,
+    schema: {
+      params: participationEventParams, headers: idempotencyHeaders,
+      body: {
+        type: "object", additionalProperties: false, required: ["csv"],
+        properties: { csv: { type: "string", minLength: 1, maxLength: 65536 } },
+      },
+    },
+  }, (request, reply) => {
+    const principal = registryPrincipal(request);
+    const { eventId } = request.params;
+    const key = guestImportKey();
+    if (dependencies.privateFieldEncryptionKey?.length !== 32) {
+      throw new ApiError(503, "PRIVATE_FIELD_ENCRYPTION_UNAVAILABLE", "Guest import protection is not configured.");
+    }
+    let rows;
+    try {
+      rows = parseGuestImportCsv(request.body.csv);
+    } catch (error) {
+      if (error instanceof GuestImportCsvError) throw new ApiError(422, "GUEST_IMPORT_CSV_INVALID", error.message);
+      throw error;
+    }
+    const context = { organizationId: principal.organizationId, contactKind: "other" as const };
+    const encryptedRows = rows.map(({ rowNumber, source, names, errors }) => ({
+      rowNumber, errors, firstName: names.firstName, lastName: names.lastName,
+      sourceCiphertext: encryptContactValue(JSON.stringify(source), key, context).toString("base64"),
+      namesCiphertext: encryptContactValue(JSON.stringify(names), key, context).toString("base64"),
+    }));
+    const sourceHash = createHash("sha256").update(request.body.csv, "utf8").digest("hex");
+    return withCommand(request, reply.header("cache-control", "no-store, private"),
+      "guest.import.preview", { eventId, sourceHash }, async (client) => {
+        const result = await client.query<ResultRow>(
+          "SELECT eogp.prepare_guest_import_preview($1::uuid,$2::uuid,$3::uuid,$4::text,$5::jsonb) AS result",
+          [principal.organizationId, eventId, principal.membershipId, sourceHash, JSON.stringify(encryptedRows)],
+        );
+        return (result.rows[0]?.result ?? {}) as Record<string, unknown>;
+      }, async (client) => {
+        await client.query("SELECT eogp.assert_guest_import_permission($1::uuid,$2::uuid,$3::uuid)",
+          [principal.organizationId, eventId, principal.membershipId]);
+      });
+  });
+
+  server.get<{ Params: { eventId: string; batchId: string } }>("/events/:eventId/guest-imports/:batchId", {
+    schema: {
+      params: {
+        ...participationEventParams, required: ["eventId", "batchId"],
+        properties: { ...participationEventParams.properties, batchId: { type: "string", pattern: uuidPattern } },
+      },
+    },
+  }, (request, reply) => {
+    const principal = registryPrincipal(request);
+    const key = guestImportKey();
+    return withRegistryRead(reply, principal,
+      "SELECT eogp.read_guest_import_preview($1::uuid,$3::uuid,$2::uuid,$4::uuid) AS result",
+      [request.params.eventId, request.params.batchId],
+      (value) => {
+        const preview = value as {
+          batchId: string;
+          rows: { rowNumber: number; namesCiphertext: string; errors: string[]; duplicateCount: number }[];
+        };
+        return {
+          batchId: preview.batchId,
+          rows: preview.rows.map(({ namesCiphertext, ...row }) => ({
+            ...row,
+            names: JSON.parse(decryptContactValue(Buffer.from(namesCiphertext, "base64"), key,
+              { organizationId: principal.organizationId, contactKind: "other" })) as ImportNames,
+          })),
+        };
+      });
+  });
 
   type GuestListQuery = { status?: "eligible" | "waitlisted" | "withdrawn" | "cancelled" | "ineligible"; offset?: number };
   server.get<{ Params: { eventId: string }; Querystring: GuestListQuery }>("/events/:eventId/participations", {
