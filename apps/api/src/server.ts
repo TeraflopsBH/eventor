@@ -3851,6 +3851,7 @@ export function buildApi(dependencies: ApiDependencies): FastifyInstance {
 
   async function withRegistryRead(
     reply: FastifyReply, principal: StaffPrincipal, query: string, args: readonly unknown[],
+    project: (value: unknown) => unknown = (value) => value,
   ) {
     const client = await dependencies.pool.connect();
     try {
@@ -3858,8 +3859,9 @@ export function buildApi(dependencies: ApiDependencies): FastifyInstance {
       await client.query("SELECT set_config('app.organization_id',$1,true), set_config('app.actor_membership_id',$2,true)",
         [principal.organizationId, principal.membershipId]);
       const result = await client.query<ResultRow>(query, [principal.organizationId, principal.membershipId, ...args]);
+      const data = project(result.rows[0]?.result);
       await client.query("COMMIT");
-      return reply.header("cache-control", "no-store, private").send({ data: result.rows[0]?.result });
+      return reply.header("cache-control", "no-store, private").send({ data });
     } catch (error) {
       try { await client.query("ROLLBACK"); } catch { /* preserve the original error */ }
       throw databaseError(error);
@@ -3901,6 +3903,119 @@ export function buildApi(dependencies: ApiDependencies): FastifyInstance {
       action === "create" ? 201 : 200,
     );
   }
+
+  type RegistryContactCreate = JsonRequestBody<"/persons/{personId}/contacts", "post">;
+  type RegistryContactUpdate = JsonRequestBody<"/persons/{personId}/contacts/{contactId}", "patch">;
+  const contactPrefs = {
+    consent: { type: "string", enum: ["unknown", "permitted", "restricted", "withdrawn"] },
+    primary: { type: "boolean" },
+  };
+  const encryptedContactSql = "SELECT eogp.write_guest_registry_contact($1::uuid,$2::uuid,$3::uuid,$4::uuid,$5::integer,$6::text,$7::text,$8::bytea,$9::text,$10::boolean) AS result";
+
+  function registryContactKey(): Buffer {
+    const key = dependencies.contactEncryptionKey;
+    if (key?.length !== 32) {
+      throw new ApiError(503, "CONTACT_ENCRYPTION_UNAVAILABLE", "Guest contact protection is not configured.");
+    }
+    return key;
+  }
+
+  async function writeRegistryContact(
+    request: FastifyRequest, reply: FastifyReply, personId: string, contactId: string | null,
+    body: RegistryContactCreate | RegistryContactUpdate,
+  ) {
+    const principal = registryPrincipal(request);
+    const key = registryContactKey();
+    if (dependencies.privateFieldEncryptionKey?.length !== 32) {
+      throw new ApiError(503, "PRIVATE_FIELD_ENCRYPTION_UNAVAILABLE", "Guest contact protection is not configured.");
+    }
+
+    let encrypted: Buffer | null = null;
+    let fingerprint: string | null = null;
+    let kind: "email" | "phone" | null = null;
+    if ("value" in body) {
+      kind = body.kind;
+      const value = body.value.trim();
+      const addressPattern = kind === "email" ? /^[^\s@]+@[^\s@]+\.[^\s@]+$/ : /^\+[1-9][0-9]{7,14}$/;
+      if (!addressPattern.test(value)) {
+        throw new ApiError(422, "DOMAIN_VALIDATION_FAILED", "Enter a valid email address or international phone number.");
+      }
+      encrypted = encryptContactValue(value, key, { organizationId: principal.organizationId, contactKind: kind });
+      fingerprint = createHmac("sha256", key)
+        .update(`eventor:registry-contact-fingerprint:v1\0${principal.organizationId}\0${kind}\0${value.toLowerCase()}`)
+        .digest("hex");
+    }
+
+    return withCommand(
+      request, reply.header("cache-control", "no-store, private"), "guest.registry.contact.write",
+      { ...body, personId, contactId },
+      async (client) => {
+        const result = await client.query<ResultRow>(encryptedContactSql, [
+          principal.organizationId, principal.membershipId, personId, contactId,
+          "expectedRevision" in body ? body.expectedRevision : null, kind, fingerprint, encrypted, body.consent, body.primary,
+        ]);
+        return (result.rows[0]?.result ?? {}) as Record<string, unknown>;
+      },
+      async (client) => {
+        await client.query("SELECT eogp.assert_guest_contact_permission($1::uuid,$2::uuid,true)",
+          [principal.organizationId, principal.membershipId]);
+      },
+      contactId ? 200 : 201,
+    );
+  }
+
+  server.get<{ Params: { personId: string } }>("/persons/:personId/contacts", { schema: { params: registryPersonParams } },
+    (request, reply) => {
+      const principal = registryPrincipal(request);
+      const key = registryContactKey();
+      return withRegistryRead(reply, principal, "SELECT eogp.read_guest_registry_contacts($1::uuid,$2::uuid,$3::uuid) AS result",
+        [request.params.personId], (value) => {
+          const directory = value as {
+            canManage: boolean;
+            contacts: {
+              contactId: string; kind: "email" | "phone"; ciphertext: string; revision: number;
+              consent: string; primary: boolean; verified: boolean;
+            }[];
+          };
+          return {
+            canManage: directory.canManage,
+            contacts: directory.contacts.map(({ ciphertext, kind, ...metadata }) => ({
+              ...metadata, kind,
+              value: decryptContactValue(Buffer.from(ciphertext, "base64"), key, {
+                organizationId: principal.organizationId, contactKind: kind,
+              }),
+            })),
+          };
+        });
+    });
+
+  server.post<{ Params: { personId: string }; Body: RegistryContactCreate }>("/persons/:personId/contacts", {
+    schema: {
+      params: registryPersonParams, headers: idempotencyHeaders,
+      body: {
+        type: "object", additionalProperties: false, required: ["kind", "value", "consent", "primary"],
+        properties: {
+          kind: { type: "string", enum: ["email", "phone"] },
+          value: { type: "string", minLength: 1, maxLength: 320 },
+          ...contactPrefs,
+        },
+      },
+    },
+  }, (request, reply) => writeRegistryContact(request, reply, request.params.personId, null, request.body));
+
+  server.patch<{ Params: { personId: string; contactId: string }; Body: RegistryContactUpdate }>("/persons/:personId/contacts/:contactId", {
+    schema: {
+      params: {
+        ...registryPersonParams, required: ["personId", "contactId"],
+        properties: { ...registryPersonParams.properties, contactId: { type: "string", pattern: uuidPattern } },
+      },
+      headers: idempotencyHeaders,
+      body: {
+        type: "object", additionalProperties: false, required: ["expectedRevision", "consent", "primary"],
+        properties: { ...contactPrefs, expectedRevision: personRevision },
+      },
+    },
+  }, (request, reply) => writeRegistryContact(request, reply, request.params.personId, request.params.contactId, request.body));
 
   server.get<{ Params: { organizationId: string } }>(registryPath, { schema: { params: registryOrgParams } },
     (request, reply) => readRegistry(reply, registryPrincipal(request, request.params.organizationId), null));

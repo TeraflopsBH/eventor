@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import { onMounted, reactive, ref } from "vue";
 import { useI18n } from "vue-i18n";
+import GuestRegistryContacts from "./GuestRegistryContacts.vue";
 import { api, ApiError, type GuestRegistryDirectory, type GuestRegistryHistory, type GuestRegistryProfile, type ManagedParticipationStatus, type RegistryLinkableEvent } from "../../api";
 import { formatApiError } from "../../i18n/api-errors";
 
@@ -16,6 +17,7 @@ const participationStatus = ref<ManagedParticipationStatus>("eligible");
 const linkableEvents = ref<RegistryLinkableEvent[] | null>(null);
 const linkEventId = ref("");
 const linkStatus = ref<"eligible" | "waitlisted" | "ineligible">("eligible");
+const showContacts = ref(false);
 const busy = ref(false);
 const error = ref("");
 const editing = ref(false);
@@ -34,6 +36,7 @@ async function run(operation: () => Promise<void>): Promise<void> {
       directory.value = null;
       profile.value = null;
       history.value = null;
+      showContacts.value = false;
       editingParticipation.value = null;
       linkableEvents.value = null;
       editing.value = false;
@@ -53,6 +56,7 @@ async function load(offset: number): Promise<void> {
 function search(): Promise<void> {
   profile.value = null;
   history.value = null;
+  showContacts.value = false;
   editingParticipation.value = null;
   linkableEvents.value = null;
   editing.value = false;
@@ -62,6 +66,7 @@ function search(): Promise<void> {
 
 function showProfile(personId: string): Promise<void> {
   history.value = null;
+  showContacts.value = false;
   editingParticipation.value = null;
   linkableEvents.value = null;
   editing.value = false;
@@ -72,6 +77,7 @@ function showProfile(personId: string): Promise<void> {
 
 function edit(person: GuestRegistryProfile | null): void {
   history.value = null;
+  showContacts.value = false;
   editingParticipation.value = null;
   linkableEvents.value = null;
   profile.value = person;
@@ -100,6 +106,7 @@ function save(): Promise<void> {
 function closeProfile(): void {
   profile.value = null;
   history.value = null;
+  showContacts.value = false;
   editingParticipation.value = null;
   linkableEvents.value = null;
 }
@@ -153,6 +160,7 @@ function archive(person: GuestRegistryProfile): void {
     await api.archiveGuestRegistryProfile(person.personId, person.revision);
     profile.value = null;
     history.value = null;
+    showContacts.value = false;
     editingParticipation.value = null;
     linkableEvents.value = null;
     await load(filters.offset);
@@ -195,9 +203,13 @@ onMounted(search);
         <button v-if="directory?.canManage && profile.status === 'active'" class="button button-secondary" :disabled="busy" @click="edit(profile)">{{ t("common.edit") }}</button>
         <button v-if="directory?.canManage && profile.status === 'active'" class="button button-danger" :disabled="busy" @click="archive(profile)">{{ t("registry.archive") }}</button>
         <button v-if="profile.status === 'active'" class="button button-secondary" :disabled="busy" @click="showEventLink(profile.personId)">{{ t("registry.addToEvent") }}</button>
+        <button class="button button-secondary" :disabled="busy" :aria-expanded="showContacts" @click="showContacts = !showContacts">
+          {{ t("registry.contacts.title") }}
+        </button>
         <button class="button button-secondary" :disabled="busy" @click="loadHistory(profile.personId)">{{ t("registry.history") }}</button>
         <button class="button button-secondary" :disabled="busy" @click="closeProfile">{{ t("common.close") }}</button>
       </div>
+      <GuestRegistryContacts v-if="showContacts" :key="profile.personId" :person-id="profile.personId" :active="profile.status === 'active'" />
       <form v-if="linkableEvents?.length" class="registry-form" @submit.prevent="linkToEvent(profile)">
         <div>
           <label for="registry-link-event">{{ t("registry.event") }}</label>

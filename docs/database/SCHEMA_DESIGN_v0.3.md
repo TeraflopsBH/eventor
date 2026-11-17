@@ -193,6 +193,8 @@ Migration `000130` lets event managers enable an event guest list. A staff membe
 
 Migration `000131` lets staff with `guest.manage` revise a person's status for a single event. Status edits use optimistic revisions and append participation history and audit events. Staff must revoke outstanding invitations before withdrawing a guest or taking the guest off the eligible list. Reopening eligibility requires an active Registry profile.
 
+Migration `000132` stores Registry email and phone contacts using the API's tenant-bound encrypted envelope. Contact views require `guest.registry.contacts.read` or `guest.registry.contacts.manage` in addition to Registry access. Revisions guard consent and primary-contact changes. New values start unverified. Contact values and fingerprints stay out of audit and mutation responses.
+
 ### 3.9 Event cancellation, postponement and communications
 
 | Proposed relation | Purpose / key invariants |
