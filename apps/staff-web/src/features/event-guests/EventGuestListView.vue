@@ -73,14 +73,24 @@ function save(): Promise<void> {
   });
 }
 
-function downloadRoster(): Promise<void> {
+function downloadRoster(format: "csv" | "xlsx"): Promise<void> {
   return run(async () => {
     const { data } = await api.getEventGuestExport(eventId.value, status.value);
-    const csv = formatGuestCsv([
+    const rows = [
       ["event_display_name", "participation_status", "category_code"],
       ...data.people.map((guest) => [guest.displayName, guest.status, guest.categoryCode]),
-    ]);
-    downloadGuestCsv(`event-guests-${eventId.value}-${status.value || "all"}.csv`, `\uFEFF${csv}`);
+    ];
+    const filename = `event-guests-${eventId.value}-${status.value || "all"}.${format}`;
+    if (format === "csv") {
+      downloadGuestCsv(filename, `\uFEFF${formatGuestCsv(rows)}`);
+    } else {
+      const { default: writeWorkbook } = await import("write-excel-file/browser");
+      const cells = rows.map((row, index) => row.map((value) => ({
+        value: value ?? "", type: String, fontWeight: index === 0 ? "bold" as const : undefined,
+      })));
+      await writeWorkbook(cells, { sheet: t("navigation.eventGuests"), columns: [{ width: 42 }, { width: 23 }, { width: 20 }] })
+        .toFile(filename);
+    }
   });
 }
 
@@ -111,8 +121,11 @@ onMounted(() => run(async () => {
           <option v-for="option in [...statuses, 'cancelled']" :key="option" :value="option">{{ t(`registry.participationStatus.${option}`) }}</option>
         </select>
       </div>
-      <button v-if="roster" class="button button-secondary" type="button" :disabled="busy" @click="downloadRoster">
+      <button v-if="roster" class="button button-secondary" type="button" :disabled="busy" @click="downloadRoster('csv')">
         {{ t("eventGuests.exportCsv") }}
+      </button>
+      <button v-if="roster" class="button button-secondary" type="button" :disabled="busy" @click="downloadRoster('xlsx')">
+        {{ t("eventGuests.exportXlsx") }}
       </button>
     </div>
     <div v-if="roster?.canManage">

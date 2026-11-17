@@ -142,6 +142,7 @@ export default {
     noGuests: "Nema gostiju za ovaj status.",
     category: "Kategorija",
     exportCsv: "Izvezi listu gostiju kao CSV",
+    exportXlsx: "Izvezi listu gostiju kao XLSX",
     exportLimit: "Izvoz prelazi 20.000 gostiju. Pokušajte izvesti goste prema statusu.",
   },
   registry: {
