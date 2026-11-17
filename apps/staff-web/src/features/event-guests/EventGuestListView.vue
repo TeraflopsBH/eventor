@@ -14,6 +14,7 @@ const eventId = ref("");
 const roster = ref<EventGuestList | null>(null);
 const offset = ref(0);
 const status = ref<EventGuestRow["status"] | "">("");
+const categoryFilter = ref("");
 const statuses: ManagedParticipationStatus[] = ["eligible", "waitlisted", "ineligible", "withdrawn"];
 const editing = ref<EventGuestRow | null>(null);
 const nextStatus = ref<ManagedParticipationStatus>("eligible");
@@ -51,7 +52,7 @@ async function loadPage(pageOffset: number): Promise<void> {
   editing.value = null;
   categoryEdit.value = null;
   if (!eventId.value) return;
-  roster.value = (await api.getEventGuestList(eventId.value, pageOffset, status.value)).data;
+  roster.value = (await api.getEventGuestList(eventId.value, pageOffset, status.value, categoryFilter.value)).data;
   offset.value = pageOffset;
 }
 
@@ -64,6 +65,7 @@ function chooseEvent(): void {
   showCategories.value = false;
   categories.value = [];
   status.value = "";
+  categoryFilter.value = "";
   roster.value = null;
   void run(async () => {
     if (!eventId.value) return;
@@ -78,7 +80,7 @@ function chooseEvent(): void {
   });
 }
 
-function selectStatus(): void {
+function applyFilters(): void {
   roster.value = null;
   void run(() => loadPage(0));
 }
@@ -118,12 +120,15 @@ function save(): Promise<void> {
 
 function downloadRoster(format: "csv" | "xlsx"): Promise<void> {
   return run(async () => {
-    const { data } = await api.getEventGuestExport(eventId.value, status.value);
+    const category = categoryFilter.value;
+    const { data } = await api.getEventGuestExport(eventId.value, status.value, category);
     const rows = [
       ["event_display_name", "participation_status", "category_code"],
       ...data.people.map((guest) => [guest.displayName, guest.status, guest.categoryCode]),
     ];
-    const filename = `event-guests-${eventId.value}-${status.value || "all"}.${format}`;
+    const categoryCode = categories.value.find((item) => item.categoryId === category)?.code ?? category;
+    const suffix = categoryCode ? `-${categoryCode}` : "";
+    const filename = `event-guests-${eventId.value}-${status.value || "all"}${suffix}.${format}`;
     if (format === "csv") {
       downloadGuestCsv(filename, `\uFEFF${formatGuestCsv(rows)}`);
     } else {
@@ -154,9 +159,19 @@ onMounted(() => run(async () => {
       </div>
       <div v-if="eventId">
         <label for="roster-filter">{{ t("registry.linkStatus") }}</label>
-        <select id="roster-filter" v-model="status" :disabled="busy" @change="selectStatus">
+        <select id="roster-filter" v-model="status" :disabled="busy" @change="applyFilters">
           <option value="">{{ t("eventGuests.allStatuses") }}</option>
           <option v-for="option in [...statuses, 'cancelled']" :key="option" :value="option">{{ t(`registry.participationStatus.${option}`) }}</option>
+        </select>
+      </div>
+      <div v-if="eventId">
+        <label for="roster-filter-category">{{ t("eventGuests.category") }}</label>
+        <select id="roster-filter-category" v-model="categoryFilter" :disabled="busy" @change="applyFilters">
+          <option value="">{{ t("eventGuests.categories.all") }}</option>
+          <option value="unassigned">{{ t("eventGuests.categories.unassigned") }}</option>
+          <option v-for="category in categories" :key="category.categoryId" :value="category.categoryId">
+            {{ category.retired ? t("eventGuests.categories.retiredOption", { label: category.label }) : category.label }}
+          </option>
         </select>
       </div>
       <button v-if="roster" class="button button-secondary" type="button" :disabled="busy" @click="downloadRoster('csv')">

@@ -343,3 +343,5 @@ Migration 000140 adds XLSX worksheet and header selection to the existing encryp
 ## Event guest categories (000141)
 
 Categories belong to an individual event and have a stable code and label. Retirement preserves the reference for existing participations and prevents new assignments. Category changes verify the participation revision and update its event-scoped category reference and compatibility code together. Older unregistered category codes remain readable, and the event roster does not reinterpret them using a newly registered code.
+
+Migration 000142 lets staff filter the roster and its CSV/XLSX exports by category and status. Assigned and retired categories use their stable IDs. The unassigned filter includes only rows with no category code.

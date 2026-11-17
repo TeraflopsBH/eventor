@@ -2274,6 +2274,14 @@ BEGIN
   EXCEPTION WHEN serialization_failure THEN NULL;
   END;
   PERFORM eogp.write_event_guest_category(v_org,v_event,v_actor,v_category,NULL,NULL);
+  IF jsonb_array_length(eogp.read_event_guest_list(v_org,v_event,v_actor,'eligible',0,v_category,false)->'people') <> 1
+     OR eogp.read_event_guest_list(v_org,v_event,v_actor,'withdrawn',0,v_category,false)->'people' IS DISTINCT FROM '[]'::jsonb
+     OR eogp.read_event_guest_roster_export(v_org,v_event,v_actor,'eligible',v_category,false)->'people'
+       IS DISTINCT FROM '[{"displayName":"Import Workbook Fixture","status":"eligible","categoryCode":"STEWARDS"}]'::jsonb
+     OR (eogp.read_event_guest_roster_export(v_org,v_event,v_actor,NULL,NULL,true)->'people')
+       @> '[{"categoryCode":"STEWARDS"}]'::jsonb THEN
+    RAISE EXCEPTION 'category filters diverged between the roster and export';
+  END IF;
   IF NOT eogp.list_event_guest_categories(v_org,v_event,v_actor)
        @> jsonb_build_array(jsonb_build_object('categoryId',v_category,'label','Fixture stewards','retired',true))
      OR NOT (eogp.read_event_guest_list(v_org,v_event,v_actor,NULL,0)->'people')
