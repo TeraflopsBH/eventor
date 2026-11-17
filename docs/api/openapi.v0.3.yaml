@@ -3259,6 +3259,56 @@ paths:
         '409': { $ref: '#/components/responses/Conflict' }
         '412': { $ref: '#/components/responses/PreconditionFailed' }
         '500': { $ref: '#/components/responses/InternalServerError' }
+  "/organizations/{organizationId}/events/{eventId}/sessions":
+    get:
+      tags: ["Events"]
+      operationId: listOrganizerEventSessions
+      summary: "List sessions for an event the staff member may manage"
+      security: [{ StaffSession: [] }]
+      parameters:
+        - $ref: '#/components/parameters/POrganizationId'
+        - $ref: '#/components/parameters/PEventId'
+      responses:
+        '200':
+          description: "Event sessions in schedule order."
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/OrganizerEventSessionsEnvelope' }
+        '400': { $ref: '#/components/responses/BadRequest' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '404': { $ref: '#/components/responses/NotFound' }
+        '500': { $ref: '#/components/responses/InternalServerError' }
+    post:
+      tags: ["Events"]
+      operationId: createOrganizerEventSession
+      summary: "Add a planned session to a draft or planned event"
+      security: [{ StaffSession: [], StaffCsrf: [] }]
+      parameters:
+        - $ref: '#/components/parameters/POrganizationId'
+        - $ref: '#/components/parameters/PEventId'
+        - name: Idempotency-Key
+          in: header
+          required: true
+          schema: { type: string, minLength: 8, maxLength: 200 }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/CreateOrganizerEventSessionRequest' }
+      responses:
+        '201':
+          description: "Planned session created."
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/OrganizerEventSessionEnvelope' }
+        '400': { $ref: '#/components/responses/BadRequest' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '404': { $ref: '#/components/responses/NotFound' }
+        '409': { $ref: '#/components/responses/Conflict' }
+        '422': { $ref: '#/components/responses/UnprocessableEntity' }
+        '500': { $ref: '#/components/responses/InternalServerError' }
   "/organizations/{organizationId}/guest-invitation-events":
     get:
       tags: ["Invitations and RSVP"]
@@ -6783,6 +6833,44 @@ components:
           properties:
             draftRevisionId: { type: string, format: uuid }
             supersedeCurrentOffer: { type: boolean, default: false }
+
+    CreateOrganizerEventSessionRequest:
+      type: object
+      additionalProperties: false
+      required: [code, title]
+      dependentRequired:
+        startsAt: [endsAt]
+        endsAt: [startsAt]
+      properties:
+        code:
+          type: string
+          pattern: '^[A-Za-z0-9][A-Za-z0-9_-]{1,79}$'
+        title: { type: string, minLength: 2, maxLength: 250 }
+        startsAt: { type: string, format: date-time }
+        endsAt: { type: string, format: date-time }
+    OrganizerEventSession:
+      type: object
+      required: [sessionId, code, title, status, startsAt, endsAt, timezoneName]
+      properties:
+        sessionId: { type: string, format: uuid }
+        code: { type: string }
+        title: { type: string }
+        status: { type: string, enum: [planned, scheduled, active, completed, cancelled] }
+        startsAt: { type: [string, 'null'], format: date-time }
+        endsAt: { type: [string, 'null'], format: date-time }
+        timezoneName: { type: string }
+    OrganizerEventSessionsEnvelope:
+      type: object
+      required: [data]
+      properties:
+        data:
+          type: array
+          items: { $ref: '#/components/schemas/OrganizerEventSession' }
+    OrganizerEventSessionEnvelope:
+      type: object
+      required: [data]
+      properties:
+        data: { $ref: '#/components/schemas/OrganizerEventSession' }
 
     CreateOrganizerEventRequest:
       type: object

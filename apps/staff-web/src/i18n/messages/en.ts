@@ -128,6 +128,13 @@ export default {
     schedule: "Schedule",
     statusLabel: "Status",
     revision: "Details revision",
+    sessions: "Sessions",
+    sessionsFor: "Sessions for {title}",
+    noSessions: "No sessions yet.",
+    sessionCode: "Session code",
+    sessionTitle: "Session title",
+    addSession: "Add session",
+    sessionCreated: "Planned session added.",
     status: {
       draft: "Draft",
       planned: "Planned",

@@ -1376,6 +1376,9 @@ SELECT set_config('app.actor_membership_id', '30000000-0000-0000-0000-0000000000
 -- boundary, immutable schedule revision and separate metadata revision.
 DO $test$
 DECLARE
+  v_org CONSTANT uuid := '10000000-0000-0000-0000-00000000000a';
+  v_actor CONSTANT uuid := '30000000-0000-0000-0000-00000000000a';
+  v_session jsonb;
   v_created jsonb;
   v_updated jsonb;
   v_archived jsonb;
@@ -1432,6 +1435,63 @@ BEGIN
   );
   IF NOT v_list @> jsonb_build_array(jsonb_build_object('eventId',v_event_id)) THEN
     RAISE EXCEPTION 'event manager must see the event in the organizer list';
+  END IF;
+
+  v_session := eogp.create_organizer_event_session(
+    v_org, v_event_id, v_actor, 'opening', 'Opening session', NULL, NULL
+  );
+  IF v_session->>'status' <> 'planned' OR v_session->>'code' <> 'OPENING'
+     OR v_session->>'timezoneName' <> 'Europe/Sarajevo'
+     OR NOT EXISTS (
+       SELECT 1 FROM eogp.audit_events
+       WHERE organization_id = v_org AND actor_membership_id = v_actor
+         AND aggregate_id = (v_session->>'sessionId')::uuid AND action = 'event.session.created'
+     ) THEN
+    RAISE EXCEPTION 'session creation must set its planning state, inherit timezone and audit the actor';
+  END IF;
+  IF eogp.list_organizer_event_sessions(v_org, v_event_id, v_actor)
+       IS DISTINCT FROM jsonb_build_array(v_session) THEN
+    RAISE EXCEPTION 'session list must return the persisted session';
+  END IF;
+  BEGIN
+    PERFORM eogp.create_organizer_event_session(
+      v_org, v_event_id, v_actor, 'OPENING', 'Duplicate session', NULL, NULL
+    );
+    RAISE EXCEPTION 'duplicate session code unexpectedly succeeded';
+  EXCEPTION WHEN unique_violation THEN
+    NULL;
+  END;
+  BEGIN
+    PERFORM eogp.create_organizer_event_session(
+      v_org, v_event_id, v_actor, 'TIMED', 'Incomplete timing', clock_timestamp(), NULL
+    );
+    RAISE EXCEPTION 'partial timing unexpectedly succeeded';
+  EXCEPTION WHEN invalid_parameter_value THEN
+    NULL;
+  END;
+  BEGIN
+    PERFORM eogp.list_organizer_event_sessions(
+      '10000000-0000-0000-0000-00000000000b', v_event_id, v_actor
+    );
+    RAISE EXCEPTION 'cross-tenant session listing unexpectedly succeeded';
+  EXCEPTION WHEN insufficient_privilege THEN
+    NULL;
+  END;
+  BEGIN
+    PERFORM eogp.create_organizer_event_session(
+      v_org, v_event_id, '30000000-0000-0000-0000-00000000000b',
+      'SPOOF', 'Wrong actor', NULL, NULL
+    );
+    RAISE EXCEPTION 'session creation accepted a different actor';
+  EXCEPTION WHEN insufficient_privilege THEN
+    NULL;
+  END;
+  IF has_table_privilege('eventor_runtime', 'eogp.event_sessions', 'INSERT,UPDATE,DELETE')
+     OR has_function_privilege('eventor_worker',
+       'eogp.create_organizer_event_session(uuid,uuid,uuid,text,text,timestamptz,timestamptz)', 'EXECUTE')
+     OR NOT has_function_privilege('eventor_runtime',
+       'eogp.create_organizer_event_session(uuid,uuid,uuid,text,text,timestamptz,timestamptz)', 'EXECUTE') THEN
+    RAISE EXCEPTION 'session write privileges must be limited to the scoped runtime command';
   END IF;
 
   v_updated := eogp.update_organizer_event_details(
@@ -1494,6 +1554,15 @@ BEGIN
     );
     RAISE EXCEPTION 'archived event unexpectedly accepted metadata edits';
   EXCEPTION WHEN SQLSTATE '55000' THEN
+    NULL;
+  END;
+
+  BEGIN
+    PERFORM eogp.create_organizer_event_session(
+      v_org, v_event_id, v_actor, 'TOO-LATE', 'Archived event session', NULL, NULL
+    );
+    RAISE EXCEPTION 'archived event unexpectedly accepted a new session';
+  EXCEPTION WHEN object_not_in_prerequisite_state THEN
     NULL;
   END;
 

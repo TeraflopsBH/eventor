@@ -7,7 +7,10 @@ type Workspace = ReturnType<typeof useOrganizerEvents> & { busy: Ref<boolean> };
 
 const props = defineProps<{ workspace: Workspace; t: (key: string, params?: Record<string, string | number>) => string }>();
 const t = props.t;
-const { events, busy, canArchive, refresh, createEvent, updateEvent, archiveEvent } = props.workspace;
+const {
+  events, sessions, sessionsEventId, busy, canArchive, refresh, createEvent, updateEvent,
+  archiveEvent, showSessions, createSession,
+} = props.workspace;
 const createOpen = ref(false);
 const editingEventId = ref("");
 const formError = ref("");
@@ -26,6 +29,44 @@ const sortedEvents = computed(() => [...events.value].sort((a, b) => {
   return left - right;
 }));
 const editingEvent = computed(() => events.value.find((event) => event.eventId === editingEventId.value) ?? null);
+
+const sessionsEvent = computed(() => events.value.find((event) => event.eventId === sessionsEventId.value));
+const sessionForm = reactive({ code: "", title: "", startsAt: "", endsAt: "" });
+const sessionFormError = ref("");
+const canCreateSession = computed(() => ["draft", "planned"].includes(sessionsEvent.value?.status ?? ""));
+
+function resetSessionForm(): void {
+  Object.assign(sessionForm, { code: "", title: "", startsAt: "", endsAt: "" });
+  sessionFormError.value = "";
+}
+
+async function toggleSessions(eventId: string): Promise<void> {
+  resetSessionForm();
+  await showSessions(eventId);
+}
+
+async function submitSession(event: OrganizerEvent): Promise<void> {
+  sessionFormError.value = "";
+  let timing: { startsAt?: string; endsAt?: string } = {};
+  if (sessionForm.startsAt || sessionForm.endsAt) {
+    try {
+      if (!event.timezoneName) throw new Error();
+      const startsAt = zonedLocalDateTimeToIso(sessionForm.startsAt, event.timezoneName);
+      const endsAt = zonedLocalDateTimeToIso(sessionForm.endsAt, event.timezoneName);
+      if (Date.parse(endsAt) <= Date.parse(startsAt)) throw new Error();
+      timing = { startsAt, endsAt };
+    } catch {
+      sessionFormError.value = t("events.invalidSchedule");
+      return;
+    }
+  }
+  const created = await createSession(event.eventId, {
+    code: sessionForm.code.trim(),
+    title: sessionForm.title.trim(),
+    ...timing,
+  });
+  if (created) resetSessionForm();
+}
 
 function zonedLocalDateTimeToIso(value: string, timeZone: string): string {
   const [datePart, timePart] = value.split("T");
@@ -212,6 +253,15 @@ async function submitUpdate(): Promise<void> {
                 <button class="button button-secondary button-small" type="button" :disabled="busy || event.status === 'archived'" @click="startEdit(event)">
                   {{ t("common.edit") }}
                 </button>
+                <button
+                  class="button button-secondary button-small"
+                  type="button"
+                  :disabled="busy"
+                  :aria-expanded="sessionsEventId === event.eventId"
+                  @click="toggleSessions(event.eventId)"
+                >
+                  {{ t("events.sessions") }}
+                </button>
                 <button class="button button-danger button-small" type="button" :disabled="busy || !canArchive(event)" @click="archiveEvent(event)">
                   {{ t("events.archive") }}
                 </button>
@@ -235,6 +285,55 @@ async function submitUpdate(): Promise<void> {
         </tbody>
       </table>
     </div>
+    <section v-if="sessionsEvent" class="event-form" aria-labelledby="organizer-sessions-heading">
+      <h3 id="organizer-sessions-heading">{{ t("events.sessionsFor", { title: sessionsEvent.title }) }}</h3>
+      <div v-if="sessions?.length" class="table-scroll">
+        <table class="data-table">
+          <thead>
+            <tr>
+              <th scope="col">{{ t("events.sessionCode") }}</th>
+              <th scope="col">{{ t("events.sessionTitle") }}</th>
+              <th scope="col">{{ t("events.schedule") }}</th>
+              <th scope="col">{{ t("events.statusLabel") }}</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr v-for="session in sessions" :key="session.sessionId">
+              <td>{{ session.code }}</td>
+              <td>{{ session.title }}</td>
+              <td>
+                {{ formatDate(session.startsAt, session.timezoneName) }} –
+                {{ formatDate(session.endsAt, session.timezoneName) }}
+              </td>
+              <td>{{ statusLabel(session.status) }}</td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+      <p v-else-if="sessions" class="muted">{{ t("events.noSessions") }}</p>
+      <form v-if="sessions && canCreateSession" class="form-grid" @submit.prevent="submitSession(sessionsEvent)">
+        <p v-if="sessionFormError" class="form-error form-wide" role="alert">{{ sessionFormError }}</p>
+        <label>
+          <span>{{ t("events.sessionCode") }}</span>
+          <input v-model="sessionForm.code" required pattern="[A-Za-z0-9][A-Za-z0-9_\-]{1,79}" maxlength="80">
+        </label>
+        <label>
+          <span>{{ t("events.sessionTitle") }}</span>
+          <input v-model="sessionForm.title" required minlength="2" maxlength="250">
+        </label>
+        <label>
+          <span>{{ t("events.startsAt") }} ({{ sessionsEvent.timezoneName }})</span>
+          <input v-model="sessionForm.startsAt" type="datetime-local" :required="Boolean(sessionForm.endsAt)">
+        </label>
+        <label>
+          <span>{{ t("events.endsAt") }} ({{ sessionsEvent.timezoneName }})</span>
+          <input v-model="sessionForm.endsAt" type="datetime-local" :required="Boolean(sessionForm.startsAt)">
+        </label>
+        <div class="toolbar form-wide">
+          <button class="button button-primary" type="submit" :disabled="busy">{{ t("events.addSession") }}</button>
+        </div>
+      </form>
+    </section>
   </section>
 </template>
 

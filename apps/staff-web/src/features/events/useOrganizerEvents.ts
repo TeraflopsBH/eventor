@@ -1,7 +1,9 @@
 import { computed, ref, type Ref } from "vue";
 import type {
   CreateOrganizerEventInput,
+  CreateOrganizerEventSessionInput,
   OrganizerEvent,
+  OrganizerEventSession,
   UpdateOrganizerEventDetailsInput,
 } from "../../api";
 
@@ -22,6 +24,8 @@ export function useOrganizerEvents({
   const events = ref<OrganizerEvent[]>([]);
   const selectedEventId = ref("");
   const selectedEvent = computed(() => events.value.find((event) => event.eventId === selectedEventId.value) ?? null);
+  const sessions = ref<OrganizerEventSession[] | null>(null);
+  const sessionsEventId = ref("");
   const canArchive = (event: OrganizerEvent) => !["active", "scheduled", "archived"].includes(event.status);
 
   async function loadEvents(): Promise<void> {
@@ -32,6 +36,9 @@ export function useOrganizerEvents({
     }
     const result = await api.getOrganizerEvents(organizationId.value);
     events.value = result.data;
+    if (!events.value.some((event) => event.eventId === sessionsEventId.value)) {
+      closeSessions();
+    }
     if (!events.value.some((event) => event.eventId === selectedEventId.value)) {
       selectedEventId.value = events.value[0]?.eventId ?? "";
     }
@@ -42,6 +49,7 @@ export function useOrganizerEvents({
     busy.value = true;
     try {
       await loadEvents();
+      if (sessionsEventId.value) await loadSessions(sessionsEventId.value);
     } catch (error) {
       showError(error);
     } finally {
@@ -57,6 +65,7 @@ export function useOrganizerEvents({
   function reset(): void {
     events.value = [];
     selectedEventId.value = "";
+    closeSessions();
   }
 
   async function createEvent(input: CreateOrganizerEventInput): Promise<boolean> {
@@ -114,8 +123,56 @@ export function useOrganizerEvents({
     }
   }
 
+  function closeSessions(): void {
+    sessionsEventId.value = "";
+    sessions.value = null;
+  }
+
+  async function loadSessions(eventId: string): Promise<void> {
+    const result = await api.getOrganizerEventSessions(organizationId.value, eventId);
+    if (sessionsEventId.value === eventId) sessions.value = result.data;
+  }
+
+  async function showSessions(eventId: string): Promise<void> {
+    if (eventId === sessionsEventId.value) {
+      closeSessions();
+      return;
+    }
+    clearMessages();
+    busy.value = true;
+    sessionsEventId.value = eventId;
+    sessions.value = null;
+    try {
+      await loadSessions(eventId);
+    } catch (error) {
+      showError(error);
+    } finally {
+      busy.value = false;
+    }
+  }
+
+  async function createSession(eventId: string, input: CreateOrganizerEventSessionInput): Promise<boolean> {
+    clearMessages();
+    busy.value = true;
+    try {
+      await api.createOrganizerEventSession(organizationId.value, eventId, input);
+      pageNotice.value = translate("events.sessionCreated");
+      try { await loadSessions(eventId); } catch (error) { showError(error); }
+      return true;
+    } catch (error) {
+      showError(error);
+      return false;
+    } finally {
+      busy.value = false;
+    }
+  }
+
   return {
     events,
+    sessions,
+    sessionsEventId,
+    showSessions,
+    createSession,
     selectedEventId,
     selectedEvent,
     canArchive,
