@@ -1740,6 +1740,7 @@ DECLARE
   v_role uuid := gen_random_uuid();
   v_person uuid;
   v_event uuid;
+  v_event_role uuid := gen_random_uuid();
   v_result jsonb;
 BEGIN
   BEGIN
@@ -1805,6 +1806,28 @@ BEGIN
        WHERE organization_id = v_org AND event_id = v_event AND person_id = v_person AND status = 'withdrawn')
      OR has_table_privilege('eventor_runtime', 'eogp.persons', 'SELECT,INSERT,UPDATE,DELETE') THEN
     RAISE EXCEPTION 'profile archival or the runtime registry boundary is incorrect';
+  END IF;
+  v_result := eogp.read_guest_registry_history(v_org, v_actor, v_person, 0);
+  IF v_result->'participations' <> '[]'::jsonb OR jsonb_array_length(v_result->'changes') <> 3
+     OR v_result::text LIKE '%Directory Case%' THEN
+    RAISE EXCEPTION 'registry history must hide events without guest permission and omit private names';
+  END IF;
+  INSERT INTO eogp.roles (id, organization_id, code, name, scope_kind)
+    VALUES (v_event_role, v_org, 'CI-REGISTRY-EVENT', 'CI Registry Event Reader', 'event');
+  INSERT INTO eogp.role_permissions (organization_id, role_id, permission_code)
+    VALUES (v_org, v_event_role, 'guest.read');
+  INSERT INTO eogp.user_role_grants (organization_id, membership_id, role_id, scope_kind, scope_event_id, granted_by_membership_id)
+    VALUES (v_org, v_actor, v_event_role, 'event', v_event, v_actor);
+  v_result := eogp.read_guest_registry_history(v_org, v_actor, v_person, 0);
+  IF jsonb_array_length(v_result->'participations') <> 1
+     OR v_result#>>'{participations,0,eventId}' <> v_event::text
+     OR v_result#>>'{participations,0,status}' <> 'withdrawn'
+     OR NOT EXISTS (SELECT 1 FROM eogp.audit_events WHERE organization_id = v_org
+         AND aggregate_id = v_person AND actor_membership_id = v_actor AND action = 'guest.registry.history_viewed') THEN
+    RAISE EXCEPTION 'authorized archived participation history or access audit is missing';
+  END IF;
+  IF eogp.read_guest_registry_history(v_org, v_actor, v_person, 50)->'participations' <> '[]'::jsonb THEN
+    RAISE EXCEPTION 'history pagination repeated an earlier page';
   END IF;
   BEGIN
     PERFORM eogp.read_guest_registry('10000000-0000-0000-0000-00000000000b', v_actor, v_person, '', false, 0);

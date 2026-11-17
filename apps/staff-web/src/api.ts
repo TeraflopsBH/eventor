@@ -1189,11 +1189,33 @@ export interface GuestRegistryDirectory {
   nextOffset: number | null;
 }
 
+export interface GuestRegistryHistory {
+  changes: {
+    auditId: string;
+    action: "guest.registry.create" | "guest.registry.update" | "guest.registry.archive";
+    at: string;
+    revision: number;
+  }[];
+  participations: {
+    participationId: string;
+    eventId: string;
+    eventTitle: string;
+    eventCode: string;
+    eventStatus: OrganizerEvent["status"];
+    status: "eligible" | "waitlisted" | "withdrawn" | "cancelled" | "ineligible";
+    eventStartsAt: string | null;
+    addedAt: string;
+  }[];
+  nextOffset: number | null;
+}
+
 export const api = {
   searchGuestRegistry: (organizationId: string, body: { query: string; archived: boolean; offset: number }) =>
     request<Envelope<GuestRegistryDirectory>>(`/organizations/${encodeURIComponent(organizationId)}/persons/search`, { method: "POST", body }),
   getGuestRegistryProfile: (personId: string) =>
     request<Envelope<GuestRegistryProfile>>(`/persons/${encodeURIComponent(personId)}`),
+  getGuestRegistryHistory: (personId: string, offset: number) =>
+    request<Envelope<GuestRegistryHistory>>(`/persons/${encodeURIComponent(personId)}/history?offset=${offset}`),
   createGuestRegistryProfile: (organizationId: string, body: GuestRegistryNames) =>
     request<Envelope<GuestRegistryMutation>>(`/organizations/${encodeURIComponent(organizationId)}/persons`, { method: "POST", body, idempotent: true }),
   updateGuestRegistryProfile: (personId: string, body: GuestRegistryNames & { expectedRevision: number }) =>

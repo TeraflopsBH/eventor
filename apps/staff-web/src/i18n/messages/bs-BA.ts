@@ -105,6 +105,23 @@ export default {
     settings: "Postavke",
   },
   registry: {
+    history: "Pogledaj historiju",
+    participationHistory: "Učešće na događajima",
+    changeHistory: "Promjene profila",
+    noParticipations: "Na ovoj stranici nema vidljivih učešća.",
+    noChanges: "Na ovoj stranici nema promjena profila.",
+    historyAction: {
+      create: "Kreiran",
+      update: "Ažuriran",
+      archive: "Arhiviran",
+    },
+    participationStatus: {
+      eligible: "Podoban",
+      waitlisted: "Na listi čekanja",
+      withdrawn: "Povučen",
+      cancelled: "Otkazan",
+      ineligible: "Nepodoban",
+    },
     nameSearch: "Pretraga po imenu",
     archived: "Arhivirani profili",
     search: "Pretraži",

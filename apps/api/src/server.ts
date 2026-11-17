@@ -3849,21 +3849,15 @@ export function buildApi(dependencies: ApiDependencies): FastifyInstance {
     return principal;
   }
 
-  async function readRegistry(
-    reply: FastifyReply,
-    principal: StaffPrincipal,
-    personId: string | null,
-    filter: PersonSearchBody = {},
+  async function withRegistryRead(
+    reply: FastifyReply, principal: StaffPrincipal, query: string, args: readonly unknown[],
   ) {
     const client = await dependencies.pool.connect();
     try {
       await client.query("BEGIN");
       await client.query("SELECT set_config('app.organization_id',$1,true), set_config('app.actor_membership_id',$2,true)",
         [principal.organizationId, principal.membershipId]);
-      const result = await client.query<ResultRow>(
-        "SELECT eogp.read_guest_registry($1::uuid,$2::uuid,$3::uuid,$4::text,$5::boolean,$6::integer) AS result",
-        [principal.organizationId, principal.membershipId, personId, filter.query ?? "", filter.archived ?? false, filter.offset ?? 0],
-      );
+      const result = await client.query<ResultRow>(query, [principal.organizationId, principal.membershipId, ...args]);
       await client.query("COMMIT");
       return reply.header("cache-control", "no-store, private").send({ data: result.rows[0]?.result });
     } catch (error) {
@@ -3872,6 +3866,14 @@ export function buildApi(dependencies: ApiDependencies): FastifyInstance {
     } finally {
       client.release();
     }
+  }
+
+  function readRegistry(
+    reply: FastifyReply, principal: StaffPrincipal, personId: string | null, filter: PersonSearchBody = {},
+  ) {
+    return withRegistryRead(reply, principal,
+      "SELECT eogp.read_guest_registry($1::uuid,$2::uuid,$3::uuid,$4::text,$5::boolean,$6::integer) AS result",
+      [personId, filter.query ?? "", filter.archived ?? false, filter.offset ?? 0]);
   }
 
   async function writeRegistry(
@@ -3920,6 +3922,15 @@ export function buildApi(dependencies: ApiDependencies): FastifyInstance {
 
   server.get<{ Params: { personId: string } }>("/persons/:personId", { schema: { params: registryPersonParams } },
     (request, reply) => readRegistry(reply, registryPrincipal(request), request.params.personId));
+
+  server.get<{ Params: { personId: string }; Querystring: { offset?: number } }>("/persons/:personId/history", {
+    schema: {
+      params: registryPersonParams,
+      querystring: { type: "object", properties: { offset: { type: "integer", minimum: 0, maximum: 100000 } } },
+    },
+  }, (request, reply) => withRegistryRead(reply, registryPrincipal(request),
+    "SELECT eogp.read_guest_registry_history($1::uuid,$2::uuid,$3::uuid,$4::integer) AS result",
+    [request.params.personId, request.query.offset ?? 0]));
 
   server.post<{ Params: { organizationId: string }; Body: PersonCreateBody }>(registryPath, {
     schema: {

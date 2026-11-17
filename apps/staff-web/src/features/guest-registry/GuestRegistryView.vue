@@ -1,13 +1,15 @@
 <script setup lang="ts">
 import { onMounted, reactive, ref } from "vue";
 import { useI18n } from "vue-i18n";
-import { api, ApiError, type GuestRegistryDirectory, type GuestRegistryProfile } from "../../api";
+import { api, ApiError, type GuestRegistryDirectory, type GuestRegistryHistory, type GuestRegistryProfile } from "../../api";
 import { formatApiError } from "../../i18n/api-errors";
 
 const props = defineProps<{ organizationId: string }>();
-const { t } = useI18n();
+const { t, locale } = useI18n();
 const directory = ref<GuestRegistryDirectory | null>(null);
 const profile = ref<GuestRegistryProfile | null>(null);
+const history = ref<GuestRegistryHistory | null>(null);
+const historyOffset = ref(0);
 const busy = ref(false);
 const error = ref("");
 const editing = ref(false);
@@ -25,6 +27,7 @@ async function run(operation: () => Promise<void>): Promise<void> {
     if (failure instanceof ApiError && [401, 403].includes(failure.status)) {
       directory.value = null;
       profile.value = null;
+      history.value = null;
       editing.value = false;
     }
     error.value = failure instanceof ApiError ? formatApiError(failure, t) : t("registry.failed");
@@ -41,12 +44,14 @@ async function load(offset: number): Promise<void> {
 
 function search(): Promise<void> {
   profile.value = null;
+  history.value = null;
   editing.value = false;
   Object.assign(filters, { query: query.value.trim(), archived: archived.value });
   return run(() => load(0));
 }
 
 function showProfile(personId: string): Promise<void> {
+  history.value = null;
   editing.value = false;
   return run(async () => {
     profile.value = (await api.getGuestRegistryProfile(personId)).data;
@@ -54,6 +59,7 @@ function showProfile(personId: string): Promise<void> {
 }
 
 function edit(person: GuestRegistryProfile | null): void {
+  history.value = null;
   profile.value = person;
   Object.assign(form, {
     firstName: person?.firstName ?? "", lastName: person?.lastName ?? "",
@@ -77,11 +83,28 @@ function save(): Promise<void> {
   });
 }
 
+function closeProfile(): void {
+  profile.value = null;
+  history.value = null;
+}
+
+function loadHistory(personId: string, offset = 0): Promise<void> {
+  return run(async () => {
+    history.value = (await api.getGuestRegistryHistory(personId, offset)).data;
+    historyOffset.value = offset;
+  });
+}
+
+function formatTime(value: string): string {
+  return new Intl.DateTimeFormat(locale.value, { dateStyle: "medium", timeStyle: "short" }).format(new Date(value));
+}
+
 function archive(person: GuestRegistryProfile): void {
   if (!window.confirm(t("registry.confirmArchive", { name: `${person.firstName} ${person.lastName}` }))) return;
   void run(async () => {
     await api.archiveGuestRegistryProfile(person.personId, person.revision);
     profile.value = null;
+    history.value = null;
     await load(filters.offset);
   });
 }
@@ -121,8 +144,33 @@ onMounted(search);
       <div class="registry-toolbar">
         <button v-if="directory?.canManage && profile.status === 'active'" class="button button-secondary" :disabled="busy" @click="edit(profile)">{{ t("common.edit") }}</button>
         <button v-if="directory?.canManage && profile.status === 'active'" class="button button-danger" :disabled="busy" @click="archive(profile)">{{ t("registry.archive") }}</button>
-        <button class="button button-secondary" :disabled="busy" @click="profile = null">{{ t("common.close") }}</button>
+        <button class="button button-secondary" :disabled="busy" @click="loadHistory(profile.personId)">{{ t("registry.history") }}</button>
+        <button class="button button-secondary" :disabled="busy" @click="closeProfile">{{ t("common.close") }}</button>
       </div>
+      <template v-if="history">
+        <h4>{{ t("registry.participationHistory") }}</h4>
+        <ul v-if="history.participations.length">
+          <li v-for="item in history.participations" :key="item.participationId">
+            <strong>{{ item.eventTitle }}</strong> ({{ item.eventCode }})
+            · {{ t(`registry.participationStatus.${item.status}`) }}
+            · {{ t(`events.status.${item.eventStatus}`) }}
+            <time v-if="item.eventStartsAt" :datetime="item.eventStartsAt"> · {{ formatTime(item.eventStartsAt) }}</time>
+          </li>
+        </ul>
+        <p v-else class="muted">{{ t("registry.noParticipations") }}</p>
+        <h4>{{ t("registry.changeHistory") }}</h4>
+        <ul v-if="history.changes.length">
+          <li v-for="change in history.changes" :key="change.auditId">
+            {{ t(`registry.historyAction.${change.action.split(".").at(-1)}`) }}
+            · <time :datetime="change.at">{{ formatTime(change.at) }}</time>
+          </li>
+        </ul>
+        <p v-else class="muted">{{ t("registry.noChanges") }}</p>
+        <div v-if="historyOffset > 0 || history.nextOffset !== null" class="registry-toolbar">
+          <button class="button button-secondary" :disabled="busy || historyOffset === 0" @click="loadHistory(profile.personId, Math.max(0, historyOffset - 50))">{{ t("registry.previous") }}</button>
+          <button class="button button-secondary" :disabled="busy || history.nextOffset === null" @click="loadHistory(profile.personId, history.nextOffset ?? 0)">{{ t("registry.next") }}</button>
+        </div>
+      </template>
     </section>
     <p v-if="directory && !directory.people.length" class="muted">{{ t("registry.empty") }}</p>
     <div v-else-if="directory" class="table-scroll">

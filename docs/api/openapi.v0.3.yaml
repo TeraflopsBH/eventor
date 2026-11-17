@@ -5054,6 +5054,28 @@ paths:
         '422': { $ref: '#/components/responses/UnprocessableEntity' }
         '429': { $ref: '#/components/responses/TooManyRequests' }
         '500': { $ref: '#/components/responses/InternalServerError' }
+  "/persons/{personId}/history":
+    get:
+      tags: ["Guest Registry"]
+      operationId: getPersonHistory
+      summary: "Read a profile's change history and permitted event participation"
+      security: [{ StaffSession: [] }]
+      parameters:
+        - $ref: '#/components/parameters/PPersonId'
+        - name: offset
+          in: query
+          schema: { type: integer, minimum: 0, maximum: 100000 }
+      responses:
+        '200':
+          description: "Paged change and event participation history."
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/GuestRegistryHistoryEnvelope' }
+        '400': { $ref: '#/components/responses/BadRequest' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '404': { $ref: '#/components/responses/NotFound' }
+        '500': { $ref: '#/components/responses/InternalServerError' }
   "/persons/{personId}/archive":
     post:
       tags: ["Guest Registry"]
@@ -6699,6 +6721,39 @@ components:
           properties:
             people: { type: array, items: { $ref: '#/components/schemas/GuestRegistryProfile' } }
             canManage: { type: boolean }
+            nextOffset: { type: [integer, 'null'], minimum: 0 }
+    GuestRegistryHistoryEnvelope:
+      type: object
+      required: [data]
+      properties:
+        data:
+          type: object
+          required: [changes, participations, nextOffset]
+          properties:
+            changes:
+              type: array
+              items:
+                type: object
+                required: [auditId, action, at, revision]
+                properties:
+                  auditId: { type: string, format: uuid }
+                  action: { type: string, enum: [guest.registry.create, guest.registry.update, guest.registry.archive] }
+                  at: { type: string, format: date-time }
+                  revision: { type: integer, minimum: 1 }
+            participations:
+              type: array
+              items:
+                type: object
+                required: [participationId, eventId, eventTitle, eventCode, eventStatus, status, eventStartsAt, addedAt]
+                properties:
+                  participationId: { type: string, format: uuid }
+                  eventId: { type: string, format: uuid }
+                  eventTitle: { type: string }
+                  eventCode: { type: string }
+                  eventStatus: { type: string }
+                  status: { type: string, enum: [eligible, waitlisted, withdrawn, cancelled, ineligible] }
+                  eventStartsAt: { type: [string, 'null'], format: date-time }
+                  addedAt: { type: string, format: date-time }
             nextOffset: { type: [integer, 'null'], minimum: 0 }
     ParticipationCreateRequest:
       type: object
