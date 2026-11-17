@@ -1256,15 +1256,19 @@ export interface EventGuestRow {
   revision: number;
   categoryCode: string | null;
   categoryId: string | null;
+  tagIds: string[];
   participationCode: string | null;
 }
 
-export interface EventGuestCategory {
-  categoryId: string;
+export interface GuestListOption {
+  id: string;
   code: string;
   label: string;
   retired: boolean;
 }
+
+export type EventGuestCategory = Omit<GuestListOption, "id"> & { categoryId: string };
+export type EventGuestTag = Omit<GuestListOption, "id"> & { tagId: string };
 
 export interface EventGuestList {
   people: EventGuestRow[];
@@ -1369,6 +1373,20 @@ export const api = {
     request<Envelope<{ participationId: string; categoryId: string | null; revision: number }>>(
       `/events/${encodeURIComponent(eventId)}/participations/${encodeURIComponent(participationId)}/category`, {
         method: "PATCH", body: { categoryId, expectedRevision }, idempotent: true,
+      },
+    ),
+  listEventGuestTags: (eventId: string) =>
+    request<Envelope<EventGuestTag[]>>(`/events/${encodeURIComponent(eventId)}/guest-tags`),
+  createEventGuestTag: (eventId: string, body: { code: string; label: string }) =>
+    request<Envelope<EventGuestTag>>(`/events/${encodeURIComponent(eventId)}/guest-tags`, { method: "POST", body, idempotent: true }),
+  retireEventGuestTag: (eventId: string, tagId: string) =>
+    request<Envelope<EventGuestTag>>(`/events/${encodeURIComponent(eventId)}/guest-tags/${encodeURIComponent(tagId)}/retire`, {
+      method: "POST", idempotent: true,
+    }),
+  setEventGuestTags: (eventId: string, participationId: string, tagIds: string[], expectedRevision: number) =>
+    request<Envelope<{ participationId: string; tagIds: string[]; revision: number }>>(
+      `/events/${encodeURIComponent(eventId)}/participations/${encodeURIComponent(participationId)}/tags`, {
+        method: "PATCH", body: { tagIds, expectedRevision }, idempotent: true,
       },
     ),
   updateGuestParticipationStatus: (eventId: string, participationId: string, status: ManagedParticipationStatus, expectedRevision: number) =>

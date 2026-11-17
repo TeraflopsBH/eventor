@@ -3742,6 +3742,84 @@ paths:
         '403': { $ref: '#/components/responses/Forbidden' }
         '404': { $ref: '#/components/responses/NotFound' }
         '409': { $ref: '#/components/responses/Conflict' }
+  "/events/{eventId}/guest-tags":
+    get:
+      tags: ["Event Participation"]
+      operationId: listEventGuestTags
+      summary: "List the active and retired internal guest tags for an event"
+      security: [{ StaffSession: [] }]
+      parameters:
+        - $ref: '#/components/parameters/PEventId'
+      responses:
+        '200':
+          description: "Event guest tags."
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [data]
+                properties:
+                  data:
+                    type: array
+                    items: { $ref: '#/components/schemas/EventGuestTag' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '404': { $ref: '#/components/responses/NotFound' }
+    post:
+      tags: ["Event Participation"]
+      operationId: createEventGuestTag
+      summary: "Create an internal event guest tag with a stable code"
+      security: [{ StaffSession: [], StaffCsrf: [] }]
+      parameters:
+        - $ref: '#/components/parameters/PEventId'
+        - $ref: '#/components/parameters/IdempotencyKey'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              additionalProperties: false
+              required: [code, label]
+              properties:
+                code: { type: string, pattern: '^[A-Z0-9][A-Z0-9_-]{0,39}$' }
+                label: { type: string, minLength: 1, maxLength: 120 }
+      responses:
+        '201':
+          description: "Guest tag created."
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/EventGuestTagEnvelope' }
+        '400': { $ref: '#/components/responses/BadRequest' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '404': { $ref: '#/components/responses/NotFound' }
+        '409': { $ref: '#/components/responses/Conflict' }
+        '422': { $ref: '#/components/responses/UnprocessableEntity' }
+  "/events/{eventId}/guest-tags/{tagId}/retire":
+    post:
+      tags: ["Event Participation"]
+      operationId: retireEventGuestTag
+      summary: "Retire a guest tag while preserving existing assignments"
+      security: [{ StaffSession: [], StaffCsrf: [] }]
+      parameters:
+        - $ref: '#/components/parameters/PEventId'
+        - $ref: '#/components/parameters/IdempotencyKey'
+        - name: tagId
+          in: path
+          required: true
+          schema: { type: string, format: uuid }
+      responses:
+        '200':
+          description: "The tag is retired."
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/EventGuestTagEnvelope' }
+        '400': { $ref: '#/components/responses/BadRequest' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '404': { $ref: '#/components/responses/NotFound' }
+        '409': { $ref: '#/components/responses/Conflict' }
   "/events/{eventId}/participations":
     get:
       tags: ["Event Participation"]
@@ -3893,6 +3971,49 @@ paths:
                     properties:
                       participationId: { type: string, format: uuid }
                       categoryId: { type: [string, 'null'], format: uuid }
+                      revision: { type: integer, minimum: 1 }
+        '400': { $ref: '#/components/responses/BadRequest' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '404': { $ref: '#/components/responses/NotFound' }
+        '409': { $ref: '#/components/responses/Conflict' }
+        '412': { $ref: '#/components/responses/PreconditionFailed' }
+  "/events/{eventId}/participations/{participationId}/tags":
+    patch:
+      tags: ["Event Participation"]
+      operationId: setEventGuestTags
+      summary: "Replace the selected internal tags for an event guest"
+      security: [{ StaffSession: [], StaffCsrf: [] }]
+      parameters:
+        - $ref: '#/components/parameters/PEventId'
+        - $ref: '#/components/parameters/PParticipationId'
+        - $ref: '#/components/parameters/IdempotencyKey'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              additionalProperties: false
+              required: [tagIds, expectedRevision]
+              properties:
+                tagIds: { type: array, items: { type: string, format: uuid }, uniqueItems: true, maxItems: 1000 }
+                expectedRevision: { type: integer, minimum: 1, maximum: 2147483647 }
+      responses:
+        '200':
+          description: "Current internal tag IDs and participation revision."
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [data]
+                properties:
+                  data:
+                    type: object
+                    required: [participationId, tagIds, revision]
+                    properties:
+                      participationId: { type: string, format: uuid }
+                      tagIds: { type: array, items: { type: string, format: uuid }, uniqueItems: true, maxItems: 1000 }
                       revision: { type: integer, minimum: 1 }
         '400': { $ref: '#/components/responses/BadRequest' }
         '401': { $ref: '#/components/responses/Unauthorized' }
@@ -7568,6 +7689,19 @@ components:
       required: [data]
       properties:
         data: { $ref: '#/components/schemas/EventGuestCategory' }
+    EventGuestTag:
+      type: object
+      required: [tagId, code, label, retired]
+      properties:
+        tagId: { type: string, format: uuid }
+        code: { type: string }
+        label: { type: string }
+        retired: { type: boolean }
+    EventGuestTagEnvelope:
+      type: object
+      required: [data]
+      properties:
+        data: { $ref: '#/components/schemas/EventGuestTag' }
     EventGuestListEnvelope:
       type: object
       required: [data]
@@ -7580,7 +7714,7 @@ components:
               type: array
               items:
                 type: object
-                required: [participationId, displayName, status, revision, categoryCode, categoryId, participationCode]
+                required: [participationId, displayName, status, revision, categoryCode, categoryId, participationCode, tagIds]
                 properties:
                   participationId: { type: string, format: uuid }
                   displayName: { type: string }
@@ -7589,6 +7723,10 @@ components:
                   categoryCode: { type: [string, 'null'] }
                   categoryId: { type: [string, 'null'], format: uuid }
                   participationCode: { type: [string, 'null'] }
+                  tagIds:
+                    type: array
+                    items: { type: string, format: uuid }
+                    description: "Internal tags assigned to this event guest."
             canManage: { type: boolean }
             nextOffset: { type: [integer, 'null'], minimum: 0 }
     ParticipationStatusRequest:

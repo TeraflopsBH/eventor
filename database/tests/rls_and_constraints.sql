@@ -2303,6 +2303,71 @@ BEGIN
 END;
 $test$;
 
+-- Editing internal tags preserves hidden assignments and protects retired tags.
+DO $test$
+DECLARE
+  v_org CONSTANT uuid := '10000000-0000-0000-0000-00000000000a';
+  v_actor CONSTANT uuid := '30000000-0000-0000-0000-00000000000a';
+  v_event uuid;
+  v_participation uuid;
+  v_revision integer;
+  v_internal uuid;
+  v_restricted uuid;
+  v_result jsonb;
+BEGIN
+  SELECT id INTO STRICT v_event FROM eogp.events WHERE organization_id = v_org AND event_code = 'CI-LINK-A';
+  SELECT p.id, p.revision INTO STRICT v_participation, v_revision
+  FROM eogp.event_participations p JOIN eogp.persons person
+    ON person.organization_id = p.organization_id AND person.id = p.person_id
+  WHERE p.organization_id = v_org AND p.event_id = v_event AND person.last_name = 'Workbook Fixture';
+
+  INSERT INTO eogp.guest_tags (organization_id,event_id,tag_code,label,sensitivity)
+  VALUES (v_org,v_event,'RESTRICTED-FIXTURE','Restricted fixture','restricted') RETURNING id INTO v_restricted;
+  INSERT INTO eogp.event_participation_tags (organization_id,event_id,participation_id,tag_id,added_by_membership_id)
+  VALUES (v_org,v_event,v_participation,v_restricted,v_actor);
+
+  v_result := eogp.write_event_guest_tag(v_org,v_event,v_actor,NULL,'TEAM-A','Team A');
+  v_internal := (v_result->>'tagId')::uuid;
+  IF eogp.list_event_guest_tags(v_org,v_event,v_actor) IS DISTINCT FROM jsonb_build_array(v_result)
+     OR has_table_privilege('eventor_runtime','eogp.guest_tags','SELECT,INSERT,UPDATE,DELETE')
+     OR has_table_privilege('eventor_runtime','eogp.event_participation_tags','SELECT,INSERT,UPDATE,DELETE') THEN
+    RAISE EXCEPTION 'tag catalogue or runtime grants exposed restricted data';
+  END IF;
+  BEGIN
+    PERFORM eogp.set_event_guest_tags(v_org,v_event,v_actor,v_participation,v_revision,ARRAY[v_restricted]);
+    RAISE EXCEPTION 'restricted tag was accepted in the internal command';
+  EXCEPTION WHEN object_not_in_prerequisite_state THEN NULL;
+  END;
+
+  PERFORM eogp.set_event_guest_tags(v_org,v_event,v_actor,v_participation,v_revision,ARRAY[v_internal]);
+  IF NOT (eogp.read_event_guest_list(v_org,v_event,v_actor,NULL,0)->'people')
+       @> jsonb_build_array(jsonb_build_object('participationId',v_participation,'tagIds',ARRAY[v_internal]))
+     OR (eogp.read_event_guest_list(v_org,v_event,v_actor,NULL,0)->'people')::text LIKE '%' || v_restricted || '%' THEN
+    RAISE EXCEPTION 'roster tag projection is missing or leaked restricted assignments';
+  END IF;
+  PERFORM eogp.write_event_guest_tag(v_org,v_event,v_actor,v_internal,NULL,NULL);
+  v_result := eogp.set_event_guest_tags(v_org,v_event,v_actor,v_participation,v_revision+1,ARRAY[v_internal]);
+  IF v_result->>'revision' IS DISTINCT FROM (v_revision+1)::text THEN
+    RAISE EXCEPTION 'preserving an already assigned retired tag changed its revision';
+  END IF;
+  BEGIN
+    PERFORM eogp.set_event_guest_tags(v_org,v_event,v_actor,v_participation,v_revision,ARRAY[]::uuid[]);
+    RAISE EXCEPTION 'stale update was allowed to remove an internal tag';
+  EXCEPTION WHEN serialization_failure THEN NULL;
+  END;
+  PERFORM eogp.set_event_guest_tags(v_org,v_event,v_actor,v_participation,v_revision+1,ARRAY[]::uuid[]);
+  BEGIN
+    PERFORM eogp.set_event_guest_tags(v_org,v_event,v_actor,v_participation,v_revision+2,ARRAY[v_internal]);
+    RAISE EXCEPTION 'retired tag could be newly assigned';
+  EXCEPTION WHEN object_not_in_prerequisite_state THEN NULL;
+  END;
+  IF NOT EXISTS (SELECT 1 FROM eogp.event_participation_tags
+    WHERE organization_id = v_org AND participation_id = v_participation AND tag_id = v_restricted) THEN
+    RAISE EXCEPTION 'updating internal tags removed an unrelated restricted assignment';
+  END IF;
+END;
+$test$;
+
 COMMIT;
 
 \echo 'PostgreSQL migration smoke tests passed.'

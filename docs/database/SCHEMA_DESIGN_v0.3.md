@@ -345,3 +345,7 @@ Migration 000140 adds XLSX worksheet and header selection to the existing encryp
 Categories belong to an individual event and have a stable code and label. Retirement preserves the reference for existing participations and prevents new assignments. Category changes verify the participation revision and update its event-scoped category reference and compatibility code together. Older unregistered category codes remain readable, and the event roster does not reinterpret them using a newly registered code.
 
 Migration 000142 lets staff filter the roster and its CSV/XLSX exports by category and status. Assigned and retired categories use their stable IDs. The unassigned filter includes only rows with no category code.
+
+## Internal event guest tags (000143)
+
+Internal tags reuse `guest_tags` and `event_participation_tags`. Event guest readers can view internal tags. Staff with `guest.manage` can create and retire tags and update a participation's internal tag set with a revision check. Retired tags can remain assigned until explicitly removed. The commands preserve existing public and restricted tag links and omit them from the internal catalogue and roster projection.
