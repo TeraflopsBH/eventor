@@ -202,6 +202,11 @@ list. The preview accepts UTF-8 name-only data up to 64 KiB and 500 rows. It rec
 repeated names in the file and possible same-name Registry matches without creating guests.
 Preview reads require Registry management and event guest management permissions.
 
+Migration `000135` commits the clean rows of a reviewed CSV batch atomically.
+It rechecks the event and current Registry names, skips rows with preview errors
+or possible matches, and records the resulting participations. A retry returns the
+prior batch result.
+
 ### 3.9 Event cancellation, postponement and communications
 
 | Proposed relation | Purpose / key invariants |

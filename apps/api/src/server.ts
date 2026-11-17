@@ -4145,6 +4145,41 @@ export function buildApi(dependencies: ApiDependencies): FastifyInstance {
       });
   });
 
+  server.post<{ Params: { eventId: string; batchId: string } }>("/events/:eventId/guest-imports/:batchId/commit", {
+    schema: {
+      params: {
+        ...participationEventParams, required: ["eventId", "batchId"],
+        properties: { ...participationEventParams.properties, batchId: { type: "string", pattern: uuidPattern } },
+      },
+      headers: idempotencyHeaders,
+    },
+  }, (request, reply) => {
+    const principal = registryPrincipal(request);
+    const { eventId, batchId } = request.params;
+    const args = [principal.organizationId, eventId, principal.membershipId, batchId];
+    const key = guestImportKey();
+    return withCommand(request, reply.header("cache-control", "no-store, private"),
+      "guest.import.commit", { eventId, batchId }, async (client) => {
+        const input = await client.query<ResultRow>(
+          "SELECT eogp.guest_import_commit_input($1::uuid,$2::uuid,$3::uuid,$4::uuid) AS result", args,
+        );
+        const encrypted = input.rows[0]?.result as { rowNumber: number; namesCiphertext: string }[];
+        const rows = encrypted.map((row) => ({
+          ...row,
+          names: JSON.parse(decryptContactValue(Buffer.from(row.namesCiphertext, "base64"), key,
+            { organizationId: principal.organizationId, contactKind: "other" })) as ImportNames,
+        }));
+        const result = await client.query<ResultRow>(
+          "SELECT eogp.commit_clean_guest_import($1::uuid,$2::uuid,$3::uuid,$4::uuid,$5::jsonb) AS result",
+          [...args, JSON.stringify(rows)],
+        );
+        return (result.rows[0]?.result ?? {}) as Record<string, unknown>;
+      }, async (client) => {
+        await client.query("SELECT eogp.assert_guest_import_permission($1::uuid,$2::uuid,$3::uuid)",
+          [principal.organizationId, eventId, principal.membershipId]);
+      }, 200);
+  });
+
   type GuestListQuery = { status?: "eligible" | "waitlisted" | "withdrawn" | "cancelled" | "ineligible"; offset?: number };
   server.get<{ Params: { eventId: string }; Querystring: GuestListQuery }>("/events/:eventId/participations", {
     schema: {

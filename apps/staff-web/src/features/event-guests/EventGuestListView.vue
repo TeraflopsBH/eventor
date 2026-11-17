@@ -102,7 +102,7 @@ onMounted(() => run(async () => {
       <button class="button button-secondary" type="button" :disabled="busy" :aria-expanded="showImport" @click="showImport = !showImport">
         {{ t("eventGuests.import.title") }}
       </button>
-      <EventGuestImportPreview v-if="showImport" :key="eventId" :event-id="eventId" />
+      <EventGuestImportPreview v-if="showImport" :key="eventId" :event-id="eventId" @committed="run(() => loadPage(0))" />
     </div>
     <p v-if="roster && !roster.people.length" class="muted">{{ t("eventGuests.noGuests") }}</p>
     <div v-else-if="roster" class="table-scroll">

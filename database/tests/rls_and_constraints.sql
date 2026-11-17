@@ -2033,6 +2033,62 @@ BEGIN
 END;
 $test$;
 
+-- Committing a preview imports only clean rows and rolls back on late duplicates.
+DO $test$
+DECLARE
+  v_org CONSTANT uuid := '10000000-0000-0000-0000-00000000000a';
+  v_actor CONSTANT uuid := '30000000-0000-0000-0000-00000000000a';
+  v_cipher text := encode(convert_to('ECP1' || repeat('x', 32), 'UTF8'), 'base64');
+  v_event uuid;
+  v_batch uuid;
+  v_result jsonb;
+  v_clean jsonb := '{"firstName":"Import","lastName":"Clean"}';
+  v_late jsonb := '{"firstName":"Import","lastName":"Late Match"}';
+  v_rows jsonb;
+BEGIN
+  SELECT id INTO v_event FROM eogp.events WHERE organization_id = v_org AND event_code = 'CI-LINK-A';
+  v_result := eogp.prepare_guest_import_preview(v_org, v_event, v_actor, repeat('b',64), jsonb_build_array(
+    jsonb_build_object('rowNumber',2,'firstName','Import','lastName','Clean',
+      'sourceCiphertext',v_cipher,'namesCiphertext',v_cipher,'errors','[]'::jsonb),
+    jsonb_build_object('rowNumber',3,'firstName','Import','lastName','Late Match',
+      'sourceCiphertext',v_cipher,'namesCiphertext',v_cipher,'errors','[]'::jsonb)
+  ));
+  v_batch := (v_result->>'batchId')::uuid;
+  v_rows := jsonb_build_array(
+    jsonb_build_object('rowNumber',2,'namesCiphertext',v_cipher,'names',v_clean),
+    jsonb_build_object('rowNumber',3,'namesCiphertext',v_cipher,'names',v_late));
+  PERFORM eogp.write_guest_registry_person(v_org, v_actor, NULL, NULL, 'create', v_late);
+  BEGIN
+    PERFORM eogp.commit_clean_guest_import(v_org, v_event, v_actor, v_batch, v_rows);
+    RAISE EXCEPTION 'commit did not detect a late duplicate';
+  EXCEPTION WHEN serialization_failure THEN NULL;
+  END;
+  IF EXISTS (SELECT 1 FROM eogp.persons WHERE organization_id = v_org AND first_name = 'Import' AND last_name = 'Clean')
+     OR EXISTS (SELECT 1 FROM eogp.guest_import_rows WHERE organization_id = v_org AND batch_id = v_batch
+                AND committed_participation_id IS NOT NULL) THEN
+    RAISE EXCEPTION 'failed import did not roll back the first row';
+  END IF;
+
+  v_result := eogp.prepare_guest_import_preview(v_org, v_event, v_actor, repeat('c',64), jsonb_build_array(
+    jsonb_build_object('rowNumber',2,'firstName','Import','lastName','Clean',
+      'sourceCiphertext',v_cipher,'namesCiphertext',v_cipher,'errors','[]'::jsonb),
+    jsonb_build_object('rowNumber',3,'firstName','Import','lastName','Late Match',
+      'sourceCiphertext',v_cipher,'namesCiphertext',v_cipher,'errors','[]'::jsonb)
+  ));
+  v_batch := (v_result->>'batchId')::uuid;
+  IF jsonb_array_length(eogp.guest_import_commit_input(v_org,v_event,v_actor,v_batch)) <> 1 THEN
+    RAISE EXCEPTION 'duplicate row was included in the clean import input';
+  END IF;
+  v_result := eogp.commit_clean_guest_import(v_org, v_event, v_actor, v_batch, jsonb_build_array(v_rows->0));
+  IF v_result->>'importedCount' <> '1' OR v_result->>'skippedCount' <> '1'
+     OR eogp.commit_clean_guest_import(v_org,v_event,v_actor,v_batch,'[]') <> v_result
+     OR NOT EXISTS (SELECT 1 FROM eogp.guest_import_rows WHERE organization_id = v_org AND batch_id = v_batch
+                    AND row_number = 2 AND committed_participation_id IS NOT NULL) THEN
+    RAISE EXCEPTION 'clean import or batch replay failed';
+  END IF;
+END;
+$test$;
+
 COMMIT;
 
 \echo 'PostgreSQL migration smoke tests passed.'
