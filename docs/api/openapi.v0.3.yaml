@@ -5111,6 +5111,33 @@ paths:
         '401': { $ref: '#/components/responses/Unauthorized' }
         '403': { $ref: '#/components/responses/Forbidden' }
         '500': { $ref: '#/components/responses/InternalServerError' }
+  "/organizations/{organizationId}/persons/export":
+    post:
+      tags: ["Guest Registry"]
+      operationId: exportGuestRegistryProfiles
+      summary: "Export names from the filtered organizer-owned Guest Registry"
+      security: [{ StaffSession: [], StaffCsrf: [] }]
+      parameters:
+        - $ref: '#/components/parameters/POrganizationId'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/PersonExportRequest' }
+      responses:
+        '200':
+          description: "Names and profile statuses. Requires Registry access and the separate guest.registry.export grant."
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/GuestRegistryExportEnvelope' }
+        '400': { $ref: '#/components/responses/BadRequest' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '422':
+          description: "The filtered directory exceeds the interactive export limit of 20,000 profiles."
+          content:
+            application/problem+json:
+              schema: { $ref: '#/components/schemas/Problem' }
   "/organizations/{organizationId}/roles":
     get:
       tags: ["Authorization"]
@@ -6990,6 +7017,12 @@ components:
         query: { type: string, maxLength: 200 }
         archived: { type: boolean }
         offset: { type: integer, minimum: 0, maximum: 100000 }
+    PersonExportRequest:
+      type: object
+      additionalProperties: false
+      properties:
+        query: { type: string, maxLength: 200 }
+        archived: { type: boolean }
     PersonArchiveRequest:
       type: object
       additionalProperties: false
@@ -7029,11 +7062,32 @@ components:
       properties:
         data:
           type: object
-          required: [people, canManage, nextOffset]
+          required: [people, canManage, canExport, nextOffset]
           properties:
             people: { type: array, items: { $ref: '#/components/schemas/GuestRegistryProfile' } }
             canManage: { type: boolean }
+            canExport: { type: boolean }
             nextOffset: { type: [integer, 'null'], minimum: 0 }
+    GuestRegistryExportEnvelope:
+      type: object
+      required: [data]
+      properties:
+        data:
+          type: object
+          required: [people]
+          properties:
+            people:
+              type: array
+              maxItems: 20000
+              items:
+                type: object
+                required: [firstName, lastName, displayName, preferredName, status]
+                properties:
+                  firstName: { type: string }
+                  lastName: { type: string }
+                  displayName: { type: [string, 'null'] }
+                  preferredName: { type: [string, 'null'] }
+                  status: { type: string, enum: [active, archived] }
     RegistryContactConsent:
       type: string
       enum: [unknown, permitted, restricted, withdrawn]

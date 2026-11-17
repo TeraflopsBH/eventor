@@ -3824,8 +3824,13 @@ export function buildApi(dependencies: ApiDependencies): FastifyInstance {
   type PersonCreateBody = JsonRequestBody<"/organizations/{organizationId}/persons", "post">;
   type PersonPatchBody = JsonRequestBody<"/persons/{personId}", "patch">;
   type PersonSearchBody = JsonRequestBody<"/organizations/{organizationId}/persons/search", "post">;
+  type PersonExportBody = JsonRequestBody<"/organizations/{organizationId}/persons/export", "post">;
   type PersonArchiveBody = JsonRequestBody<"/persons/{personId}/archive", "post">;
   const registryPath = "/organizations/:organizationId/persons";
+  const registryFilterFields = {
+    query: { type: "string", maxLength: 200 },
+    archived: { type: "boolean" },
+  };
   const registryOrgParams = {
     type: "object", required: ["organizationId"],
     properties: { organizationId: { type: "string", pattern: uuidPattern } },
@@ -4027,14 +4032,28 @@ export function buildApi(dependencies: ApiDependencies): FastifyInstance {
       body: {
         type: "object", additionalProperties: false,
         properties: {
-          query: { type: "string", maxLength: 200 },
-          archived: { type: "boolean" },
+          ...registryFilterFields,
           offset: { type: "integer", minimum: 0, maximum: 100000 },
         },
       },
     },
   }, (request, reply) => readRegistry(reply,
     registryPrincipal(request, request.params.organizationId), null, request.body));
+
+  server.post<{ Params: { organizationId: string }; Body: PersonExportBody }>(`${registryPath}/export`, {
+    schema: {
+      params: registryOrgParams,
+      body: { type: "object", additionalProperties: false, properties: registryFilterFields },
+    },
+  }, (request, reply) => withRegistryRead(reply, registryPrincipal(request, request.params.organizationId),
+    "SELECT eogp.read_guest_registry_export($1::uuid,$2::uuid,$3::text,$4::boolean) AS result",
+    [request.body.query ?? "", request.body.archived ?? false], (value) => {
+      const result = value as { limitExceeded?: boolean };
+      if (result.limitExceeded) {
+        throw new ApiError(422, "GUEST_REGISTRY_EXPORT_LIMIT", "The export exceeds 20,000 profiles. Narrow the name search.");
+      }
+      return result;
+    }));
 
   server.get<{ Params: { personId: string } }>("/persons/:personId", { schema: { params: registryPersonParams } },
     (request, reply) => readRegistry(reply, registryPrincipal(request), request.params.personId));

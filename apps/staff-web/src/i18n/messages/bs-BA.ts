@@ -146,6 +146,9 @@ export default {
     exportLimit: "Izvoz prelazi 20.000 gostiju. Pokušajte izvesti goste prema statusu.",
   },
   registry: {
+    exportCsv: "Izvezi registar kao CSV",
+    exportXlsx: "Izvezi registar kao XLSX",
+    exportLimit: "Izvoz prelazi 20.000 profila. Suzite pretragu po imenu.",
     contacts: {
       title: "Kontakti",
       kind: "Vrsta kontakta",

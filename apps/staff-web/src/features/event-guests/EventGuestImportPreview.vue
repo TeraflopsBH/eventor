@@ -3,7 +3,7 @@ import { computed, ref } from "vue";
 import { useI18n } from "vue-i18n";
 import { api, ApiError, type GuestImportCommit, type GuestImportPreview } from "../../api";
 import { formatApiError } from "../../i18n/api-errors";
-import { downloadGuestCsv, formatGuestCsv } from "./guest-csv";
+import { downloadGuestCsv, formatGuestCsv } from "../../guest-export";
 
 const props = defineProps<{ eventId: string }>();
 const emit = defineEmits<{ committed: [] }>();

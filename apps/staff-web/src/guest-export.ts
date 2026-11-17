@@ -15,3 +15,13 @@ export function downloadGuestCsv(filename: string, csv: string): void {
   link.click();
   setTimeout(() => URL.revokeObjectURL(url), 0);
 }
+
+export async function downloadGuestXlsx(
+  filename: string, sheet: string, rows: (string | null)[][], columnWidths: number[],
+): Promise<void> {
+  const { default: writeWorkbook } = await import("write-excel-file/browser");
+  const cells = rows.map((row, index) => row.map((value) => ({
+    value: value ?? "", type: String, fontWeight: index === 0 ? "bold" as const : undefined,
+  })));
+  await writeWorkbook(cells, { sheet, columns: columnWidths.map((width) => ({ width })) }).toFile(filename);
+}

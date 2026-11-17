@@ -335,3 +335,5 @@ Preview staging stores encrypted source and normalized name fields in `guest_imp
 Migration 000137 exposes an audited report of preview diagnostics and committed outcomes. It reads the batch and rows in one query, requires the same permissions as import preview, and returns row numbers, issue codes, outcome and match counts.
 
 Migration 000138 shares the event display-name projection between the paged roster and CSV/XLSX exports. The export requires event `guest.read` or `guest.manage`, returns display name, participation status and category code, and audits the filter and row count. Interactive exports are capped at 20,000 matching rows and return a limit error for larger results.
+
+Migration 000139 adds organization-scoped `guest.registry.export`, which must be granted in addition to `guest.registry.read` or `guest.registry.manage`. The export uses the directory's name and archive filters. The projection contains names and profile status. The audit event records row count and archive selection.

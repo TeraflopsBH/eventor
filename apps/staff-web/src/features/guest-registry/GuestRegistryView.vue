@@ -4,6 +4,7 @@ import { useI18n } from "vue-i18n";
 import GuestRegistryContacts from "./GuestRegistryContacts.vue";
 import { api, ApiError, type GuestRegistryDirectory, type GuestRegistryHistory, type GuestRegistryProfile, type ManagedParticipationStatus, type RegistryLinkableEvent } from "../../api";
 import { formatApiError } from "../../i18n/api-errors";
+import { downloadGuestCsv, downloadGuestXlsx, formatGuestCsv } from "../../guest-export";
 
 const props = defineProps<{ organizationId: string }>();
 const { t, locale } = useI18n();
@@ -41,7 +42,9 @@ async function run(operation: () => Promise<void>): Promise<void> {
       linkableEvents.value = null;
       editing.value = false;
     }
-    error.value = failure instanceof ApiError ? formatApiError(failure, t) : t("registry.failed");
+    error.value = failure instanceof ApiError && failure.code === "GUEST_REGISTRY_EXPORT_LIMIT"
+      ? t("registry.exportLimit")
+      : failure instanceof ApiError ? formatApiError(failure, t) : t("registry.failed");
   } finally {
     busy.value = false;
   }
@@ -62,6 +65,23 @@ function search(): Promise<void> {
   editing.value = false;
   Object.assign(filters, { query: query.value.trim(), archived: archived.value });
   return run(() => load(0));
+}
+
+function downloadRegistry(format: "csv" | "xlsx"): Promise<void> {
+  return run(async () => {
+    const { query, archived } = filters;
+    const { data } = await api.exportGuestRegistry(props.organizationId, { query, archived });
+    const rows = [
+      ["first_name", "last_name", "display_name", "preferred_name", "profile_status"],
+      ...data.people.map((person) => [person.firstName, person.lastName, person.displayName, person.preferredName, person.status]),
+    ];
+    const filename = `guest-registry-${archived ? "archived" : "active"}.${format}`;
+    if (format === "csv") {
+      downloadGuestCsv(filename, `\uFEFF${formatGuestCsv(rows)}`);
+    } else {
+      await downloadGuestXlsx(filename, t("navigation.guestRegistry"), rows, [26, 28, 36, 28, 18]);
+    }
+  });
 }
 
 function showProfile(personId: string): Promise<void> {
@@ -180,6 +200,14 @@ onMounted(search);
       <button v-if="directory?.canManage" class="button button-primary" type="button" :disabled="busy" @click="edit(null)">
         {{ t("registry.add") }}
       </button>
+      <template v-if="directory?.canExport">
+        <button class="button button-secondary" type="button" :disabled="busy || editing" @click="downloadRegistry('csv')">
+          {{ t("registry.exportCsv") }}
+        </button>
+        <button class="button button-secondary" type="button" :disabled="busy || editing" @click="downloadRegistry('xlsx')">
+          {{ t("registry.exportXlsx") }}
+        </button>
+      </template>
     </form>
     <p v-if="error" class="form-error" role="alert">{{ error }}</p>
     <form v-if="editing" class="registry-form" @submit.prevent="save">

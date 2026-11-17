@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import { formatGuestCsv } from "../src/features/event-guests/guest-csv.ts";
+import { formatGuestCsv } from "../src/guest-export.ts";
 
 test("CSV export preserves columns and protects formula-like values", () => {
   const payload = [

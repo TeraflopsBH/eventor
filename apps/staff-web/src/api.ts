@@ -1187,6 +1187,7 @@ export interface GuestRegistryProfile extends GuestRegistryMutation, GuestRegist
 export interface GuestRegistryDirectory {
   people: GuestRegistryProfile[];
   canManage: boolean;
+  canExport: boolean;
   nextOffset: number | null;
 }
 
@@ -1343,6 +1344,10 @@ export const api = {
     ),
   searchGuestRegistry: (organizationId: string, body: { query: string; archived: boolean; offset: number }) =>
     request<Envelope<GuestRegistryDirectory>>(`/organizations/${encodeURIComponent(organizationId)}/persons/search`, { method: "POST", body }),
+  exportGuestRegistry: (organizationId: string, body: { query: string; archived: boolean }) =>
+    request<Envelope<{ people: (GuestRegistryNames & { status: GuestRegistryProfile["status"] })[] }>>(
+      `/organizations/${encodeURIComponent(organizationId)}/persons/export`, { method: "POST", body },
+    ),
   getGuestRegistryProfile: (personId: string) =>
     request<Envelope<GuestRegistryProfile>>(`/persons/${encodeURIComponent(personId)}`),
   getGuestRegistryContacts: (personId: string) =>
