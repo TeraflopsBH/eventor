@@ -1278,6 +1278,7 @@ export interface EventGuestRow {
   categoryCode: string | null;
   categoryId: string | null;
   tagIds: string[];
+  groupIds: string[];
   participationCode: string | null;
 }
 
@@ -1290,6 +1291,7 @@ export interface GuestListOption {
 
 export type EventGuestCategory = Omit<GuestListOption, "id"> & { categoryId: string };
 export type EventGuestTag = Omit<GuestListOption, "id"> & { tagId: string };
+export type EventGuestGroup = Omit<GuestListOption, "id"> & { groupId: string };
 
 export interface EventGuestList {
   people: EventGuestRow[];
@@ -1408,6 +1410,20 @@ export const api = {
     request<Envelope<{ participationId: string; tagIds: string[]; revision: number }>>(
       `/events/${encodeURIComponent(eventId)}/participations/${encodeURIComponent(participationId)}/tags`, {
         method: "PATCH", body: { tagIds, expectedRevision }, idempotent: true,
+      },
+    ),
+  listEventGuestGroups: (eventId: string) =>
+    request<Envelope<EventGuestGroup[]>>(`/events/${encodeURIComponent(eventId)}/guest-groups`),
+  createEventGuestGroup: (eventId: string, body: { code: string; label: string }) =>
+    request<Envelope<EventGuestGroup>>(`/events/${encodeURIComponent(eventId)}/guest-groups`, { method: "POST", body, idempotent: true }),
+  retireEventGuestGroup: (eventId: string, groupId: string) =>
+    request<Envelope<EventGuestGroup>>(`/events/${encodeURIComponent(eventId)}/guest-groups/${encodeURIComponent(groupId)}/retire`, {
+      method: "POST", idempotent: true,
+    }),
+  setEventGuestGroups: (eventId: string, participationId: string, groupIds: string[], expectedRevision: number) =>
+    request<Envelope<{ participationId: string; groupIds: string[]; revision: number }>>(
+      `/events/${encodeURIComponent(eventId)}/participations/${encodeURIComponent(participationId)}/groups`, {
+        method: "PATCH", body: { groupIds, expectedRevision }, idempotent: true,
       },
     ),
   updateGuestParticipationStatus: (eventId: string, participationId: string, status: ManagedParticipationStatus, expectedRevision: number) =>

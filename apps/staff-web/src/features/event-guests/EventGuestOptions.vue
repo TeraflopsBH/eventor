@@ -4,10 +4,12 @@ import { useI18n } from "vue-i18n";
 import { api, ApiError, type GuestListOption } from "../../api";
 import { formatApiError } from "../../i18n/api-errors";
 
-const props = defineProps<{ eventId: string; kind: "categories" | "tags"; options: GuestListOption[] }>();
+const props = defineProps<{ eventId: string; kind: "categories" | "tags" | "groups"; options: GuestListOption[] }>();
 const emit = defineEmits<{ changed: [] }>();
 const { t } = useI18n();
 const message = (key: string) => `eventGuests.${props.kind}.${key}`;
+const createOption = { categories: api.createEventGuestCategory, tags: api.createEventGuestTag, groups: api.createEventGuestGroup };
+const retireOption = { categories: api.retireEventGuestCategory, tags: api.retireEventGuestTag, groups: api.retireEventGuestGroup };
 const code = ref("");
 const label = ref("");
 const busy = ref(false);
@@ -34,8 +36,7 @@ function create(): void {
   }
   void run(async () => {
     const body = { code: normalizedCode, label: label.value.trim() };
-    if (props.kind === "categories") await api.createEventGuestCategory(props.eventId, body);
-    else await api.createEventGuestTag(props.eventId, body);
+    await createOption[props.kind](props.eventId, body);
     code.value = "";
     label.value = "";
   });
@@ -44,8 +45,7 @@ function create(): void {
 function retire(option: GuestListOption): void {
   if (!window.confirm(t(message("confirmRetire"), { label: option.label }))) return;
   void run(async () => {
-    if (props.kind === "categories") await api.retireEventGuestCategory(props.eventId, option.id);
-    else await api.retireEventGuestTag(props.eventId, option.id);
+    await retireOption[props.kind](props.eventId, option.id);
   });
 }
 </script>

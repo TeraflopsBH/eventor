@@ -3,7 +3,7 @@ import { computed, onMounted, ref } from "vue";
 import { useI18n } from "vue-i18n";
 import EventGuestImportPreview from "./EventGuestImportPreview.vue";
 import EventGuestOptions from "./EventGuestOptions.vue";
-import { api, ApiError, type EventGuestCategory, type EventGuestList, type EventGuestRow, type EventGuestTag, type EventGuestWorkspace, type ManagedParticipationStatus } from "../../api";
+import { api, ApiError, type EventGuestCategory, type EventGuestGroup, type EventGuestList, type EventGuestRow, type EventGuestTag, type EventGuestWorkspace, type ManagedParticipationStatus } from "../../api";
 import { formatApiError } from "../../i18n/api-errors";
 import { downloadGuestCsv, downloadGuestXlsx, formatGuestCsv } from "../../guest-export";
 
@@ -22,19 +22,28 @@ const busy = ref(false);
 const showImport = ref(false);
 const showCategories = ref(false);
 const showTags = ref(false);
+const showGroups = ref(false);
 const categories = ref<EventGuestCategory[]>([]);
 const tags = ref<EventGuestTag[]>([]);
+const groups = ref<EventGuestGroup[]>([]);
 const activeCategories = computed(() => categories.value.filter((category) => !category.retired));
 const categoryNames = computed(() => new Map(categories.value.map((category) => [category.categoryId, category.label])));
 const categoryOptions = computed(() => categories.value.map(({ categoryId, ...option }) => ({ id: categoryId, ...option })));
-const tagOptions = computed(() => tags.value.map(({ tagId, ...option }) => ({ id: tagId, ...option })));
+const membershipKinds = ["tags", "groups"] as const;
+type MembershipKind = typeof membershipKinds[number];
+const membershipOptions = computed(() => ({
+  tags: tags.value.map(({ tagId, ...option }) => ({ id: tagId, ...option })),
+  groups: groups.value.map(({ groupId, ...option }) => ({ id: groupId, ...option })),
+}));
 const categoryEdit = ref<{ row: EventGuestRow; original: string; selected: string } | null>(null);
-const tagEdit = ref<{ row: EventGuestRow; selected: string[] } | null>(null);
-const tagSelectionChanged = computed(() => {
-  const edit = tagEdit.value;
-  return !!edit && (edit.selected.length !== edit.row.tagIds.length || edit.selected.some((id) => !edit.row.tagIds.includes(id)));
+const membershipEdit = ref<{ row: EventGuestRow; kind: MembershipKind; selected: string[] } | null>(null);
+const membershipChanged = computed(() => {
+  const edit = membershipEdit.value;
+  if (!edit) return false;
+  const original = membershipIds(edit.row, edit.kind);
+  return edit.selected.length !== original.length || edit.selected.some((id) => !original.includes(id));
 });
-const rowEditing = computed(() => !!(editing.value || categoryEdit.value || tagEdit.value));
+const rowEditing = computed(() => !!(editing.value || categoryEdit.value || membershipEdit.value));
 const error = ref("");
 
 async function run(operation: () => Promise<void>): Promise<void> {
@@ -49,8 +58,9 @@ async function run(operation: () => Promise<void>): Promise<void> {
       editing.value = null;
       categories.value = [];
       tags.value = [];
+      groups.value = [];
       categoryEdit.value = null;
-      tagEdit.value = null;
+      membershipEdit.value = null;
     }
     error.value = failure instanceof ApiError && failure.code === "GUEST_ROSTER_EXPORT_LIMIT"
       ? t("eventGuests.exportLimit")
@@ -63,7 +73,7 @@ async function run(operation: () => Promise<void>): Promise<void> {
 async function loadPage(pageOffset: number): Promise<void> {
   editing.value = null;
   categoryEdit.value = null;
-  tagEdit.value = null;
+  membershipEdit.value = null;
   if (!eventId.value) return;
   roster.value = (await api.getEventGuestList(eventId.value, pageOffset, status.value, categoryFilter.value)).data;
   offset.value = pageOffset;
@@ -77,27 +87,34 @@ async function loadTags(): Promise<void> {
   tags.value = (await api.listEventGuestTags(eventId.value)).data;
 }
 
+async function loadGroups(): Promise<void> {
+  groups.value = (await api.listEventGuestGroups(eventId.value)).data;
+}
+
 function chooseEvent(): void {
   showImport.value = false;
   showCategories.value = false;
   showTags.value = false;
+  showGroups.value = false;
   categories.value = [];
   tags.value = [];
+  groups.value = [];
   status.value = "";
   categoryFilter.value = "";
   roster.value = null;
   void run(async () => {
     if (!eventId.value) return;
-    const [page, catalogue, tagList] = await Promise.all([
+    const [page, catalogue, tagList, groupList] = await Promise.all([
       api.getEventGuestList(eventId.value, 0, status.value), api.listEventGuestCategories(eventId.value),
-      api.listEventGuestTags(eventId.value),
+      api.listEventGuestTags(eventId.value), api.listEventGuestGroups(eventId.value),
     ]);
     editing.value = null;
     categoryEdit.value = null;
-    tagEdit.value = null;
+    membershipEdit.value = null;
     roster.value = page.data;
     categories.value = catalogue.data;
     tags.value = tagList.data;
+    groups.value = groupList.data;
     offset.value = 0;
   });
 }
@@ -131,15 +148,20 @@ function saveCategory(): Promise<void> {
   });
 }
 
-function editTags(row: EventGuestRow): void {
-  tagEdit.value = { row, selected: [...row.tagIds] };
+function membershipIds(row: EventGuestRow, kind: MembershipKind): string[] {
+  return kind === "tags" ? row.tagIds : row.groupIds;
 }
 
-function saveTags(): Promise<void> {
-  const edit = tagEdit.value;
-  if (!edit || !tagSelectionChanged.value) return Promise.resolve();
+function editMemberships(row: EventGuestRow, kind: MembershipKind): void {
+  membershipEdit.value = { row, kind, selected: [...membershipIds(row, kind)] };
+}
+
+function saveMemberships(): Promise<void> {
+  const edit = membershipEdit.value;
+  if (!edit || !membershipChanged.value) return Promise.resolve();
+  const command = edit.kind === "tags" ? api.setEventGuestTags : api.setEventGuestGroups;
   return run(async () => {
-    await api.setEventGuestTags(eventId.value, edit.row.participationId, edit.selected, edit.row.revision);
+    await command(eventId.value, edit.row.participationId, edit.selected, edit.row.revision);
     await loadPage(offset.value);
   });
 }
@@ -234,7 +256,14 @@ onMounted(() => run(async () => {
       <button class="button button-secondary" type="button" :disabled="busy" :aria-expanded="showTags" @click="showTags = !showTags">
         {{ t("eventGuests.tags.manage") }}
       </button>
-      <EventGuestOptions v-if="showTags" :key="eventId" :event-id="eventId" kind="tags" :options="tagOptions" @changed="run(loadTags)" />
+      <EventGuestOptions v-if="showTags" :key="eventId" :event-id="eventId" kind="tags" :options="membershipOptions.tags" @changed="run(loadTags)" />
+    </div>
+    <div v-if="roster?.canManage">
+      <button class="button button-secondary" type="button" :disabled="busy" :aria-expanded="showGroups" @click="showGroups = !showGroups">
+        {{ t("eventGuests.groups.manage") }}
+      </button>
+      <EventGuestOptions v-if="showGroups" :key="eventId" :event-id="eventId" kind="groups" :options="membershipOptions.groups"
+        @changed="run(loadGroups)" />
     </div>
     <p v-if="roster && !roster.people.length" class="muted">{{ t("eventGuests.noGuests") }}</p>
     <div v-else-if="roster" class="table-scroll">
@@ -243,7 +272,7 @@ onMounted(() => run(async () => {
           <th scope="col">{{ t("registry.displayName") }}</th>
           <th scope="col">{{ t("registry.linkStatus") }}</th>
           <th scope="col">{{ t("eventGuests.category") }}</th>
-          <th scope="col">{{ t("eventGuests.tags.heading") }}</th>
+          <th v-for="kind in membershipKinds" :key="kind" scope="col">{{ t(`eventGuests.${kind}.heading`) }}</th>
           <th scope="col" v-if="roster.canManage">{{ t("common.actions") }}</th>
         </tr></thead>
         <tbody>
@@ -270,20 +299,23 @@ onMounted(() => run(async () => {
               </form>
               <span v-else>{{ categoryName(row) ?? "—" }}</span>
             </td>
-            <td>
-              <form v-if="tagEdit?.row.participationId === row.participationId" @submit.prevent="saveTags">
-                <fieldset class="roster-tags" :disabled="busy">
-                  <legend>{{ t("eventGuests.tags.change") }}</legend>
-                  <label v-for="tag in tags.filter((item) => !item.retired || row.tagIds.includes(item.tagId))" :key="tag.tagId">
-                    <input v-model="tagEdit.selected" type="checkbox" :value="tag.tagId">
-                    {{ tag.retired ? t("eventGuests.tags.retiredOption", { label: tag.label }) : tag.label }}
+            <td v-for="kind in membershipKinds" :key="kind">
+              <form v-if="membershipEdit?.row.participationId === row.participationId && membershipEdit.kind === kind"
+                @submit.prevent="saveMemberships">
+                <fieldset class="roster-memberships" :disabled="busy">
+                  <legend>{{ t(`eventGuests.${kind}.change`) }}</legend>
+                  <label v-for="option in membershipOptions[kind].filter((item) => !item.retired || membershipIds(row, kind).includes(item.id))"
+                    :key="option.id">
+                    <input v-model="membershipEdit.selected" type="checkbox" :value="option.id">
+                    {{ option.retired ? t(`eventGuests.${kind}.retiredOption`, { label: option.label }) : option.label }}
                   </label>
                 </fieldset>
-                <button class="button button-primary" type="submit" :disabled="busy || !tagSelectionChanged">{{ t("common.save") }}</button>
-                <button class="button button-secondary" type="button" :disabled="busy" @click="tagEdit = null">{{ t("common.cancel") }}</button>
+                <button class="button button-primary" type="submit" :disabled="busy || !membershipChanged">{{ t("common.save") }}</button>
+                <button class="button button-secondary" type="button" :disabled="busy" @click="membershipEdit = null">{{ t("common.cancel") }}</button>
               </form>
-              <ul v-else-if="row.tagIds.length" class="roster-tag-list">
-                <li v-for="tag in tags.filter((item) => row.tagIds.includes(item.tagId))" :key="tag.tagId">{{ tag.label }}</li>
+              <ul v-else-if="membershipIds(row, kind).length" class="roster-membership-list">
+                <li v-for="option in membershipOptions[kind].filter((item) => membershipIds(row, kind).includes(item.id))"
+                  :key="option.id">{{ option.label }}</li>
               </ul>
               <span v-else>—</span>
             </td>
@@ -305,8 +337,12 @@ onMounted(() => run(async () => {
                   @click="editCategory(row)">
                   {{ t("eventGuests.categories.change") }}
                 </button>
-                <button v-if="row.tagIds.length || tags.some((tag) => !tag.retired)" class="button button-secondary" type="button"
-                  :disabled="busy || rowEditing" @click="editTags(row)">{{ t("eventGuests.tags.change") }}</button>
+                <template v-for="kind in membershipKinds" :key="kind">
+                  <button v-if="membershipIds(row, kind).length || membershipOptions[kind].some((option) => !option.retired)"
+                    class="button button-secondary" type="button" :disabled="busy || rowEditing" @click="editMemberships(row, kind)">
+                    {{ t(`eventGuests.${kind}.change`) }}
+                  </button>
+                </template>
               </template>
             </td>
           </tr>
@@ -323,6 +359,6 @@ onMounted(() => run(async () => {
 <style scoped>
 .guest-list { display: grid; gap: 1rem; }
 .guest-list-controls { display: flex; gap: 0.75rem; align-items: end; flex-wrap: wrap; }
-.roster-tags { display: grid; gap: 0.25rem; }
-.roster-tag-list { margin: 0; padding-inline-start: 1rem; }
+.roster-memberships { display: grid; gap: 0.25rem; }
+.roster-membership-list { margin: 0; padding-inline-start: 1rem; }
 </style>
