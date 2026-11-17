@@ -4322,6 +4322,69 @@ export function buildApi(dependencies: ApiDependencies): FastifyInstance {
       return result;
     }));
 
+  server.get<{ Params: { eventId: string } }>("/events/:eventId/guest-categories", {
+    schema: { params: participationEventParams },
+  }, (request, reply) => withRegistryRead(reply, registryPrincipal(request),
+    "SELECT eogp.list_event_guest_categories($1::uuid,$3::uuid,$2::uuid) AS result", [request.params.eventId]));
+
+  function writeEventGuestCategory(
+    request: FastifyRequest, reply: FastifyReply, eventId: string, operation: string,
+    input: Record<string, unknown>, query: string, values: readonly unknown[], statusCode = 200,
+  ) {
+    const principal = registryPrincipal(request);
+    const args = [principal.organizationId, eventId, principal.membershipId];
+    return withCommand(request, reply.header("cache-control", "no-store, private"), operation, { eventId, ...input }, async (client) => {
+      const result = await client.query<ResultRow>(query, [...args, ...values]);
+      return (result.rows[0]?.result ?? {}) as Record<string, unknown>;
+    }, async (client) => {
+      await client.query("SELECT eogp.assert_event_command_permission($1::uuid,$2::uuid,$3::uuid,'guest.manage')", args);
+    }, statusCode);
+  }
+
+  type CategoryCreateBody = JsonRequestBody<"/events/{eventId}/guest-categories", "post">;
+  server.post<{ Params: { eventId: string }; Body: CategoryCreateBody }>("/events/:eventId/guest-categories", {
+    schema: {
+      params: participationEventParams, headers: idempotencyHeaders,
+      body: {
+        type: "object", required: ["code", "label"], additionalProperties: false,
+        properties: { code: { type: "string", pattern: "^[A-Z0-9][A-Z0-9_-]{0,39}$" }, label: { type: "string", minLength: 1, maxLength: 120 } },
+      },
+    },
+  }, (request, reply) => writeEventGuestCategory(request, reply, request.params.eventId, "guest.category.create", request.body,
+    "SELECT eogp.write_event_guest_category($1::uuid,$2::uuid,$3::uuid,NULL,$4::text,$5::text) AS result",
+    [request.body.code, request.body.label], 201));
+
+  server.post<{ Params: { eventId: string; categoryId: string } }>("/events/:eventId/guest-categories/:categoryId/retire", {
+    schema: {
+      params: {
+        ...participationEventParams, required: ["eventId", "categoryId"],
+        properties: { ...participationEventParams.properties, categoryId: { type: "string", pattern: uuidPattern } },
+      },
+      headers: idempotencyHeaders,
+    },
+  }, (request, reply) => writeEventGuestCategory(request, reply, request.params.eventId, "guest.category.retire",
+    { categoryId: request.params.categoryId },
+    "SELECT eogp.write_event_guest_category($1::uuid,$2::uuid,$3::uuid,$4::uuid,NULL,NULL) AS result", [request.params.categoryId]));
+
+  type ParticipationCategoryBody = JsonRequestBody<"/events/{eventId}/participations/{participationId}/category", "patch">;
+  server.patch<{ Params: { eventId: string; participationId: string }; Body: ParticipationCategoryBody }>(
+    "/events/:eventId/participations/:participationId/category", {
+      schema: {
+        params: {
+          ...participationEventParams, required: ["eventId", "participationId"],
+          properties: { ...participationEventParams.properties, participationId: { type: "string", pattern: uuidPattern } },
+        },
+        headers: idempotencyHeaders,
+        body: {
+          type: "object", required: ["categoryId", "expectedRevision"], additionalProperties: false,
+          properties: { categoryId: { type: ["string", "null"], pattern: uuidPattern }, expectedRevision: personRevision },
+        },
+      },
+    }, (request, reply) => writeEventGuestCategory(request, reply, request.params.eventId, "guest.participation.category",
+      { participationId: request.params.participationId, ...request.body },
+      "SELECT eogp.set_event_guest_category($1::uuid,$2::uuid,$3::uuid,$4::uuid,$5::integer,$6::uuid) AS result",
+      [request.params.participationId, request.body.expectedRevision, request.body.categoryId]));
+
   server.post<{ Params: { eventId: string }; Body: ParticipationLinkBody }>("/events/:eventId/participations", {
     schema: {
       params: participationEventParams, headers: idempotencyHeaders,

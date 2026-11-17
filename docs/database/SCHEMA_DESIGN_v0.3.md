@@ -339,3 +339,7 @@ Migration 000138 shares the event display-name projection between the paged rost
 Migration 000139 adds organization-scoped `guest.registry.export`, which must be granted in addition to `guest.registry.read` or `guest.registry.manage`. The export uses the directory's name and archive filters. The projection contains names and profile status. The audit event records row count and archive selection.
 
 Migration 000140 adds XLSX worksheet and header selection to the existing encrypted import stages. The batch records the workbook digest and numeric selection. Rows retain their worksheet coordinates and use the shared permissioned preview, duplicate review, commit and report commands. The XLSX reader bounds archive expansion and imports names from text cells.
+
+## Event guest categories (000141)
+
+Categories belong to an individual event and have a stable code and label. Retirement preserves the reference for existing participations and prevents new assignments. Category changes verify the participation revision and update its event-scoped category reference and compatibility code together. Older unregistered category codes remain readable, and the event roster does not reinterpret them using a newly registered code.
