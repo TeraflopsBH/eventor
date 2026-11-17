@@ -349,3 +349,7 @@ Migration 000142 lets staff filter the roster and its CSV/XLSX exports by catego
 ## Internal event guest tags (000143)
 
 Internal tags reuse `guest_tags` and `event_participation_tags`. Event guest readers can view internal tags. Staff with `guest.manage` can create and retire tags and update a participation's internal tag set with a revision check. Retired tags can remain assigned until explicitly removed. The commands preserve existing public and restricted tag links and omit them from the internal catalogue and roster projection.
+
+## Supervised Guest Registry merge (000144)
+
+The `person_merge_records` table records both profile IDs and revisions, the name resolution, the reason, the reviewer, the review audit reference and the optional restoration. The command locks both profiles in UUID order, rechecks their revisions, and requires the separate `guest.registry.merge` grant plus Registry management. The original source row holds its own names in merged state. Restoration clears the source's merge target, reactivates that row and records the correction.

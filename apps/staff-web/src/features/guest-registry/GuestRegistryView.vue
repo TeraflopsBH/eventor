@@ -2,6 +2,7 @@
 import { onMounted, reactive, ref } from "vue";
 import { useI18n } from "vue-i18n";
 import GuestRegistryContacts from "./GuestRegistryContacts.vue";
+import GuestRegistryMerges from "./GuestRegistryMerges.vue";
 import { api, ApiError, type GuestRegistryDirectory, type GuestRegistryHistory, type GuestRegistryProfile, type ManagedParticipationStatus, type RegistryLinkableEvent } from "../../api";
 import { formatApiError } from "../../i18n/api-errors";
 import { downloadGuestCsv, downloadGuestXlsx, formatGuestCsv } from "../../guest-export";
@@ -19,6 +20,8 @@ const linkableEvents = ref<RegistryLinkableEvent[] | null>(null);
 const linkEventId = ref("");
 const linkStatus = ref<"eligible" | "waitlisted" | "ineligible">("eligible");
 const showContacts = ref(false);
+const showMergeReview = ref(false);
+const showMergeHistory = ref(false);
 const busy = ref(false);
 const error = ref("");
 const editing = ref(false);
@@ -38,6 +41,8 @@ async function run(operation: () => Promise<void>): Promise<void> {
       profile.value = null;
       history.value = null;
       showContacts.value = false;
+      showMergeReview.value = false;
+      showMergeHistory.value = false;
       editingParticipation.value = null;
       linkableEvents.value = null;
       editing.value = false;
@@ -60,6 +65,7 @@ function search(): Promise<void> {
   profile.value = null;
   history.value = null;
   showContacts.value = false;
+  showMergeReview.value = false;
   editingParticipation.value = null;
   linkableEvents.value = null;
   editing.value = false;
@@ -87,6 +93,7 @@ function downloadRegistry(format: "csv" | "xlsx"): Promise<void> {
 function showProfile(personId: string): Promise<void> {
   history.value = null;
   showContacts.value = false;
+  showMergeReview.value = false;
   editingParticipation.value = null;
   linkableEvents.value = null;
   editing.value = false;
@@ -98,6 +105,7 @@ function showProfile(personId: string): Promise<void> {
 function edit(person: GuestRegistryProfile | null): void {
   history.value = null;
   showContacts.value = false;
+  showMergeReview.value = false;
   editingParticipation.value = null;
   linkableEvents.value = null;
   profile.value = person;
@@ -127,8 +135,27 @@ function closeProfile(): void {
   profile.value = null;
   history.value = null;
   showContacts.value = false;
+  showMergeReview.value = false;
   editingParticipation.value = null;
   linkableEvents.value = null;
+}
+
+function toggleMergeReview(): void {
+  showMergeHistory.value = false;
+  showMergeReview.value = !showMergeReview.value;
+}
+
+function toggleMergeHistory(): void {
+  showMergeReview.value = false;
+  showMergeHistory.value = !showMergeHistory.value;
+}
+
+function refreshAfterMerge(): Promise<void> {
+  if (showMergeReview.value) {
+    closeProfile();
+    showMergeHistory.value = true;
+  }
+  return run(() => load(0));
 }
 
 function loadHistory(personId: string, offset = 0): Promise<void> {
@@ -208,8 +235,12 @@ onMounted(search);
           {{ t("registry.exportXlsx") }}
         </button>
       </template>
+      <button v-if="directory?.canMerge" class="button button-secondary" type="button" :disabled="busy || editing"
+        :aria-expanded="showMergeHistory" @click="toggleMergeHistory">{{ t("registry.merge.history") }}</button>
     </form>
     <p v-if="error" class="form-error" role="alert">{{ error }}</p>
+    <GuestRegistryMerges v-if="showMergeHistory && directory?.canMerge" :organization-id="organizationId" :source="null"
+      @changed="refreshAfterMerge" />
     <form v-if="editing" class="registry-form" @submit.prevent="save">
       <h3>{{ profile ? t("registry.edit") : t("registry.add") }}</h3>
       <label>{{ t("registry.firstName") }}<input v-model="form.firstName" required maxlength="200"></label>
@@ -231,12 +262,16 @@ onMounted(search);
         <button v-if="directory?.canManage && profile.status === 'active'" class="button button-secondary" :disabled="busy" @click="edit(profile)">{{ t("common.edit") }}</button>
         <button v-if="directory?.canManage && profile.status === 'active'" class="button button-danger" :disabled="busy" @click="archive(profile)">{{ t("registry.archive") }}</button>
         <button v-if="profile.status === 'active'" class="button button-secondary" :disabled="busy" @click="showEventLink(profile.personId)">{{ t("registry.addToEvent") }}</button>
+        <button v-if="directory?.canMerge && profile.status === 'active'" class="button button-secondary" type="button"
+          :disabled="busy" :aria-expanded="showMergeReview" @click="toggleMergeReview">{{ t("registry.merge.review") }}</button>
         <button class="button button-secondary" :disabled="busy" :aria-expanded="showContacts" @click="showContacts = !showContacts">
           {{ t("registry.contacts.title") }}
         </button>
         <button class="button button-secondary" :disabled="busy" @click="loadHistory(profile.personId)">{{ t("registry.history") }}</button>
         <button class="button button-secondary" :disabled="busy" @click="closeProfile">{{ t("common.close") }}</button>
       </div>
+      <GuestRegistryMerges v-if="showMergeReview && directory?.canMerge" :key="profile.personId" :organization-id="organizationId" :source="profile"
+        @changed="refreshAfterMerge" />
       <GuestRegistryContacts v-if="showContacts" :key="profile.personId" :person-id="profile.personId" :active="profile.status === 'active'" />
       <form v-if="linkableEvents?.length" class="registry-form" @submit.prevent="linkToEvent(profile)">
         <div>

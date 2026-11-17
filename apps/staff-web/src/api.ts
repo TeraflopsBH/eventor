@@ -1188,7 +1188,28 @@ export interface GuestRegistryDirectory {
   people: GuestRegistryProfile[];
   canManage: boolean;
   canExport: boolean;
+  canMerge: boolean;
   nextOffset: number | null;
+}
+
+export interface GuestRegistryMergePreview {
+  reviewId: string;
+  source: GuestRegistryProfile;
+  destination: GuestRegistryProfile;
+  blocker: "inactive_profile" | "source_has_linked_records" | null;
+}
+
+export interface GuestRegistryMergeHistory {
+  merges: { mergeId: string; sourceName: string; destinationName: string; mergedAt: string; restoredAt: string | null }[];
+  nextOffset: number | null;
+}
+
+interface GuestRegistryMergeChange {
+  mergeId: string;
+  sourcePersonId: string;
+  destinationPersonId: string;
+  sourceRevision: number;
+  status: "merged" | "restored";
 }
 
 export type ManagedParticipationStatus = "eligible" | "waitlisted" | "withdrawn" | "ineligible";
@@ -1400,6 +1421,25 @@ export const api = {
     request<Envelope<{ people: (GuestRegistryNames & { status: GuestRegistryProfile["status"] })[] }>>(
       `/organizations/${encodeURIComponent(organizationId)}/persons/export`, { method: "POST", body },
     ),
+  getGuestRegistryMerges: (organizationId: string, offset: number) =>
+    request<Envelope<GuestRegistryMergeHistory>>(`/organizations/${encodeURIComponent(organizationId)}/persons/merges?offset=${offset}`),
+  previewGuestRegistryMerge: (personId: string, destinationPersonId: string) =>
+    request<Envelope<GuestRegistryMergePreview>>(`/persons/${encodeURIComponent(personId)}/merge-preview`, {
+      method: "POST", body: { destinationPersonId },
+    }),
+  commitGuestRegistryMerge: (preview: GuestRegistryMergePreview) =>
+    request<Envelope<GuestRegistryMergeChange>>(`/persons/${encodeURIComponent(preview.source.personId)}/merge`, {
+      method: "POST", idempotent: true,
+      body: {
+        reviewId: preview.reviewId,
+        destinationPersonId: preview.destination.personId, sourceRevision: preview.source.revision,
+        destinationRevision: preview.destination.revision, reason: "duplicate_profile",
+      },
+    }),
+  restoreGuestRegistryMerge: (organizationId: string, mergeId: string) =>
+    request<Envelope<GuestRegistryMergeChange>>(`/organizations/${encodeURIComponent(organizationId)}/persons/merges/${encodeURIComponent(mergeId)}/restore`, {
+      method: "POST", idempotent: true,
+    }),
   getGuestRegistryProfile: (personId: string) =>
     request<Envelope<GuestRegistryProfile>>(`/persons/${encodeURIComponent(personId)}`),
   getGuestRegistryContacts: (personId: string) =>
