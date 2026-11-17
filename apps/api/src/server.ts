@@ -4132,7 +4132,10 @@ export function buildApi(dependencies: ApiDependencies): FastifyInstance {
       (value) => {
         const preview = value as {
           batchId: string;
-          rows: { rowNumber: number; namesCiphertext: string; errors: string[]; duplicateCount: number }[];
+          rows: {
+            rowNumber: number; namesCiphertext: string; errors: string[]; duplicateCount: number;
+            matches: { personId: string; revision: number; name: string; displayName: string | null; preferredName: string | null }[];
+          }[];
         };
         return {
           batchId: preview.batchId,
@@ -4145,21 +4148,49 @@ export function buildApi(dependencies: ApiDependencies): FastifyInstance {
       });
   });
 
-  server.post<{ Params: { eventId: string; batchId: string } }>("/events/:eventId/guest-imports/:batchId/commit", {
+  type ImportReuse = { rowNumber: number; personId: string; expectedRevision: number };
+  server.post<{ Params: { eventId: string; batchId: string }; Body: { reuse?: ImportReuse[] } }>("/events/:eventId/guest-imports/:batchId/commit", {
+    preValidation(request, _reply, done) {
+      if (request.body === undefined) request.body = {};
+      done();
+    },
     schema: {
       params: {
         ...participationEventParams, required: ["eventId", "batchId"],
         properties: { ...participationEventParams.properties, batchId: { type: "string", pattern: uuidPattern } },
       },
       headers: idempotencyHeaders,
+      body: {
+        type: "object", additionalProperties: false,
+        properties: {
+          reuse: {
+            type: "array", maxItems: 500,
+            items: {
+              type: "object", required: ["rowNumber", "personId", "expectedRevision"], additionalProperties: false,
+              properties: {
+                rowNumber: { type: "integer", minimum: 2, maximum: 501 },
+                personId: { type: "string", pattern: uuidPattern },
+                expectedRevision: { type: "integer", minimum: 1, maximum: 2147483647 },
+              },
+            },
+          },
+        },
+      },
     },
   }, (request, reply) => {
     const principal = registryPrincipal(request);
     const { eventId, batchId } = request.params;
+    const reuse = (request.body.reuse ?? []).map((choice) => ({ ...choice, personId: choice.personId.toLowerCase() }))
+      .sort((left, right) => left.rowNumber - right.rowNumber);
+    if (new Set(reuse.map((choice) => choice.rowNumber)).size !== reuse.length ||
+        new Set(reuse.map((choice) => choice.personId)).size !== reuse.length) {
+      throw new ApiError(400, "VALIDATION_FAILED", "Choose at most one profile per row and use each profile only once.");
+    }
     const args = [principal.organizationId, eventId, principal.membershipId, batchId];
     const key = guestImportKey();
+    const commandBody = reuse.length ? { eventId, batchId, reuse } : { eventId, batchId };
     return withCommand(request, reply.header("cache-control", "no-store, private"),
-      "guest.import.commit", { eventId, batchId }, async (client) => {
+      "guest.import.commit", commandBody, async (client) => {
         const input = await client.query<ResultRow>(
           "SELECT eogp.guest_import_commit_input($1::uuid,$2::uuid,$3::uuid,$4::uuid) AS result", args,
         );
@@ -4170,8 +4201,8 @@ export function buildApi(dependencies: ApiDependencies): FastifyInstance {
             { organizationId: principal.organizationId, contactKind: "other" })) as ImportNames,
         }));
         const result = await client.query<ResultRow>(
-          "SELECT eogp.commit_clean_guest_import($1::uuid,$2::uuid,$3::uuid,$4::uuid,$5::jsonb) AS result",
-          [...args, JSON.stringify(rows)],
+          "SELECT eogp.commit_reviewed_guest_import($1::uuid,$2::uuid,$3::uuid,$4::uuid,$5::jsonb,$6::jsonb) AS result",
+          [...args, JSON.stringify(rows), JSON.stringify(reuse)],
         );
         return (result.rows[0]?.result ?? {}) as Record<string, unknown>;
       }, async (client) => {
