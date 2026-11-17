@@ -4063,6 +4063,27 @@ export function buildApi(dependencies: ApiDependencies): FastifyInstance {
     }, (client) => assertEventManagePermission(client, principal, eventId), 200);
   });
 
+  server.get<{ Params: { organizationId: string } }>("/organizations/:organizationId/events/guest-lists", {
+    schema: { params: registryOrgParams },
+  }, (request, reply) => withRegistryRead(reply, registryPrincipal(request, request.params.organizationId),
+    "SELECT eogp.list_event_guest_workspaces($1::uuid,$2::uuid) AS result", []));
+
+  type GuestListQuery = { status?: "eligible" | "waitlisted" | "withdrawn" | "cancelled" | "ineligible"; offset?: number };
+  server.get<{ Params: { eventId: string }; Querystring: GuestListQuery }>("/events/:eventId/participations", {
+    schema: {
+      params: participationEventParams,
+      querystring: {
+        type: "object",
+        properties: {
+          status: { type: "string", enum: ["eligible", "waitlisted", "withdrawn", "cancelled", "ineligible"] },
+          offset: { type: "integer", minimum: 0, maximum: 100000 },
+        },
+      },
+    },
+  }, (request, reply) => withRegistryRead(reply, registryPrincipal(request),
+    "SELECT eogp.read_event_guest_list($1::uuid,$3::uuid,$2::uuid,$4::text,$5::integer) AS result",
+    [request.params.eventId, request.query.status ?? null, request.query.offset ?? 0]));
+
   server.post<{ Params: { eventId: string }; Body: ParticipationLinkBody }>("/events/:eventId/participations", {
     schema: {
       params: participationEventParams, headers: idempotencyHeaders,

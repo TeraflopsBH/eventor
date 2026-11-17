@@ -1826,6 +1826,10 @@ BEGIN
          AND aggregate_id = v_person AND actor_membership_id = v_actor AND action = 'guest.registry.history_viewed') THEN
     RAISE EXCEPTION 'authorized archived participation history or access audit is missing';
   END IF;
+  v_result := eogp.read_event_guest_list(v_org, v_event, v_actor, 'withdrawn', 0);
+  IF (v_result->>'canManage')::boolean OR jsonb_array_length(v_result->'people') <> 1 THEN
+    RAISE EXCEPTION 'read-only event grant must allow a filtered roster without management controls';
+  END IF;
   IF eogp.read_guest_registry_history(v_org, v_actor, v_person, 50)->'participations' <> '[]'::jsonb THEN
     RAISE EXCEPTION 'history pagination repeated an earlier page';
   END IF;
@@ -1868,6 +1872,11 @@ BEGIN
     RAISE EXCEPTION 'registry permission unexpectedly allowed adding to an event';
   EXCEPTION WHEN insufficient_privilege THEN NULL;
   END;
+  BEGIN
+    PERFORM eogp.read_event_guest_list(v_org, v_first_event, v_actor, NULL, 0);
+    RAISE EXCEPTION 'event administration without guest permission exposed a guest list';
+  EXCEPTION WHEN insufficient_privilege THEN NULL;
+  END;
   INSERT INTO eogp.role_permissions (organization_id, role_id, permission_code)
   SELECT v_org, role.id, permission.code
   FROM eogp.roles role CROSS JOIN (VALUES ('guest.manage'),('invitation.manage')) permission(code)
@@ -1885,6 +1894,14 @@ BEGIN
   v_result := eogp.link_registry_person_to_event(v_org, v_first_event, v_actor, v_person, 'eligible');
   v_participation := (v_result->>'participationId')::uuid;
   PERFORM eogp.write_guest_registry_person(v_org, v_actor, v_person, 1, 'update', '{"displayName":"Current Name"}');
+  v_result := eogp.read_event_guest_list(v_org, v_first_event, v_actor, 'eligible', 0);
+  IF NOT (v_result->>'canManage')::boolean
+     OR v_result#>>'{people,0,displayName}' <> 'Pinned Name'
+     OR v_result#>'{people,0}' ? 'personId'
+     OR eogp.read_event_guest_list(v_org, v_first_event, v_actor, 'waitlisted', 0)->'people' <> '[]'::jsonb
+     OR NOT eogp.list_event_guest_workspaces(v_org, v_actor) @> jsonb_build_array(jsonb_build_object('eventId', v_first_event)) THEN
+    RAISE EXCEPTION 'roster must show the scoped pinned name, filter statuses, and omit Registry identifiers';
+  END IF;
   IF NOT eogp.list_guest_invitation_participations(v_org, v_first_event, v_actor)
       @> '[{"displayName":"Pinned Name"}]'::jsonb THEN
     RAISE EXCEPTION 'profile edit changed a linked event name';

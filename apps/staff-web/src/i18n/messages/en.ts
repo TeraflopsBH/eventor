@@ -93,6 +93,7 @@ export default {
   navigation: {
     delivery: "Email delivery",
     campaigns: "Campaign review",
+    eventGuests: "Event guests",
     guestRegistry: "Guest Registry",
     guestInvitations: "Guest invitations",
     events: "Events",
@@ -103,6 +104,12 @@ export default {
     cancellations: "Cancellation policies",
     taxes: "Tax configuration",
     settings: "Settings",
+  },
+  eventGuests: {
+    noLists: "No event guest lists are available.",
+    allStatuses: "All statuses",
+    noGuests: "No guests match this status.",
+    category: "Category",
   },
   registry: {
     contacts: {

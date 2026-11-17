@@ -1244,6 +1244,25 @@ function registryContactPath(personId: string): string {
   return `/persons/${encodeURIComponent(personId)}/contacts`;
 }
 
+export interface EventGuestWorkspace extends RegistryLinkableEvent {
+  status: OrganizerEvent["status"];
+}
+
+export interface EventGuestRow {
+  participationId: string;
+  displayName: string;
+  status: ManagedParticipationStatus | "cancelled";
+  revision: number;
+  categoryCode: string | null;
+  participationCode: string | null;
+}
+
+export interface EventGuestList {
+  people: EventGuestRow[];
+  canManage: boolean;
+  nextOffset: number | null;
+}
+
 export const api = {
   enableEventGuestRegistry: (eventId: string) =>
     request<Envelope<{ eventId: string; guestRegistryEnabled: boolean }>>(`/events/${encodeURIComponent(eventId)}/guest-registry/enable`, {
@@ -1255,6 +1274,13 @@ export const api = {
     request<Envelope<{ eventId: string; participationId: string; status: string }>>(`/events/${encodeURIComponent(eventId)}/participations`, {
       method: "POST", body: { personId, status }, idempotent: true,
     }),
+  listEventGuestWorkspaces: (organizationId: string) =>
+    request<Envelope<EventGuestWorkspace[]>>(`/organizations/${encodeURIComponent(organizationId)}/events/guest-lists`),
+  getEventGuestList: (eventId: string, offset: number, status: EventGuestRow["status"] | "") => {
+    const query = new URLSearchParams({ offset: String(offset) });
+    if (status) query.set("status", status);
+    return request<Envelope<EventGuestList>>(`/events/${encodeURIComponent(eventId)}/participations?${query}`);
+  },
   updateGuestParticipationStatus: (eventId: string, participationId: string, status: ManagedParticipationStatus, expectedRevision: number) =>
     request<Envelope<{ participationId: string; status: ManagedParticipationStatus; revision: number }>>(
       `/events/${encodeURIComponent(eventId)}/participations/${encodeURIComponent(participationId)}`,

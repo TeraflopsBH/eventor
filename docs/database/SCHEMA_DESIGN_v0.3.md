@@ -195,6 +195,8 @@ Migration `000131` lets staff with `guest.manage` revise a person's status for a
 
 Migration `000132` stores Registry email and phone contacts using the API's tenant-bound encrypted envelope. Contact views require `guest.registry.contacts.read` or `guest.registry.contacts.manage` in addition to Registry access. Revisions guard consent and primary-contact changes. New values start unverified. Contact values and fingerprints stay out of audit and mutation responses.
 
+Migration `000133` adds a dedicated event guest roster with status filtering and pagination. The roster uses the event's pinned identity names for linked profiles and supports read-only `guest.read` grants alongside `guest.manage`. Roster reads expose neither Registry profile IDs nor contact values.
+
 ### 3.9 Event cancellation, postponement and communications
 
 | Proposed relation | Purpose / key invariants |
