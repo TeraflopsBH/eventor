@@ -1,6 +1,6 @@
 # Current integration baseline — 2026-11-17
 
-**Current main (remote ref verified 2026-11-17):** `daf0f549a1c6ebde715f18cc2477c66cdba48792` includes organizer event administration and planned-session create, list and edit (#132, #134, #135), plus local development tooling (#133). The contracts/PostgreSQL and secret-history workflows passed on this commit.
+**Current main (remote ref verified 2026-11-17):** `022b2062d2386f4ddee9becd25c53353e61a8ccc` includes organizer event administration, session planning and editing, and schedule approval and publication (#132–#136). The contracts/PostgreSQL and secret-history workflows passed on this commit.
 
 **Current product assessment:** Eventor is not yet a complete event-operations product. The venue-booking/commercial and invitation/RSVP slices are substantial; booking cancellation has a staff request/review/approved-execution workspace and a public customer request/read-only status journey. Organizer event list/create/update/archive is integrated. Event sessions, persistent Guest Registry CRUD/import/merge, venue spatial editing, guest seating, admission/check-in, the operations cockpit, vendor/prerequisite workflows, branding/template authoring and both production installers remain incomplete or foundation-only. The feature-by-feature audit is [Blueprint-to-repository gap analysis v1.0](BLUEPRINT_TO_REPOSITORY_GAP_ANALYSIS_v1.0.md), refreshed alongside this baseline.
 
@@ -8,9 +8,10 @@
 
 **Session administration:** The Events workspace lists sessions and creates planned sessions under draft or planned events. Migration `000125` adds audited title and timing edits with a session details revision. Staff may clear both dates and keep a stable session code. Session and event lifecycle transitions remain open under #104, along with the Guest Registry.
 
-**Organizer lifecycle branch:** Migration `000126` adds planning, approval and schedule publication to the Events workspace. Starting and closing events, session lifecycle actions and the Guest Registry remain open under #104.
+**Organizer lifecycle:** Migration `000126` adds planning, approval and schedule publication to the Events workspace. Migration `000127` adds event start and close and session scheduling, start and completion. Event-specific configuration, session-specific disruption handling and the Guest Registry remain open under #104.
 
 **Latest recorded integration evidence:**
+- PR #136 — organizer approval and schedule publication (migration 000126), merged at `022b206`. Post-merge [contracts/PostgreSQL](https://github.com/TeraflopsBH/eventor/actions/runs/44124806464) and [secret-history](https://github.com/TeraflopsBH/eventor/actions/runs/44124806030) passed.
 - PR #135 — revision-checked session editing (migration 000125), merged at `daf0f54`. Post-merge [contracts/PostgreSQL](https://github.com/TeraflopsBH/eventor/actions/runs/44121701709) and [secret-history](https://github.com/TeraflopsBH/eventor/actions/runs/44121701595) passed.
 - PR #134 — session listing and planned-session creation (migration 000124), merged at `55d7f4c`. Post-merge [contracts/PostgreSQL](https://github.com/TeraflopsBH/eventor/actions/runs/44118575011) and [secret-history](https://github.com/TeraflopsBH/eventor/actions/runs/44118574903) passed.
 - PR #132 — organizer event list/create/update/archive, immutable initial schedule/capability setup and bilingual staff workspace (migrations 000121–000123); squash-merged at `fd82a264975d82d1f4700745fba103504d0360fe`. Exact-head and post-merge OpenAPI/API, PostgreSQL 18.6 migrations/RLS/concurrency/browser/backup-restore, staff-web, systemd and secret-history checks passed.

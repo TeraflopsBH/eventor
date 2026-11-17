@@ -4,6 +4,7 @@ import type {
   CreateOrganizerEventSessionInput,
   OrganizerEvent,
   OrganizerEventAction,
+  OrganizerEventSessionAction,
   OrganizerEventSessionDetails,
   UpdateOrganizerEventDetailsInput,
   UpdateOrganizerEventSessionInput,
@@ -107,7 +108,8 @@ export function useOrganizerEvents({
   }
 
   async function transitionEvent(event: OrganizerEvent, action: OrganizerEventAction): Promise<boolean> {
-    if (action === "publish" && !window.confirm(translate("events.confirmPublish", { title: event.title }))) {
+    const confirmation = action === "publish" ? "events.confirmPublish" : action === "complete" ? "events.confirmClose" : null;
+    if (confirmation && !window.confirm(translate(confirmation, { title: event.title }))) {
       return false;
     }
     clearMessages();
@@ -212,6 +214,28 @@ export function useOrganizerEvents({
     }
   }
 
+  async function transitionSession(
+    event: OrganizerEvent,
+    session: OrganizerEventSessionDetails,
+    action: OrganizerEventSessionAction,
+  ): Promise<void> {
+    clearMessages();
+    busy.value = true;
+    try {
+      await api.transitionOrganizerEventSession(organizationId.value, event.eventId, session.sessionId, {
+        action,
+        expectedDetailsRevision: session.detailsRevision,
+        expectedScheduleRevision: event.currentRevision,
+      });
+      pageNotice.value = translate("events.sessionUpdated");
+      await loadSessions(event.eventId);
+    } catch (error) {
+      showError(error);
+    } finally {
+      busy.value = false;
+    }
+  }
+
   return {
     events,
     sessions,
@@ -219,6 +243,7 @@ export function useOrganizerEvents({
     showSessions,
     createSession,
     updateSession,
+    transitionSession,
     selectedEventId,
     selectedEvent,
     canArchive,

@@ -1096,7 +1096,7 @@ export interface OrganizerEvent {
   venueSummary?: Record<string, unknown>;
 }
 
-export type OrganizerEventAction = "plan" | "submit" | "approve" | "return_to_planning" | "publish";
+export type OrganizerEventAction = "plan" | "submit" | "approve" | "return_to_planning" | "publish" | "start" | "complete";
 
 export interface OrganizerEventTransitionInput {
   action: OrganizerEventAction;
@@ -1135,6 +1135,14 @@ export interface OrganizerEventSessionDetails extends OrganizerEventSession {
   detailsRevision: number;
 }
 
+export type OrganizerEventSessionAction = "schedule" | "start" | "complete";
+
+export interface OrganizerEventSessionTransitionInput {
+  action: OrganizerEventSessionAction;
+  expectedDetailsRevision: number;
+  expectedScheduleRevision: number;
+}
+
 export interface UpdateOrganizerEventSessionInput {
   expectedDetailsRevision: number;
   title: string;
@@ -1169,6 +1177,11 @@ export const api = {
     request<Envelope<OrganizerEventSessionDetails>>(
       `${organizerEventSessionsPath(organizationId, eventId)}/${encodeURIComponent(sessionId)}`,
       { method: "PATCH", body, idempotent: true },
+    ),
+  transitionOrganizerEventSession: (organizationId: string, eventId: string, sessionId: string, body: OrganizerEventSessionTransitionInput) =>
+    request<Envelope<Pick<OrganizerEventSessionDetails, "sessionId" | "status" | "detailsRevision">>>(
+      `${organizerEventSessionsPath(organizationId, eventId)}/${encodeURIComponent(sessionId)}/transition`,
+      { method: "POST", body, idempotent: true },
     ),
   getOrganizerEvents: (organizationId: string) =>
     request<Envelope<OrganizerEvent[]>>(`/organizations/${encodeURIComponent(organizationId)}/events`),

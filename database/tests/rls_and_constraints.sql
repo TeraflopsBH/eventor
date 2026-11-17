@@ -1639,6 +1639,7 @@ DECLARE
   v_org CONSTANT uuid := '10000000-0000-0000-0000-00000000000a';
   v_actor CONSTANT uuid := '30000000-0000-0000-0000-00000000000a';
   v_event_id uuid;
+  v_session_id uuid;
   v_result jsonb;
 BEGIN
   v_result := eogp.create_organizer_event(
@@ -1646,6 +1647,8 @@ BEGIN
     '2031-01-18 09:00:00+00', '2031-01-18 12:00:00+00', 'Europe/Sarajevo', '{}', '{}'
   );
   v_event_id := (v_result->>'eventId')::uuid;
+  v_result := eogp.create_organizer_event_session(v_org, v_event_id, v_actor, 'INTRO', 'Opening session', NULL, NULL);
+  v_session_id := (v_result->>'sessionId')::uuid;
 
   BEGIN
     PERFORM eogp.transition_organizer_event(v_org, v_event_id, v_actor, 1, 1, 'publish');
@@ -1688,6 +1691,39 @@ BEGIN
          AND aggregate_id = v_event_id AND action = 'event.lifecycle.transitioned' AND reason_code = 'publish'
          AND actor_membership_id = v_actor AND safe_metadata->>'scheduleRevisionId' IS NOT NULL) THEN
     RAISE EXCEPTION 'publication must record actor and schedule without modifying the schedule revision';
+  END IF;
+  PERFORM eogp.transition_organizer_event_session(v_org, v_event_id, v_session_id, v_actor, 1, 1, 'schedule');
+  BEGIN
+    PERFORM eogp.transition_organizer_event_session(v_org, v_event_id, v_session_id, v_actor, 2, 1, 'start');
+    RAISE EXCEPTION 'starting a session before its event unexpectedly succeeded';
+  EXCEPTION WHEN object_not_in_prerequisite_state THEN NULL;
+  END;
+  PERFORM eogp.transition_organizer_event(v_org, v_event_id, v_actor, 7, 1, 'start');
+  PERFORM eogp.transition_organizer_event_session(v_org, v_event_id, v_session_id, v_actor, 2, 1, 'start');
+  BEGIN
+    PERFORM eogp.transition_organizer_event(v_org, v_event_id, v_actor, 8, 1, 'complete');
+    RAISE EXCEPTION 'closing an event with an active session unexpectedly succeeded';
+  EXCEPTION WHEN object_not_in_prerequisite_state THEN NULL;
+  END;
+  BEGIN
+    PERFORM eogp.transition_organizer_event_session(v_org, v_event_id, v_session_id, v_actor, 2, 1, 'complete');
+    RAISE EXCEPTION 'completing a session with a stale revision unexpectedly succeeded';
+  EXCEPTION WHEN serialization_failure THEN NULL;
+  END;
+  BEGIN
+    PERFORM eogp.transition_organizer_event_session(v_org, v_event_id, v_session_id, v_actor, 3, 2, 'complete');
+    RAISE EXCEPTION 'completing a session with a stale parent schedule unexpectedly succeeded';
+  EXCEPTION WHEN serialization_failure THEN NULL;
+  END;
+  v_result := eogp.transition_organizer_event_session(v_org, v_event_id, v_session_id, v_actor, 3, 1, 'complete');
+  IF v_result->>'status' <> 'completed' OR v_result->>'detailsRevision' <> '4'
+     OR (SELECT count(*) FROM eogp.audit_events WHERE organization_id = v_org AND aggregate_id = v_session_id
+         AND actor_membership_id = v_actor AND action = 'event.session.lifecycle.transitioned') <> 3 THEN
+    RAISE EXCEPTION 'session progress must advance the revision and record each actor';
+  END IF;
+  v_result := eogp.transition_organizer_event(v_org, v_event_id, v_actor, 8, 1, 'complete');
+  IF v_result->>'status' <> 'completed' OR v_result->>'detailsRevision' <> '9' THEN
+    RAISE EXCEPTION 'closing a live event with finished sessions must succeed';
   END IF;
   IF has_function_privilege('eventor_worker',
        'eogp.transition_organizer_event(uuid,uuid,uuid,integer,integer,text)', 'EXECUTE') THEN

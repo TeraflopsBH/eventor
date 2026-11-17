@@ -216,6 +216,8 @@ Draft/planned → scheduled/active → completed, cancelled or postponed (with l
 
 Migration `000126` implements the organizer planning sequence as draft → planned → ready for approval → approved → scheduled. The publish action records the approved schedule revision in the audit event. Review and approval freeze event details and session edits. Staff can return the event to planning to revise it. Commands check both details and schedule revisions. Submission, approval and publication require a current schedule and a resolved disruption queue for the event. Each transition records the acting membership in status history and audit. Publication grants no public access. Cancellation, postponement and rescheduling continue through the existing event change commands.
 
+Migration `000127` adds scheduled → active → completed for events and planned → scheduled → active → completed for sessions. A session can be scheduled after the parent event is scheduled and can start or finish while its event is active. Pending event changes block starting or closing the event. Scheduled and active sessions must finish before the event closes. Unscheduled plans may remain as planning records. Session commands check both the session details revision and the parent event schedule revision and record the acting membership in audit.
+
 ### 4.3 Command transaction rules
 
 - Require idempotency keys on externally retryable commands and state-changing public actions.

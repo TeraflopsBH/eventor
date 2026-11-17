@@ -137,6 +137,7 @@ export default {
     sessionCreated: "Planned session added.",
     sessionUpdated: "Session updated.",
     confirmPublish: "Publish the approved schedule for “{title}”?",
+    confirmClose: "Close “{title}”?",
     lifecycleUpdated: "Event status updated.",
     lifecycle: {
       plan: "Start planning",
@@ -144,6 +145,13 @@ export default {
       approve: "Approve",
       return_to_planning: "Return to planning",
       publish: "Publish schedule",
+      start: "Start event",
+      complete: "Close event",
+    },
+    sessionLifecycle: {
+      schedule: "Schedule session",
+      start: "Start session",
+      complete: "Complete session",
     },
     status: {
       draft: "Draft",

@@ -980,6 +980,12 @@ function makePool() {
           status: "planned", timezoneName: "Europe/Sarajevo",
         } }], rowCount: 1 };
       }
+      if (normalized.includes("eogp.transition_organizer_event_session(")) {
+        commandCalls.push({ sql: normalized, values });
+        return { rows: [{ result: {
+          sessionId: values[2], status: "active", detailsRevision: Number(values[4]) + 1,
+        } }], rowCount: 1 };
+      }
       if (normalized.includes("eogp.transition_organizer_event(")) {
         commandCalls.push({ sql: normalized, values });
         return { rows: [{ result: {
@@ -3646,6 +3652,34 @@ test("event publication binds both revisions to the authorized event and rejects
   })).statusCode, 409);
   mock.setEventPermissionAllowed(false);
   assert.equal((await app.inject(publish)).statusCode, 403);
+});
+
+test("session lifecycle actions bind both revisions and cannot replay against another session", async (t) => {
+  const mock = makePool();
+  const app = makeApi(mock.pool);
+  t.after(async () => app.close());
+  const eventId = "94000000-0000-4000-8000-000000000002";
+  const sessionId = "97000000-0000-4000-8000-000000000002";
+  const root = `/organizations/${principal.organizationId}/events/${eventId}/sessions`;
+  const start = {
+    method: "POST" as const,
+    url: `${root}/${sessionId}/transition`,
+    headers: { "idempotency-key": "session-start-0001" },
+    payload: { action: "start", expectedDetailsRevision: 2, expectedScheduleRevision: 1 },
+  };
+  const response = await app.inject(start);
+  assert.equal(response.statusCode, 200, response.body);
+  assert.equal(response.json().data.status, "active");
+  assert.deepEqual((await app.inject(start)).json(), response.json());
+  const commands = mock.commandCalls.filter(({ sql }) => sql.includes("transition_organizer_event_session"));
+  assert.equal(commands.length, 1);
+  assert.deepEqual(commands[0]?.values,
+    [principal.organizationId, eventId, sessionId, principal.membershipId, 2, 1, "start"]);
+  assert.equal((await app.inject({
+    ...start, url: `${root}/eeeeeeee-eeee-4eee-8eee-eeeeeeeeeeee/transition`,
+  })).statusCode, 409);
+  mock.setEventPermissionAllowed(false);
+  assert.equal((await app.inject(start)).statusCode, 403);
 });
 
 const apiSourceForSecurityAssertions = await readFile(new URL("../../src/server.ts", import.meta.url), "utf8");
