@@ -1732,6 +1732,88 @@ BEGIN
 END;
 $test$;
 
+-- Persistent registry permissions are organization-wide grants separate from event operations.
+DO $test$
+DECLARE
+  v_org CONSTANT uuid := '10000000-0000-0000-0000-00000000000a';
+  v_actor CONSTANT uuid := '30000000-0000-0000-0000-00000000000a';
+  v_role uuid := gen_random_uuid();
+  v_person uuid;
+  v_event uuid;
+  v_result jsonb;
+BEGIN
+  BEGIN
+    PERFORM eogp.read_guest_registry(v_org, v_actor, NULL, '', false, 0);
+    RAISE EXCEPTION 'event manager unexpectedly accessed the organization registry';
+  EXCEPTION WHEN insufficient_privilege THEN NULL;
+  END;
+  INSERT INTO eogp.roles (id, organization_id, code, name, scope_kind)
+    VALUES (v_role, v_org, 'CI-REGISTRY', 'CI Registry', 'organization');
+  INSERT INTO eogp.role_permissions (organization_id, role_id, permission_code)
+    VALUES (v_org, v_role, 'guest.registry.read');
+  INSERT INTO eogp.user_role_grants (organization_id, membership_id, role_id, scope_kind, granted_by_membership_id)
+    VALUES (v_org, v_actor, v_role, 'organization', v_actor);
+  IF (eogp.read_guest_registry(v_org, v_actor, NULL, '', false, 0)->>'canManage')::boolean THEN
+    RAISE EXCEPTION 'read-only registry grant reported write access';
+  END IF;
+  BEGIN
+    PERFORM eogp.write_guest_registry_person(v_org, v_actor, NULL, NULL, 'create', '{"firstName":"Read","lastName":"Only"}');
+    RAISE EXCEPTION 'read-only registry grant unexpectedly allowed person creation';
+  EXCEPTION WHEN insufficient_privilege THEN NULL;
+  END;
+  INSERT INTO eogp.role_permissions (organization_id, role_id, permission_code)
+    VALUES (v_org, v_role, 'guest.registry.manage');
+
+  v_result := eogp.write_guest_registry_person(
+    v_org, v_actor, NULL, NULL, 'create', '{"firstName":"Synthetic","lastName":"Directory Case","preferredName":"Preferred"}'
+  );
+  v_person := (v_result->>'personId')::uuid;
+  IF v_result ? 'firstName' OR v_result->>'revision' <> '1' THEN
+    RAISE EXCEPTION 'registry write result contains private names or an incorrect revision';
+  END IF;
+  IF jsonb_array_length(eogp.read_guest_registry(v_org, v_actor, NULL, 'directory case synthetic', false, 0)->'people') <> 1 THEN
+    RAISE EXCEPTION 'directory must support name lookup in either order';
+  END IF;
+  v_result := eogp.write_guest_registry_person(v_org, v_actor, v_person, 1, 'update', '{"preferredName":null}');
+  IF v_result->>'revision' <> '2' OR
+     eogp.read_guest_registry(v_org, v_actor, v_person, '', false, 0)->'preferredName' <> 'null'::jsonb THEN
+    RAISE EXCEPTION 'partial name update failed to clear the optional name and increment the revision';
+  END IF;
+  BEGIN
+    PERFORM eogp.write_guest_registry_person(v_org, v_actor, v_person, 1, 'archive', '{}');
+    RAISE EXCEPTION 'archiving with stale revision unexpectedly succeeded';
+  EXCEPTION WHEN serialization_failure THEN NULL;
+  END;
+  v_result := eogp.create_organizer_event(
+    v_org, v_actor, 'CI-REGISTRY-PARTICIPATION', 'Registry participation', NULL,
+    '2031-01-18 09:00:00+00', '2031-01-18 12:00:00+00', 'Europe/Sarajevo', '{}', '{}'
+  );
+  v_event := (v_result->>'eventId')::uuid;
+  INSERT INTO eogp.event_participations (organization_id, event_id, person_id, status, added_by_membership_id)
+    VALUES (v_org, v_event, v_person, 'eligible', v_actor);
+  BEGIN
+    PERFORM eogp.write_guest_registry_person(v_org, v_actor, v_person, 2, 'archive', '{}');
+    RAISE EXCEPTION 'archive unexpectedly hid a person with outstanding event participation';
+  EXCEPTION WHEN object_not_in_prerequisite_state THEN NULL;
+  END;
+  UPDATE eogp.event_participations SET status = 'withdrawn'
+    WHERE organization_id = v_org AND event_id = v_event AND person_id = v_person;
+  PERFORM eogp.write_guest_registry_person(v_org, v_actor, v_person, 2, 'archive', '{}');
+  IF jsonb_array_length(eogp.read_guest_registry(v_org, v_actor, NULL, 'Directory Case', false, 0)->'people') <> 0
+     OR jsonb_array_length(eogp.read_guest_registry(v_org, v_actor, NULL, 'Directory Case', true, 0)->'people') <> 1
+     OR NOT EXISTS (SELECT 1 FROM eogp.event_participations
+       WHERE organization_id = v_org AND event_id = v_event AND person_id = v_person AND status = 'withdrawn')
+     OR has_table_privilege('eventor_runtime', 'eogp.persons', 'SELECT,INSERT,UPDATE,DELETE') THEN
+    RAISE EXCEPTION 'profile archival or the runtime registry boundary is incorrect';
+  END IF;
+  BEGIN
+    PERFORM eogp.read_guest_registry('10000000-0000-0000-0000-00000000000b', v_actor, v_person, '', false, 0);
+    RAISE EXCEPTION 'cross-tenant registry access unexpectedly succeeded';
+  EXCEPTION WHEN insufficient_privilege THEN NULL;
+  END;
+END;
+$test$;
+
 COMMIT;
 
 \echo 'PostgreSQL migration smoke tests passed.'

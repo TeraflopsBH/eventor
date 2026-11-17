@@ -4837,7 +4837,7 @@ paths:
           description: "Successful response."
           content:
             application/json:
-              schema: { $ref: '#/components/schemas/ListEnvelope' }
+              schema: { $ref: '#/components/schemas/GuestRegistryDirectoryEnvelope' }
         '400': { $ref: '#/components/responses/BadRequest' }
         '401': { $ref: '#/components/responses/Unauthorized' }
         '403': { $ref: '#/components/responses/Forbidden' }
@@ -4866,7 +4866,7 @@ paths:
           description: "Successful response."
           content:
             application/json:
-              schema: { $ref: '#/components/schemas/DataEnvelope' }
+              schema: { $ref: '#/components/schemas/GuestRegistryMutationEnvelope' }
         '400': { $ref: '#/components/responses/BadRequest' }
         '401': { $ref: '#/components/responses/Unauthorized' }
         '403': { $ref: '#/components/responses/Forbidden' }
@@ -4876,6 +4876,29 @@ paths:
         '412': { $ref: '#/components/responses/PreconditionFailed' }
         '422': { $ref: '#/components/responses/UnprocessableEntity' }
         '429': { $ref: '#/components/responses/TooManyRequests' }
+        '500': { $ref: '#/components/responses/InternalServerError' }
+  "/organizations/{organizationId}/persons/search":
+    post:
+      tags: ["Guest Registry"]
+      operationId: searchPersons
+      summary: "Search organizer-owned profiles by name"
+      security: [{ StaffSession: [], StaffCsrf: [] }]
+      parameters:
+        - $ref: '#/components/parameters/POrganizationId'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/PersonSearchRequest' }
+      responses:
+        '200':
+          description: "A page of authorized profiles."
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/GuestRegistryDirectoryEnvelope' }
+        '400': { $ref: '#/components/responses/BadRequest' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/Forbidden' }
         '500': { $ref: '#/components/responses/InternalServerError' }
   "/organizations/{organizationId}/roles":
     get:
@@ -4991,7 +5014,7 @@ paths:
           description: "Successful response."
           content:
             application/json:
-              schema: { $ref: '#/components/schemas/DataEnvelope' }
+              schema: { $ref: '#/components/schemas/GuestRegistryProfileEnvelope' }
         '400': { $ref: '#/components/responses/BadRequest' }
         '401': { $ref: '#/components/responses/Unauthorized' }
         '403': { $ref: '#/components/responses/Forbidden' }
@@ -5005,12 +5028,11 @@ paths:
     patch:
       tags: ["Guest Registry"]
       operationId: updatePerson
-      summary: "Update person profile/contact data"
+      summary: "Update person profile names"
       security: [{ StaffSession: [], StaffCsrf: [] }]
       parameters:
         - $ref: '#/components/parameters/PPersonId'
         - $ref: '#/components/parameters/IdempotencyKey'
-        - $ref: '#/components/parameters/IfMatch'
       requestBody:
         required: true
         content:
@@ -5021,7 +5043,7 @@ paths:
           description: "Successful response."
           content:
             application/json:
-              schema: { $ref: '#/components/schemas/DataEnvelope' }
+              schema: { $ref: '#/components/schemas/GuestRegistryMutationEnvelope' }
         '400': { $ref: '#/components/responses/BadRequest' }
         '401': { $ref: '#/components/responses/Unauthorized' }
         '403': { $ref: '#/components/responses/Forbidden' }
@@ -5031,6 +5053,33 @@ paths:
         '412': { $ref: '#/components/responses/PreconditionFailed' }
         '422': { $ref: '#/components/responses/UnprocessableEntity' }
         '429': { $ref: '#/components/responses/TooManyRequests' }
+        '500': { $ref: '#/components/responses/InternalServerError' }
+  "/persons/{personId}/archive":
+    post:
+      tags: ["Guest Registry"]
+      operationId: archivePerson
+      summary: "Archive an organizer-owned person profile"
+      security: [{ StaffSession: [], StaffCsrf: [] }]
+      parameters:
+        - $ref: '#/components/parameters/PPersonId'
+        - $ref: '#/components/parameters/IdempotencyKey'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/PersonArchiveRequest' }
+      responses:
+        '200':
+          description: "Profile archived."
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/GuestRegistryMutationEnvelope' }
+        '400': { $ref: '#/components/responses/BadRequest' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '404': { $ref: '#/components/responses/NotFound' }
+        '409': { $ref: '#/components/responses/Conflict' }
+        '412': { $ref: '#/components/responses/PreconditionFailed' }
         '500': { $ref: '#/components/responses/InternalServerError' }
   "/prerequisites/{prerequisiteId}/record-completion":
     post:
@@ -6582,22 +6631,75 @@ components:
         shareId: { type: string, format: uuid }
     PersonCreateRequest:
       type: object
+      additionalProperties: false
       required: [firstName, lastName]
       properties:
-        firstName: { type: string, maxLength: 200 }
-        lastName: { type: string, maxLength: 200 }
-        displayName: { type: string, maxLength: 250 }
-        preferredName: { type: string, maxLength: 200 }
-        contacts: { type: array, items: { type: object, additionalProperties: true } }
+        firstName: { type: string, minLength: 1, maxLength: 200 }
+        lastName: { type: string, minLength: 1, maxLength: 200 }
+        displayName: { type: [string, 'null'], maxLength: 250 }
+        preferredName: { type: [string, 'null'], maxLength: 200 }
     PersonPatchRequest:
       type: object
-      minProperties: 1
+      additionalProperties: false
+      required: [expectedRevision]
+      minProperties: 2
       properties:
-        firstName: { type: string, maxLength: 200 }
-        lastName: { type: string, maxLength: 200 }
-        displayName: { type: string, maxLength: 250 }
-        preferredName: { type: string, maxLength: 200 }
-        contacts: { type: array, items: { type: object, additionalProperties: true } }
+        expectedRevision: { type: integer, minimum: 1, maximum: 2147483647 }
+        firstName: { type: string, minLength: 1, maxLength: 200 }
+        lastName: { type: string, minLength: 1, maxLength: 200 }
+        displayName: { type: [string, 'null'], maxLength: 250 }
+        preferredName: { type: [string, 'null'], maxLength: 200 }
+    PersonSearchRequest:
+      type: object
+      additionalProperties: false
+      properties:
+        query: { type: string, maxLength: 200 }
+        archived: { type: boolean }
+        offset: { type: integer, minimum: 0, maximum: 100000 }
+    PersonArchiveRequest:
+      type: object
+      additionalProperties: false
+      required: [expectedRevision]
+      properties:
+        expectedRevision: { type: integer, minimum: 1, maximum: 2147483647 }
+    GuestRegistryMutation:
+      type: object
+      required: [personId, revision, status]
+      properties:
+        personId: { type: string, format: uuid }
+        revision: { type: integer, minimum: 1 }
+        status: { type: string, enum: [active, archived, merged] }
+    GuestRegistryProfile:
+      allOf:
+        - $ref: '#/components/schemas/GuestRegistryMutation'
+        - type: object
+          required: [firstName, lastName, displayName, preferredName]
+          properties:
+            firstName: { type: string }
+            lastName: { type: string }
+            displayName: { type: [string, 'null'] }
+            preferredName: { type: [string, 'null'] }
+    GuestRegistryMutationEnvelope:
+      type: object
+      required: [data]
+      properties:
+        data: { $ref: '#/components/schemas/GuestRegistryMutation' }
+    GuestRegistryProfileEnvelope:
+      type: object
+      required: [data]
+      properties:
+        data: { $ref: '#/components/schemas/GuestRegistryProfile' }
+    GuestRegistryDirectoryEnvelope:
+      type: object
+      required: [data]
+      properties:
+        data:
+          type: object
+          required: [people, canManage, nextOffset]
+          properties:
+            people: { type: array, items: { $ref: '#/components/schemas/GuestRegistryProfile' } }
+            canManage: { type: boolean }
+            nextOffset: { type: [integer, 'null'], minimum: 0 }
     ParticipationCreateRequest:
       type: object
       required: [personId]

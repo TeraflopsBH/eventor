@@ -1168,7 +1168,40 @@ export interface OrganizerEventArchiveResult {
   alreadyArchived: boolean;
 }
 
+export interface GuestRegistryNames {
+  firstName: string;
+  lastName: string;
+  displayName: string | null;
+  preferredName: string | null;
+}
+
+export interface GuestRegistryMutation {
+  personId: string;
+  revision: number;
+  status: "active" | "archived" | "merged";
+}
+
+export interface GuestRegistryProfile extends GuestRegistryMutation, GuestRegistryNames {}
+
+export interface GuestRegistryDirectory {
+  people: GuestRegistryProfile[];
+  canManage: boolean;
+  nextOffset: number | null;
+}
+
 export const api = {
+  searchGuestRegistry: (organizationId: string, body: { query: string; archived: boolean; offset: number }) =>
+    request<Envelope<GuestRegistryDirectory>>(`/organizations/${encodeURIComponent(organizationId)}/persons/search`, { method: "POST", body }),
+  getGuestRegistryProfile: (personId: string) =>
+    request<Envelope<GuestRegistryProfile>>(`/persons/${encodeURIComponent(personId)}`),
+  createGuestRegistryProfile: (organizationId: string, body: GuestRegistryNames) =>
+    request<Envelope<GuestRegistryMutation>>(`/organizations/${encodeURIComponent(organizationId)}/persons`, { method: "POST", body, idempotent: true }),
+  updateGuestRegistryProfile: (personId: string, body: GuestRegistryNames & { expectedRevision: number }) =>
+    request<Envelope<GuestRegistryMutation>>(`/persons/${encodeURIComponent(personId)}`, { method: "PATCH", body, idempotent: true }),
+  archiveGuestRegistryProfile: (personId: string, expectedRevision: number) =>
+    request<Envelope<GuestRegistryMutation>>(`/persons/${encodeURIComponent(personId)}/archive`, {
+      method: "POST", body: { expectedRevision }, idempotent: true,
+    }),
   getOrganizerEventSessions: (organizationId: string, eventId: string) =>
     request<Envelope<OrganizerEventSessionDetails[]>>(organizerEventSessionsPath(organizationId, eventId)),
   createOrganizerEventSession: (organizationId: string, eventId: string, body: CreateOrganizerEventSessionInput) =>

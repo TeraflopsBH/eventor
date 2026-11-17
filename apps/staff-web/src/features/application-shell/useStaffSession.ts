@@ -2,6 +2,9 @@ import { computed, reactive, ref, type Ref } from "vue";
 import { ApiError, type Principal } from "../../api";
 import { formatApiError } from "../../i18n/api-errors";
 
+export type StaffTab = "delivery" | "campaign" | "inquiries" | "approvals" | "prices" | "cancellations"
+  | "taxes" | "forms" | "guest-invitations" | "guest-registry" | "events" | "settings";
+
 interface StaffSessionDependencies {
   api: typeof import("../../api").api;
   busy: Ref<boolean>;
