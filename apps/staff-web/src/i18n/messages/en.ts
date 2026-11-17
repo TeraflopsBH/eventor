@@ -122,6 +122,8 @@ export default {
       noCleanRows: "No rows are ready to import.",
       refreshPreview: "Registry data changed. Prepare a new preview before importing.",
       commitFailed: "Could not commit the import.",
+      downloadReport: "Download CSV report",
+      reportFailed: "Could not download the import report.",
       review: "Review",
       matches: "Possible Registry matches: {count}",
       reuse: "Use a Registry profile for row {row}",

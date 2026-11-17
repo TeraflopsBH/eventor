@@ -328,6 +328,8 @@ Events now have `details_revision` for optimistic metadata updates, separate fro
 
 Migration 000123 pins the four event-administration SECURITY DEFINER functions to `pg_catalog, eogp`, excluding the public schema in accordance with the authentication-role security audit.
 
-## Event guest import review (000134–000136)
+## Event guest import review (000134–000137)
 
 Preview staging stores encrypted source and normalized name fields in `guest_import_rows`, alongside validation codes and candidate person IDs. A reviewed commit may link an active Registry profile from a staged candidate list if its revision still matches the operator's selection and it has no existing event participation. The commit records the selected IDs and revisions in the batch mapping snapshot for replay and uses normal participation commands to pin the guest identity and audit the link. Clean rows and reviewed matches commit in one transaction. Rows with validation errors and unresolved matches are skipped.
+
+Migration 000137 exposes an audited report of preview diagnostics and committed outcomes. It reads the batch and rows in one query, requires the same permissions as import preview, and returns row numbers, issue codes, outcome and match counts.

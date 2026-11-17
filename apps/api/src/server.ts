@@ -4116,13 +4116,13 @@ export function buildApi(dependencies: ApiDependencies): FastifyInstance {
       });
   });
 
-  server.get<{ Params: { eventId: string; batchId: string } }>("/events/:eventId/guest-imports/:batchId", {
-    schema: {
-      params: {
-        ...participationEventParams, required: ["eventId", "batchId"],
-        properties: { ...participationEventParams.properties, batchId: { type: "string", pattern: uuidPattern } },
-      },
-    },
+  const guestImportBatchParams = {
+    ...participationEventParams, required: ["eventId", "batchId"],
+    properties: { ...participationEventParams.properties, batchId: { type: "string", pattern: uuidPattern } },
+  };
+  type GuestImportBatchParams = { eventId: string; batchId: string };
+  server.get<{ Params: GuestImportBatchParams }>("/events/:eventId/guest-imports/:batchId", {
+    schema: { params: guestImportBatchParams },
   }, (request, reply) => {
     const principal = registryPrincipal(request);
     const key = guestImportKey();
@@ -4148,17 +4148,20 @@ export function buildApi(dependencies: ApiDependencies): FastifyInstance {
       });
   });
 
+  server.get<{ Params: GuestImportBatchParams }>("/events/:eventId/guest-imports/:batchId/report", {
+    schema: { params: guestImportBatchParams },
+  }, (request, reply) => withRegistryRead(reply, registryPrincipal(request),
+    "SELECT eogp.read_guest_import_report($1::uuid,$3::uuid,$2::uuid,$4::uuid) AS result",
+    [request.params.eventId, request.params.batchId]));
+
   type ImportReuse = { rowNumber: number; personId: string; expectedRevision: number };
-  server.post<{ Params: { eventId: string; batchId: string }; Body: { reuse?: ImportReuse[] } }>("/events/:eventId/guest-imports/:batchId/commit", {
+  server.post<{ Params: GuestImportBatchParams; Body: { reuse?: ImportReuse[] } }>("/events/:eventId/guest-imports/:batchId/commit", {
     preValidation(request, _reply, done) {
       if (request.body === undefined) request.body = {};
       done();
     },
     schema: {
-      params: {
-        ...participationEventParams, required: ["eventId", "batchId"],
-        properties: { ...participationEventParams.properties, batchId: { type: "string", pattern: uuidPattern } },
-      },
+      params: guestImportBatchParams,
       headers: idempotencyHeaders,
       body: {
         type: "object", additionalProperties: false,

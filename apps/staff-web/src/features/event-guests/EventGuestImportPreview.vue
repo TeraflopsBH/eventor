@@ -77,6 +77,29 @@ async function commit(): Promise<void> {
     busy.value = false;
   }
 }
+
+async function downloadReport(): Promise<void> {
+  if (!preview.value) return;
+  busy.value = true;
+  error.value = "";
+  try {
+    const { data: report } = await api.getGuestImportReport(props.eventId, preview.value.batchId);
+    const lines = ["preview_row,outcome,issues,possible_registry_matches"];
+    for (const row of report.rows) {
+      lines.push([row.rowNumber, row.outcome, row.errors.join("|"), row.duplicateCount].join(","));
+    }
+    const url = URL.createObjectURL(new Blob([lines.join("\r\n"), "\r\n"], { type: "text/csv;charset=utf-8" }));
+    const link = document.createElement("a");
+    link.href = url;
+    link.download = `guest-import-${report.state === "ready" ? "preview" : "result"}-${report.batchId}.csv`;
+    link.click();
+    setTimeout(() => URL.revokeObjectURL(url), 0);
+  } catch (failure) {
+    error.value = failure instanceof ApiError ? formatApiError(failure, t) : t("eventGuests.import.reportFailed");
+  } finally {
+    busy.value = false;
+  }
+}
 </script>
 
 <template>
@@ -135,6 +158,11 @@ async function commit(): Promise<void> {
         </button>
         <p v-else class="muted">{{ t("eventGuests.import.noCleanRows") }}</p>
       </template>
+      <div>
+        <button class="button button-secondary" type="button" :disabled="busy" @click="downloadReport">
+          {{ t("eventGuests.import.downloadReport") }}
+        </button>
+      </div>
     </template>
   </section>
 </template>

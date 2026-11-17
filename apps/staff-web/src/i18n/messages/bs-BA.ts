@@ -122,6 +122,8 @@ export default {
       noCleanRows: "Nema redova spremnih za uvoz.",
       refreshPreview: "Podaci registra su promijenjeni. Pripremite novi pregled prije uvoza.",
       commitFailed: "Uvoz nije moguće potvrditi.",
+      downloadReport: "Preuzmi CSV izvještaj",
+      reportFailed: "Preuzimanje izvještaja o uvozu nije uspjelo.",
       review: "Pregled",
       matches: "Moguća podudaranja u registru: {count}",
       reuse: "Koristi profil iz registra za red {row}",

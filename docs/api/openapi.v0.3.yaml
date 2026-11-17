@@ -3512,6 +3512,28 @@ paths:
         '403': { $ref: '#/components/responses/Forbidden' }
         '404': { $ref: '#/components/responses/NotFound' }
         '503': { $ref: '#/components/responses/ServiceUnavailable' }
+  "/events/{eventId}/guest-imports/{batchId}/report":
+    get:
+      tags: ["Event Participation"]
+      operationId: getGuestImportReport
+      summary: "Get diagnostics and recorded outcomes for import rows"
+      security: [{ StaffSession: [] }]
+      parameters:
+        - $ref: '#/components/parameters/PEventId'
+        - name: batchId
+          in: path
+          required: true
+          schema: { type: string, format: uuid }
+      responses:
+        '200':
+          description: "The report for a ready or committed batch. Source values and profile identities are omitted."
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/GuestImportReportEnvelope' }
+        '400': { $ref: '#/components/responses/BadRequest' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '404': { $ref: '#/components/responses/NotFound' }
   "/events/{eventId}/guest-imports/{batchId}/commit":
     post:
       tags: ["Event Participation"]
@@ -7140,6 +7162,29 @@ components:
             batchId: { type: string, format: uuid }
             importedCount: { type: integer, minimum: 1, maximum: 500 }
             skippedCount: { type: integer, minimum: 0, maximum: 499 }
+    GuestImportReportEnvelope:
+      type: object
+      required: [data]
+      properties:
+        data:
+          type: object
+          required: [batchId, state, rows]
+          properties:
+            batchId: { type: string, format: uuid }
+            state: { type: string, enum: [ready, committed] }
+            rows:
+              type: array
+              maxItems: 500
+              items:
+                type: object
+                required: [rowNumber, outcome, errors, duplicateCount]
+                properties:
+                  rowNumber: { type: integer, minimum: 2 }
+                  outcome: { type: string, enum: [ready, needs_review, invalid, created, linked, skipped] }
+                  duplicateCount: { type: integer, minimum: 0, maximum: 20 }
+                  errors:
+                    type: array
+                    items: { type: string, enum: [column_count, name_required, name_invalid, duplicate_in_file] }
     GuestImportPreviewEnvelope:
       type: object
       required: [data]

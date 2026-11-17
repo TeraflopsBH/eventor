@@ -1275,13 +1275,22 @@ export interface GuestImportReuse {
   expectedRevision: number;
 }
 
+interface GuestImportDiagnostics {
+  rowNumber: number;
+  errors: ("column_count" | "name_required" | "name_invalid" | "duplicate_in_file")[];
+  duplicateCount: number;
+}
+
+export interface GuestImportReport {
+  batchId: string;
+  state: "ready" | "committed";
+  rows: (GuestImportDiagnostics & { outcome: "ready" | "needs_review" | "invalid" | "created" | "linked" | "skipped" })[];
+}
+
 export interface GuestImportPreview {
   batchId: string;
-  rows: {
-    rowNumber: number;
+  rows: (GuestImportDiagnostics & {
     names: GuestRegistryNames;
-    errors: ("column_count" | "name_required" | "name_invalid" | "duplicate_in_file")[];
-    duplicateCount: number;
     matches: {
       personId: string;
       revision: number;
@@ -1289,7 +1298,7 @@ export interface GuestImportPreview {
       displayName: string | null;
       preferredName: string | null;
     }[];
-  }[];
+  })[];
 }
 
 export const api = {
@@ -1313,6 +1322,8 @@ export const api = {
     }),
   getGuestImportPreview: (eventId: string, batchId: string) =>
     request<Envelope<GuestImportPreview>>(`/events/${encodeURIComponent(eventId)}/guest-imports/${encodeURIComponent(batchId)}`),
+  getGuestImportReport: (eventId: string, batchId: string) =>
+    request<Envelope<GuestImportReport>>(`/events/${encodeURIComponent(eventId)}/guest-imports/${encodeURIComponent(batchId)}/report`),
   listEventGuestWorkspaces: (organizationId: string) =>
     request<Envelope<EventGuestWorkspace[]>>(`/organizations/${encodeURIComponent(organizationId)}/events/guest-lists`),
   getEventGuestList: (eventId: string, offset: number, status: EventGuestRow["status"] | "") => {

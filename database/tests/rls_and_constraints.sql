@@ -2025,9 +2025,21 @@ BEGIN
      OR has_table_privilege('eventor_runtime', 'eogp.guest_import_rows', 'SELECT,INSERT,UPDATE,DELETE') THEN
     RAISE EXCEPTION 'import preview validation, confidentiality or write isolation failed';
   END IF;
+  v_result := eogp.read_guest_import_report(v_fixture_org, v_event, v_actor, v_batch);
+  IF v_result->>'state' IS DISTINCT FROM 'ready' OR v_result#>'{rows,0}' IS DISTINCT FROM
+       '{"rowNumber":2,"outcome":"needs_review","errors":[],"duplicateCount":1}'::jsonb
+     OR v_result#>'{rows,1}' IS DISTINCT FROM
+       '{"rowNumber":3,"outcome":"invalid","errors":["name_required"],"duplicateCount":0}'::jsonb THEN
+    RAISE EXCEPTION 'preview report contains incorrect diagnostics or leaked data';
+  END IF;
   BEGIN
     PERFORM eogp.read_guest_import_preview(v_org, v_event, v_actor, v_batch);
     RAISE EXCEPTION 'cross-tenant preview unexpectedly succeeded';
+  EXCEPTION WHEN insufficient_privilege THEN NULL;
+  END;
+  BEGIN
+    PERFORM eogp.read_guest_import_report(v_org, v_event, v_actor, v_batch);
+    RAISE EXCEPTION 'cross-tenant report unexpectedly succeeded';
   EXCEPTION WHEN insufficient_privilege THEN NULL;
   END;
 END;
@@ -2086,6 +2098,12 @@ BEGIN
                     AND row_number = 2 AND committed_participation_id IS NOT NULL) THEN
     RAISE EXCEPTION 'clean import or batch replay failed';
   END IF;
+  v_result := eogp.read_guest_import_report(v_org, v_event, v_actor, v_batch);
+  IF v_result->>'state' IS DISTINCT FROM 'committed'
+     OR v_result#>>'{rows,0,outcome}' IS DISTINCT FROM 'created'
+     OR v_result#>>'{rows,1,outcome}' IS DISTINCT FROM 'skipped' THEN
+    RAISE EXCEPTION 'clean import report did not reconcile committed and unresolved rows';
+  END IF;
 END;
 $test$;
 
@@ -2133,6 +2151,11 @@ BEGIN
      OR (SELECT count(*) FROM eogp.persons WHERE organization_id = v_org AND first_name = 'Import'
          AND last_name = 'Late Match') <> 1 THEN
     RAISE EXCEPTION 'review did not link and pin the existing profile';
+  END IF;
+  v_result := eogp.read_guest_import_report(v_org, v_event, v_actor, v_batch);
+  IF v_result#>'{rows,0}' IS DISTINCT FROM '{"rowNumber":2,"outcome":"linked","errors":[],"duplicateCount":1}'::jsonb
+     OR v_result#>>'{rows,1,outcome}' IS DISTINCT FROM 'invalid' THEN
+    RAISE EXCEPTION 'reviewed report did not reconcile linked and invalid rows';
   END IF;
   BEGIN
     PERFORM eogp.commit_clean_guest_import(v_org,v_event,v_actor,v_batch,'[]');
