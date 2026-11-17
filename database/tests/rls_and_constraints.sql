@@ -1929,6 +1929,54 @@ BEGIN
 END;
 $test$;
 
+-- Contact values have a separate permission and encrypted write boundary.
+DO $test$
+DECLARE
+  v_org CONSTANT uuid := '10000000-0000-0000-0000-00000000000a';
+  v_actor CONSTANT uuid := '30000000-0000-0000-0000-00000000000a';
+  v_cipher CONSTANT bytea := convert_to('ECP1' || repeat('x', 32), 'UTF8');
+  v_person uuid;
+  v_contact uuid;
+  v_result jsonb;
+BEGIN
+  v_result := eogp.write_guest_registry_person(v_org, v_actor, NULL, NULL, 'create',
+    '{"firstName":"Contact","lastName":"Synthetic"}');
+  v_person := (v_result->>'personId')::uuid;
+  BEGIN
+    PERFORM eogp.read_guest_registry_contacts(v_org, v_actor, v_person);
+    RAISE EXCEPTION 'ordinary Registry permission exposed contact values';
+  EXCEPTION WHEN insufficient_privilege THEN NULL;
+  END;
+  INSERT INTO eogp.role_permissions (organization_id, role_id, permission_code)
+  SELECT v_org, id, 'guest.registry.contacts.manage' FROM eogp.roles WHERE organization_id = v_org AND code = 'CI-REGISTRY';
+
+  v_result := eogp.write_guest_registry_contact(v_org, v_actor, v_person, NULL, NULL, 'email',
+    repeat('a',64), v_cipher, 'permitted', true);
+  v_contact := (v_result->>'contactId')::uuid;
+  IF v_result ? 'ciphertext' OR v_result->>'revision' <> '1'
+     OR eogp.read_guest_registry_contacts(v_org,v_actor,v_person)#>>'{contacts,0,ciphertext}' <> encode(v_cipher,'base64')
+     OR eogp.read_guest_registry_contacts(v_org,v_actor,v_person)#>>'{contacts,0,verified}' <> 'false' THEN
+    RAISE EXCEPTION 'contact storage or write projection is incorrect';
+  END IF;
+  BEGIN
+    PERFORM eogp.write_guest_registry_contact(v_org, v_actor, v_person, NULL, NULL, 'email',
+      repeat('b',64), v_cipher, 'permitted', true);
+    RAISE EXCEPTION 'second primary email unexpectedly succeeded';
+  EXCEPTION WHEN object_not_in_prerequisite_state THEN NULL;
+  END;
+  BEGIN
+    PERFORM eogp.write_guest_registry_contact(v_org, v_actor, v_person, v_contact, 2, NULL, NULL, NULL, 'withdrawn', false);
+    RAISE EXCEPTION 'stale contact preference edit unexpectedly succeeded';
+  EXCEPTION WHEN serialization_failure THEN NULL;
+  END;
+  PERFORM eogp.write_guest_registry_contact(v_org, v_actor, v_person, v_contact, 1, NULL, NULL, NULL, 'withdrawn', false);
+  IF eogp.read_guest_registry_contacts(v_org,v_actor,v_person)#>>'{contacts,0,consent}' <> 'withdrawn'
+     OR has_table_privilege('eventor_runtime', 'eogp.person_contact_points', 'SELECT,INSERT,UPDATE,DELETE') THEN
+    RAISE EXCEPTION 'contact consent or runtime access boundary is incorrect';
+  END IF;
+END;
+$test$;
+
 COMMIT;
 
 \echo 'PostgreSQL migration smoke tests passed.'

@@ -1220,6 +1220,30 @@ export interface RegistryLinkableEvent {
   title: string;
 }
 
+export type RegistryContactConsent = "unknown" | "permitted" | "restricted" | "withdrawn";
+
+export interface RegistryContactPreferences {
+  consent: RegistryContactConsent;
+  primary: boolean;
+}
+
+export interface RegistryContact extends RegistryContactPreferences {
+  contactId: string;
+  revision: number;
+  kind: "email" | "phone";
+  value: string;
+  verified: boolean;
+}
+
+export interface RegistryContactDirectory {
+  contacts: RegistryContact[];
+  canManage: boolean;
+}
+
+function registryContactPath(personId: string): string {
+  return `/persons/${encodeURIComponent(personId)}/contacts`;
+}
+
 export const api = {
   enableEventGuestRegistry: (eventId: string) =>
     request<Envelope<{ eventId: string; guestRegistryEnabled: boolean }>>(`/events/${encodeURIComponent(eventId)}/guest-registry/enable`, {
@@ -1240,6 +1264,14 @@ export const api = {
     request<Envelope<GuestRegistryDirectory>>(`/organizations/${encodeURIComponent(organizationId)}/persons/search`, { method: "POST", body }),
   getGuestRegistryProfile: (personId: string) =>
     request<Envelope<GuestRegistryProfile>>(`/persons/${encodeURIComponent(personId)}`),
+  getGuestRegistryContacts: (personId: string) =>
+    request<Envelope<RegistryContactDirectory>>(registryContactPath(personId)),
+  createGuestRegistryContact: (personId: string, body: RegistryContactPreferences & { kind: RegistryContact["kind"]; value: string }) =>
+    request<Envelope<{ contactId: string; revision: number }>>(registryContactPath(personId), { method: "POST", body, idempotent: true }),
+  updateGuestRegistryContact: (personId: string, contactId: string, body: RegistryContactPreferences & { expectedRevision: number }) =>
+    request<Envelope<{ contactId: string; revision: number }>>(`${registryContactPath(personId)}/${encodeURIComponent(contactId)}`, {
+      method: "PATCH", body, idempotent: true,
+    }),
   getGuestRegistryHistory: (personId: string, offset: number) =>
     request<Envelope<GuestRegistryHistory>>(`/persons/${encodeURIComponent(personId)}/history?offset=${offset}`),
   createGuestRegistryProfile: (organizationId: string, body: GuestRegistryNames) =>
