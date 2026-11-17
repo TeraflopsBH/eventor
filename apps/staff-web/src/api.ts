@@ -1331,6 +1331,11 @@ export const api = {
     if (status) query.set("status", status);
     return request<Envelope<EventGuestList>>(`/events/${encodeURIComponent(eventId)}/participations?${query}`);
   },
+  getEventGuestExport: (eventId: string, status: EventGuestRow["status"] | "") => {
+    const filter = status ? `?${new URLSearchParams({ status })}` : "";
+    type ExportRow = Pick<EventGuestRow, "displayName" | "status" | "categoryCode">;
+    return request<Envelope<{ people: ExportRow[] }>>(`/events/${encodeURIComponent(eventId)}/participations/export${filter}`);
+  },
   updateGuestParticipationStatus: (eventId: string, participationId: string, status: ManagedParticipationStatus, expectedRevision: number) =>
     request<Envelope<{ participationId: string; status: ManagedParticipationStatus; revision: number }>>(
       `/events/${encodeURIComponent(eventId)}/participations/${encodeURIComponent(participationId)}`,

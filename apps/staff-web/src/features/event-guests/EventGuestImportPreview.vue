@@ -3,6 +3,7 @@ import { computed, ref } from "vue";
 import { useI18n } from "vue-i18n";
 import { api, ApiError, type GuestImportCommit, type GuestImportPreview } from "../../api";
 import { formatApiError } from "../../i18n/api-errors";
+import { downloadGuestCsv, formatGuestCsv } from "./guest-csv";
 
 const props = defineProps<{ eventId: string }>();
 const emit = defineEmits<{ committed: [] }>();
@@ -84,16 +85,11 @@ async function downloadReport(): Promise<void> {
   error.value = "";
   try {
     const { data: report } = await api.getGuestImportReport(props.eventId, preview.value.batchId);
-    const lines = ["preview_row,outcome,issues,possible_registry_matches"];
-    for (const row of report.rows) {
-      lines.push([row.rowNumber, row.outcome, row.errors.join("|"), row.duplicateCount].join(","));
-    }
-    const url = URL.createObjectURL(new Blob([lines.join("\r\n"), "\r\n"], { type: "text/csv;charset=utf-8" }));
-    const link = document.createElement("a");
-    link.href = url;
-    link.download = `guest-import-${report.state === "ready" ? "preview" : "result"}-${report.batchId}.csv`;
-    link.click();
-    setTimeout(() => URL.revokeObjectURL(url), 0);
+    const csv = formatGuestCsv([
+      ["preview_row", "outcome", "issues", "possible_registry_matches"],
+      ...report.rows.map((row) => [row.rowNumber, row.outcome, row.errors.join("|"), row.duplicateCount]),
+    ]);
+    downloadGuestCsv(`guest-import-${report.state === "ready" ? "preview" : "result"}-${report.batchId}.csv`, csv);
   } catch (failure) {
     error.value = failure instanceof ApiError ? formatApiError(failure, t) : t("eventGuests.import.reportFailed");
   } finally {

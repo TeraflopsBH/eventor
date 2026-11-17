@@ -4,6 +4,7 @@ import { useI18n } from "vue-i18n";
 import EventGuestImportPreview from "./EventGuestImportPreview.vue";
 import { api, ApiError, type EventGuestList, type EventGuestRow, type EventGuestWorkspace, type ManagedParticipationStatus } from "../../api";
 import { formatApiError } from "../../i18n/api-errors";
+import { downloadGuestCsv, formatGuestCsv } from "./guest-csv";
 
 const props = defineProps<{ organizationId: string }>();
 const { t } = useI18n();
@@ -30,7 +31,9 @@ async function run(operation: () => Promise<void>): Promise<void> {
       roster.value = null;
       editing.value = null;
     }
-    error.value = failure instanceof ApiError ? formatApiError(failure, t) : t("registry.failed");
+    error.value = failure instanceof ApiError && failure.code === "GUEST_ROSTER_EXPORT_LIMIT"
+      ? t("eventGuests.exportLimit")
+      : failure instanceof ApiError ? formatApiError(failure, t) : t("registry.failed");
   } finally {
     busy.value = false;
   }
@@ -70,6 +73,17 @@ function save(): Promise<void> {
   });
 }
 
+function downloadRoster(): Promise<void> {
+  return run(async () => {
+    const { data } = await api.getEventGuestExport(eventId.value, status.value);
+    const csv = formatGuestCsv([
+      ["event_display_name", "participation_status", "category_code"],
+      ...data.people.map((guest) => [guest.displayName, guest.status, guest.categoryCode]),
+    ]);
+    downloadGuestCsv(`event-guests-${eventId.value}-${status.value || "all"}.csv`, `\uFEFF${csv}`);
+  });
+}
+
 onMounted(() => run(async () => {
   events.value = (await api.listEventGuestWorkspaces(props.organizationId)).data;
 }));
@@ -97,6 +111,9 @@ onMounted(() => run(async () => {
           <option v-for="option in [...statuses, 'cancelled']" :key="option" :value="option">{{ t(`registry.participationStatus.${option}`) }}</option>
         </select>
       </div>
+      <button v-if="roster" class="button button-secondary" type="button" :disabled="busy" @click="downloadRoster">
+        {{ t("eventGuests.exportCsv") }}
+      </button>
     </div>
     <div v-if="roster?.canManage">
       <button class="button button-secondary" type="button" :disabled="busy" :aria-expanded="showImport" @click="showImport = !showImport">

@@ -141,6 +141,8 @@ export default {
     allStatuses: "Svi statusi",
     noGuests: "Nema gostiju za ovaj status.",
     category: "Kategorija",
+    exportCsv: "Izvezi listu gostiju kao CSV",
+    exportLimit: "Izvoz prelazi 20.000 gostiju. Pokušajte izvesti goste prema statusu.",
   },
   registry: {
     contacts: {

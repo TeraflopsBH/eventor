@@ -3644,6 +3644,32 @@ paths:
         '422': { $ref: '#/components/responses/UnprocessableEntity' }
         '429': { $ref: '#/components/responses/TooManyRequests' }
         '500': { $ref: '#/components/responses/InternalServerError' }
+  "/events/{eventId}/participations/export":
+    get:
+      tags: ["Event Participation"]
+      operationId: getEventGuestRosterExport
+      summary: "Get all matching event roster rows for CSV export"
+      security: [{ StaffSession: [] }]
+      parameters:
+        - $ref: '#/components/parameters/PEventId'
+        - name: status
+          in: query
+          schema: { type: string, enum: [eligible, waitlisted, withdrawn, cancelled, ineligible] }
+      responses:
+        '200':
+          description: "Event display names, participation statuses and category codes."
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/EventGuestRosterExportEnvelope' }
+        '400': { $ref: '#/components/responses/BadRequest' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '404': { $ref: '#/components/responses/NotFound' }
+        '422':
+          description: "The filtered roster exceeds the interactive export limit of 20,000 rows."
+          content:
+            application/problem+json:
+              schema: { $ref: '#/components/schemas/Problem' }
   "/events/{eventId}/participations/{participationId}":
     patch:
       tags: ["Event Participation"]
@@ -7240,6 +7266,24 @@ components:
               title: { type: string }
               eventCode: { type: string }
               status: { type: string }
+    EventGuestRosterExportEnvelope:
+      type: object
+      required: [data]
+      properties:
+        data:
+          type: object
+          required: [people]
+          properties:
+            people:
+              type: array
+              maxItems: 20000
+              items:
+                type: object
+                required: [displayName, status, categoryCode]
+                properties:
+                  displayName: { type: string }
+                  status: { type: string, enum: [eligible, waitlisted, withdrawn, cancelled, ineligible] }
+                  categoryCode: { type: [string, 'null'] }
     EventGuestListEnvelope:
       type: object
       required: [data]
