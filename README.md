@@ -6,7 +6,7 @@ Eventor is a self-hosted, API-first platform that can be used for venue booking/
 
 The first reference deployment is planned for **Gazi Husrev-beg's Library (GHB), Sarajevo**. The product is being designed as a reusable organization- and venue-aware platform rather than a one-off GHB application.
 
-> **Project status:** 120 PostgreSQL migrations, the Fastify API/notification worker, Vue staff workspace and public cancellation request/status flow are integrated. Event administration, persistent Guest Registry and both production installers remain incomplete. See [Project state](docs/PROJECT_STATE.md) for the verified baseline and validation limitations.
+> **Project status:** 123 PostgreSQL migrations, the Fastify API/notification worker, Vue staff workspace, public cancellation request/status flow and event administration core are integrated. Event sessions, persistent Guest Registry and both production installers remain incomplete. See [Project state](docs/PROJECT_STATE.md) for the verified baseline and validation limitations.
 
 ## Product goals
 
@@ -30,7 +30,7 @@ The first reference deployment is planned for **Gazi Husrev-beg's Library (GHB),
 - Optimization: isolated C++ service using Google OR-Tools CP-SAT.
 - Deployment: self-hosted Linux; Docker is not a mandatory architectural dependency.
 
-See [Project state](docs/PROJECT_STATE.md), [Architecture](docs/ARCHITECTURE.md), [Roadmap](docs/ROADMAP.md), [MVP Scope](docs/product/MVP_SCOPE_v0.1.md), [Roles and Permissions](docs/product/USER_ROLES_AND_PERMISSIONS_v0.1.md), [API contract review](docs/api/API_CONTRACT_REVIEW_v0.2.md), [Database review](docs/database/DATABASE_REVIEW_v0.2.md), [Migration conventions](docs/database/MIGRATION_CONVENTIONS.md), [Design reconciliation](docs/DESIGN_RECONCILIATION_v0.2.md), [Blueprint v1.2](docs/blueprint/v1.2/Event_Operations_Platform_Technical_Blueprint_v1.2.md), [Implementation Design v0.2](docs/implementation-design/v0.2/), and [Architecture decisions](docs/decisions/).
+See [Local development](docs/development/LOCAL_DEVELOPMENT.md), [Project state](docs/PROJECT_STATE.md), [Architecture](docs/ARCHITECTURE.md), [Roadmap](docs/ROADMAP.md), [MVP Scope](docs/product/MVP_SCOPE_v0.1.md), [Roles and Permissions](docs/product/USER_ROLES_AND_PERMISSIONS_v0.1.md), [API contract review](docs/api/API_CONTRACT_REVIEW_v0.2.md), [Database review](docs/database/DATABASE_REVIEW_v0.2.md), [Migration conventions](docs/database/MIGRATION_CONVENTIONS.md), [Design reconciliation](docs/DESIGN_RECONCILIATION_v0.2.md), [Blueprint v1.2](docs/blueprint/v1.2/Event_Operations_Platform_Technical_Blueprint_v1.2.md), [Implementation Design v0.2](docs/implementation-design/v0.2/), and [Architecture decisions](docs/decisions/).
 
 ## Repository layout
 
@@ -48,7 +48,7 @@ Directories will be introduced as their corresponding implementation work begins
 
 ## Development status
 
-The checkout baseline verified on 2026-11-16 is `ff24d14ffe91c8d70c7f6f04d0907852b2b7394b`, matching the remote main ref. Earlier draft-stack status is historical. GitHub API access is verified; current-main contracts/PostgreSQL and secret-history workflows passed. Event administration is under review in PR #132. Native Linux and Docker Compose are both required release deliverables; neither complete installer is present yet.
+The checkout baseline verified on 2026-11-16 is `fd82a264975d82d1f4700745fba103504d0360fe`, matching the remote main ref after PR #132. Earlier draft-stack status is historical. GitHub API access is verified; current-main contracts/PostgreSQL and secret-history workflows passed. Native Linux and Docker Compose are both required release deliverables; neither complete installer is present yet.
 
 ## Security and data handling
 
