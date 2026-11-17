@@ -189,6 +189,8 @@ Migration `000128` makes persistent person profiles accessible through organizat
 
 Migration `000129` exposes paged profile changes and participation history on the Registry profile. Organization Registry permission is required for the profile. Each participation requires `guest.read` or `guest.manage` on its event. Changes show actions and revisions, with history reads recorded in audit.
 
+Migration `000130` lets event managers enable an event guest list. A staff member with Registry access and `guest.manage` on that event can link an active person once. The link stores the selected participation status and an immutable snapshot of identity names. Later Registry changes preserve the event's pinned display name. Earlier participations retain their existing name projection.
+
 ### 3.9 Event cancellation, postponement and communications
 
 | Proposed relation | Purpose / key invariants |

@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import { onMounted, reactive, ref } from "vue";
 import { useI18n } from "vue-i18n";
-import { api, ApiError, type GuestRegistryDirectory, type GuestRegistryHistory, type GuestRegistryProfile } from "../../api";
+import { api, ApiError, type GuestRegistryDirectory, type GuestRegistryHistory, type GuestRegistryProfile, type RegistryLinkableEvent } from "../../api";
 import { formatApiError } from "../../i18n/api-errors";
 
 const props = defineProps<{ organizationId: string }>();
@@ -10,6 +10,9 @@ const directory = ref<GuestRegistryDirectory | null>(null);
 const profile = ref<GuestRegistryProfile | null>(null);
 const history = ref<GuestRegistryHistory | null>(null);
 const historyOffset = ref(0);
+const linkableEvents = ref<RegistryLinkableEvent[] | null>(null);
+const linkEventId = ref("");
+const linkStatus = ref<"eligible" | "waitlisted" | "ineligible">("eligible");
 const busy = ref(false);
 const error = ref("");
 const editing = ref(false);
@@ -28,6 +31,7 @@ async function run(operation: () => Promise<void>): Promise<void> {
       directory.value = null;
       profile.value = null;
       history.value = null;
+      linkableEvents.value = null;
       editing.value = false;
     }
     error.value = failure instanceof ApiError ? formatApiError(failure, t) : t("registry.failed");
@@ -45,6 +49,7 @@ async function load(offset: number): Promise<void> {
 function search(): Promise<void> {
   profile.value = null;
   history.value = null;
+  linkableEvents.value = null;
   editing.value = false;
   Object.assign(filters, { query: query.value.trim(), archived: archived.value });
   return run(() => load(0));
@@ -52,6 +57,7 @@ function search(): Promise<void> {
 
 function showProfile(personId: string): Promise<void> {
   history.value = null;
+  linkableEvents.value = null;
   editing.value = false;
   return run(async () => {
     profile.value = (await api.getGuestRegistryProfile(personId)).data;
@@ -60,6 +66,7 @@ function showProfile(personId: string): Promise<void> {
 
 function edit(person: GuestRegistryProfile | null): void {
   history.value = null;
+  linkableEvents.value = null;
   profile.value = person;
   Object.assign(form, {
     firstName: person?.firstName ?? "", lastName: person?.lastName ?? "",
@@ -86,6 +93,7 @@ function save(): Promise<void> {
 function closeProfile(): void {
   profile.value = null;
   history.value = null;
+  linkableEvents.value = null;
 }
 
 function loadHistory(personId: string, offset = 0): Promise<void> {
@@ -99,12 +107,30 @@ function formatTime(value: string): string {
   return new Intl.DateTimeFormat(locale.value, { dateStyle: "medium", timeStyle: "short" }).format(new Date(value));
 }
 
+function showEventLink(personId: string): Promise<void> {
+  return run(async () => {
+    linkableEvents.value = (await api.getRegistryLinkableEvents(personId)).data;
+    linkEventId.value = "";
+    linkStatus.value = "eligible";
+  });
+}
+
+function linkToEvent(person: GuestRegistryProfile): Promise<void> {
+  return run(async () => {
+    await api.linkGuestRegistryProfile(linkEventId.value, person.personId, linkStatus.value);
+    linkableEvents.value = null;
+    history.value = (await api.getGuestRegistryHistory(person.personId, 0)).data;
+    historyOffset.value = 0;
+  });
+}
+
 function archive(person: GuestRegistryProfile): void {
   if (!window.confirm(t("registry.confirmArchive", { name: `${person.firstName} ${person.lastName}` }))) return;
   void run(async () => {
     await api.archiveGuestRegistryProfile(person.personId, person.revision);
     profile.value = null;
     history.value = null;
+    linkableEvents.value = null;
     await load(filters.offset);
   });
 }
@@ -144,9 +170,34 @@ onMounted(search);
       <div class="registry-toolbar">
         <button v-if="directory?.canManage && profile.status === 'active'" class="button button-secondary" :disabled="busy" @click="edit(profile)">{{ t("common.edit") }}</button>
         <button v-if="directory?.canManage && profile.status === 'active'" class="button button-danger" :disabled="busy" @click="archive(profile)">{{ t("registry.archive") }}</button>
+        <button v-if="profile.status === 'active'" class="button button-secondary" :disabled="busy" @click="showEventLink(profile.personId)">{{ t("registry.addToEvent") }}</button>
         <button class="button button-secondary" :disabled="busy" @click="loadHistory(profile.personId)">{{ t("registry.history") }}</button>
         <button class="button button-secondary" :disabled="busy" @click="closeProfile">{{ t("common.close") }}</button>
       </div>
+      <form v-if="linkableEvents?.length" class="registry-form" @submit.prevent="linkToEvent(profile)">
+        <div>
+          <label for="registry-link-event">{{ t("registry.event") }}</label>
+          <select id="registry-link-event" v-model="linkEventId" required>
+            <option value="" disabled>{{ t("registry.chooseEvent") }}</option>
+            <option v-for="event in linkableEvents" :key="event.eventId" :value="event.eventId">
+              {{ event.title }} ({{ event.eventCode }})
+            </option>
+          </select>
+        </div>
+        <div>
+          <label for="registry-link-status">{{ t("registry.linkStatus") }}</label>
+          <select id="registry-link-status" v-model="linkStatus">
+            <option value="eligible">{{ t("registry.participationStatus.eligible") }}</option>
+            <option value="waitlisted">{{ t("registry.participationStatus.waitlisted") }}</option>
+            <option value="ineligible">{{ t("registry.participationStatus.ineligible") }}</option>
+          </select>
+        </div>
+        <div class="registry-toolbar">
+          <button class="button button-primary" type="submit" :disabled="busy">{{ t("registry.addToEvent") }}</button>
+          <button class="button button-secondary" type="button" :disabled="busy" @click="linkableEvents = null">{{ t("common.cancel") }}</button>
+        </div>
+      </form>
+      <p v-else-if="linkableEvents" class="muted">{{ t("registry.noLinkableEvents") }}</p>
       <template v-if="history">
         <h4>{{ t("registry.participationHistory") }}</h4>
         <ul v-if="history.participations.length">

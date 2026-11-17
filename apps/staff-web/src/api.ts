@@ -1080,6 +1080,7 @@ export interface PageMeta {
 export interface OrganizerEvent {
   eventId: string;
   eventCode: string;
+  guestRegistryEnabled?: boolean;
   title: string;
   descriptionInternal?: string | null;
   status: "draft" | "planned" | "ready_for_approval" | "approved" | "scheduled" | "active" | "completed" | "cancelled" | "postponed" | "archived";
@@ -1209,7 +1210,23 @@ export interface GuestRegistryHistory {
   nextOffset: number | null;
 }
 
+export interface RegistryLinkableEvent {
+  eventId: string;
+  eventCode: string;
+  title: string;
+}
+
 export const api = {
+  enableEventGuestRegistry: (eventId: string) =>
+    request<Envelope<{ eventId: string; guestRegistryEnabled: boolean }>>(`/events/${encodeURIComponent(eventId)}/guest-registry/enable`, {
+      method: "POST", idempotent: true,
+    }),
+  getRegistryLinkableEvents: (personId: string) =>
+    request<Envelope<RegistryLinkableEvent[]>>(`/persons/${encodeURIComponent(personId)}/linkable-events`),
+  linkGuestRegistryProfile: (eventId: string, personId: string, status: "eligible" | "waitlisted" | "ineligible") =>
+    request<Envelope<{ eventId: string; participationId: string; status: string }>>(`/events/${encodeURIComponent(eventId)}/participations`, {
+      method: "POST", body: { personId, status }, idempotent: true,
+    }),
   searchGuestRegistry: (organizationId: string, body: { query: string; archived: boolean; offset: number }) =>
     request<Envelope<GuestRegistryDirectory>>(`/organizations/${encodeURIComponent(organizationId)}/persons/search`, { method: "POST", body }),
   getGuestRegistryProfile: (personId: string) =>

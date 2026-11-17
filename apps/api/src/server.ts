@@ -3923,6 +3923,58 @@ export function buildApi(dependencies: ApiDependencies): FastifyInstance {
   server.get<{ Params: { personId: string } }>("/persons/:personId", { schema: { params: registryPersonParams } },
     (request, reply) => readRegistry(reply, registryPrincipal(request), request.params.personId));
 
+  server.get<{ Params: { personId: string } }>("/persons/:personId/linkable-events", {
+    schema: { params: registryPersonParams },
+  }, (request, reply) => withRegistryRead(reply, registryPrincipal(request),
+    "SELECT eogp.list_registry_linkable_events($1::uuid,$2::uuid,$3::uuid) AS result",
+    [request.params.personId]));
+
+  type ParticipationLinkBody = JsonRequestBody<"/events/{eventId}/participations", "post">;
+  const participationEventParams = {
+    type: "object", required: ["eventId"], properties: { eventId: { type: "string", pattern: uuidPattern } },
+  };
+
+  server.post<{ Params: { eventId: string } }>("/events/:eventId/guest-registry/enable", {
+    schema: { params: participationEventParams, headers: idempotencyHeaders },
+  }, (request, reply) => {
+    const principal = registryPrincipal(request);
+    const { eventId } = request.params;
+    return withCommand(request, reply, "event.guest_registry.enable", { eventId }, async (client) => {
+      const result = await client.query<ResultRow>(
+        "SELECT eogp.enable_event_guest_registry($1::uuid,$2::uuid,$3::uuid) AS result",
+        [principal.organizationId, eventId, principal.membershipId],
+      );
+      return (result.rows[0]?.result ?? {}) as Record<string, unknown>;
+    }, (client) => assertEventManagePermission(client, principal, eventId), 200);
+  });
+
+  server.post<{ Params: { eventId: string }; Body: ParticipationLinkBody }>("/events/:eventId/participations", {
+    schema: {
+      params: participationEventParams, headers: idempotencyHeaders,
+      body: {
+        type: "object", required: ["personId"], additionalProperties: false,
+        properties: {
+          personId: { type: "string", pattern: uuidPattern },
+          status: { type: "string", enum: ["eligible", "waitlisted", "ineligible"] },
+        },
+      },
+    },
+  }, (request, reply) => {
+    const principal = registryPrincipal(request);
+    const { eventId } = request.params;
+    const { personId, status = "eligible" } = request.body;
+    return withCommand(request, reply, "guest.registry.link", { eventId, personId, status }, async (client) => {
+      const result = await client.query<ResultRow>(
+        "SELECT eogp.link_registry_person_to_event($1::uuid,$2::uuid,$3::uuid,$4::uuid,$5::text) AS result",
+        [principal.organizationId, eventId, principal.membershipId, personId, status],
+      );
+      return (result.rows[0]?.result ?? {}) as Record<string, unknown>;
+    }, async (client) => {
+      await client.query("SELECT eogp.assert_event_participation_link_permission($1::uuid,$2::uuid,$3::uuid)",
+        [principal.organizationId, eventId, principal.membershipId]);
+    });
+  });
+
   server.get<{ Params: { personId: string }; Querystring: { offset?: number } }>("/persons/:personId/history", {
     schema: {
       params: registryPersonParams,

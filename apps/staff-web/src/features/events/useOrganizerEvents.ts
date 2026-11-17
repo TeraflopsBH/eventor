@@ -131,6 +131,20 @@ export function useOrganizerEvents({
     }
   }
 
+  async function enableGuestRegistry(event: OrganizerEvent): Promise<void> {
+    clearMessages();
+    busy.value = true;
+    try {
+      await api.enableEventGuestRegistry(event.eventId);
+      pageNotice.value = translate("events.guestListEnabled");
+      await loadEvents();
+    } catch (error) {
+      showError(error);
+    } finally {
+      busy.value = false;
+    }
+  }
+
   async function archiveEvent(event: OrganizerEvent): Promise<void> {
     if (!canArchive(event)) {
       pageError.value = translate("events.archiveUnavailable");
@@ -254,6 +268,7 @@ export function useOrganizerEvents({
     createEvent,
     updateEvent,
     archiveEvent,
+    enableGuestRegistry,
     transitionEvent,
   };
 }
