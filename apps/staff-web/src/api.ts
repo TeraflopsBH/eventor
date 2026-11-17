@@ -1113,6 +1113,27 @@ export interface UpdateOrganizerEventDetailsInput {
   descriptionInternal?: string | null;
 }
 
+export interface OrganizerEventSession {
+  sessionId: string;
+  code: string;
+  title: string;
+  status: "planned" | "scheduled" | "active" | "completed" | "cancelled";
+  startsAt: string | null;
+  endsAt: string | null;
+  timezoneName: string;
+}
+
+export interface CreateOrganizerEventSessionInput {
+  code: string;
+  title: string;
+  startsAt?: string;
+  endsAt?: string;
+}
+
+function organizerEventSessionsPath(organizationId: string, eventId: string): string {
+  return `/organizations/${encodeURIComponent(organizationId)}/events/${encodeURIComponent(eventId)}/sessions`;
+}
+
 export interface OrganizerEventArchiveResult {
   eventId: string;
   status: "archived";
@@ -1121,6 +1142,10 @@ export interface OrganizerEventArchiveResult {
 }
 
 export const api = {
+  getOrganizerEventSessions: (organizationId: string, eventId: string) =>
+    request<Envelope<OrganizerEventSession[]>>(organizerEventSessionsPath(organizationId, eventId)),
+  createOrganizerEventSession: (organizationId: string, eventId: string, body: CreateOrganizerEventSessionInput) =>
+    request<Envelope<OrganizerEventSession>>(organizerEventSessionsPath(organizationId, eventId), { method: "POST", body, idempotent: true }),
   getOrganizerEvents: (organizationId: string) =>
     request<Envelope<OrganizerEvent[]>>(`/organizations/${encodeURIComponent(organizationId)}/events`),
   createOrganizerEvent: (organizationId: string, body: CreateOrganizerEventInput) =>

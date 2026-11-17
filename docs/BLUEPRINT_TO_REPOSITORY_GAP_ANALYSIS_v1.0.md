@@ -1,6 +1,7 @@
 # Blueprint-to-repository gap analysis — v1.0
 
-**Audit baseline:** `main` at `da421567f68fd93976582374bf1ad8b493549d02` (2026-11-16)  
+**Audit baseline:** `main` at `9eeef11cf79a0300ef467f5ec962b9429bf84ef0`, with the organizer-session feature branch assessed separately (2026-11-17)
+
 **Blueprint:** Technical Blueprint v1.2  
 **Purpose:** establish what exists in the repository, what is only a design/schema foundation, what is partially usable, and what remains to be built before Eventor is a ready-to-use event operations product.
 
@@ -30,7 +31,7 @@ The distinction is important: **a database table, migration, OpenAPI schema, tes
 | Venue booking and public inquiry | Public booking form projection/submission, spam/rate protections, inquiry inbox/detail, assignment/status/notes/history, draft conversion and revisions, allocation availability preview | **Implemented slice** | Finish and acceptance-test the end-to-end commercial booking lifecycle, fulfilment tasks and operational communications; distinguish requested, approved and delivered service. |
 | Commercial offers, approval, pricing and tax | Offer lifecycle, approval policies, price lists, tax profiles/calculation, cancellation policies, public offer acceptance/rejection and booking reservation commands; staff views | **Implemented slice / needs end-to-end acceptance** | Close remaining workflow edges, customer-facing presentation, manual booking path, resource fulfilment and cancellation/change lifecycle acceptance. 
 | Booking cancellation and disruption | Migrations 000115–000120; staff request queue/detail, approve/reject/return-for-changes, policy-pinned preview, approved execution with atomic reservation release, public single-use request capability and reusable read-only status capability | **Partial / implemented cancellation slice** | Complete venue/event disruption notices and follow-up projection, amendment/postponement lifecycle, and a dedicated public cancellation browser E2E journey. A customer request is not effective cancellation and does not move money. |
-| Event administration and sessions | Event foundations in migrations 000008–000010; event-related API projections used by invitation workspace | **Foundation / partial** | Full event create/edit/archive, session management, lifecycle transitions, event settings, capability activation, venue assignment and event overview UI. |
+| Event administration and sessions | Migrations 000121–000123 and the bilingual Events workspace provide event list/create/edit/archive. The session branch adds session listing and planned-session creation in 000124. | **Partial** | Session edits and lifecycle transitions, event lifecycle and settings, capability activation, and venue assignment. |
 | Persistent Guest Registry | Migration 000011 and related domain design; participation data used by invitation workflows | **Foundation only** | Registry CRUD, profile history, cross-event identity resolution, duplicate detection, supervised merge/rollback, bulk import/export, saved views and relationship/group management. |
 | Event participation and guest list | Participation/eligibility projections and RSVP/invitation runtime | **Partial** | Complete event guest-list CRUD, categories/tags/custom fields, groups, bulk actions, event-specific snapshots, search and data provenance. |
 | Invitations and RSVP | Guest capability resolution, invitation view, RSVP submission/history, issue/reissue/revoke, staff-recorded RSVP/correction, delivery-attempt history; staff invitation workspace and guest invitation page | **Implemented slice** | Batch issuance, reminders, broader guest self-service, full communication controls, provider callback/reconciliation for ambiguous guest-invitation delivery, and full guest journey acceptance. |
@@ -72,12 +73,13 @@ The current staff navigation includes:
 - Booking cancellation request/review workspace.
 - Tax profiles.
 - Organization locale settings.
+- Organizer event administration.
 
 This is a real staff application, not a blank shell. However, it is not yet the blueprint's event operations cockpit or the complete navigation/workspace map.
 
 ### 3.2 Runtime API boundary
 
-The current API route families include booking forms/inquiries/drafts/offers, price/tax/approval/cancellation policies, booking reservation commands, staff booking-cancellation review/detail/decision/preview/execution, external booking-action capability issue/revoke/resolve, public cancellation request/status, event invitation projections, guest invitation issue/revoke, guest RSVP and delivery configuration/campaign operations.
+The current API route families include booking forms/inquiries/drafts/offers, price/tax/approval/cancellation policies, booking reservation commands, staff booking-cancellation review/detail/decision/preview/execution, external booking-action capability issue/revoke/resolve, public cancellation request/status, organizer event administration, event invitation projections, guest invitation issue/revoke, guest RSVP and delivery configuration/campaign operations.
 
 The audited route registrations did not reveal runtime route families for Guest Registry CRUD/import, venue/floor-plan editing, event guest allocation, admission QR, check-in stations/scanning, cockpit/realtime, external prerequisites, branding or vendor workspaces. Their appearance in design documents or early migrations must not be counted as implementation.
 
@@ -85,7 +87,7 @@ The current API has separate API and notification-worker entry points. The worke
 
 ### 3.3 Database maturity
 
-There are 120 ordered migrations. They provide a substantial foundation for tenancy, authorization, venue/resource booking, event/guest/invitation/attendance concepts, collaboration, notifications and commercial booking. The migration count is not a feature-completion metric: later runtime/API/UI work is still required for several domains. Migrations 000115–000120 add the cancellation request/review/execution and public status-capability slice; they do not complete event administration or the Guest Registry.
+Main has 123 ordered migrations. The organizer-session branch adds migration 000124. They provide a substantial foundation for tenancy, authorization, venue/resource booking, event/guest/invitation/attendance concepts, collaboration, notifications and commercial booking. The migration count is not a feature-completion metric: later runtime/API/UI work is still required for several domains. Migrations 000115–000120 add the cancellation request/review/execution and public status-capability slice; they do not complete event administration or the Guest Registry.
 
 ### 3.4 Email and forms
 
@@ -191,14 +193,14 @@ The installer is a product deliverable and must support two explicit deployment 
 - SMTP is optional at install time; support local development/test capture (for example Mailpit) and later SMTP configuration such as Gmail SMTP or a transactional provider.
 - Installation mode must not alter application features or security guarantees.
 
-The existing systemd unit templates, role bootstrap and migration runner are useful foundations, but they are not yet a complete native installer. No Dockerfile or Compose deployment was present in the audited repository tree.
+The existing systemd unit templates, role bootstrap and migration runner are useful foundations, but they are not yet a complete native installer. Development Compose supplies PostgreSQL 18.6. The release Compose topology and application images remain outstanding.
 
 ## 6. Immediate engineering priorities
 
 1. Treat this document as the current static gap baseline and reconcile the older roadmap/project-state documents so they no longer refer to superseded draft PR stacks or stale phase status.
 2. Create a dependency-aware product backlog with one issue per vertical slice, each defining API, UI, database, security, localization and acceptance criteria.
 3. Agree the first complete usable product milestone. Recommended: finish the venue-provider booking lifecycle as a coherent product while starting the Guest Registry/event organizer foundation; do not declare Eventor complete at the booking-only milestone.
-4. Start the Guest Registry and event CRUD vertical slices after the booking baseline is reconciled. Do not spend the next development cycle on VM/public deployment testing.
+4. Finish session editing and lifecycle management, then implement Guest Registry CRUD, search and history using the existing person and participation foundations. Follow with import preview and commit, duplicate handling and supervised merge.
 5. Keep CI/unit/PostgreSQL/browser tests running on every feature PR. Reserve the dedicated `eventor-acceptance` VM for the final integrated release candidate.
 
 ## 7. Known limitations of this audit

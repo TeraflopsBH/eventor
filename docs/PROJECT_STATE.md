@@ -1,10 +1,12 @@
 # Current integration baseline — 2026-11-17
 
-**Current main (remote ref verified 2026-11-17):** `fd82a264975d82d1f4700745fba103504d0360fe` (includes PR #132 organizer event administration core).
+**Current main (remote ref verified 2026-11-17):** `9eeef11cf79a0300ef467f5ec962b9429bf84ef0` includes organizer event administration (#132) and reproducible local development (#133). The contracts/PostgreSQL and secret-history workflows passed on this commit.
 
 **Current product assessment:** Eventor is not yet a complete event-operations product. The venue-booking/commercial and invitation/RSVP slices are substantial; booking cancellation has a staff request/review/approved-execution workspace and a public customer request/read-only status journey. Organizer event list/create/update/archive is integrated. Event sessions, persistent Guest Registry CRUD/import/merge, venue spatial editing, guest seating, admission/check-in, the operations cockpit, vendor/prerequisite workflows, branding/template authoring and both production installers remain incomplete or foundation-only. The feature-by-feature audit is [Blueprint-to-repository gap analysis v1.0](BLUEPRINT_TO_REPOSITORY_GAP_ANALYSIS_v1.0.md), refreshed alongside this baseline.
 
-**Live verification:** GitHub API access is working. PR #132 is squash-merged; current main `fd82a26` passed post-merge [contracts/PostgreSQL](https://github.com/TeraflopsBH/eventor/actions/runs/43940948156) and [secret-history](https://github.com/TeraflopsBH/eventor/actions/runs/43940948187). Issue #104 remains open for event sessions and the persistent Guest Registry. Issue #112 remains open for disruption coordination and acceptance.
+**Live verification:** GitHub API access is working. PR #132 is squash-merged; its merge commit `fd82a26` passed post-merge [contracts/PostgreSQL](https://github.com/TeraflopsBH/eventor/actions/runs/43940948156) and [secret-history](https://github.com/TeraflopsBH/eventor/actions/runs/43940948187). Issue #104 remains open for event sessions and the persistent Guest Registry. Issue #112 remains open for disruption coordination and acceptance.
+
+**Session administration branch:** The Events workspace lists sessions and creates planned sessions under draft or planned events. Session times use the parent event time zone and may be left unset. Migration `000124` adds scoped `event.manage` commands and audit attribution. Session editing and lifecycle transitions remain open under #104, along with the Guest Registry.
 
 **Latest recorded integration evidence:**
 - PR #132 — organizer event list/create/update/archive, immutable initial schedule/capability setup and bilingual staff workspace (migrations 000121–000123); squash-merged at `fd82a264975d82d1f4700745fba103504d0360fe`. Exact-head and post-merge OpenAPI/API, PostgreSQL 18.6 migrations/RLS/concurrency/browser/backup-restore, staff-web, systemd and secret-history checks passed.
@@ -22,7 +24,7 @@
 
 Docker remains optional; both modes must run the same application build, migrations and configuration contract.
 
-**Current repository inventory:** `deploy/systemd` exists, but the repository has no production Compose topology or Dockerfile and no complete native installer. The API route inventory now includes booking cancellation review/decision/preview/execution and public request/status routes, but still has no event CRUD or Guest Registry CRUD/import/merge routes. Migration foundations must not be counted as complete workflows.
+**Current repository inventory:** `deploy/systemd` exists, but the repository has no production Compose topology or Dockerfile and no complete native installer. The API route inventory now includes booking cancellation review/decision/preview/execution and public request/status routes, and organizer event list/create/update/archive. Guest Registry CRUD/import/merge routes remain outstanding. Migration foundations must not be counted as complete workflows.
 
 > Historical status entries below are retained as an audit trail. Where they conflict with this current baseline, this section and the current roadmap supersede them.
 

@@ -961,6 +961,18 @@ function makePool() {
           decidedAt: "2026-11-15T13:10:00.000Z",
         } }], rowCount: 1 };
       }
+      if (normalized.includes("eogp.list_organizer_event_sessions(")) {
+        commandCalls.push({ sql: normalized, values });
+        return { rows: [{ result: [] }], rowCount: 1 };
+      }
+      if (normalized.includes("eogp.create_organizer_event_session(")) {
+        commandCalls.push({ sql: normalized, values });
+        return { rows: [{ result: {
+          sessionId: "97000000-0000-4000-8000-000000000002",
+          code: values[3], title: values[4], startsAt: values[5], endsAt: values[6],
+          status: "planned", timezoneName: "Europe/Sarajevo",
+        } }], rowCount: 1 };
+      }
       if (normalized.includes("eogp.list_organizer_events(")) {
         commandCalls.push({ sql: normalized, values });
         return { rows: [{ result: [{
@@ -3527,6 +3539,46 @@ test("organizer event administration lists, creates, updates and archives with i
     payload: createBody,
   });
   assert.equal(revokedReplay.statusCode, 403);
+});
+
+test("organizer sessions scope listing and idempotent creation to the requested event", async (t) => {
+  const mock = makePool();
+  const app = makeApi(mock.pool);
+  t.after(async () => app.close());
+  const eventId = "94000000-0000-4000-8000-000000000002";
+  const path = `/organizations/${principal.organizationId}/events`;
+  const url = `${path}/${eventId}/sessions`;
+
+  const list = await app.inject({ method: "GET", url });
+  assert.equal(list.statusCode, 200);
+  assert.deepEqual(list.json().data, []);
+  assert.deepEqual(mock.commandCalls.find(({ sql }) => sql.includes("list_organizer_event_sessions"))?.values,
+    [principal.organizationId, eventId, principal.membershipId]);
+
+  const post = {
+    method: "POST" as const,
+    url,
+    headers: { "idempotency-key": "session-create-001" },
+    payload: { code: "OPENING", title: "Opening session" },
+  };
+  const create = await app.inject(post);
+  assert.equal(create.statusCode, 201, create.body);
+  assert.equal(create.json().data.status, "planned");
+  assert.deepEqual((await app.inject(post)).json(), create.json());
+  const calls = mock.commandCalls.filter(({ sql }) => sql.includes("create_organizer_event_session"));
+  assert.equal(calls.length, 1);
+  assert.deepEqual(calls[0]?.values,
+    [principal.organizationId, eventId, principal.membershipId, "OPENING", "Opening session", null, null]);
+
+  const crossEvent = await app.inject({ ...post, url: `${path}/eeeeeeee-eeee-4eee-8eee-eeeeeeeeeeee/sessions` });
+  assert.equal(crossEvent.statusCode, 409);
+  const crossTenant = await app.inject({
+    ...post,
+    url: `/organizations/eeeeeeee-eeee-4eee-8eee-eeeeeeeeeeee/events/${eventId}/sessions`,
+  });
+  assert.equal(crossTenant.statusCode, 403);
+  mock.setEventPermissionAllowed(false);
+  assert.equal((await app.inject(post)).statusCode, 403);
 });
 
 const apiSourceForSecurityAssertions = await readFile(new URL("../../src/server.ts", import.meta.url), "utf8");

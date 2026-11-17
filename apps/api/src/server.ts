@@ -22,6 +22,9 @@ export type { StaffPrincipal } from "./session-auth.js";
 type JsonRequestBody<Path extends keyof paths, Method extends keyof paths[Path]> =
   paths[Path][Method] extends { requestBody: { content: { "application/json": infer Body } } }
     ? Body : never;
+const organizerEventSessionsPath = "/organizations/:organizationId/events/:eventId/sessions";
+type CreateOrganizerEventSessionBody = JsonRequestBody<"/organizations/{organizationId}/events/{eventId}/sessions", "post">;
+type OrganizerEventParams = { organizationId: string; eventId: string };
 type SessionCreateBody = JsonRequestBody<"/auth/session", "post">;
 type LocalePreferenceBody = { locale: "bs-BA" | "en" | null };
 type OrganizationLocaleBody = { defaultLocale: "bs-BA" | "en" };
@@ -3810,6 +3813,80 @@ export function buildApi(dependencies: ApiDependencies): FastifyInstance {
       },
     },
     async (request, reply) => submitPublicOfferDecision(request, reply, "rejected", request.body),
+  );
+
+  const organizerEventParams = {
+    type: "object",
+    required: ["organizationId", "eventId"],
+    properties: {
+      organizationId: { type: "string", pattern: uuidPattern },
+      eventId: { type: "string", pattern: uuidPattern },
+    },
+  };
+
+  server.get<{ Params: OrganizerEventParams }>(
+    organizerEventSessionsPath,
+    { schema: { params: organizerEventParams } },
+    async (request, reply) => {
+      const principal = request.staffPrincipal!;
+      const { organizationId, eventId } = request.params;
+      if (organizationId !== principal.organizationId) {
+        throw new ApiError(403, "ORGANIZATION_SCOPE_MISMATCH", "The requested organization is not available to this session.");
+      }
+      const client = await dependencies.pool.connect();
+      try {
+        await client.query("BEGIN");
+        await client.query("SELECT set_config('app.organization_id',$1,true)", [organizationId]);
+        await client.query("SELECT set_config('app.actor_membership_id',$1,true)", [principal.membershipId]);
+        const result = await client.query<ResultRow>(
+          "SELECT eogp.list_organizer_event_sessions($1::uuid,$2::uuid,$3::uuid) AS result",
+          [organizationId, eventId, principal.membershipId],
+        );
+        await client.query("COMMIT");
+        return reply.code(200).send({ data: result.rows[0]?.result ?? [] });
+      } catch (error) {
+        try { await client.query("ROLLBACK"); } catch { /* preserve the read error */ }
+        throw databaseError(error);
+      } finally {
+        client.release();
+      }
+    },
+  );
+
+  server.post<{ Params: OrganizerEventParams; Body: CreateOrganizerEventSessionBody }>(
+    organizerEventSessionsPath,
+    {
+      schema: {
+        params: organizerEventParams,
+        headers: idempotencyHeaders,
+        body: {
+          type: "object",
+          required: ["code", "title"],
+          properties: {
+            code: { type: "string", pattern: "^[A-Za-z0-9][A-Za-z0-9_-]{1,79}$" },
+            title: { type: "string", minLength: 2, maxLength: 250 },
+            startsAt: { type: "string", format: "date-time" },
+            endsAt: { type: "string", format: "date-time" },
+          },
+          additionalProperties: false,
+        },
+      },
+    },
+    async (request, reply) => {
+      const principal = request.staffPrincipal!;
+      const { organizationId, eventId } = request.params;
+      if (organizationId !== principal.organizationId) {
+        throw new ApiError(403, "ORGANIZATION_SCOPE_MISMATCH", "The requested organization is not available to this session.");
+      }
+      const { code, title, startsAt, endsAt } = request.body;
+      return withCommand(request, reply, "event.session.create", { ...request.body, eventId }, async (client) => {
+        const result = await client.query<ResultRow>(
+          "SELECT eogp.create_organizer_event_session($1::uuid,$2::uuid,$3::uuid,$4::text,$5::text,$6::timestamptz,$7::timestamptz) AS result",
+          [organizationId, eventId, principal.membershipId, code, title, startsAt ?? null, endsAt ?? null],
+        );
+        return (result.rows[0]?.result ?? {}) as Record<string, unknown>;
+      }, (client) => assertEventManagePermission(client, principal, eventId));
+    },
   );
 
   server.get<{ Params: { organizationId: string } }>(

@@ -128,6 +128,13 @@ export default {
     schedule: "Raspored",
     statusLabel: "Status",
     revision: "Verzija detalja",
+    sessions: "Sesije",
+    sessionsFor: "Sesije za {title}",
+    noSessions: "Još nema sesija.",
+    sessionCode: "Oznaka sesije",
+    sessionTitle: "Naziv sesije",
+    addSession: "Dodaj sesiju",
+    sessionCreated: "Planirana sesija je dodana.",
     status: {
       draft: "Nacrt",
       planned: "Planiran",
