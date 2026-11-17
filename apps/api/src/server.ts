@@ -3975,6 +3975,46 @@ export function buildApi(dependencies: ApiDependencies): FastifyInstance {
     });
   });
 
+  type ParticipationStatusBody = JsonRequestBody<"/events/{eventId}/participations/{participationId}", "patch">;
+  server.patch<{ Params: { eventId: string; participationId: string }; Body: ParticipationStatusBody }>(
+    "/events/:eventId/participations/:participationId",
+    {
+      schema: {
+        params: {
+          ...participationEventParams,
+          required: ["eventId", "participationId"],
+          properties: { ...participationEventParams.properties, participationId: { type: "string", pattern: uuidPattern } },
+        },
+        headers: idempotencyHeaders,
+        body: {
+          type: "object", additionalProperties: false, required: ["status", "expectedRevision"],
+          properties: {
+            status: { type: "string", enum: ["eligible", "waitlisted", "ineligible", "withdrawn"] },
+            expectedRevision: personRevision,
+          },
+        },
+      },
+    },
+    (request, reply) => {
+      const principal = registryPrincipal(request);
+      const { eventId, participationId } = request.params;
+      const { status, expectedRevision } = request.body;
+      return withCommand(request, reply, "guest.participation.status", { eventId, participationId, status, expectedRevision },
+        async (client) => {
+          const result = await client.query<ResultRow>(
+            "SELECT eogp.update_guest_participation_status($1::uuid,$2::uuid,$3::uuid,$4::uuid,$5::integer,$6::text) AS result",
+            [principal.organizationId, eventId, principal.membershipId, participationId, expectedRevision, status],
+          );
+          return (result.rows[0]?.result ?? {}) as Record<string, unknown>;
+        },
+        async (client) => {
+          await client.query("SELECT eogp.assert_guest_participation_management($1::uuid,$2::uuid,$3::uuid)",
+            [principal.organizationId, eventId, principal.membershipId]);
+        },
+        200);
+    },
+  );
+
   server.get<{ Params: { personId: string }; Querystring: { offset?: number } }>("/persons/:personId/history", {
     schema: {
       params: registryPersonParams,

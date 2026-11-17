@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import { onMounted, reactive, ref } from "vue";
 import { useI18n } from "vue-i18n";
-import { api, ApiError, type GuestRegistryDirectory, type GuestRegistryHistory, type GuestRegistryProfile, type RegistryLinkableEvent } from "../../api";
+import { api, ApiError, type GuestRegistryDirectory, type GuestRegistryHistory, type GuestRegistryProfile, type ManagedParticipationStatus, type RegistryLinkableEvent } from "../../api";
 import { formatApiError } from "../../i18n/api-errors";
 
 const props = defineProps<{ organizationId: string }>();
@@ -10,6 +10,9 @@ const directory = ref<GuestRegistryDirectory | null>(null);
 const profile = ref<GuestRegistryProfile | null>(null);
 const history = ref<GuestRegistryHistory | null>(null);
 const historyOffset = ref(0);
+const editableParticipationStatuses: ManagedParticipationStatus[] = ["eligible", "waitlisted", "ineligible", "withdrawn"];
+const editingParticipation = ref<GuestRegistryHistory["participations"][number] | null>(null);
+const participationStatus = ref<ManagedParticipationStatus>("eligible");
 const linkableEvents = ref<RegistryLinkableEvent[] | null>(null);
 const linkEventId = ref("");
 const linkStatus = ref<"eligible" | "waitlisted" | "ineligible">("eligible");
@@ -31,6 +34,7 @@ async function run(operation: () => Promise<void>): Promise<void> {
       directory.value = null;
       profile.value = null;
       history.value = null;
+      editingParticipation.value = null;
       linkableEvents.value = null;
       editing.value = false;
     }
@@ -49,6 +53,7 @@ async function load(offset: number): Promise<void> {
 function search(): Promise<void> {
   profile.value = null;
   history.value = null;
+  editingParticipation.value = null;
   linkableEvents.value = null;
   editing.value = false;
   Object.assign(filters, { query: query.value.trim(), archived: archived.value });
@@ -57,6 +62,7 @@ function search(): Promise<void> {
 
 function showProfile(personId: string): Promise<void> {
   history.value = null;
+  editingParticipation.value = null;
   linkableEvents.value = null;
   editing.value = false;
   return run(async () => {
@@ -66,6 +72,7 @@ function showProfile(personId: string): Promise<void> {
 
 function edit(person: GuestRegistryProfile | null): void {
   history.value = null;
+  editingParticipation.value = null;
   linkableEvents.value = null;
   profile.value = person;
   Object.assign(form, {
@@ -93,10 +100,12 @@ function save(): Promise<void> {
 function closeProfile(): void {
   profile.value = null;
   history.value = null;
+  editingParticipation.value = null;
   linkableEvents.value = null;
 }
 
 function loadHistory(personId: string, offset = 0): Promise<void> {
+  editingParticipation.value = null;
   return run(async () => {
     history.value = (await api.getGuestRegistryHistory(personId, offset)).data;
     historyOffset.value = offset;
@@ -124,12 +133,27 @@ function linkToEvent(person: GuestRegistryProfile): Promise<void> {
   });
 }
 
+function startParticipationEdit(item: GuestRegistryHistory["participations"][number]): void {
+  if (item.status === "cancelled") return;
+  editingParticipation.value = item;
+  participationStatus.value = item.status;
+}
+
+function saveParticipation(personId: string, item: GuestRegistryHistory["participations"][number]): Promise<void> {
+  return run(async () => {
+    await api.updateGuestParticipationStatus(item.eventId, item.participationId, participationStatus.value, item.revision);
+    editingParticipation.value = null;
+    history.value = (await api.getGuestRegistryHistory(personId, historyOffset.value)).data;
+  });
+}
+
 function archive(person: GuestRegistryProfile): void {
   if (!window.confirm(t("registry.confirmArchive", { name: `${person.firstName} ${person.lastName}` }))) return;
   void run(async () => {
     await api.archiveGuestRegistryProfile(person.personId, person.revision);
     profile.value = null;
     history.value = null;
+    editingParticipation.value = null;
     linkableEvents.value = null;
     await load(filters.offset);
   });
@@ -206,6 +230,27 @@ onMounted(search);
             · {{ t(`registry.participationStatus.${item.status}`) }}
             · {{ t(`events.status.${item.eventStatus}`) }}
             <time v-if="item.eventStartsAt" :datetime="item.eventStartsAt"> · {{ formatTime(item.eventStartsAt) }}</time>
+            <button
+              v-if="item.canManage && profile.status === 'active' && !editingParticipation"
+              class="button button-secondary" type="button" :disabled="busy"
+              @click="startParticipationEdit(item)"
+            >{{ t("registry.editParticipation") }}</button>
+            <form v-if="editingParticipation?.participationId === item.participationId"
+              class="registry-form" @submit.prevent="saveParticipation(profile.personId, editingParticipation)">
+              <div>
+                <label for="registry-edit-participation-status">{{ t("registry.linkStatus") }}</label>
+                <select id="registry-edit-participation-status" v-model="participationStatus">
+                  <option v-for="option in editableParticipationStatuses" :key="option" :value="option">
+                    {{ t(`registry.participationStatus.${option}`) }}
+                  </option>
+                </select>
+              </div>
+              <p v-if="participationStatus !== 'eligible'" class="muted">{{ t("registry.revokeBeforeChange") }}</p>
+              <div class="registry-toolbar">
+                <button class="button button-primary" type="submit" :disabled="busy">{{ t("common.save") }}</button>
+                <button class="button button-secondary" type="button" :disabled="busy" @click="editingParticipation = null">{{ t("common.cancel") }}</button>
+              </div>
+            </form>
           </li>
         </ul>
         <p v-else class="muted">{{ t("registry.noParticipations") }}</p>

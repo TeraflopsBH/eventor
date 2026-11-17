@@ -105,6 +105,8 @@ export default {
     settings: "Postavke",
   },
   registry: {
+    editParticipation: "Uredi učešće",
+    revokeBeforeChange: "Opozovite sve važeće pozivnice prije promjene statusa gosta iz „Podoban“.",
     addToEvent: "Dodaj na događaj",
     event: "Događaj",
     chooseEvent: "Odaberi događaj",

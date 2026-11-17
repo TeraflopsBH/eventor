@@ -1846,6 +1846,8 @@ DECLARE
   v_first_event uuid;
   v_second_event uuid;
   v_result jsonb;
+  v_participation uuid;
+  v_invitation uuid;
 BEGIN
   v_result := eogp.write_guest_registry_person(v_org, v_actor, NULL, NULL, 'create',
     '{"firstName":"Original","lastName":"Synthetic","displayName":"Pinned Name"}');
@@ -1880,7 +1882,8 @@ BEGIN
   EXCEPTION WHEN object_not_in_prerequisite_state THEN NULL;
   END;
 
-  PERFORM eogp.link_registry_person_to_event(v_org, v_first_event, v_actor, v_person, 'eligible');
+  v_result := eogp.link_registry_person_to_event(v_org, v_first_event, v_actor, v_person, 'eligible');
+  v_participation := (v_result->>'participationId')::uuid;
   PERFORM eogp.write_guest_registry_person(v_org, v_actor, v_person, 1, 'update', '{"displayName":"Current Name"}');
   IF NOT eogp.list_guest_invitation_participations(v_org, v_first_event, v_actor)
       @> '[{"displayName":"Pinned Name"}]'::jsonb THEN
@@ -1900,6 +1903,29 @@ BEGIN
      OR has_table_privilege('eventor_runtime', 'eogp.event_participations', 'INSERT,UPDATE,DELETE') THEN
     RAISE EXCEPTION 'historic participation, permissioned writes or cross-event profile reuse failed';
   END IF;
+  INSERT INTO eogp.invitations (organization_id, event_id, participation_id, created_by_membership_id, issued_at)
+    VALUES (v_org, v_first_event, v_participation, v_actor, clock_timestamp()) RETURNING id INTO v_invitation;
+  BEGIN
+    PERFORM eogp.update_guest_participation_status(v_org, v_first_event, v_actor, v_participation, 1, 'withdrawn');
+    RAISE EXCEPTION 'withdrawal unexpectedly left an outstanding invitation';
+  EXCEPTION WHEN object_not_in_prerequisite_state THEN NULL;
+  END;
+  PERFORM eogp.revoke_guest_invitation(v_org, v_invitation, v_actor, 'withdraw_guest');
+  v_result := eogp.update_guest_participation_status(v_org, v_first_event, v_actor, v_participation, 1, 'withdrawn');
+  IF v_result->>'status' <> 'withdrawn' OR v_result->>'revision' <> '2'
+     OR NOT EXISTS (SELECT 1 FROM eogp.participation_status_history WHERE organization_id = v_org
+        AND participation_id = v_participation AND previous_status = 'eligible' AND new_status = 'withdrawn'
+        AND actor_membership_id = v_actor)
+     OR NOT EXISTS (SELECT 1 FROM eogp.persons WHERE organization_id = v_org AND id = v_person AND status = 'active')
+     OR NOT EXISTS (SELECT 1 FROM eogp.event_participations WHERE organization_id = v_org
+        AND event_id = v_second_event AND person_id = v_person AND status = 'waitlisted') THEN
+    RAISE EXCEPTION 'withdrawal must record event history without altering the person or other events';
+  END IF;
+  BEGIN
+    PERFORM eogp.update_guest_participation_status(v_org, v_first_event, v_actor, v_participation, 1, 'eligible');
+    RAISE EXCEPTION 'stale participation edit unexpectedly succeeded';
+  EXCEPTION WHEN serialization_failure THEN NULL;
+  END;
 END;
 $test$;
 

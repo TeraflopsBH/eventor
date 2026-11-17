@@ -191,6 +191,8 @@ Migration `000129` exposes paged profile changes and participation history on th
 
 Migration `000130` lets event managers enable an event guest list. A staff member with Registry access and `guest.manage` on that event can link an active person once. The link stores the selected participation status and an immutable snapshot of identity names. Later Registry changes preserve the event's pinned display name. Earlier participations retain their existing name projection.
 
+Migration `000131` lets staff with `guest.manage` revise a person's status for a single event. Status edits use optimistic revisions and append participation history and audit events. Staff must revoke outstanding invitations before withdrawing a guest or taking the guest off the eligible list. Reopening eligibility requires an active Registry profile.
+
 ### 3.9 Event cancellation, postponement and communications
 
 | Proposed relation | Purpose / key invariants |
