@@ -1633,6 +1633,69 @@ END;
 $test$;
 
 
+-- Organizer lifecycle approval must follow the planned schedule and record each actor.
+DO $test$
+DECLARE
+  v_org CONSTANT uuid := '10000000-0000-0000-0000-00000000000a';
+  v_actor CONSTANT uuid := '30000000-0000-0000-0000-00000000000a';
+  v_event_id uuid;
+  v_result jsonb;
+BEGIN
+  v_result := eogp.create_organizer_event(
+    v_org, v_actor, 'CI-EVENT-APPROVAL', 'Approval test event', NULL,
+    '2031-01-18 09:00:00+00', '2031-01-18 12:00:00+00', 'Europe/Sarajevo', '{}', '{}'
+  );
+  v_event_id := (v_result->>'eventId')::uuid;
+
+  BEGIN
+    PERFORM eogp.transition_organizer_event(v_org, v_event_id, v_actor, 1, 1, 'publish');
+    RAISE EXCEPTION 'publishing an unapproved event unexpectedly succeeded';
+  EXCEPTION WHEN object_not_in_prerequisite_state THEN NULL;
+  END;
+
+  PERFORM eogp.transition_organizer_event(v_org, v_event_id, v_actor, 1, 1, 'plan');
+  BEGIN
+    PERFORM eogp.transition_organizer_event(v_org, v_event_id, v_actor, 2, 2, 'submit');
+    RAISE EXCEPTION 'submission with a stale schedule revision unexpectedly succeeded';
+  EXCEPTION WHEN serialization_failure THEN NULL;
+  END;
+  PERFORM eogp.transition_organizer_event(v_org, v_event_id, v_actor, 2, 1, 'submit');
+  BEGIN
+    PERFORM eogp.update_organizer_event_details(v_org, v_event_id, v_actor, 3, 'Changed title', NULL);
+    RAISE EXCEPTION 'editing an event under review unexpectedly succeeded';
+  EXCEPTION WHEN object_not_in_prerequisite_state THEN NULL;
+  END;
+  BEGIN
+    PERFORM eogp.create_organizer_event_session(v_org, v_event_id, v_actor, 'EXTRA', 'Additional session', NULL, NULL);
+    RAISE EXCEPTION 'adding a session during review unexpectedly succeeded';
+  EXCEPTION WHEN object_not_in_prerequisite_state THEN NULL;
+  END;
+
+  PERFORM eogp.transition_organizer_event(v_org, v_event_id, v_actor, 3, 1, 'return_to_planning');
+  PERFORM eogp.transition_organizer_event(v_org, v_event_id, v_actor, 4, 1, 'submit');
+  PERFORM eogp.transition_organizer_event(v_org, v_event_id, v_actor, 5, 1, 'approve');
+  BEGIN
+    PERFORM eogp.transition_organizer_event(v_org, v_event_id, v_actor, 5, 1, 'publish');
+    RAISE EXCEPTION 'publishing with stale approval details unexpectedly succeeded';
+  EXCEPTION WHEN serialization_failure THEN NULL;
+  END;
+  v_result := eogp.transition_organizer_event(v_org, v_event_id, v_actor, 6, 1, 'publish');
+  IF v_result->>'status' <> 'scheduled' OR v_result->>'currentRevision' <> '1'
+     OR v_result->>'detailsRevision' <> '7'
+     OR (SELECT count(*) FROM eogp.event_status_history WHERE organization_id = v_org
+         AND event_id = v_event_id AND actor_membership_id = v_actor) <> 6
+     OR NOT EXISTS (SELECT 1 FROM eogp.audit_events WHERE organization_id = v_org
+         AND aggregate_id = v_event_id AND action = 'event.lifecycle.transitioned' AND reason_code = 'publish'
+         AND actor_membership_id = v_actor AND safe_metadata->>'scheduleRevisionId' IS NOT NULL) THEN
+    RAISE EXCEPTION 'publication must record actor and schedule without modifying the schedule revision';
+  END IF;
+  IF has_function_privilege('eventor_worker',
+       'eogp.transition_organizer_event(uuid,uuid,uuid,integer,integer,text)', 'EXECUTE') THEN
+    RAISE EXCEPTION 'worker must not have direct event transition permission';
+  END IF;
+END;
+$test$;
+
 COMMIT;
 
 \echo 'PostgreSQL migration smoke tests passed.'

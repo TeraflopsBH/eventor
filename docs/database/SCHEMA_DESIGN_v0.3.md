@@ -214,6 +214,8 @@ Inquiry → separate draft/revisions → offer/revisions → approved/accepted a
 
 Draft/planned → scheduled/active → completed, cancelled or postponed (with later rescheduled schedule revision). Exact allowed transitions must be explicit and guarded by event revision/expected state. Cancellation is not deletion and is not an RSVP response.
 
+Migration `000126` implements the organizer planning sequence as draft → planned → ready for approval → approved → scheduled. The publish action records the approved schedule revision in the audit event. Review and approval freeze event details and session edits. Staff can return the event to planning to revise it. Commands check both details and schedule revisions. Submission, approval and publication require a current schedule and a resolved disruption queue for the event. Each transition records the acting membership in status history and audit. Publication grants no public access. Cancellation, postponement and rescheduling continue through the existing event change commands.
+
 ### 4.3 Command transaction rules
 
 - Require idempotency keys on externally retryable commands and state-changing public actions.

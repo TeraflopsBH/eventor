@@ -25,6 +25,7 @@ type JsonRequestBody<Path extends keyof paths, Method extends keyof paths[Path]>
 const organizerEventSessionsPath = "/organizations/:organizationId/events/:eventId/sessions";
 type CreateOrganizerEventSessionBody = JsonRequestBody<"/organizations/{organizationId}/events/{eventId}/sessions", "post">;
 type UpdateOrganizerEventSessionBody = JsonRequestBody<"/organizations/{organizationId}/events/{eventId}/sessions/{sessionId}", "patch">;
+type TransitionOrganizerEventBody = JsonRequestBody<"/organizations/{organizationId}/events/{eventId}/transition", "post">;
 type OrganizerEventParams = { organizationId: string; eventId: string };
 type SessionCreateBody = JsonRequestBody<"/auth/session", "post">;
 type LocalePreferenceBody = { locale: "bs-BA" | "en" | null };
@@ -3888,6 +3889,46 @@ export function buildApi(dependencies: ApiDependencies): FastifyInstance {
         );
         return (result.rows[0]?.result ?? {}) as Record<string, unknown>;
       }, (client) => assertEventManagePermission(client, principal, eventId));
+    },
+  );
+
+  server.post<{ Params: OrganizerEventParams; Body: TransitionOrganizerEventBody }>(
+    "/organizations/:organizationId/events/:eventId/transition",
+    {
+      schema: {
+        params: organizerEventParams,
+        headers: idempotencyHeaders,
+        body: {
+          type: "object",
+          required: ["action", "expectedDetailsRevision", "expectedScheduleRevision"],
+          properties: {
+            action: { type: "string", enum: ["plan", "submit", "approve", "return_to_planning", "publish"] },
+            expectedDetailsRevision: { type: "integer", minimum: 1, maximum: 2147483647 },
+            expectedScheduleRevision: { type: "integer", minimum: 1, maximum: 2147483647 },
+          },
+          additionalProperties: false,
+        },
+      },
+    },
+    async (request, reply) => {
+      const principal = request.staffPrincipal!;
+      const { organizationId, eventId } = request.params;
+      if (organizationId !== principal.organizationId) {
+        throw new ApiError(403, "ORGANIZATION_SCOPE_MISMATCH", "The requested organization is not available to this session.");
+      }
+      const { action, expectedDetailsRevision, expectedScheduleRevision } = request.body;
+      return withCommand(
+        request, reply, "event.lifecycle.transition", { ...request.body, eventId },
+        async (client) => {
+          const result = await client.query<ResultRow>(
+            "SELECT eogp.transition_organizer_event($1::uuid,$2::uuid,$3::uuid,$4::integer,$5::integer,$6::text) AS result",
+            [organizationId, eventId, principal.membershipId, expectedDetailsRevision, expectedScheduleRevision, action],
+          );
+          return (result.rows[0]?.result ?? {}) as Record<string, unknown>;
+        },
+        (client) => assertEventManagePermission(client, principal, eventId),
+        200,
+      );
     },
   );
 

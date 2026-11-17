@@ -1082,7 +1082,7 @@ export interface OrganizerEvent {
   eventCode: string;
   title: string;
   descriptionInternal?: string | null;
-  status: "draft" | "planned" | "scheduled" | "active" | "completed" | "cancelled" | "postponed" | "archived";
+  status: "draft" | "planned" | "ready_for_approval" | "approved" | "scheduled" | "active" | "completed" | "cancelled" | "postponed" | "archived";
   currentRevision: number;
   detailsRevision: number;
   timezoneName?: string;
@@ -1094,6 +1094,14 @@ export interface OrganizerEvent {
   endsAt?: string | null;
   scheduleTimezoneName?: string | null;
   venueSummary?: Record<string, unknown>;
+}
+
+export type OrganizerEventAction = "plan" | "submit" | "approve" | "return_to_planning" | "publish";
+
+export interface OrganizerEventTransitionInput {
+  action: OrganizerEventAction;
+  expectedDetailsRevision: number;
+  expectedScheduleRevision: number;
 }
 
 export interface CreateOrganizerEventInput {
@@ -1166,6 +1174,11 @@ export const api = {
     request<Envelope<OrganizerEvent[]>>(`/organizations/${encodeURIComponent(organizationId)}/events`),
   createOrganizerEvent: (organizationId: string, body: CreateOrganizerEventInput) =>
     request<Envelope<OrganizerEvent>>(`/organizations/${encodeURIComponent(organizationId)}/events`, { method: "POST", body, idempotent: true }),
+  transitionOrganizerEvent: (organizationId: string, eventId: string, body: OrganizerEventTransitionInput) =>
+    request<Envelope<Pick<OrganizerEvent, "eventId" | "status" | "currentRevision" | "detailsRevision">>>(
+      `/organizations/${encodeURIComponent(organizationId)}/events/${encodeURIComponent(eventId)}/transition`,
+      { method: "POST", body, idempotent: true },
+    ),
   updateOrganizerEventDetails: (organizationId: string, eventId: string, body: UpdateOrganizerEventDetailsInput) =>
     request<Envelope<OrganizerEvent>>(`/organizations/${encodeURIComponent(organizationId)}/events/${encodeURIComponent(eventId)}`, { method: "PATCH", body, idempotent: true }),
   archiveOrganizerEvent: (organizationId: string, eventId: string, expectedDetailsRevision: number) =>
