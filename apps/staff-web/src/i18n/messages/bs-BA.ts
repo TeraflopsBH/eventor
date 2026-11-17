@@ -137,6 +137,7 @@ export default {
     sessionCreated: "Planirana sesija je dodana.",
     sessionUpdated: "Sesija je ažurirana.",
     confirmPublish: "Objaviti odobreni raspored za „{title}“?",
+    confirmClose: "Zatvoriti „{title}“?",
     lifecycleUpdated: "Status događaja je ažuriran.",
     lifecycle: {
       plan: "Započni planiranje",
@@ -144,6 +145,13 @@ export default {
       approve: "Odobri",
       return_to_planning: "Vrati u planiranje",
       publish: "Objavi raspored",
+      start: "Pokreni događaj",
+      complete: "Zatvori događaj",
+    },
+    sessionLifecycle: {
+      schedule: "Zakaži sesiju",
+      start: "Pokreni sesiju",
+      complete: "Završi sesiju",
     },
     status: {
       draft: "Nacrt",

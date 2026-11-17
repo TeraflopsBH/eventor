@@ -3263,7 +3263,7 @@ paths:
     post:
       tags: ["Events"]
       operationId: transitionOrganizerEvent
-      summary: "Advance organizer planning, approval, or schedule publication"
+      summary: "Advance organizer planning, approval, publication, or operations"
       security: [{ StaffSession: [], StaffCsrf: [] }]
       parameters:
         - $ref: '#/components/parameters/POrganizationId'
@@ -3372,6 +3372,38 @@ paths:
         '409': { $ref: '#/components/responses/Conflict' }
         '412': { $ref: '#/components/responses/PreconditionFailed' }
         '422': { $ref: '#/components/responses/UnprocessableEntity' }
+        '500': { $ref: '#/components/responses/InternalServerError' }
+  "/organizations/{organizationId}/events/{eventId}/sessions/{sessionId}/transition":
+    post:
+      tags: ["Events"]
+      operationId: transitionOrganizerEventSession
+      summary: "Schedule, start, or complete an event session"
+      security: [{ StaffSession: [], StaffCsrf: [] }]
+      parameters:
+        - $ref: '#/components/parameters/POrganizationId'
+        - $ref: '#/components/parameters/PEventId'
+        - $ref: '#/components/parameters/PSessionId'
+        - name: Idempotency-Key
+          in: header
+          required: true
+          schema: { type: string, minLength: 8, maxLength: 200 }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/OrganizerEventSessionTransitionRequest' }
+      responses:
+        '200':
+          description: "Session status updated."
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/OrganizerEventSessionTransitionEnvelope' }
+        '400': { $ref: '#/components/responses/BadRequest' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '404': { $ref: '#/components/responses/NotFound' }
+        '409': { $ref: '#/components/responses/Conflict' }
+        '412': { $ref: '#/components/responses/PreconditionFailed' }
         '500': { $ref: '#/components/responses/InternalServerError' }
   "/organizations/{organizationId}/guest-invitation-events":
     get:
@@ -6932,6 +6964,25 @@ components:
         title: { type: string, minLength: 2, maxLength: 250 }
         startsAt: { type: [string, 'null'], format: date-time }
         endsAt: { type: [string, 'null'], format: date-time }
+    OrganizerEventSessionTransitionRequest:
+      type: object
+      additionalProperties: false
+      required: [action, expectedDetailsRevision, expectedScheduleRevision]
+      properties:
+        action: { type: string, enum: [schedule, start, complete] }
+        expectedDetailsRevision: { type: integer, minimum: 1, maximum: 2147483647 }
+        expectedScheduleRevision: { type: integer, minimum: 1, maximum: 2147483647 }
+    OrganizerEventSessionTransitionEnvelope:
+      type: object
+      required: [data]
+      properties:
+        data:
+          type: object
+          required: [sessionId, status, detailsRevision]
+          properties:
+            sessionId: { type: string, format: uuid }
+            status: { type: string, enum: [scheduled, active, completed] }
+            detailsRevision: { type: integer, minimum: 1 }
     OrganizerEventSessionDetails:
       allOf:
         - $ref: '#/components/schemas/OrganizerEventSession'
@@ -6989,7 +7040,7 @@ components:
       additionalProperties: false
       required: [action, expectedDetailsRevision, expectedScheduleRevision]
       properties:
-        action: { type: string, enum: [plan, submit, approve, return_to_planning, publish] }
+        action: { type: string, enum: [plan, submit, approve, return_to_planning, publish, start, complete] }
         expectedDetailsRevision: { type: integer, minimum: 1, maximum: 2147483647 }
         expectedScheduleRevision: { type: integer, minimum: 1, maximum: 2147483647 }
     OrganizerEventTransitionEnvelope:
@@ -7001,7 +7052,7 @@ components:
           required: [eventId, status, detailsRevision, currentRevision]
           properties:
             eventId: { type: string, format: uuid }
-            status: { type: string, enum: [planned, ready_for_approval, approved, scheduled] }
+            status: { type: string, enum: [planned, ready_for_approval, approved, scheduled, active, completed] }
             detailsRevision: { type: integer, minimum: 1 }
             currentRevision: { type: integer, minimum: 1 }
 

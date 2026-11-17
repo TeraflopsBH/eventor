@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import { computed, reactive, ref, type Ref } from "vue";
 import type { useOrganizerEvents } from "./useOrganizerEvents";
-import type { OrganizerEvent, OrganizerEventAction, OrganizerEventSessionDetails } from "../../api";
+import type { OrganizerEvent, OrganizerEventAction, OrganizerEventSessionAction, OrganizerEventSessionDetails } from "../../api";
 
 type Workspace = ReturnType<typeof useOrganizerEvents> & { busy: Ref<boolean> };
 
@@ -9,13 +9,15 @@ const props = defineProps<{ workspace: Workspace; t: (key: string, params?: Reco
 const t = props.t;
 const {
   events, sessions, sessionsEventId, busy, canArchive, refresh, createEvent, updateEvent,
-  archiveEvent, transitionEvent, showSessions, createSession, updateSession,
+  archiveEvent, transitionEvent, showSessions, createSession, updateSession, transitionSession,
 } = props.workspace;
 const lifecycleActions: Partial<Record<OrganizerEvent["status"], OrganizerEventAction[]>> = {
   draft: ["plan"],
   planned: ["submit"],
   ready_for_approval: ["approve", "return_to_planning"],
   approved: ["publish", "return_to_planning"],
+  scheduled: ["start"],
+  active: ["complete"],
 };
 const canEditEvent = (event: OrganizerEvent) =>
   !["ready_for_approval", "approved", "archived"].includes(event.status);
@@ -43,6 +45,20 @@ const sessionForm = reactive({ code: "", title: "", startsAt: "", endsAt: "" });
 const sessionFormError = ref("");
 const editingSession = ref<OrganizerEventSessionDetails | null>(null);
 const canCreateSession = computed(() => ["draft", "planned"].includes(sessionsEvent.value?.status ?? ""));
+const canTransitionSessions = computed(() => ["scheduled", "active"].includes(sessionsEvent.value?.status ?? ""));
+
+function sessionAction(session: OrganizerEventSessionDetails): OrganizerEventSessionAction | undefined {
+  if (canTransitionSessions.value && session.status === "planned") return "schedule";
+  if (sessionsEvent.value?.status !== "active") return;
+  if (session.status === "scheduled") return "start";
+  if (session.status === "active") return "complete";
+}
+
+function advanceSession(event: OrganizerEvent, session: OrganizerEventSessionDetails): Promise<void> | undefined {
+  const action = sessionAction(session);
+  if (action) return transitionSession(event, session, action);
+}
+
 const sessionTimezone = computed(() => editingSession.value?.timezoneName ?? sessionsEvent.value?.timezoneName);
 
 function resetSessionForm(): void {
@@ -352,7 +368,7 @@ async function submitUpdate(): Promise<void> {
               <th scope="col">{{ t("events.sessionTitle") }}</th>
               <th scope="col">{{ t("events.schedule") }}</th>
               <th scope="col">{{ t("events.statusLabel") }}</th>
-              <th v-if="canCreateSession" scope="col">{{ t("common.actions") }}</th>
+              <th v-if="canCreateSession || canTransitionSessions" scope="col">{{ t("common.actions") }}</th>
             </tr>
           </thead>
           <tbody>
@@ -364,14 +380,21 @@ async function submitUpdate(): Promise<void> {
                 {{ formatDate(session.endsAt, session.timezoneName) }}
               </td>
               <td>{{ statusLabel(session.status) }}</td>
-              <td v-if="canCreateSession">
+              <td v-if="canCreateSession || canTransitionSessions">
                 <button
-                  v-if="session.status === 'planned'"
+                  v-if="canCreateSession && session.status === 'planned'"
                   class="button button-secondary button-small"
                   type="button"
                   :disabled="busy"
                   @click="startSessionEdit(session)"
                 >{{ t("common.edit") }}</button>
+                <button
+                  v-if="sessionAction(session)"
+                  class="button button-secondary button-small"
+                  type="button"
+                  :disabled="busy"
+                  @click="advanceSession(sessionsEvent, session)"
+                >{{ t(`events.sessionLifecycle.${sessionAction(session)}`) }}</button>
               </td>
             </tr>
           </tbody>
