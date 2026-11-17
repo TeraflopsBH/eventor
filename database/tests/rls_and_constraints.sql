@@ -1378,6 +1378,7 @@ DO $test$
 DECLARE
   v_org CONSTANT uuid := '10000000-0000-0000-0000-00000000000a';
   v_actor CONSTANT uuid := '30000000-0000-0000-0000-00000000000a';
+  v_session_id uuid;
   v_session jsonb;
   v_created jsonb;
   v_updated jsonb;
@@ -1450,7 +1451,7 @@ BEGIN
     RAISE EXCEPTION 'session creation must set its planning state, inherit timezone and audit the actor';
   END IF;
   IF eogp.list_organizer_event_sessions(v_org, v_event_id, v_actor)
-       IS DISTINCT FROM jsonb_build_array(v_session) THEN
+       IS DISTINCT FROM jsonb_build_array(v_session || jsonb_build_object('detailsRevision', 1)) THEN
     RAISE EXCEPTION 'session list must return the persisted session';
   END IF;
   BEGIN
@@ -1493,6 +1494,46 @@ BEGIN
        'eogp.create_organizer_event_session(uuid,uuid,uuid,text,text,timestamptz,timestamptz)', 'EXECUTE') THEN
     RAISE EXCEPTION 'session write privileges must be limited to the scoped runtime command';
   END IF;
+
+  v_session_id := (v_session->>'sessionId')::uuid;
+  v_session := eogp.update_organizer_event_session(
+    v_org, v_event_id, v_session_id, v_actor, 1, 'Revised opening',
+    '2031-01-18 10:00:00+00', '2031-01-18 11:00:00+00'
+  );
+  IF v_session->>'title' <> 'Revised opening' OR v_session->>'detailsRevision' <> '2'
+     OR v_session->>'code' <> 'OPENING' OR v_session->>'status' <> 'planned'
+     OR NOT EXISTS (
+       SELECT 1 FROM eogp.audit_events WHERE organization_id = v_org
+         AND aggregate_id = v_session_id AND action = 'event.session.updated'
+         AND actor_membership_id = v_actor AND safe_metadata->>'detailsRevision' = '2'
+     ) THEN
+    RAISE EXCEPTION 'session edit must advance its revision and audit the actor';
+  END IF;
+
+  BEGIN
+    PERFORM eogp.update_organizer_event_session(
+      v_org, v_event_id, v_session_id, v_actor, 1, 'Stale edit', NULL, NULL
+    );
+    RAISE EXCEPTION 'stale session edit unexpectedly succeeded';
+  EXCEPTION WHEN serialization_failure THEN
+    NULL;
+  END;
+  BEGIN
+    PERFORM eogp.update_organizer_event_session(
+      v_org, gen_random_uuid(), v_session_id, v_actor, 2, 'Wrong parent event', NULL, NULL
+    );
+    RAISE EXCEPTION 'editing a session through a different event unexpectedly succeeded';
+  EXCEPTION WHEN no_data_found THEN
+    NULL;
+  END;
+  BEGIN
+    PERFORM eogp.update_organizer_event_session(
+      v_org, v_event_id, v_session_id, v_actor, 2, 'Partial timing', clock_timestamp(), NULL
+    );
+    RAISE EXCEPTION 'editing a session to partial timing unexpectedly succeeded';
+  EXCEPTION WHEN invalid_parameter_value THEN
+    NULL;
+  END;
 
   v_updated := eogp.update_organizer_event_details(
     '10000000-0000-0000-0000-00000000000a',
@@ -1562,6 +1603,15 @@ BEGIN
       v_org, v_event_id, v_actor, 'TOO-LATE', 'Archived event session', NULL, NULL
     );
     RAISE EXCEPTION 'archived event unexpectedly accepted a new session';
+  EXCEPTION WHEN object_not_in_prerequisite_state THEN
+    NULL;
+  END;
+
+  BEGIN
+    PERFORM eogp.update_organizer_event_session(
+      v_org, v_event_id, v_session_id, v_actor, 2, 'Archived event session edit', NULL, NULL
+    );
+    RAISE EXCEPTION 'archived event unexpectedly accepted a session edit';
   EXCEPTION WHEN object_not_in_prerequisite_state THEN
     NULL;
   END;

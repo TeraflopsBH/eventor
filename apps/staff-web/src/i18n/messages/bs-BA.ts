@@ -135,6 +135,7 @@ export default {
     sessionTitle: "Naziv sesije",
     addSession: "Dodaj sesiju",
     sessionCreated: "Planirana sesija je dodana.",
+    sessionUpdated: "Sesija je ažurirana.",
     status: {
       draft: "Nacrt",
       planned: "Planiran",

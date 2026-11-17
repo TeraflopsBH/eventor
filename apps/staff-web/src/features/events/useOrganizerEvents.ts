@@ -3,8 +3,9 @@ import type {
   CreateOrganizerEventInput,
   CreateOrganizerEventSessionInput,
   OrganizerEvent,
-  OrganizerEventSession,
+  OrganizerEventSessionDetails,
   UpdateOrganizerEventDetailsInput,
+  UpdateOrganizerEventSessionInput,
 } from "../../api";
 
 interface Dependencies {
@@ -24,7 +25,7 @@ export function useOrganizerEvents({
   const events = ref<OrganizerEvent[]>([]);
   const selectedEventId = ref("");
   const selectedEvent = computed(() => events.value.find((event) => event.eventId === selectedEventId.value) ?? null);
-  const sessions = ref<OrganizerEventSession[] | null>(null);
+  const sessions = ref<OrganizerEventSessionDetails[] | null>(null);
   const sessionsEventId = ref("");
   const canArchive = (event: OrganizerEvent) => !["active", "scheduled", "archived"].includes(event.status);
 
@@ -167,12 +168,33 @@ export function useOrganizerEvents({
     }
   }
 
+  async function updateSession(
+    eventId: string,
+    sessionId: string,
+    input: UpdateOrganizerEventSessionInput,
+  ): Promise<boolean> {
+    clearMessages();
+    busy.value = true;
+    try {
+      await api.updateOrganizerEventSession(organizationId.value, eventId, sessionId, input);
+      pageNotice.value = translate("events.sessionUpdated");
+      try { await loadSessions(eventId); } catch (error) { showError(error); }
+      return true;
+    } catch (error) {
+      showError(error);
+      return false;
+    } finally {
+      busy.value = false;
+    }
+  }
+
   return {
     events,
     sessions,
     sessionsEventId,
     showSessions,
     createSession,
+    updateSession,
     selectedEventId,
     selectedEvent,
     canArchive,

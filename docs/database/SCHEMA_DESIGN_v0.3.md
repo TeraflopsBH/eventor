@@ -140,7 +140,7 @@ A request is not an effective cancellation. Rejected/withdrawn requests do not r
 | Proposed relation | Purpose / key invariants |
 |---|---|
 | `events` | Organizer-owned operational event; distinct from booking |
-| `event_sessions`, `event_session_spaces` | Event sessions bind to event-owned venue snapshots. Migration `000124` gives staff with `event.manage` scoped list/create commands for sessions and revokes direct runtime writes. New sessions start planned and inherit the parent event time zone. |
+| `event_sessions`, `event_session_spaces` | Event sessions bind to event-owned venue snapshots. Migration `000124` gives staff with `event.manage` scoped list/create commands for sessions and revokes direct runtime writes. New sessions start planned and inherit the parent event time zone. Migration `000125` adds a details revision and limits title and timing edits to planned sessions on draft or planned events. |
 | `event_capability_sets`, `event_capability_revisions`, `event_capability_overrides` | Versioned optional modules, default off; explicit dependency rules |
 | `event_responsibility_assignments` | Accountable party, performing party, approver/informed parties, scope/grant and due/status; created after collaboration grant relations exist |
 | `event_status_history` | Lifecycle projection history, not sole decision evidence |

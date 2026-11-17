@@ -1123,6 +1123,17 @@ export interface OrganizerEventSession {
   timezoneName: string;
 }
 
+export interface OrganizerEventSessionDetails extends OrganizerEventSession {
+  detailsRevision: number;
+}
+
+export interface UpdateOrganizerEventSessionInput {
+  expectedDetailsRevision: number;
+  title: string;
+  startsAt: string | null;
+  endsAt: string | null;
+}
+
 export interface CreateOrganizerEventSessionInput {
   code: string;
   title: string;
@@ -1143,9 +1154,14 @@ export interface OrganizerEventArchiveResult {
 
 export const api = {
   getOrganizerEventSessions: (organizationId: string, eventId: string) =>
-    request<Envelope<OrganizerEventSession[]>>(organizerEventSessionsPath(organizationId, eventId)),
+    request<Envelope<OrganizerEventSessionDetails[]>>(organizerEventSessionsPath(organizationId, eventId)),
   createOrganizerEventSession: (organizationId: string, eventId: string, body: CreateOrganizerEventSessionInput) =>
     request<Envelope<OrganizerEventSession>>(organizerEventSessionsPath(organizationId, eventId), { method: "POST", body, idempotent: true }),
+  updateOrganizerEventSession: (organizationId: string, eventId: string, sessionId: string, body: UpdateOrganizerEventSessionInput) =>
+    request<Envelope<OrganizerEventSessionDetails>>(
+      `${organizerEventSessionsPath(organizationId, eventId)}/${encodeURIComponent(sessionId)}`,
+      { method: "PATCH", body, idempotent: true },
+    ),
   getOrganizerEvents: (organizationId: string) =>
     request<Envelope<OrganizerEvent[]>>(`/organizations/${encodeURIComponent(organizationId)}/events`),
   createOrganizerEvent: (organizationId: string, body: CreateOrganizerEventInput) =>

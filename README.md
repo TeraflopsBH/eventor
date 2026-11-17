@@ -6,7 +6,7 @@ Eventor is a self-hosted, API-first platform that can be used for venue booking/
 
 The first reference deployment is planned for **Gazi Husrev-beg's Library (GHB), Sarajevo**. The product is being designed as a reusable organization- and venue-aware platform rather than a one-off GHB application.
 
-> **Project status:** 123 PostgreSQL migrations, the Fastify API/notification worker, Vue staff workspace, public cancellation request/status flow and event administration core are integrated. Event sessions, persistent Guest Registry and both production installers remain incomplete. See [Project state](docs/PROJECT_STATE.md) for the verified baseline and validation limitations.
+> **Project status:** 125 PostgreSQL migrations, the Fastify API/notification worker, Vue staff workspace, public cancellation request/status flow and event administration core are integrated. The Events workspace can list, create and edit planned sessions. Session lifecycle management, the persistent Guest Registry and both production installers remain incomplete. See [Project state](docs/PROJECT_STATE.md) for the verified baseline and validation limitations.
 
 ## Product goals
 
@@ -48,7 +48,7 @@ Directories will be introduced as their corresponding implementation work begins
 
 ## Development status
 
-The checkout baseline verified on 2026-11-16 is `fd82a264975d82d1f4700745fba103504d0360fe`, matching the remote main ref after PR #132. Earlier draft-stack status is historical. GitHub API access is verified; current-main contracts/PostgreSQL and secret-history workflows passed. Native Linux and Docker Compose are both required release deliverables; neither complete installer is present yet.
+The main baseline verified on 2026-11-17 is `55d7f4c2b6ea33386cc0fc8df6b346709bf828bb`, after session listing and creation in PR #134. Contracts/PostgreSQL and secret-history workflows passed on that commit. Native Linux and Docker Compose are both required release deliverables; neither complete installer is present yet.
 
 ## Security and data handling
 

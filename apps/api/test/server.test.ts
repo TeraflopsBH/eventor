@@ -965,6 +965,13 @@ function makePool() {
         commandCalls.push({ sql: normalized, values });
         return { rows: [{ result: [] }], rowCount: 1 };
       }
+      if (normalized.includes("eogp.update_organizer_event_session(")) {
+        commandCalls.push({ sql: normalized, values });
+        return { rows: [{ result: {
+          sessionId: values[2], title: values[5], startsAt: values[6], endsAt: values[7],
+          detailsRevision: Number(values[4]) + 1,
+        } }], rowCount: 1 };
+      }
       if (normalized.includes("eogp.create_organizer_event_session(")) {
         commandCalls.push({ sql: normalized, values });
         return { rows: [{ result: {
@@ -3579,6 +3586,34 @@ test("organizer sessions scope listing and idempotent creation to the requested 
   assert.equal(crossTenant.statusCode, 403);
   mock.setEventPermissionAllowed(false);
   assert.equal((await app.inject(post)).statusCode, 403);
+});
+
+test("organizer session editing binds its revision and replay to the event and session", async (t) => {
+  const mock = makePool();
+  const app = makeApi(mock.pool);
+  t.after(async () => app.close());
+  const eventId = "94000000-0000-4000-8000-000000000002";
+  const sessionId = "97000000-0000-4000-8000-000000000002";
+  const path = `/organizations/${principal.organizationId}/events/${eventId}/sessions`;
+  const patch = {
+    method: "PATCH" as const,
+    url: `${path}/${sessionId}`,
+    headers: { "idempotency-key": "session-edit-0001" },
+    payload: { expectedDetailsRevision: 3, title: "Updated session", startsAt: null, endsAt: null },
+  };
+  const updated = await app.inject(patch);
+  assert.equal(updated.statusCode, 200, updated.body);
+  assert.equal(updated.json().data.detailsRevision, 4);
+  assert.deepEqual((await app.inject(patch)).json(), updated.json());
+  const commands = mock.commandCalls.filter(({ sql }) => sql.includes("update_organizer_event_session"));
+  assert.equal(commands.length, 1);
+  assert.deepEqual(commands[0]?.values,
+    [principal.organizationId, eventId, sessionId, principal.membershipId, 3, "Updated session", null, null]);
+
+  const crossSession = await app.inject({ ...patch, url: `${path}/eeeeeeee-eeee-4eee-8eee-eeeeeeeeeeee` });
+  assert.equal(crossSession.statusCode, 409);
+  mock.setEventPermissionAllowed(false);
+  assert.equal((await app.inject(patch)).statusCode, 403);
 });
 
 const apiSourceForSecurityAssertions = await readFile(new URL("../../src/server.ts", import.meta.url), "utf8");
