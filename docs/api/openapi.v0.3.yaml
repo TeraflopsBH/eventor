@@ -3750,6 +3750,7 @@ paths:
       security: [{ StaffSession: [] }]
       parameters:
         - $ref: '#/components/parameters/PEventId'
+        - $ref: '#/components/parameters/PEventGuestCategoryFilter'
         - name: status
           in: query
           schema: { type: string, enum: [eligible, waitlisted, withdrawn, cancelled, ineligible] }
@@ -3809,6 +3810,7 @@ paths:
       security: [{ StaffSession: [] }]
       parameters:
         - $ref: '#/components/parameters/PEventId'
+        - $ref: '#/components/parameters/PEventGuestCategoryFilter'
         - name: status
           in: query
           schema: { type: string, enum: [eligible, waitlisted, withdrawn, cancelled, ineligible] }
@@ -6251,6 +6253,14 @@ components:
       in: path
       required: true
       schema: { type: string, minLength: 1 }
+    PEventGuestCategoryFilter:
+      name: category
+      in: query
+      description: "Category UUID or unassigned for guests without a category code."
+      schema:
+        oneOf:
+          - { type: string, const: unassigned }
+          - { type: string, format: uuid }
     PParticipationId:
       name: participationId
       in: path
