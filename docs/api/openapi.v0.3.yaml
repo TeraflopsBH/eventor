@@ -3648,7 +3648,7 @@ paths:
     get:
       tags: ["Event Participation"]
       operationId: getEventGuestRosterExport
-      summary: "Get all matching event roster rows for CSV export"
+      summary: "Get all matching event roster rows for export"
       security: [{ StaffSession: [] }]
       parameters:
         - $ref: '#/components/parameters/PEventId'
