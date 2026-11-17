@@ -93,6 +93,7 @@ export default {
   navigation: {
     delivery: "Dostava e-pošte",
     campaigns: "Pregled kampanja",
+    eventGuests: "Gosti događaja",
     guestRegistry: "Registar gostiju",
     guestInvitations: "Pozivnice za goste",
     events: "Događaji",
@@ -103,6 +104,12 @@ export default {
     cancellations: "Pravila otkazivanja",
     taxes: "Porezne postavke",
     settings: "Postavke",
+  },
+  eventGuests: {
+    noLists: "Nema dostupnih lista gostiju.",
+    allStatuses: "Svi statusi",
+    noGuests: "Nema gostiju za ovaj status.",
+    category: "Kategorija",
   },
   registry: {
     contacts: {

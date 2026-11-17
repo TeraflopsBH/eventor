@@ -6,6 +6,7 @@ import PublicBookingOfferPage from "./features/public-booking-offers/PublicBooki
 import PublicBookingFormPage from "./features/public-booking-forms/PublicBookingFormPage.vue";
 import GuestInvitationPage from "./features/guest-invitations/GuestInvitationPage.vue";
 import PublicBookingCancellationPage from "./features/booking-cancellations/PublicBookingCancellationPage.vue";
+import EventGuestListView from "./features/event-guests/EventGuestListView.vue";
 import GuestRegistryView from "./features/guest-registry/GuestRegistryView.vue";
 import GuestInvitationManagementView from "./features/guest-invitations/GuestInvitationManagementView.vue";
 import StaffApplicationShell from "./features/application-shell/StaffApplicationShell.vue";
@@ -245,6 +246,7 @@ onMounted(() => {
   <PublicBookingCancellationPage v-else-if="isPublicBookingCancellationStatusPage" mode="status" />
   <StaffApplicationShell v-else :workspace="staffShellWorkspace">
     <EmailDeliveryView v-if="activeTab === 'delivery'" :workspace="emailDeliveryWorkspace" />
+    <EventGuestListView v-else-if="activeTab === 'event-guests'" :organization-id="principal?.organizationId ?? ''" />
     <GuestRegistryView v-else-if="activeTab === 'guest-registry'" :organization-id="principal?.organizationId ?? ''" />
     <GuestInvitationManagementView v-else-if="activeTab === 'guest-invitations'" :organization-id="principal?.organizationId ?? ''" />
     <BookingInquiryView

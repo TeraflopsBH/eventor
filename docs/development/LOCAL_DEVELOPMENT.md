@@ -49,6 +49,13 @@ run again after pulling new migrations.
 The database is deliberately bound to loopback. Do not reuse its generated
 credentials or Compose file for a shared or production system.
 
+The staff workspace applies a checksum-pinned local guard to Picomatch 4.0.7
+during dependency installation. Until an upstream release fixes
+[GHSA-fc5q-39xc-vjpf](https://github.com/advisories/GHSA-fc5q-39xc-vjpf),
+the staff audit accepts that one finding only when it verifies the exact patched
+parser. All other high and critical findings still fail CI. When updating
+Picomatch, verify the upstream fix and remove the local guard and audit handling.
+
 ## Short development commands
 
 ```bash

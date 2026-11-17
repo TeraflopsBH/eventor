@@ -90,6 +90,7 @@ const selectedLocale = computed({
       <nav class="tabs" :aria-label="$t('app.workspaceSections')">
         <button :class="{ active: activeTab === 'delivery' }" @click="activeTab = 'delivery'">{{ $t("navigation.delivery") }}</button>
         <button :class="{ active: activeTab === 'campaign' }" @click="activeTab = 'campaign'">{{ $t("navigation.campaigns") }}</button>
+        <button :class="{ active: activeTab === 'event-guests' }" @click="activeTab = 'event-guests'">{{ $t("navigation.eventGuests") }}</button>
         <button :class="{ active: activeTab === 'guest-registry' }" @click="activeTab = 'guest-registry'">{{ $t("navigation.guestRegistry") }}</button>
         <button :class="{ active: activeTab === 'guest-invitations' }" @click="activeTab = 'guest-invitations'">{{ $t("navigation.guestInvitations") }}</button>
         <button :class="{ active: activeTab === 'events' }" @click="openEvents">{{ $t("navigation.events") }}</button>

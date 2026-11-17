@@ -4,6 +4,8 @@
   "private": true,
   "type": "module",
   "scripts": {
+    "postinstall": "node scripts/harden-picomatch.mjs",
+    "audit:dependencies": "node scripts/audit-dependencies.mjs",
     "typecheck": "vue-tsc --noEmit -p tsconfig.json",
     "build": "vue-tsc --noEmit -p tsconfig.json && vite build",
     "test": "node --experimental-strip-types --test test/*.test.mjs",

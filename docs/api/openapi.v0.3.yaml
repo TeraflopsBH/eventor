@@ -3196,6 +3196,24 @@ paths:
         '409': { $ref: '#/components/responses/Conflict' }
         '422': { $ref: '#/components/responses/UnprocessableEntity' }
         '500': { $ref: '#/components/responses/InternalServerError' }
+  "/organizations/{organizationId}/events/guest-lists":
+    get:
+      tags: ["Event Participation"]
+      operationId: listEventGuestWorkspaces
+      summary: "List authorized event guest lists"
+      security: [{ StaffSession: [] }]
+      parameters:
+        - $ref: '#/components/parameters/POrganizationId'
+      responses:
+        '200':
+          description: "Event guest lists available to the actor."
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/EventGuestWorkspacesEnvelope' }
+        '400': { $ref: '#/components/responses/BadRequest' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '500': { $ref: '#/components/responses/InternalServerError' }
   "/organizations/{organizationId}/events/{eventId}":
     patch:
       tags: ["Events"]
@@ -3468,12 +3486,18 @@ paths:
       security: [{ StaffSession: [] }]
       parameters:
         - $ref: '#/components/parameters/PEventId'
+        - name: status
+          in: query
+          schema: { type: string, enum: [eligible, waitlisted, withdrawn, cancelled, ineligible] }
+        - name: offset
+          in: query
+          schema: { type: integer, minimum: 0, maximum: 100000 }
       responses:
         '200':
           description: "Successful response."
           content:
             application/json:
-              schema: { $ref: '#/components/schemas/ListEnvelope' }
+              schema: { $ref: '#/components/schemas/EventGuestListEnvelope' }
         '400': { $ref: '#/components/responses/BadRequest' }
         '401': { $ref: '#/components/responses/Unauthorized' }
         '403': { $ref: '#/components/responses/Forbidden' }
@@ -6994,6 +7018,42 @@ components:
       properties:
         personId: { type: string, format: uuid }
         status: { type: string, enum: [eligible, waitlisted, ineligible], default: eligible }
+    EventGuestWorkspacesEnvelope:
+      type: object
+      required: [data]
+      properties:
+        data:
+          type: array
+          items:
+            type: object
+            required: [eventId, title, eventCode, status]
+            properties:
+              eventId: { type: string, format: uuid }
+              title: { type: string }
+              eventCode: { type: string }
+              status: { type: string }
+    EventGuestListEnvelope:
+      type: object
+      required: [data]
+      properties:
+        data:
+          type: object
+          required: [people, canManage, nextOffset]
+          properties:
+            people:
+              type: array
+              items:
+                type: object
+                required: [participationId, displayName, status, revision, categoryCode, participationCode]
+                properties:
+                  participationId: { type: string, format: uuid }
+                  displayName: { type: string }
+                  status: { type: string, enum: [eligible, waitlisted, withdrawn, cancelled, ineligible] }
+                  revision: { type: integer, minimum: 1 }
+                  categoryCode: { type: [string, 'null'] }
+                  participationCode: { type: [string, 'null'] }
+            canManage: { type: boolean }
+            nextOffset: { type: [integer, 'null'], minimum: 0 }
     ParticipationStatusRequest:
       type: object
       additionalProperties: false
