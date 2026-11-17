@@ -81,7 +81,7 @@ jobs:
         run: npm ci --no-audit --no-fund
       - name: Audit staff web dependency tree for high and critical vulnerabilities
         working-directory: apps/staff-web
-        run: npm audit --audit-level=high
+        run: npm run audit:dependencies
       - name: Run staff web regression tests
         working-directory: apps/staff-web
         run: npm test
