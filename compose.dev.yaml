@@ -1,0 +1,23 @@
+name: eventor-dev
+
+# Development infrastructure only. This is not the production Compose
+# topology required by issue #108.
+services:
+  postgres:
+    image: postgres:18.6
+    environment:
+      POSTGRES_DB: postgres
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: ${EVENTOR_DEV_POSTGRES_PASSWORD:?Run scripts/dev/db.sh up first}
+    ports:
+      - "127.0.0.1:${EVENTOR_DEV_POSTGRES_PORT:-55432}:5432"
+    volumes:
+      - eventor-dev-postgres:/var/lib/postgresql
+      - ./:/repo:ro
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres -d postgres"]
+      interval: 2s
+      timeout: 5s
+      retries: 30
+volumes:
+  eventor-dev-postgres:

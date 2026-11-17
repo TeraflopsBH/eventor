@@ -30,6 +30,7 @@ data/
 storage/
 uploads/
 quarantine/
+.eventor-dev/
 
 # Logs and temporary files
 *.log

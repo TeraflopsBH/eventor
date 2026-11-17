@@ -1,5 +1,15 @@
 # Contributing
 
+For a non-privileged workstation check and the shortest supported local setup,
+start with [Local development](docs/development/LOCAL_DEVELOPMENT.md):
+
+```bash
+./scripts/dev/doctor.sh
+./scripts/dev/setup.sh
+./scripts/dev/db.sh up
+./scripts/dev/check.sh quick
+```
+
 Eventor is being developed in small, reviewable increments. The repository's design baseline and project state take precedence over assumptions made in chat or issue discussions.
 
 ## Before starting

@@ -499,6 +499,14 @@ jobs:
     steps:
       - name: Check out repository
         uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
+      - name: Verify local-development entry points
+        env:
+          EVENTOR_DEV_POSTGRES_PASSWORD: ci-compose-validation-only
+        run: |
+          test "$(cat .node-version)" = "22.16.0"
+          test "$(cat .nvmrc)" = "22.16.0"
+          bash -n scripts/dev/*.sh
+          docker compose -f compose.dev.yaml config --quiet
       - name: Prepare referenced paths and service identities
         run: |
           sudo groupadd --system eventor-api
