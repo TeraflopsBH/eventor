@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import { onMounted, ref } from "vue";
 import { useI18n } from "vue-i18n";
+import EventGuestImportPreview from "./EventGuestImportPreview.vue";
 import { api, ApiError, type EventGuestList, type EventGuestRow, type EventGuestWorkspace, type ManagedParticipationStatus } from "../../api";
 import { formatApiError } from "../../i18n/api-errors";
 
@@ -15,6 +16,7 @@ const statuses: ManagedParticipationStatus[] = ["eligible", "waitlisted", "ineli
 const editing = ref<EventGuestRow | null>(null);
 const nextStatus = ref<ManagedParticipationStatus>("eligible");
 const busy = ref(false);
+const showImport = ref(false);
 const error = ref("");
 
 async function run(operation: () => Promise<void>): Promise<void> {
@@ -42,6 +44,7 @@ async function loadPage(pageOffset: number): Promise<void> {
 }
 
 function chooseEvent(): void {
+  showImport.value = false;
   status.value = "";
   roster.value = null;
   void run(() => loadPage(0));
@@ -94,6 +97,12 @@ onMounted(() => run(async () => {
           <option v-for="option in [...statuses, 'cancelled']" :key="option" :value="option">{{ t(`registry.participationStatus.${option}`) }}</option>
         </select>
       </div>
+    </div>
+    <div v-if="roster?.canManage">
+      <button class="button button-secondary" type="button" :disabled="busy" :aria-expanded="showImport" @click="showImport = !showImport">
+        {{ t("eventGuests.import.title") }}
+      </button>
+      <EventGuestImportPreview v-if="showImport" :key="eventId" :event-id="eventId" />
     </div>
     <p v-if="roster && !roster.people.length" class="muted">{{ t("eventGuests.noGuests") }}</p>
     <div v-else-if="roster" class="table-scroll">

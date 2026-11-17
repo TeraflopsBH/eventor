@@ -3457,6 +3457,61 @@ paths:
         '401': { $ref: '#/components/responses/Unauthorized' }
         '403': { $ref: '#/components/responses/Forbidden' }
         '500': { $ref: '#/components/responses/InternalServerError' }
+  "/events/{eventId}/guest-imports":
+    post:
+      tags: ["Event Participation"]
+      operationId: prepareGuestImportPreview
+      summary: "Prepare an encrypted preview of a UTF-8 guest CSV"
+      security: [{ StaffSession: [], StaffCsrf: [] }]
+      parameters:
+        - $ref: '#/components/parameters/PEventId'
+        - $ref: '#/components/parameters/IdempotencyKey'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              additionalProperties: false
+              required: [csv]
+              properties:
+                csv: { type: string, minLength: 1, maxLength: 65536 }
+      responses:
+        '201':
+          description: "Preview created with no changes to Registry profiles or event guests."
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/GuestImportBatchEnvelope' }
+        '400': { $ref: '#/components/responses/BadRequest' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '404': { $ref: '#/components/responses/NotFound' }
+        '409': { $ref: '#/components/responses/Conflict' }
+        '422': { $ref: '#/components/responses/UnprocessableEntity' }
+        '503': { $ref: '#/components/responses/ServiceUnavailable' }
+  "/events/{eventId}/guest-imports/{batchId}":
+    get:
+      tags: ["Event Participation"]
+      operationId: getGuestImportPreview
+      summary: "Review guest import validation and duplicate counts"
+      security: [{ StaffSession: [] }]
+      parameters:
+        - $ref: '#/components/parameters/PEventId'
+        - name: batchId
+          in: path
+          required: true
+          schema: { type: string, format: uuid }
+      responses:
+        '200':
+          description: "Authorized preview of the uploaded rows."
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/GuestImportPreviewEnvelope' }
+        '400': { $ref: '#/components/responses/BadRequest' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '404': { $ref: '#/components/responses/NotFound' }
+        '503': { $ref: '#/components/responses/ServiceUnavailable' }
   "/events/{eventId}/guest-registry/enable":
     post:
       tags: ["Event Participation"]
@@ -7018,6 +7073,45 @@ components:
       properties:
         personId: { type: string, format: uuid }
         status: { type: string, enum: [eligible, waitlisted, ineligible], default: eligible }
+    GuestImportBatchEnvelope:
+      type: object
+      required: [data]
+      properties:
+        data:
+          type: object
+          required: [batchId, rowCount]
+          properties:
+            batchId: { type: string, format: uuid }
+            rowCount: { type: integer, minimum: 1, maximum: 500 }
+    GuestImportPreviewEnvelope:
+      type: object
+      required: [data]
+      properties:
+        data:
+          type: object
+          required: [batchId, rows]
+          properties:
+            batchId: { type: string, format: uuid }
+            rows:
+              type: array
+              maxItems: 500
+              items:
+                type: object
+                required: [rowNumber, names, errors, duplicateCount]
+                properties:
+                  rowNumber: { type: integer, minimum: 2 }
+                  duplicateCount: { type: integer, minimum: 0, maximum: 20 }
+                  errors:
+                    type: array
+                    items: { type: string, enum: [column_count, name_required, name_invalid, duplicate_in_file] }
+                  names:
+                    type: object
+                    required: [firstName, lastName, displayName, preferredName]
+                    properties:
+                      firstName: { type: string }
+                      lastName: { type: string }
+                      displayName: { type: [string, 'null'] }
+                      preferredName: { type: [string, 'null'] }
     EventGuestWorkspacesEnvelope:
       type: object
       required: [data]

@@ -197,6 +197,11 @@ Migration `000132` stores Registry email and phone contacts using the API's tena
 
 Migration `000133` adds a dedicated event guest roster with status filtering and pagination. The roster uses the event's pinned identity names for linked profiles and supports read-only `guest.read` grants alongside `guest.manage`. Roster reads expose neither Registry profile IDs nor contact values.
 
+Migration `000134` adds an encrypted CSV preview to an enabled event guest
+list. The preview accepts UTF-8 name-only data up to 64 KiB and 500 rows. It records row errors,
+repeated names in the file and possible same-name Registry matches without creating guests.
+Preview reads require Registry management and event guest management permissions.
+
 ### 3.9 Event cancellation, postponement and communications
 
 | Proposed relation | Purpose / key invariants |

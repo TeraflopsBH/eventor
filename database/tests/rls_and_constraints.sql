@@ -1994,6 +1994,45 @@ BEGIN
 END;
 $test$;
 
+-- Import preview persists encrypted staging rows and leaves Registry and event guests intact.
+DO $test$
+DECLARE
+  v_org CONSTANT uuid := '10000000-0000-4000-8000-00000000000a';
+  v_fixture_org CONSTANT uuid := '10000000-0000-0000-0000-00000000000a';
+  v_actor CONSTANT uuid := '30000000-0000-0000-0000-00000000000a';
+  v_event uuid;
+  v_batch uuid;
+  v_result jsonb;
+  v_before integer;
+  v_cipher text := encode(convert_to('ECP1' || repeat('x', 32), 'UTF8'), 'base64');
+BEGIN
+  SELECT id INTO v_event FROM eogp.events WHERE organization_id = v_fixture_org AND event_code = 'CI-LINK-A';
+  SELECT count(*) INTO v_before FROM eogp.event_participations WHERE organization_id = v_fixture_org AND event_id = v_event;
+  v_result := eogp.prepare_guest_import_preview(v_fixture_org, v_event, v_actor, repeat('a',64), jsonb_build_array(
+    jsonb_build_object('rowNumber',2,'firstName','contact','lastName','synthetic',
+      'sourceCiphertext',v_cipher,'namesCiphertext',v_cipher,'errors','[]'::jsonb),
+    jsonb_build_object('rowNumber',3,'firstName','','lastName','Synthetic',
+      'sourceCiphertext',v_cipher,'namesCiphertext',v_cipher,'errors','["name_required"]'::jsonb)
+  ));
+  v_batch := (v_result->>'batchId')::uuid;
+  IF v_result ? 'rows' OR v_result->>'rowCount' <> '2' THEN
+    RAISE EXCEPTION 'preview creation result exposed values or wrong row count';
+  END IF;
+  v_result := eogp.read_guest_import_preview(v_fixture_org, v_event, v_actor, v_batch);
+  IF v_result#>>'{rows,0,duplicateCount}' <> '1' OR v_result#>>'{rows,0,namesCiphertext}' <> v_cipher
+     OR v_result#>>'{rows,1,errors,0}' <> 'name_required'
+     OR (SELECT count(*) FROM eogp.event_participations WHERE organization_id = v_fixture_org AND event_id = v_event) <> v_before
+     OR has_table_privilege('eventor_runtime', 'eogp.guest_import_rows', 'SELECT,INSERT,UPDATE,DELETE') THEN
+    RAISE EXCEPTION 'import preview validation, confidentiality or write isolation failed';
+  END IF;
+  BEGIN
+    PERFORM eogp.read_guest_import_preview(v_org, v_event, v_actor, v_batch);
+    RAISE EXCEPTION 'cross-tenant preview unexpectedly succeeded';
+  EXCEPTION WHEN insufficient_privilege THEN NULL;
+  END;
+END;
+$test$;
+
 COMMIT;
 
 \echo 'PostgreSQL migration smoke tests passed.'

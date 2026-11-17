@@ -1263,6 +1263,16 @@ export interface EventGuestList {
   nextOffset: number | null;
 }
 
+export interface GuestImportPreview {
+  batchId: string;
+  rows: {
+    rowNumber: number;
+    names: GuestRegistryNames;
+    errors: ("column_count" | "name_required" | "name_invalid" | "duplicate_in_file")[];
+    duplicateCount: number;
+  }[];
+}
+
 export const api = {
   enableEventGuestRegistry: (eventId: string) =>
     request<Envelope<{ eventId: string; guestRegistryEnabled: boolean }>>(`/events/${encodeURIComponent(eventId)}/guest-registry/enable`, {
@@ -1274,6 +1284,12 @@ export const api = {
     request<Envelope<{ eventId: string; participationId: string; status: string }>>(`/events/${encodeURIComponent(eventId)}/participations`, {
       method: "POST", body: { personId, status }, idempotent: true,
     }),
+  prepareGuestImportPreview: (eventId: string, csv: string) =>
+    request<Envelope<{ batchId: string; rowCount: number }>>(`/events/${encodeURIComponent(eventId)}/guest-imports`, {
+      method: "POST", body: { csv }, idempotent: true,
+    }),
+  getGuestImportPreview: (eventId: string, batchId: string) =>
+    request<Envelope<GuestImportPreview>>(`/events/${encodeURIComponent(eventId)}/guest-imports/${encodeURIComponent(batchId)}`),
   listEventGuestWorkspaces: (organizationId: string) =>
     request<Envelope<EventGuestWorkspace[]>>(`/organizations/${encodeURIComponent(organizationId)}/events/guest-lists`),
   getEventGuestList: (eventId: string, offset: number, status: EventGuestRow["status"] | "") => {
