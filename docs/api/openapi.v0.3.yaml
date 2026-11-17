@@ -3259,6 +3259,37 @@ paths:
         '409': { $ref: '#/components/responses/Conflict' }
         '412': { $ref: '#/components/responses/PreconditionFailed' }
         '500': { $ref: '#/components/responses/InternalServerError' }
+  "/organizations/{organizationId}/events/{eventId}/transition":
+    post:
+      tags: ["Events"]
+      operationId: transitionOrganizerEvent
+      summary: "Advance organizer planning, approval, or schedule publication"
+      security: [{ StaffSession: [], StaffCsrf: [] }]
+      parameters:
+        - $ref: '#/components/parameters/POrganizationId'
+        - $ref: '#/components/parameters/PEventId'
+        - name: Idempotency-Key
+          in: header
+          required: true
+          schema: { type: string, minLength: 8, maxLength: 200 }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/OrganizerEventTransitionRequest' }
+      responses:
+        '200':
+          description: "Event status updated."
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/OrganizerEventTransitionEnvelope' }
+        '400': { $ref: '#/components/responses/BadRequest' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '404': { $ref: '#/components/responses/NotFound' }
+        '409': { $ref: '#/components/responses/Conflict' }
+        '412': { $ref: '#/components/responses/PreconditionFailed' }
+        '500': { $ref: '#/components/responses/InternalServerError' }
   "/organizations/{organizationId}/events/{eventId}/sessions":
     get:
       tags: ["Events"]
@@ -6953,6 +6984,27 @@ components:
       properties:
         expectedDetailsRevision: { type: integer, minimum: 1 }
       additionalProperties: false
+    OrganizerEventTransitionRequest:
+      type: object
+      additionalProperties: false
+      required: [action, expectedDetailsRevision, expectedScheduleRevision]
+      properties:
+        action: { type: string, enum: [plan, submit, approve, return_to_planning, publish] }
+        expectedDetailsRevision: { type: integer, minimum: 1, maximum: 2147483647 }
+        expectedScheduleRevision: { type: integer, minimum: 1, maximum: 2147483647 }
+    OrganizerEventTransitionEnvelope:
+      type: object
+      required: [data]
+      properties:
+        data:
+          type: object
+          required: [eventId, status, detailsRevision, currentRevision]
+          properties:
+            eventId: { type: string, format: uuid }
+            status: { type: string, enum: [planned, ready_for_approval, approved, scheduled] }
+            detailsRevision: { type: integer, minimum: 1 }
+            currentRevision: { type: integer, minimum: 1 }
+
     OrganizerEventSummary:
       type: object
       required: [eventId, eventCode, title, status, currentRevision, detailsRevision]
@@ -6961,7 +7013,7 @@ components:
         eventCode: { type: string }
         title: { type: string }
         descriptionInternal: { type: [string, "null"] }
-        status: { type: string, enum: [draft, planned, scheduled, active, completed, cancelled, postponed, archived] }
+        status: { type: string, enum: [draft, planned, ready_for_approval, approved, scheduled, active, completed, cancelled, postponed, archived] }
         currentRevision: { type: integer, minimum: 1 }
         detailsRevision: { type: integer, minimum: 1 }
         timezoneName: { type: string }

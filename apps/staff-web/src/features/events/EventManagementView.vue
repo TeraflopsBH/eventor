@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import { computed, reactive, ref, type Ref } from "vue";
 import type { useOrganizerEvents } from "./useOrganizerEvents";
-import type { OrganizerEvent, OrganizerEventSessionDetails } from "../../api";
+import type { OrganizerEvent, OrganizerEventAction, OrganizerEventSessionDetails } from "../../api";
 
 type Workspace = ReturnType<typeof useOrganizerEvents> & { busy: Ref<boolean> };
 
@@ -9,8 +9,16 @@ const props = defineProps<{ workspace: Workspace; t: (key: string, params?: Reco
 const t = props.t;
 const {
   events, sessions, sessionsEventId, busy, canArchive, refresh, createEvent, updateEvent,
-  archiveEvent, showSessions, createSession, updateSession,
+  archiveEvent, transitionEvent, showSessions, createSession, updateSession,
 } = props.workspace;
+const lifecycleActions: Partial<Record<OrganizerEvent["status"], OrganizerEventAction[]>> = {
+  draft: ["plan"],
+  planned: ["submit"],
+  ready_for_approval: ["approve", "return_to_planning"],
+  approved: ["publish", "return_to_planning"],
+};
+const canEditEvent = (event: OrganizerEvent) =>
+  !["ready_for_approval", "approved", "archived"].includes(event.status);
 const createOpen = ref(false);
 const editingEventId = ref("");
 const formError = ref("");
@@ -188,6 +196,9 @@ function startEdit(event: OrganizerEvent): void {
   editForm.title = event.title;
   editForm.descriptionInternal = event.descriptionInternal ?? "";
 }
+async function changeLifecycle(event: OrganizerEvent, action: OrganizerEventAction): Promise<void> {
+  if (await transitionEvent(event, action) && editingEventId.value === event.eventId) cancelEdit();
+}
 function cancelEdit(): void {
   editingEventId.value = "";
   editForm.title = "";
@@ -286,7 +297,7 @@ async function submitUpdate(): Promise<void> {
             <td>{{ event.detailsRevision }}</td>
             <td>
               <div class="toolbar compact">
-                <button class="button button-secondary button-small" type="button" :disabled="busy || event.status === 'archived'" @click="startEdit(event)">
+                <button class="button button-secondary button-small" type="button" :disabled="busy || !canEditEvent(event)" @click="startEdit(event)">
                   {{ t("common.edit") }}
                 </button>
                 <button
@@ -298,11 +309,21 @@ async function submitUpdate(): Promise<void> {
                 >
                   {{ t("events.sessions") }}
                 </button>
+                <button
+                  v-for="action in lifecycleActions[event.status]"
+                  :key="action"
+                  class="button button-secondary button-small"
+                  type="button"
+                  :disabled="busy"
+                  @click="changeLifecycle(event, action)"
+                >
+                  {{ t(`events.lifecycle.${action}`) }}
+                </button>
                 <button class="button button-danger button-small" type="button" :disabled="busy || !canArchive(event)" @click="archiveEvent(event)">
                   {{ t("events.archive") }}
                 </button>
               </div>
-              <form v-if="editingEventId === event.eventId" class="inline-edit" @submit.prevent="submitUpdate">
+              <form v-if="editingEventId === event.eventId && canEditEvent(event)" class="inline-edit" @submit.prevent="submitUpdate">
                 <label>
                   <span>{{ t("events.eventTitle") }}</span>
                   <input v-model="editForm.title" required minlength="2" maxlength="250">

@@ -980,6 +980,12 @@ function makePool() {
           status: "planned", timezoneName: "Europe/Sarajevo",
         } }], rowCount: 1 };
       }
+      if (normalized.includes("eogp.transition_organizer_event(")) {
+        commandCalls.push({ sql: normalized, values });
+        return { rows: [{ result: {
+          eventId: values[1], status: "scheduled", detailsRevision: Number(values[3]) + 1, currentRevision: values[4],
+        } }], rowCount: 1 };
+      }
       if (normalized.includes("eogp.list_organizer_events(")) {
         commandCalls.push({ sql: normalized, values });
         return { rows: [{ result: [{
@@ -3614,6 +3620,32 @@ test("organizer session editing binds its revision and replay to the event and s
   assert.equal(crossSession.statusCode, 409);
   mock.setEventPermissionAllowed(false);
   assert.equal((await app.inject(patch)).statusCode, 403);
+});
+
+test("event publication binds both revisions to the authorized event and rejects cross-event replay", async (t) => {
+  const mock = makePool();
+  const app = makeApi(mock.pool);
+  t.after(async () => app.close());
+  const eventId = "94000000-0000-4000-8000-000000000002";
+  const root = `/organizations/${principal.organizationId}/events`;
+  const publish = {
+    method: "POST" as const,
+    url: `${root}/${eventId}/transition`,
+    headers: { "idempotency-key": "event-publication-0001" },
+    payload: { action: "publish", expectedDetailsRevision: 4, expectedScheduleRevision: 2 },
+  };
+  const published = await app.inject(publish);
+  assert.equal(published.statusCode, 200, published.body);
+  assert.equal(published.json().data.status, "scheduled");
+  assert.deepEqual((await app.inject(publish)).json(), published.json());
+  const commands = mock.commandCalls.filter(({ sql }) => sql.includes("transition_organizer_event"));
+  assert.equal(commands.length, 1);
+  assert.deepEqual(commands[0]?.values, [principal.organizationId, eventId, principal.membershipId, 4, 2, "publish"]);
+  assert.equal((await app.inject({
+    ...publish, url: `${root}/eeeeeeee-eeee-4eee-8eee-eeeeeeeeeeee/transition`,
+  })).statusCode, 409);
+  mock.setEventPermissionAllowed(false);
+  assert.equal((await app.inject(publish)).statusCode, 403);
 });
 
 const apiSourceForSecurityAssertions = await readFile(new URL("../../src/server.ts", import.meta.url), "utf8");

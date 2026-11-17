@@ -3,6 +3,7 @@ import type {
   CreateOrganizerEventInput,
   CreateOrganizerEventSessionInput,
   OrganizerEvent,
+  OrganizerEventAction,
   OrganizerEventSessionDetails,
   UpdateOrganizerEventDetailsInput,
   UpdateOrganizerEventSessionInput,
@@ -95,6 +96,29 @@ export function useOrganizerEvents({
         expectedDetailsRevision: event.detailsRevision,
       });
       pageNotice.value = translate("events.updated");
+      try { await loadEvents(); } catch (error) { showError(error); }
+      return true;
+    } catch (error) {
+      showError(error);
+      return false;
+    } finally {
+      busy.value = false;
+    }
+  }
+
+  async function transitionEvent(event: OrganizerEvent, action: OrganizerEventAction): Promise<boolean> {
+    if (action === "publish" && !window.confirm(translate("events.confirmPublish", { title: event.title }))) {
+      return false;
+    }
+    clearMessages();
+    busy.value = true;
+    try {
+      await api.transitionOrganizerEvent(organizationId.value, event.eventId, {
+        action,
+        expectedDetailsRevision: event.detailsRevision,
+        expectedScheduleRevision: event.currentRevision,
+      });
+      pageNotice.value = translate("events.lifecycleUpdated");
       try { await loadEvents(); } catch (error) { showError(error); }
       return true;
     } catch (error) {
@@ -205,5 +229,6 @@ export function useOrganizerEvents({
     createEvent,
     updateEvent,
     archiveEvent,
+    transitionEvent,
   };
 }
