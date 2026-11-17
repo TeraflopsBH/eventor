@@ -105,6 +105,8 @@ export default {
     settings: "Settings",
   },
   registry: {
+    editParticipation: "Edit participation",
+    revokeBeforeChange: "Revoke any outstanding invitation before moving the guest out of Eligible.",
     addToEvent: "Add to event",
     event: "Event",
     chooseEvent: "Choose an event",

@@ -1190,6 +1190,8 @@ export interface GuestRegistryDirectory {
   nextOffset: number | null;
 }
 
+export type ManagedParticipationStatus = "eligible" | "waitlisted" | "withdrawn" | "ineligible";
+
 export interface GuestRegistryHistory {
   changes: {
     auditId: string;
@@ -1203,7 +1205,9 @@ export interface GuestRegistryHistory {
     eventTitle: string;
     eventCode: string;
     eventStatus: OrganizerEvent["status"];
-    status: "eligible" | "waitlisted" | "withdrawn" | "cancelled" | "ineligible";
+    status: ManagedParticipationStatus | "cancelled";
+    canManage: boolean;
+    revision: number;
     eventStartsAt: string | null;
     addedAt: string;
   }[];
@@ -1227,6 +1231,11 @@ export const api = {
     request<Envelope<{ eventId: string; participationId: string; status: string }>>(`/events/${encodeURIComponent(eventId)}/participations`, {
       method: "POST", body: { personId, status }, idempotent: true,
     }),
+  updateGuestParticipationStatus: (eventId: string, participationId: string, status: ManagedParticipationStatus, expectedRevision: number) =>
+    request<Envelope<{ participationId: string; status: ManagedParticipationStatus; revision: number }>>(
+      `/events/${encodeURIComponent(eventId)}/participations/${encodeURIComponent(participationId)}`,
+      { method: "PATCH", body: { status, expectedRevision }, idempotent: true },
+    ),
   searchGuestRegistry: (organizationId: string, body: { query: string; archived: boolean; offset: number }) =>
     request<Envelope<GuestRegistryDirectory>>(`/organizations/${encodeURIComponent(organizationId)}/persons/search`, { method: "POST", body }),
   getGuestRegistryProfile: (personId: string) =>
