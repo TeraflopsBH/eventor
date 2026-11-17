@@ -146,6 +146,9 @@ export default {
     exportLimit: "This export exceeds 20,000 guests. Try exporting by status.",
   },
   registry: {
+    exportCsv: "Export Registry as CSV",
+    exportXlsx: "Export Registry as XLSX",
+    exportLimit: "This export exceeds 20,000 profiles. Narrow the name search.",
     contacts: {
       title: "Contacts",
       kind: "Contact type",

@@ -1775,6 +1775,26 @@ BEGIN
   IF jsonb_array_length(eogp.read_guest_registry(v_org, v_actor, NULL, 'directory case synthetic', false, 0)->'people') <> 1 THEN
     RAISE EXCEPTION 'directory must support name lookup in either order';
   END IF;
+  BEGIN
+    PERFORM eogp.read_guest_registry_export(v_org,v_actor,'',false);
+    RAISE EXCEPTION 'Registry manager without an export grant unexpectedly exported profiles';
+  EXCEPTION WHEN insufficient_privilege THEN NULL;
+  END;
+  INSERT INTO eogp.role_permissions (organization_id, role_id, permission_code)
+    VALUES (v_org, v_role, 'guest.registry.export');
+  v_result := eogp.read_guest_registry_export(v_org,v_actor,'Directory Case Synthetic',false);
+  IF v_result->'people' IS DISTINCT FROM
+       '[{"firstName":"Synthetic","lastName":"Directory Case","displayName":null,"preferredName":"Preferred","status":"active"}]'::jsonb
+     OR eogp.read_guest_registry(v_org,v_actor,NULL,'',false,0)->>'canExport' IS DISTINCT FROM 'true'
+     OR NOT EXISTS (SELECT 1 FROM eogp.audit_events WHERE organization_id = v_org AND aggregate_id = v_org
+        AND action = 'guest.registry.exported' AND safe_metadata = '{"exportedCount":1,"archived":false}'::jsonb) THEN
+    RAISE EXCEPTION 'Registry export did not use the correct filter, projection, capability or audit event';
+  END IF;
+  BEGIN
+    PERFORM eogp.read_guest_registry_export(gen_random_uuid(),v_actor,'',false);
+    RAISE EXCEPTION 'cross-tenant Registry export unexpectedly succeeded';
+  EXCEPTION WHEN insufficient_privilege THEN NULL;
+  END;
   v_result := eogp.write_guest_registry_person(v_org, v_actor, v_person, 1, 'update', '{"preferredName":null}');
   IF v_result->>'revision' <> '2' OR
      eogp.read_guest_registry(v_org, v_actor, v_person, '', false, 0)->'preferredName' <> 'null'::jsonb THEN
@@ -1800,6 +1820,10 @@ BEGIN
   UPDATE eogp.event_participations SET status = 'withdrawn'
     WHERE organization_id = v_org AND event_id = v_event AND person_id = v_person;
   PERFORM eogp.write_guest_registry_person(v_org, v_actor, v_person, 2, 'archive', '{}');
+  IF eogp.read_guest_registry_export(v_org,v_actor,'Directory Case',false)->'people' IS DISTINCT FROM '[]'::jsonb
+     OR (eogp.read_guest_registry_export(v_org,v_actor,'Directory Case',true)#>>'{people,0,status}') IS DISTINCT FROM 'archived' THEN
+    RAISE EXCEPTION 'Registry export did not respect archive filtering';
+  END IF;
   IF jsonb_array_length(eogp.read_guest_registry(v_org, v_actor, NULL, 'Directory Case', false, 0)->'people') <> 0
      OR jsonb_array_length(eogp.read_guest_registry(v_org, v_actor, NULL, 'Directory Case', true, 0)->'people') <> 1
      OR NOT EXISTS (SELECT 1 FROM eogp.event_participations

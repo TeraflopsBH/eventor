@@ -4,7 +4,7 @@ import { useI18n } from "vue-i18n";
 import EventGuestImportPreview from "./EventGuestImportPreview.vue";
 import { api, ApiError, type EventGuestList, type EventGuestRow, type EventGuestWorkspace, type ManagedParticipationStatus } from "../../api";
 import { formatApiError } from "../../i18n/api-errors";
-import { downloadGuestCsv, formatGuestCsv } from "./guest-csv";
+import { downloadGuestCsv, downloadGuestXlsx, formatGuestCsv } from "../../guest-export";
 
 const props = defineProps<{ organizationId: string }>();
 const { t } = useI18n();
@@ -84,12 +84,7 @@ function downloadRoster(format: "csv" | "xlsx"): Promise<void> {
     if (format === "csv") {
       downloadGuestCsv(filename, `\uFEFF${formatGuestCsv(rows)}`);
     } else {
-      const { default: writeWorkbook } = await import("write-excel-file/browser");
-      const cells = rows.map((row, index) => row.map((value) => ({
-        value: value ?? "", type: String, fontWeight: index === 0 ? "bold" as const : undefined,
-      })));
-      await writeWorkbook(cells, { sheet: t("navigation.eventGuests"), columns: [{ width: 42 }, { width: 23 }, { width: 20 }] })
-        .toFile(filename);
+      await downloadGuestXlsx(filename, t("navigation.eventGuests"), rows, [42, 23, 20]);
     }
   });
 }
