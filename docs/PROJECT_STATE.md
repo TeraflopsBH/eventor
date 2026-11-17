@@ -1,6 +1,6 @@
 # Current integration baseline — 2026-11-17
 
-**Current main (remote ref verified 2026-11-17):** `80b9c70052e18a3f27536dbb0c936b17a5c722f9` includes event and session lifecycle actions through PR #137 and the first Guest Registry profiles in PR #138. The contracts/PostgreSQL and secret-history workflows passed on this commit.
+**Current main (remote ref verified 2026-11-17):** `4fe7d11c89d40b4a02b6d15ea137ba6ffce7912c` includes Guest Registry profiles and permission-filtered history through PR #139. The contracts/PostgreSQL and secret-history workflows passed on this commit.
 
 **Current product assessment:** Eventor is not yet a complete event-operations product. The venue-booking/commercial and invitation/RSVP slices are substantial; booking cancellation has a staff request/review/approved-execution workspace and a public customer request/read-only status journey. Organizer event list/create/update/archive is integrated. Event sessions, persistent Guest Registry CRUD/import/merge, venue spatial editing, guest seating, admission/check-in, the operations cockpit, vendor/prerequisite workflows, branding/template authoring and both production installers remain incomplete or foundation-only. The feature-by-feature audit is [Blueprint-to-repository gap analysis v1.0](BLUEPRINT_TO_REPOSITORY_GAP_ANALYSIS_v1.0.md), refreshed alongside this baseline.
 
@@ -10,7 +10,7 @@
 
 **Organizer lifecycle:** Migration `000126` adds planning, approval and schedule publication to the Events workspace. Migration `000127` adds event start and close and session scheduling, start and completion. Event-specific configuration, session-specific disruption handling and the Guest Registry remain open under #104.
 
-**Guest Registry profile increment:** Migration `000128` adds name search and paging, profile viewing, creation, revision-checked editing, and archival. Migration `000129` adds profile change and permission-filtered event participation history. Contact management, event linking, imports and exports, and duplicate review remain open under #104.
+**Guest Registry profile increment:** Migration `000128` adds name search and paging, profile viewing, creation, revision-checked editing, and archival. Migration `000129` adds profile change and permission-filtered event participation history. Migration `000130` adds guest-list activation and multi-event profile reuse with pinned identity snapshots. Contact and participation management, imports and exports, and duplicate review remain open under #104.
 
 **Latest recorded integration evidence:**
 - PR #136 — organizer approval and schedule publication (migration 000126), merged at `022b206`. Post-merge [contracts/PostgreSQL](https://github.com/TeraflopsBH/eventor/actions/runs/44124806464) and [secret-history](https://github.com/TeraflopsBH/eventor/actions/runs/44124806030) passed.

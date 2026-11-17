@@ -9,7 +9,7 @@ const props = defineProps<{ workspace: Workspace; t: (key: string, params?: Reco
 const t = props.t;
 const {
   events, sessions, sessionsEventId, busy, canArchive, refresh, createEvent, updateEvent,
-  archiveEvent, transitionEvent, showSessions, createSession, updateSession, transitionSession,
+  archiveEvent, enableGuestRegistry, transitionEvent, showSessions, createSession, updateSession, transitionSession,
 } = props.workspace;
 const lifecycleActions: Partial<Record<OrganizerEvent["status"], OrganizerEventAction[]>> = {
   draft: ["plan"],
@@ -334,6 +334,11 @@ async function submitUpdate(): Promise<void> {
                   @click="changeLifecycle(event, action)"
                 >
                   {{ t(`events.lifecycle.${action}`) }}
+                </button>
+                <span v-if="event.guestRegistryEnabled" class="muted">{{ t("events.guestListEnabled") }}</span>
+                <button v-else-if="['draft', 'planned', 'scheduled', 'active'].includes(event.status)"
+                  class="button button-secondary button-small" type="button" :disabled="busy" @click="enableGuestRegistry(event)">
+                  {{ t("events.enableGuestList") }}
                 </button>
                 <button class="button button-danger button-small" type="button" :disabled="busy || !canArchive(event)" @click="archiveEvent(event)">
                   {{ t("events.archive") }}

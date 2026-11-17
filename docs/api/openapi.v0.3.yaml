@@ -3439,6 +3439,27 @@ paths:
         '401': { $ref: '#/components/responses/Unauthorized' }
         '403': { $ref: '#/components/responses/Forbidden' }
         '500': { $ref: '#/components/responses/InternalServerError' }
+  "/events/{eventId}/guest-registry/enable":
+    post:
+      tags: ["Event Participation"]
+      operationId: enableEventGuestRegistry
+      summary: "Enable the guest list for an organizer-owned event"
+      security: [{ StaffSession: [], StaffCsrf: [] }]
+      parameters:
+        - $ref: '#/components/parameters/PEventId'
+        - $ref: '#/components/parameters/IdempotencyKey'
+      responses:
+        '200':
+          description: "Guest list enabled."
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/EventGuestRegistryEnvelope' }
+        '400': { $ref: '#/components/responses/BadRequest' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '404': { $ref: '#/components/responses/NotFound' }
+        '409': { $ref: '#/components/responses/Conflict' }
+        '500': { $ref: '#/components/responses/InternalServerError' }
   "/events/{eventId}/participations":
     get:
       tags: ["Event Participation"]
@@ -3471,12 +3492,17 @@ paths:
       parameters:
         - $ref: '#/components/parameters/PEventId'
         - $ref: '#/components/parameters/IdempotencyKey'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/ParticipationCreateRequest' }
       responses:
         '201':
           description: "Successful response."
           content:
             application/json:
-              schema: { $ref: '#/components/schemas/DataEnvelope' }
+              schema: { $ref: '#/components/schemas/EventParticipationLinkEnvelope' }
         '400': { $ref: '#/components/responses/BadRequest' }
         '401': { $ref: '#/components/responses/Unauthorized' }
         '403': { $ref: '#/components/responses/Forbidden' }
@@ -5053,6 +5079,25 @@ paths:
         '412': { $ref: '#/components/responses/PreconditionFailed' }
         '422': { $ref: '#/components/responses/UnprocessableEntity' }
         '429': { $ref: '#/components/responses/TooManyRequests' }
+        '500': { $ref: '#/components/responses/InternalServerError' }
+  "/persons/{personId}/linkable-events":
+    get:
+      tags: ["Guest Registry"]
+      operationId: listPersonLinkableEvents
+      summary: "List open guest lists this staff member may add the person to"
+      security: [{ StaffSession: [] }]
+      parameters:
+        - $ref: '#/components/parameters/PPersonId'
+      responses:
+        '200':
+          description: "Authorized events with guest lists enabled."
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/LinkableEventsEnvelope' }
+        '400': { $ref: '#/components/responses/BadRequest' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '404': { $ref: '#/components/responses/NotFound' }
         '500': { $ref: '#/components/responses/InternalServerError' }
   "/persons/{personId}/history":
     get:
@@ -6755,13 +6800,47 @@ components:
                   eventStartsAt: { type: [string, 'null'], format: date-time }
                   addedAt: { type: string, format: date-time }
             nextOffset: { type: [integer, 'null'], minimum: 0 }
+    EventGuestRegistryEnvelope:
+      type: object
+      required: [data]
+      properties:
+        data:
+          type: object
+          required: [eventId, guestRegistryEnabled]
+          properties:
+            eventId: { type: string, format: uuid }
+            guestRegistryEnabled: { type: boolean }
+    LinkableEventsEnvelope:
+      type: object
+      required: [data]
+      properties:
+        data:
+          type: array
+          items:
+            type: object
+            required: [eventId, title, eventCode]
+            properties:
+              eventId: { type: string, format: uuid }
+              title: { type: string }
+              eventCode: { type: string }
     ParticipationCreateRequest:
       type: object
+      additionalProperties: false
       required: [personId]
       properties:
         personId: { type: string, format: uuid }
-        categoryCode: { type: string }
-        status: { type: string, enum: [eligible, waitlisted, ineligible] }
+        status: { type: string, enum: [eligible, waitlisted, ineligible], default: eligible }
+    EventParticipationLinkEnvelope:
+      type: object
+      required: [data]
+      properties:
+        data:
+          type: object
+          required: [eventId, participationId, status]
+          properties:
+            eventId: { type: string, format: uuid }
+            participationId: { type: string, format: uuid }
+            status: { type: string, enum: [eligible, waitlisted, ineligible] }
     InvitationIssueRequest:
       type: object
       required: [participationIds, templateRevisionId, rsvpPolicyRevisionId]
@@ -7219,6 +7298,7 @@ components:
       properties:
         eventId: { type: string, format: uuid }
         eventCode: { type: string }
+        guestRegistryEnabled: { type: boolean }
         title: { type: string }
         descriptionInternal: { type: [string, "null"] }
         status: { type: string, enum: [draft, planned, ready_for_approval, approved, scheduled, active, completed, cancelled, postponed, archived] }

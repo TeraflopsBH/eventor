@@ -1837,6 +1837,72 @@ BEGIN
 END;
 $test$;
 
+-- Reuse one organizer profile across events without changing prior identity snapshots.
+DO $test$
+DECLARE
+  v_org CONSTANT uuid := '10000000-0000-0000-0000-00000000000a';
+  v_actor CONSTANT uuid := '30000000-0000-0000-0000-00000000000a';
+  v_person uuid;
+  v_first_event uuid;
+  v_second_event uuid;
+  v_result jsonb;
+BEGIN
+  v_result := eogp.write_guest_registry_person(v_org, v_actor, NULL, NULL, 'create',
+    '{"firstName":"Original","lastName":"Synthetic","displayName":"Pinned Name"}');
+  v_person := (v_result->>'personId')::uuid;
+  v_result := eogp.create_organizer_event(v_org, v_actor, 'CI-LINK-A', 'First link target', NULL,
+    '2031-01-18 09:00:00+00', '2031-01-18 12:00:00+00', 'Europe/Sarajevo', '{}', '{}');
+  v_first_event := (v_result->>'eventId')::uuid;
+  v_result := eogp.create_organizer_event(v_org, v_actor, 'CI-LINK-B', 'Second link target', NULL,
+    '2031-01-18 09:00:00+00', '2031-01-18 12:00:00+00', 'Europe/Sarajevo', '{}', '{}');
+  v_second_event := (v_result->>'eventId')::uuid;
+
+  PERFORM eogp.enable_event_guest_registry(v_org, v_first_event, v_actor);
+  IF eogp.list_registry_linkable_events(v_org, v_actor, v_person) <> '[]'::jsonb THEN
+    RAISE EXCEPTION 'registry permission unexpectedly allowed browsing event guest lists';
+  END IF;
+  BEGIN
+    PERFORM eogp.link_registry_person_to_event(v_org, v_first_event, v_actor, v_person, 'eligible');
+    RAISE EXCEPTION 'registry permission unexpectedly allowed adding to an event';
+  EXCEPTION WHEN insufficient_privilege THEN NULL;
+  END;
+  INSERT INTO eogp.role_permissions (organization_id, role_id, permission_code)
+  SELECT v_org, role.id, permission.code
+  FROM eogp.roles role CROSS JOIN (VALUES ('guest.manage'),('invitation.manage')) permission(code)
+  WHERE role.organization_id = v_org AND role.code = 'CI-REGISTRY';
+
+  IF jsonb_array_length(eogp.list_registry_linkable_events(v_org, v_actor, v_person)) <> 1 THEN
+    RAISE EXCEPTION 'event selection must include only enabled, authorized guest lists';
+  END IF;
+  BEGIN
+    PERFORM eogp.link_registry_person_to_event(v_org, v_second_event, v_actor, v_person, 'eligible');
+    RAISE EXCEPTION 'linking to a disabled event guest list unexpectedly succeeded';
+  EXCEPTION WHEN object_not_in_prerequisite_state THEN NULL;
+  END;
+
+  PERFORM eogp.link_registry_person_to_event(v_org, v_first_event, v_actor, v_person, 'eligible');
+  PERFORM eogp.write_guest_registry_person(v_org, v_actor, v_person, 1, 'update', '{"displayName":"Current Name"}');
+  IF NOT eogp.list_guest_invitation_participations(v_org, v_first_event, v_actor)
+      @> '[{"displayName":"Pinned Name"}]'::jsonb THEN
+    RAISE EXCEPTION 'profile edit changed a linked event name';
+  END IF;
+  BEGIN
+    PERFORM eogp.link_registry_person_to_event(v_org, v_first_event, v_actor, v_person, 'eligible');
+    RAISE EXCEPTION 'duplicate event participation unexpectedly succeeded';
+  EXCEPTION WHEN unique_violation THEN NULL;
+  END;
+
+  PERFORM eogp.enable_event_guest_registry(v_org, v_second_event, v_actor);
+  PERFORM eogp.link_registry_person_to_event(v_org, v_second_event, v_actor, v_person, 'waitlisted');
+  IF NOT eogp.list_guest_invitation_participations(v_org, v_second_event, v_actor)
+      @> '[{"displayName":"Current Name","status":"waitlisted"}]'::jsonb
+     OR jsonb_array_length(eogp.read_guest_registry_history(v_org, v_actor, v_person, 0)->'participations') <> 2
+     OR has_table_privilege('eventor_runtime', 'eogp.event_participations', 'INSERT,UPDATE,DELETE') THEN
+    RAISE EXCEPTION 'historic participation, permissioned writes or cross-event profile reuse failed';
+  END IF;
+END;
+$test$;
+
 COMMIT;
 
 \echo 'PostgreSQL migration smoke tests passed.'
