@@ -1255,7 +1255,15 @@ export interface EventGuestRow {
   status: ManagedParticipationStatus | "cancelled";
   revision: number;
   categoryCode: string | null;
+  categoryId: string | null;
   participationCode: string | null;
+}
+
+export interface EventGuestCategory {
+  categoryId: string;
+  code: string;
+  label: string;
+  retired: boolean;
 }
 
 export interface EventGuestList {
@@ -1345,6 +1353,20 @@ export const api = {
     type ExportRow = Pick<EventGuestRow, "displayName" | "status" | "categoryCode">;
     return request<Envelope<{ people: ExportRow[] }>>(`/events/${encodeURIComponent(eventId)}/participations/export${filter}`);
   },
+  listEventGuestCategories: (eventId: string) =>
+    request<Envelope<EventGuestCategory[]>>(`/events/${encodeURIComponent(eventId)}/guest-categories`),
+  createEventGuestCategory: (eventId: string, body: { code: string; label: string }) =>
+    request<Envelope<EventGuestCategory>>(`/events/${encodeURIComponent(eventId)}/guest-categories`, { method: "POST", body, idempotent: true }),
+  retireEventGuestCategory: (eventId: string, categoryId: string) =>
+    request<Envelope<EventGuestCategory>>(`/events/${encodeURIComponent(eventId)}/guest-categories/${encodeURIComponent(categoryId)}/retire`, {
+      method: "POST", idempotent: true,
+    }),
+  setEventGuestCategory: (eventId: string, participationId: string, categoryId: string | null, expectedRevision: number) =>
+    request<Envelope<{ participationId: string; categoryId: string | null; revision: number }>>(
+      `/events/${encodeURIComponent(eventId)}/participations/${encodeURIComponent(participationId)}/category`, {
+        method: "PATCH", body: { categoryId, expectedRevision }, idempotent: true,
+      },
+    ),
   updateGuestParticipationStatus: (eventId: string, participationId: string, status: ManagedParticipationStatus, expectedRevision: number) =>
     request<Envelope<{ participationId: string; status: ManagedParticipationStatus; revision: number }>>(
       `/events/${encodeURIComponent(eventId)}/participations/${encodeURIComponent(participationId)}`,

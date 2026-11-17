@@ -2238,6 +2238,63 @@ BEGIN
 END;
 $test$;
 
+-- Guest categories are event-specific. Retirement keeps old assignments and the code reserved.
+DO $test$
+DECLARE
+  v_org CONSTANT uuid := '10000000-0000-0000-0000-00000000000a';
+  v_actor CONSTANT uuid := '30000000-0000-0000-0000-00000000000a';
+  v_event uuid;
+  v_other_event uuid;
+  v_participation uuid;
+  v_revision integer;
+  v_category uuid;
+  v_result jsonb;
+BEGIN
+  SELECT id INTO STRICT v_event FROM eogp.events WHERE organization_id = v_org AND event_code = 'CI-LINK-A';
+  SELECT id INTO STRICT v_other_event FROM eogp.events WHERE organization_id = v_org AND event_code = 'CI-LINK-B';
+  SELECT p.id, p.revision INTO STRICT v_participation, v_revision
+  FROM eogp.event_participations p JOIN eogp.persons person
+    ON person.organization_id = p.organization_id AND person.id = p.person_id
+  WHERE p.organization_id = v_org AND p.event_id = v_event AND person.last_name = 'Workbook Fixture';
+
+  v_result := eogp.write_event_guest_category(v_org,v_other_event,v_actor,NULL,'STEWARDS','Stewards');
+  v_category := (v_result->>'categoryId')::uuid;
+  BEGIN
+    PERFORM eogp.set_event_guest_category(v_org,v_event,v_actor,v_participation,v_revision,v_category);
+    RAISE EXCEPTION 'a category from a different event was assigned';
+  EXCEPTION WHEN no_data_found THEN NULL;
+  END;
+
+  v_result := eogp.write_event_guest_category(v_org,v_event,v_actor,NULL,'STEWARDS','Fixture stewards');
+  v_category := (v_result->>'categoryId')::uuid;
+  PERFORM eogp.set_event_guest_category(v_org,v_event,v_actor,v_participation,v_revision,v_category);
+  BEGIN
+    PERFORM eogp.set_event_guest_category(v_org,v_event,v_actor,v_participation,v_revision,NULL);
+    RAISE EXCEPTION 'a stale participation write removed the category';
+  EXCEPTION WHEN serialization_failure THEN NULL;
+  END;
+  PERFORM eogp.write_event_guest_category(v_org,v_event,v_actor,v_category,NULL,NULL);
+  IF NOT eogp.list_event_guest_categories(v_org,v_event,v_actor)
+       @> jsonb_build_array(jsonb_build_object('categoryId',v_category,'label','Fixture stewards','retired',true))
+     OR NOT (eogp.read_event_guest_list(v_org,v_event,v_actor,NULL,0)->'people')
+       @> jsonb_build_array(jsonb_build_object('participationId',v_participation,'categoryId',v_category,'categoryCode','STEWARDS'))
+     OR has_table_privilege('eventor_runtime','eogp.event_guest_categories','SELECT,INSERT,UPDATE,DELETE') THEN
+    RAISE EXCEPTION 'retired category history or runtime access boundary is incorrect';
+  END IF;
+  BEGIN
+    PERFORM eogp.write_event_guest_category(v_org,v_event,v_actor,NULL,'STEWARDS','Repurposed');
+    RAISE EXCEPTION 'a retired category code was reused';
+  EXCEPTION WHEN unique_violation THEN NULL;
+  END;
+  PERFORM eogp.set_event_guest_category(v_org,v_event,v_actor,v_participation,v_revision+1,NULL);
+  BEGIN
+    PERFORM eogp.set_event_guest_category(v_org,v_event,v_actor,v_participation,v_revision+2,v_category);
+    RAISE EXCEPTION 'a retired category was assigned again';
+  EXCEPTION WHEN object_not_in_prerequisite_state THEN NULL;
+  END;
+END;
+$test$;
+
 COMMIT;
 
 \echo 'PostgreSQL migration smoke tests passed.'

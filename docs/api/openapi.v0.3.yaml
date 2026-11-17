@@ -3664,6 +3664,84 @@ paths:
         '404': { $ref: '#/components/responses/NotFound' }
         '409': { $ref: '#/components/responses/Conflict' }
         '500': { $ref: '#/components/responses/InternalServerError' }
+  "/events/{eventId}/guest-categories":
+    get:
+      tags: ["Event Participation"]
+      operationId: listEventGuestCategories
+      summary: "List the active and retired guest categories for an event"
+      security: [{ StaffSession: [] }]
+      parameters:
+        - $ref: '#/components/parameters/PEventId'
+      responses:
+        '200':
+          description: "Event guest categories."
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [data]
+                properties:
+                  data:
+                    type: array
+                    items: { $ref: '#/components/schemas/EventGuestCategory' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '404': { $ref: '#/components/responses/NotFound' }
+    post:
+      tags: ["Event Participation"]
+      operationId: createEventGuestCategory
+      summary: "Create an event-scoped guest category with a stable code"
+      security: [{ StaffSession: [], StaffCsrf: [] }]
+      parameters:
+        - $ref: '#/components/parameters/PEventId'
+        - $ref: '#/components/parameters/IdempotencyKey'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              additionalProperties: false
+              required: [code, label]
+              properties:
+                code: { type: string, pattern: '^[A-Z0-9][A-Z0-9_-]{0,39}$' }
+                label: { type: string, minLength: 1, maxLength: 120 }
+      responses:
+        '201':
+          description: "Guest category created."
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/EventGuestCategoryEnvelope' }
+        '400': { $ref: '#/components/responses/BadRequest' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '404': { $ref: '#/components/responses/NotFound' }
+        '409': { $ref: '#/components/responses/Conflict' }
+        '422': { $ref: '#/components/responses/UnprocessableEntity' }
+  "/events/{eventId}/guest-categories/{categoryId}/retire":
+    post:
+      tags: ["Event Participation"]
+      operationId: retireEventGuestCategory
+      summary: "Retire a guest category while preserving existing assignments"
+      security: [{ StaffSession: [], StaffCsrf: [] }]
+      parameters:
+        - $ref: '#/components/parameters/PEventId'
+        - $ref: '#/components/parameters/IdempotencyKey'
+        - name: categoryId
+          in: path
+          required: true
+          schema: { type: string, format: uuid }
+      responses:
+        '200':
+          description: "The category is retired."
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/EventGuestCategoryEnvelope' }
+        '400': { $ref: '#/components/responses/BadRequest' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '404': { $ref: '#/components/responses/NotFound' }
+        '409': { $ref: '#/components/responses/Conflict' }
   "/events/{eventId}/participations":
     get:
       tags: ["Event Participation"]
@@ -3777,6 +3855,49 @@ paths:
         '409': { $ref: '#/components/responses/Conflict' }
         '412': { $ref: '#/components/responses/PreconditionFailed' }
         '500': { $ref: '#/components/responses/InternalServerError' }
+  "/events/{eventId}/participations/{participationId}/category":
+    patch:
+      tags: ["Event Participation"]
+      operationId: setEventGuestCategory
+      summary: "Assign or clear an event guest category"
+      security: [{ StaffSession: [], StaffCsrf: [] }]
+      parameters:
+        - $ref: '#/components/parameters/PEventId'
+        - $ref: '#/components/parameters/PParticipationId'
+        - $ref: '#/components/parameters/IdempotencyKey'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              additionalProperties: false
+              required: [categoryId, expectedRevision]
+              properties:
+                categoryId: { type: [string, 'null'], format: uuid }
+                expectedRevision: { type: integer, minimum: 1, maximum: 2147483647 }
+      responses:
+        '200':
+          description: "Current category and participation revision."
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [data]
+                properties:
+                  data:
+                    type: object
+                    required: [participationId, categoryId, revision]
+                    properties:
+                      participationId: { type: string, format: uuid }
+                      categoryId: { type: [string, 'null'], format: uuid }
+                      revision: { type: integer, minimum: 1 }
+        '400': { $ref: '#/components/responses/BadRequest' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '404': { $ref: '#/components/responses/NotFound' }
+        '409': { $ref: '#/components/responses/Conflict' }
+        '412': { $ref: '#/components/responses/PreconditionFailed' }
   "/events/{eventId}/participations/{participationId}/rsvp-history":
     get:
       tags: ["Invitations and RSVP"]
@@ -7424,6 +7545,19 @@ components:
                   displayName: { type: string }
                   status: { type: string, enum: [eligible, waitlisted, withdrawn, cancelled, ineligible] }
                   categoryCode: { type: [string, 'null'] }
+    EventGuestCategory:
+      type: object
+      required: [categoryId, code, label, retired]
+      properties:
+        categoryId: { type: string, format: uuid }
+        code: { type: string }
+        label: { type: string }
+        retired: { type: boolean }
+    EventGuestCategoryEnvelope:
+      type: object
+      required: [data]
+      properties:
+        data: { $ref: '#/components/schemas/EventGuestCategory' }
     EventGuestListEnvelope:
       type: object
       required: [data]
@@ -7436,13 +7570,14 @@ components:
               type: array
               items:
                 type: object
-                required: [participationId, displayName, status, revision, categoryCode, participationCode]
+                required: [participationId, displayName, status, revision, categoryCode, categoryId, participationCode]
                 properties:
                   participationId: { type: string, format: uuid }
                   displayName: { type: string }
                   status: { type: string, enum: [eligible, waitlisted, withdrawn, cancelled, ineligible] }
                   revision: { type: integer, minimum: 1 }
                   categoryCode: { type: [string, 'null'] }
+                  categoryId: { type: [string, 'null'], format: uuid }
                   participationCode: { type: [string, 'null'] }
             canManage: { type: boolean }
             nextOffset: { type: [integer, 'null'], minimum: 0 }

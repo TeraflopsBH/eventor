@@ -1,8 +1,9 @@
 <script setup lang="ts">
-import { onMounted, ref } from "vue";
+import { computed, onMounted, ref } from "vue";
 import { useI18n } from "vue-i18n";
 import EventGuestImportPreview from "./EventGuestImportPreview.vue";
-import { api, ApiError, type EventGuestList, type EventGuestRow, type EventGuestWorkspace, type ManagedParticipationStatus } from "../../api";
+import EventGuestCategories from "./EventGuestCategories.vue";
+import { api, ApiError, type EventGuestCategory, type EventGuestList, type EventGuestRow, type EventGuestWorkspace, type ManagedParticipationStatus } from "../../api";
 import { formatApiError } from "../../i18n/api-errors";
 import { downloadGuestCsv, downloadGuestXlsx, formatGuestCsv } from "../../guest-export";
 
@@ -18,6 +19,11 @@ const editing = ref<EventGuestRow | null>(null);
 const nextStatus = ref<ManagedParticipationStatus>("eligible");
 const busy = ref(false);
 const showImport = ref(false);
+const showCategories = ref(false);
+const categories = ref<EventGuestCategory[]>([]);
+const activeCategories = computed(() => categories.value.filter((category) => !category.retired));
+const categoryNames = computed(() => new Map(categories.value.map((category) => [category.categoryId, category.label])));
+const categoryEdit = ref<{ row: EventGuestRow; original: string; selected: string } | null>(null);
 const error = ref("");
 
 async function run(operation: () => Promise<void>): Promise<void> {
@@ -30,6 +36,8 @@ async function run(operation: () => Promise<void>): Promise<void> {
       events.value = null;
       roster.value = null;
       editing.value = null;
+      categories.value = [];
+      categoryEdit.value = null;
     }
     error.value = failure instanceof ApiError && failure.code === "GUEST_ROSTER_EXPORT_LIMIT"
       ? t("eventGuests.exportLimit")
@@ -41,16 +49,33 @@ async function run(operation: () => Promise<void>): Promise<void> {
 
 async function loadPage(pageOffset: number): Promise<void> {
   editing.value = null;
+  categoryEdit.value = null;
   if (!eventId.value) return;
   roster.value = (await api.getEventGuestList(eventId.value, pageOffset, status.value)).data;
   offset.value = pageOffset;
 }
 
+async function loadCategories(): Promise<void> {
+  categories.value = (await api.listEventGuestCategories(eventId.value)).data;
+}
+
 function chooseEvent(): void {
   showImport.value = false;
+  showCategories.value = false;
+  categories.value = [];
   status.value = "";
   roster.value = null;
-  void run(() => loadPage(0));
+  void run(async () => {
+    if (!eventId.value) return;
+    const [page, catalogue] = await Promise.all([
+      api.getEventGuestList(eventId.value, 0, status.value), api.listEventGuestCategories(eventId.value),
+    ]);
+    editing.value = null;
+    categoryEdit.value = null;
+    roster.value = page.data;
+    categories.value = catalogue.data;
+    offset.value = 0;
+  });
 }
 
 function selectStatus(): void {
@@ -62,6 +87,24 @@ function startEdit(row: EventGuestRow): void {
   if (row.status === "cancelled") return;
   editing.value = row;
   nextStatus.value = row.status;
+}
+
+function categoryName(row: EventGuestRow): string | null {
+  return (row.categoryId && categoryNames.value.get(row.categoryId)) || row.categoryCode;
+}
+
+function editCategory(row: EventGuestRow): void {
+  const original = row.categoryId ?? (row.categoryCode === null ? "" : "legacy");
+  categoryEdit.value = { row, original, selected: original };
+}
+
+function saveCategory(): Promise<void> {
+  const edit = categoryEdit.value;
+  if (!edit || edit.selected === edit.original) return Promise.resolve();
+  return run(async () => {
+    await api.setEventGuestCategory(eventId.value, edit.row.participationId, edit.selected || null, edit.row.revision);
+    await loadPage(offset.value);
+  });
 }
 
 function save(): Promise<void> {
@@ -129,6 +172,14 @@ onMounted(() => run(async () => {
       </button>
       <EventGuestImportPreview v-if="showImport" :key="eventId" :event-id="eventId" @committed="run(() => loadPage(0))" />
     </div>
+    <div v-if="roster?.canManage">
+      <button class="button button-secondary" type="button" :disabled="busy" :aria-expanded="showCategories"
+        @click="showCategories = !showCategories">
+        {{ t("eventGuests.categories.manage") }}
+      </button>
+      <EventGuestCategories v-if="showCategories" :key="eventId" :event-id="eventId" :categories="categories"
+        @changed="run(loadCategories)" />
+    </div>
     <p v-if="roster && !roster.people.length" class="muted">{{ t("eventGuests.noGuests") }}</p>
     <div v-else-if="roster" class="table-scroll">
       <table class="data-table">
@@ -142,7 +193,26 @@ onMounted(() => run(async () => {
           <tr v-for="row in roster.people" :key="row.participationId">
             <td>{{ row.displayName }}</td>
             <td>{{ t(`registry.participationStatus.${row.status}`) }}</td>
-            <td>{{ row.categoryCode ?? "—" }}</td>
+            <td>
+              <form v-if="categoryEdit?.row.participationId === row.participationId" @submit.prevent="saveCategory">
+                <label for="roster-next-category">{{ t("eventGuests.category") }}</label>
+                <select id="roster-next-category" v-model="categoryEdit.selected" :disabled="busy">
+                  <option value="">{{ t("eventGuests.categories.unassigned") }}</option>
+                  <option v-if="categoryEdit.original && !activeCategories.some((item) => item.categoryId === categoryEdit?.original)"
+                    :value="categoryEdit.original" disabled>{{ categoryName(row) }}</option>
+                  <option v-for="category in activeCategories" :key="category.categoryId" :value="category.categoryId">
+                    {{ category.label }}
+                  </option>
+                </select>
+                <button class="button button-primary" type="submit" :disabled="busy || categoryEdit.selected === categoryEdit.original">
+                  {{ t("common.save") }}
+                </button>
+                <button class="button button-secondary" type="button" :disabled="busy" @click="categoryEdit = null">
+                  {{ t("common.cancel") }}
+                </button>
+              </form>
+              <span v-else>{{ categoryName(row) ?? "—" }}</span>
+            </td>
             <td v-if="roster.canManage">
               <form v-if="editing?.participationId === row.participationId" @submit.prevent="save">
                 <label for="roster-next-status">{{ t("registry.linkStatus") }}</label>
@@ -153,9 +223,15 @@ onMounted(() => run(async () => {
                 <button class="button button-primary" type="submit" :disabled="busy">{{ t("common.save") }}</button>
                 <button class="button button-secondary" type="button" :disabled="busy" @click="editing = null">{{ t("common.cancel") }}</button>
               </form>
-              <button v-else-if="row.status !== 'cancelled'" class="button button-secondary" type="button" :disabled="busy || editing !== null" @click="startEdit(row)">
-                {{ t("registry.editParticipation") }}
-              </button>
+              <template v-else-if="row.status !== 'cancelled'">
+                <button class="button button-secondary" type="button" :disabled="busy || editing !== null || categoryEdit !== null" @click="startEdit(row)">
+                  {{ t("registry.editParticipation") }}
+                </button>
+                <button class="button button-secondary" type="button" :disabled="busy || editing !== null || categoryEdit !== null"
+                  @click="editCategory(row)">
+                  {{ t("eventGuests.categories.change") }}
+                </button>
+              </template>
             </td>
           </tr>
         </tbody>
