@@ -3820,6 +3820,139 @@ export function buildApi(dependencies: ApiDependencies): FastifyInstance {
     async (request, reply) => submitPublicOfferDecision(request, reply, "rejected", request.body),
   );
 
+  type PersonCreateBody = JsonRequestBody<"/organizations/{organizationId}/persons", "post">;
+  type PersonPatchBody = JsonRequestBody<"/persons/{personId}", "patch">;
+  type PersonSearchBody = JsonRequestBody<"/organizations/{organizationId}/persons/search", "post">;
+  type PersonArchiveBody = JsonRequestBody<"/persons/{personId}/archive", "post">;
+  const registryPath = "/organizations/:organizationId/persons";
+  const registryOrgParams = {
+    type: "object", required: ["organizationId"],
+    properties: { organizationId: { type: "string", pattern: uuidPattern } },
+  };
+  const registryPersonParams = {
+    type: "object", required: ["personId"],
+    properties: { personId: { type: "string", pattern: uuidPattern } },
+  };
+  const personNames = {
+    firstName: { type: "string", minLength: 1, maxLength: 200 },
+    lastName: { type: "string", minLength: 1, maxLength: 200 },
+    displayName: { type: ["string", "null"], maxLength: 250 },
+    preferredName: { type: ["string", "null"], maxLength: 200 },
+  };
+  const personRevision = { type: "integer", minimum: 1, maximum: 2147483647 };
+
+  function registryPrincipal(request: FastifyRequest, organizationId?: string): StaffPrincipal {
+    const principal = request.staffPrincipal!;
+    if (organizationId !== undefined && organizationId !== principal.organizationId) {
+      throw new ApiError(403, "ORGANIZATION_SCOPE_MISMATCH", "The requested organization is not available to this session.");
+    }
+    return principal;
+  }
+
+  async function readRegistry(
+    reply: FastifyReply,
+    principal: StaffPrincipal,
+    personId: string | null,
+    filter: PersonSearchBody = {},
+  ) {
+    const client = await dependencies.pool.connect();
+    try {
+      await client.query("BEGIN");
+      await client.query("SELECT set_config('app.organization_id',$1,true), set_config('app.actor_membership_id',$2,true)",
+        [principal.organizationId, principal.membershipId]);
+      const result = await client.query<ResultRow>(
+        "SELECT eogp.read_guest_registry($1::uuid,$2::uuid,$3::uuid,$4::text,$5::boolean,$6::integer) AS result",
+        [principal.organizationId, principal.membershipId, personId, filter.query ?? "", filter.archived ?? false, filter.offset ?? 0],
+      );
+      await client.query("COMMIT");
+      return reply.header("cache-control", "no-store, private").send({ data: result.rows[0]?.result });
+    } catch (error) {
+      try { await client.query("ROLLBACK"); } catch { /* preserve the original error */ }
+      throw databaseError(error);
+    } finally {
+      client.release();
+    }
+  }
+
+  async function writeRegistry(
+    request: FastifyRequest, reply: FastifyReply, principal: StaffPrincipal,
+    action: "create" | "update" | "archive", personId: string | null,
+    expectedRevision: number | null, names: Partial<PersonCreateBody>,
+  ) {
+    if (dependencies.privateFieldEncryptionKey?.length !== 32) {
+      throw new ApiError(503, "PRIVATE_FIELD_ENCRYPTION_UNAVAILABLE", "Guest profile protection is not configured.");
+    }
+    return withCommand(
+      request, reply.header("cache-control", "no-store, private"), `guest.registry.${action}`,
+      { personId, expectedRevision, names },
+      async (client) => {
+        const result = await client.query<ResultRow>(
+          "SELECT eogp.write_guest_registry_person($1::uuid,$2::uuid,$3::uuid,$4::integer,$5::text,$6::jsonb) AS result",
+          [principal.organizationId, principal.membershipId, personId, expectedRevision, action, names],
+        );
+        return (result.rows[0]?.result ?? {}) as Record<string, unknown>;
+      },
+      async (client) => {
+        await client.query("SELECT eogp.assert_guest_registry_permission($1::uuid,$2::uuid,true)",
+          [principal.organizationId, principal.membershipId]);
+      },
+      action === "create" ? 201 : 200,
+    );
+  }
+
+  server.get<{ Params: { organizationId: string } }>(registryPath, { schema: { params: registryOrgParams } },
+    (request, reply) => readRegistry(reply, registryPrincipal(request, request.params.organizationId), null));
+
+  server.post<{ Params: { organizationId: string }; Body: PersonSearchBody }>(`${registryPath}/search`, {
+    schema: {
+      params: registryOrgParams,
+      body: {
+        type: "object", additionalProperties: false,
+        properties: {
+          query: { type: "string", maxLength: 200 },
+          archived: { type: "boolean" },
+          offset: { type: "integer", minimum: 0, maximum: 100000 },
+        },
+      },
+    },
+  }, (request, reply) => readRegistry(reply,
+    registryPrincipal(request, request.params.organizationId), null, request.body));
+
+  server.get<{ Params: { personId: string } }>("/persons/:personId", { schema: { params: registryPersonParams } },
+    (request, reply) => readRegistry(reply, registryPrincipal(request), request.params.personId));
+
+  server.post<{ Params: { organizationId: string }; Body: PersonCreateBody }>(registryPath, {
+    schema: {
+      params: registryOrgParams, headers: idempotencyHeaders,
+      body: { type: "object", required: ["firstName", "lastName"], additionalProperties: false, properties: personNames },
+    },
+  }, (request, reply) => writeRegistry(request, reply,
+    registryPrincipal(request, request.params.organizationId), "create", null, null, request.body));
+
+  server.patch<{ Params: { personId: string }; Body: PersonPatchBody }>("/persons/:personId", {
+    schema: {
+      params: registryPersonParams, headers: idempotencyHeaders,
+      body: {
+        type: "object", required: ["expectedRevision"], minProperties: 2, additionalProperties: false,
+        properties: { ...personNames, expectedRevision: personRevision },
+      },
+    },
+  }, (request, reply) => {
+    const { expectedRevision, ...names } = request.body;
+    return writeRegistry(request, reply, registryPrincipal(request), "update", request.params.personId, expectedRevision, names);
+  });
+
+  server.post<{ Params: { personId: string }; Body: PersonArchiveBody }>("/persons/:personId/archive", {
+    schema: {
+      params: registryPersonParams, headers: idempotencyHeaders,
+      body: {
+        type: "object", required: ["expectedRevision"], additionalProperties: false,
+        properties: { expectedRevision: personRevision },
+      },
+    },
+  }, (request, reply) => writeRegistry(request, reply,
+    registryPrincipal(request), "archive", request.params.personId, request.body.expectedRevision, {}));
+
   const organizerEventParams = {
     type: "object",
     required: ["organizationId", "eventId"],

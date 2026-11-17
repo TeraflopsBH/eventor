@@ -1,13 +1,13 @@
 <script setup lang="ts">
 import { computed, type Ref, type WritableComputedRef } from "vue";
 import type { SupportedLocale } from "../../i18n";
-import type { useStaffSession } from "./useStaffSession";
+import type { StaffTab, useStaffSession } from "./useStaffSession";
 
 type Workspace = ReturnType<typeof useStaffSession> & {
   busy: Ref<boolean>;
   pageError: Ref<string>;
   pageNotice: Ref<string>;
-  activeTab: Ref<"delivery" | "campaign" | "inquiries" | "approvals" | "prices" | "cancellations" | "taxes" | "forms" | "guest-invitations" | "events" | "settings">;
+  activeTab: Ref<StaffTab>;
   locale: WritableComputedRef<string>;
   localeOptions: Array<{ value: SupportedLocale; label: string }>;
   openInquiryWorkspace: () => Promise<void>;
@@ -90,6 +90,7 @@ const selectedLocale = computed({
       <nav class="tabs" :aria-label="$t('app.workspaceSections')">
         <button :class="{ active: activeTab === 'delivery' }" @click="activeTab = 'delivery'">{{ $t("navigation.delivery") }}</button>
         <button :class="{ active: activeTab === 'campaign' }" @click="activeTab = 'campaign'">{{ $t("navigation.campaigns") }}</button>
+        <button :class="{ active: activeTab === 'guest-registry' }" @click="activeTab = 'guest-registry'">{{ $t("navigation.guestRegistry") }}</button>
         <button :class="{ active: activeTab === 'guest-invitations' }" @click="activeTab = 'guest-invitations'">{{ $t("navigation.guestInvitations") }}</button>
         <button :class="{ active: activeTab === 'events' }" @click="openEvents">{{ $t("navigation.events") }}</button>
         <button :class="{ active: activeTab === 'inquiries' }" @click="openInquiryWorkspace">{{ $t("navigation.inquiries") }}</button>
