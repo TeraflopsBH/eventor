@@ -8,7 +8,8 @@ import { verifyResendWebhookSignature } from "./resend-webhook.js";
 import { createGuestInvitationCapability, hashGuestInvitationToken } from "./guest-invitation-capability.js";
 import { guestInvitationIssuanceIdempotencyDigest } from "./guest-invitation-idempotency.js";
 import { classifySmtpFailure, sendSmtpTestMessage, type SmtpSettings, type SmtpTransportFactory } from "./smtp-transport.js";
-import { GuestImportCsvError, parseGuestImportCsv, type ImportNames } from "./guest-import-csv.js";
+import { GuestImportCsvError, parseGuestImportCsv, type GuestImportRow, type ImportNames } from "./guest-import-csv.js";
+import { GuestImportWorkbookError, guestWorkbookMaxBytes, guestWorkbookMaxRow, inspectGuestWorkbook, parseGuestWorkbook } from "./guest-import-xlsx.js";
 import type { paths } from "./generated/openapi.js";
 import {
   clearStaffSessionCookies,
@@ -3865,7 +3866,7 @@ export function buildApi(dependencies: ApiDependencies): FastifyInstance {
       await client.query("SELECT set_config('app.organization_id',$1,true), set_config('app.actor_membership_id',$2,true)",
         [principal.organizationId, principal.membershipId]);
       const result = await client.query<ResultRow>(query, [principal.organizationId, principal.membershipId, ...args]);
-      const data = project(result.rows[0]?.result);
+      const data = await project(result.rows[0]?.result);
       await client.query("COMMIT");
       return reply.header("cache-control", "no-store, private").send({ data });
     } catch (error) {
@@ -4092,6 +4093,46 @@ export function buildApi(dependencies: ApiDependencies): FastifyInstance {
     return createHmac("sha256", registryContactKey()).update("eventor:guest-import-csv:v1").digest();
   }
 
+  function prepareGuestImport(
+    request: FastifyRequest, reply: FastifyReply, eventId: string, source: Buffer | string,
+    parseRows: () => GuestImportRow[] | Promise<GuestImportRow[]>, worksheet?: { sheetIndex: number; headerRow: number },
+  ) {
+    const principal = registryPrincipal(request);
+    const key = guestImportKey();
+    if (dependencies.privateFieldEncryptionKey?.length !== 32) {
+      throw new ApiError(503, "PRIVATE_FIELD_ENCRYPTION_UNAVAILABLE", "Guest import protection is not configured.");
+    }
+    const sourceHash = createHash("sha256").update(source).digest("hex");
+    const context = { organizationId: principal.organizationId, contactKind: "other" as const };
+    const args = [principal.organizationId, eventId, principal.membershipId];
+    const authorize = (client: PoolClient) => client.query("SELECT eogp.assert_guest_import_permission($1::uuid,$2::uuid,$3::uuid)", args);
+    return withCommand(request, reply.header("cache-control", "no-store, private"),
+      "guest.import.preview", { eventId, sourceHash, ...worksheet }, async (client) => {
+        if (worksheet) await authorize(client);
+        let rows: GuestImportRow[];
+        try {
+          rows = await parseRows();
+        } catch (error) {
+          if (error instanceof GuestImportCsvError) throw new ApiError(422, "GUEST_IMPORT_CSV_INVALID", error.message);
+          if (error instanceof GuestImportWorkbookError) throw new ApiError(422, "GUEST_IMPORT_XLSX_INVALID", error.message);
+          throw error;
+        }
+        const encryptedRows = rows.map(({ rowNumber, source, names, errors }) => ({
+          rowNumber, errors, firstName: names.firstName, lastName: names.lastName,
+          sourceCiphertext: encryptContactValue(JSON.stringify(source), key, context).toString("base64"),
+          namesCiphertext: encryptContactValue(JSON.stringify(names), key, context).toString("base64"),
+        }));
+        const input = [...args, sourceHash, JSON.stringify(encryptedRows)];
+        const result = worksheet
+          ? await client.query<ResultRow>(
+            "SELECT eogp.prepare_guest_import_workbook_preview($1::uuid,$2::uuid,$3::uuid,$4::text,$5::jsonb,$6::integer,$7::integer) AS result",
+            [...input, worksheet.sheetIndex, worksheet.headerRow])
+          : await client.query<ResultRow>(
+            "SELECT eogp.prepare_guest_import_preview($1::uuid,$2::uuid,$3::uuid,$4::text,$5::jsonb) AS result", input);
+        return (result.rows[0]?.result ?? {}) as Record<string, unknown>;
+      }, async (client) => { await authorize(client); });
+  }
+
   server.post<{ Params: { eventId: string }; Body: { csv: string } }>("/events/:eventId/guest-imports", {
     bodyLimit: 256 * 1024,
     schema: {
@@ -4101,38 +4142,54 @@ export function buildApi(dependencies: ApiDependencies): FastifyInstance {
         properties: { csv: { type: "string", minLength: 1, maxLength: 65536 } },
       },
     },
-  }, (request, reply) => {
-    const principal = registryPrincipal(request);
-    const { eventId } = request.params;
-    const key = guestImportKey();
-    if (dependencies.privateFieldEncryptionKey?.length !== 32) {
-      throw new ApiError(503, "PRIVATE_FIELD_ENCRYPTION_UNAVAILABLE", "Guest import protection is not configured.");
+  }, (request, reply) => prepareGuestImport(request, reply, request.params.eventId, request.body.csv,
+    () => parseGuestImportCsv(request.body.csv)));
+
+  const xlsxField = { type: "string", minLength: 4, maxLength: Math.ceil(guestWorkbookMaxBytes / 3) * 4 };
+  const workbookBodyLimit = xlsxField.maxLength + 1024;
+  function guestWorkbookBytes(encoded: string): Buffer {
+    const bytes = Buffer.from(encoded, "base64");
+    if (bytes.length > guestWorkbookMaxBytes || bytes.toString("base64") !== encoded) {
+      throw new ApiError(422, "GUEST_IMPORT_XLSX_INVALID", "Use a valid XLSX workbook up to 256 KiB.");
     }
-    let rows;
-    try {
-      rows = parseGuestImportCsv(request.body.csv);
-    } catch (error) {
-      if (error instanceof GuestImportCsvError) throw new ApiError(422, "GUEST_IMPORT_CSV_INVALID", error.message);
-      throw error;
-    }
-    const context = { organizationId: principal.organizationId, contactKind: "other" as const };
-    const encryptedRows = rows.map(({ rowNumber, source, names, errors }) => ({
-      rowNumber, errors, firstName: names.firstName, lastName: names.lastName,
-      sourceCiphertext: encryptContactValue(JSON.stringify(source), key, context).toString("base64"),
-      namesCiphertext: encryptContactValue(JSON.stringify(names), key, context).toString("base64"),
+    return bytes;
+  }
+
+  server.post<{ Params: { eventId: string }; Body: { xlsx: string } }>("/events/:eventId/guest-imports/xlsx/sheets", {
+    bodyLimit: workbookBodyLimit,
+    schema: {
+      params: participationEventParams,
+      body: { type: "object", additionalProperties: false, required: ["xlsx"], properties: { xlsx: xlsxField } },
+    },
+  }, (request, reply) => withRegistryRead(reply, registryPrincipal(request),
+    "SELECT eogp.assert_guest_import_permission($1::uuid,$3::uuid,$2::uuid)", [request.params.eventId], async () => {
+      try {
+        return { sheets: await inspectGuestWorkbook(guestWorkbookBytes(request.body.xlsx)) };
+      } catch (error) {
+        if (error instanceof GuestImportWorkbookError) throw new ApiError(422, "GUEST_IMPORT_XLSX_INVALID", error.message);
+        throw error;
+      }
     }));
-    const sourceHash = createHash("sha256").update(request.body.csv, "utf8").digest("hex");
-    return withCommand(request, reply.header("cache-control", "no-store, private"),
-      "guest.import.preview", { eventId, sourceHash }, async (client) => {
-        const result = await client.query<ResultRow>(
-          "SELECT eogp.prepare_guest_import_preview($1::uuid,$2::uuid,$3::uuid,$4::text,$5::jsonb) AS result",
-          [principal.organizationId, eventId, principal.membershipId, sourceHash, JSON.stringify(encryptedRows)],
-        );
-        return (result.rows[0]?.result ?? {}) as Record<string, unknown>;
-      }, async (client) => {
-        await client.query("SELECT eogp.assert_guest_import_permission($1::uuid,$2::uuid,$3::uuid)",
-          [principal.organizationId, eventId, principal.membershipId]);
-      });
+
+  type WorkbookPreview = { xlsx: string; sheetIndex: number; headerRow: number };
+  server.post<{ Params: { eventId: string }; Body: WorkbookPreview }>("/events/:eventId/guest-imports/xlsx", {
+    bodyLimit: workbookBodyLimit,
+    schema: {
+      params: participationEventParams, headers: idempotencyHeaders,
+      body: {
+        type: "object", additionalProperties: false, required: ["xlsx", "sheetIndex", "headerRow"],
+        properties: {
+          xlsx: xlsxField,
+          sheetIndex: { type: "integer", minimum: 1, maximum: 32 },
+          headerRow: { type: "integer", minimum: 1, maximum: guestWorkbookMaxRow - 1 },
+        },
+      },
+    },
+  }, (request, reply) => {
+    const { xlsx, sheetIndex, headerRow } = request.body;
+    const bytes = guestWorkbookBytes(xlsx);
+    return prepareGuestImport(request, reply, request.params.eventId, bytes,
+      () => parseGuestWorkbook(bytes, sheetIndex, headerRow), { sheetIndex, headerRow });
   });
 
   const guestImportBatchParams = {
@@ -4190,7 +4247,7 @@ export function buildApi(dependencies: ApiDependencies): FastifyInstance {
             items: {
               type: "object", required: ["rowNumber", "personId", "expectedRevision"], additionalProperties: false,
               properties: {
-                rowNumber: { type: "integer", minimum: 2, maximum: 501 },
+                rowNumber: { type: "integer", minimum: 2, maximum: guestWorkbookMaxRow },
                 personId: { type: "string", pattern: uuidPattern },
                 expectedRevision: { type: "integer", minimum: 1, maximum: 2147483647 },
               },

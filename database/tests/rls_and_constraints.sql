@@ -2202,6 +2202,42 @@ BEGIN
 END;
 $test$;
 
+-- Workbook imports record selection metadata and reconcile errors at original worksheet rows.
+DO $test$
+DECLARE
+  v_org CONSTANT uuid := '10000000-0000-0000-0000-00000000000a';
+  v_actor CONSTANT uuid := '30000000-0000-0000-0000-00000000000a';
+  v_cipher text := encode(convert_to('ECP1' || repeat('x', 32), 'UTF8'), 'base64');
+  v_event uuid;
+  v_batch uuid;
+  v_result jsonb;
+BEGIN
+  SELECT id INTO STRICT v_event FROM eogp.events WHERE organization_id = v_org AND event_code = 'CI-LINK-A';
+  v_result := eogp.prepare_guest_import_workbook_preview(v_org, v_event, v_actor, repeat('e',64), jsonb_build_array(
+    jsonb_build_object('rowNumber',503,'firstName','Import','lastName','Workbook Fixture',
+      'sourceCiphertext',v_cipher,'namesCiphertext',v_cipher,'errors','[]'::jsonb),
+    jsonb_build_object('rowNumber',508,'firstName','Import','lastName','Late Match',
+      'sourceCiphertext',v_cipher,'namesCiphertext',v_cipher,'errors','["cell_not_text"]'::jsonb)
+  ), 2, 3);
+  v_batch := (v_result->>'batchId')::uuid;
+  IF NOT EXISTS (SELECT 1 FROM eogp.guest_import_batches WHERE organization_id=v_org AND event_id=v_event AND id=v_batch
+       AND source_filename='guest-import.xlsx'
+       AND mapping_snapshot @> '{"sourceFormat":"xlsx","sheetIndex":2,"headerRow":3}'::jsonb) THEN
+    RAISE EXCEPTION 'workbook preview lost source format or worksheet selection';
+  END IF;
+  PERFORM eogp.commit_clean_guest_import(v_org,v_event,v_actor,v_batch,jsonb_build_array(
+    jsonb_build_object('rowNumber',503,'namesCiphertext',v_cipher,'names','{"firstName":"Import","lastName":"Workbook Fixture"}'::jsonb)
+  ));
+  v_result := eogp.read_guest_import_report(v_org,v_event,v_actor,v_batch);
+  IF v_result->'rows' IS DISTINCT FROM '[
+    {"rowNumber":503,"outcome":"created","errors":[],"duplicateCount":0},
+    {"rowNumber":508,"outcome":"invalid","errors":["cell_not_text"],"duplicateCount":0}
+  ]'::jsonb THEN
+    RAISE EXCEPTION 'workbook report lost the original sheet rows or errors';
+  END IF;
+END;
+$test$;
+
 COMMIT;
 
 \echo 'PostgreSQL migration smoke tests passed.'

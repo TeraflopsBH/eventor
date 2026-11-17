@@ -18,6 +18,8 @@ export interface GuestImportRow {
   errors: string[];
 }
 
+export type GuestImportRecord = Pick<GuestImportRow, "rowNumber" | "source" | "errors">;
+
 export class GuestImportCsvError extends Error {}
 
 export function parseGuestImportCsv(csv: string): GuestImportRow[] {
@@ -34,6 +36,10 @@ export function parseGuestImportCsv(csv: string): GuestImportRow[] {
     throw new GuestImportCsvError("CSV quoting or record size is invalid.");
   }
   const [header, ...body] = records;
+  return validateGuestImportRecords(header, body.map((source, index) => ({ rowNumber: index + 2, source, errors: [] })));
+}
+
+export function validateGuestImportRecords(header: string[] | undefined, body: GuestImportRecord[]): GuestImportRow[] {
   if (!header || new Set(header).size !== header.length ||
       !["first_name", "last_name"].every((name) => header.includes(name)) ||
       header.some((name) => !supportedHeaders.some((supported) => supported === name))) {
@@ -44,13 +50,13 @@ export function parseGuestImportCsv(csv: string): GuestImportRow[] {
   }
   const index = new Map(header.map((name, field) => [name, field]));
   const byName = new Map<string, GuestImportRow[]>();
-  const rows = body.map((source, rowIndex): GuestImportRow => {
+  const rows = body.map(({ source, rowNumber, errors: sourceErrors }): GuestImportRow => {
     const field = (name: typeof supportedHeaders[number]) => source[index.get(name) ?? -1]?.trim() ?? "";
     const names: ImportNames = {
       firstName: field("first_name"), lastName: field("last_name"),
       displayName: field("display_name") || null, preferredName: field("preferred_name") || null,
     };
-    const errors: string[] = [];
+    const errors = [...sourceErrors];
     if (source.length !== header.length) errors.push("column_count");
     if (!names.firstName || !names.lastName) errors.push("name_required");
     if (Array.from(names.firstName).length > 200 || Array.from(names.lastName).length > 200 ||
@@ -58,7 +64,7 @@ export function parseGuestImportCsv(csv: string): GuestImportRow[] {
         Object.values(names).some((value) => value !== null && /[\p{Cc}\p{Cs}]/u.test(value))) {
       errors.push("name_invalid");
     }
-    const row = { rowNumber: rowIndex + 2, source, names, errors };
+    const row = { rowNumber, source, names, errors };
     if (errors.length === 0) {
       const key = JSON.stringify([names.firstName.toLowerCase(), names.lastName.toLowerCase()]);
       const matches = byName.get(key) ?? [];
