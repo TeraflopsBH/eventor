@@ -1278,7 +1278,7 @@ export interface GuestImportReuse {
 
 interface GuestImportDiagnostics {
   rowNumber: number;
-  errors: ("column_count" | "name_required" | "name_invalid" | "duplicate_in_file")[];
+  errors: ("column_count" | "name_required" | "name_invalid" | "duplicate_in_file" | "cell_not_text")[];
   duplicateCount: number;
 }
 
@@ -1316,6 +1316,14 @@ export const api = {
   prepareGuestImportPreview: (eventId: string, csv: string) =>
     request<Envelope<{ batchId: string; rowCount: number }>>(`/events/${encodeURIComponent(eventId)}/guest-imports`, {
       method: "POST", body: { csv }, idempotent: true,
+    }),
+  inspectGuestWorkbook: (eventId: string, xlsx: string) =>
+    request<Envelope<{ sheets: { index: number; name: string }[] }>>(`/events/${encodeURIComponent(eventId)}/guest-imports/xlsx/sheets`, {
+      method: "POST", body: { xlsx },
+    }),
+  prepareGuestWorkbookPreview: (eventId: string, xlsx: string, sheetIndex: number, headerRow: number) =>
+    request<Envelope<{ batchId: string; rowCount: number }>>(`/events/${encodeURIComponent(eventId)}/guest-imports/xlsx`, {
+      method: "POST", body: { xlsx, sheetIndex, headerRow }, idempotent: true,
     }),
   commitGuestImport: (eventId: string, batchId: string, reuse: GuestImportReuse[]) =>
     request<Envelope<GuestImportCommit>>(`/events/${encodeURIComponent(eventId)}/guest-imports/${encodeURIComponent(batchId)}/commit`, {

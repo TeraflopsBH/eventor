@@ -9,6 +9,10 @@ const props = defineProps<{ eventId: string }>();
 const emit = defineEmits<{ committed: [] }>();
 const { t } = useI18n();
 const file = ref<File | null>(null);
+const isWorkbook = computed(() => file.value?.name.toLowerCase().endsWith(".xlsx") ?? false);
+const workbook = ref<{ xlsx: string; sheets: { index: number; name: string }[] } | null>(null);
+const sheetIndex = ref(1);
+const headerRow = ref(1);
 const preview = ref<GuestImportPreview | null>(null);
 const error = ref("");
 const committed = ref<GuestImportCommit | null>(null);
@@ -21,41 +25,74 @@ const reuse = computed(() => (preview.value?.rows ?? []).flatMap(({ rowNumber, m
 const importCount = computed(() => cleanCount.value + reuse.value.length);
 const busy = ref(false);
 
-function selectFile(event: Event): void {
-  file.value = (event.target as HTMLInputElement).files?.[0] ?? null;
+function clearPreview(): void {
   preview.value = null;
   selected.value = {};
   committed.value = null;
   error.value = "";
 }
 
+function selectFile(event: Event): void {
+  file.value = (event.target as HTMLInputElement).files?.[0] ?? null;
+  workbook.value = null;
+  sheetIndex.value = 1;
+  headerRow.value = 1;
+  clearPreview();
+}
+
+async function encodeWorkbook(input: File): Promise<string> {
+  const bytes = new Uint8Array(await input.arrayBuffer());
+  let binary = "";
+  for (let offset = 0; offset < bytes.length; offset += 0x4000) {
+    binary += String.fromCharCode(...bytes.subarray(offset, offset + 0x4000));
+  }
+  return btoa(binary);
+}
+
 async function prepare(): Promise<void> {
   const input = file.value;
   if (!input) return;
-  if (input.size > 64 * 1024 || !input.name.toLowerCase().endsWith(".csv")) {
+  const xlsxFile = isWorkbook.value;
+  const sizeLimit = xlsxFile ? 256 * 1024 : 64 * 1024;
+  if (input.size > sizeLimit || input.size === 0 || (!xlsxFile && !input.name.toLowerCase().endsWith(".csv"))) {
     error.value = t("eventGuests.import.invalidFile");
     return;
   }
 
-  error.value = "";
+  clearPreview();
   busy.value = true;
-  preview.value = null;
-  selected.value = {};
-  committed.value = null;
   try {
-    let csv: string;
-    try {
-      csv = new TextDecoder("utf-8", { fatal: true }).decode(await input.arrayBuffer());
-    } catch {
-      error.value = t("eventGuests.import.invalidFile");
-      return;
+    let batchId: string;
+    if (xlsxFile) {
+      if (!workbook.value) {
+        const xlsx = await encodeWorkbook(input);
+        const { data } = await api.inspectGuestWorkbook(props.eventId, xlsx);
+        workbook.value = { xlsx, sheets: data.sheets };
+        sheetIndex.value = data.sheets[0]!.index;
+        return;
+      }
+      const { data } = await api.prepareGuestWorkbookPreview(props.eventId, workbook.value.xlsx, sheetIndex.value, headerRow.value);
+      batchId = data.batchId;
+    } else {
+      let csv: string;
+      try {
+        csv = new TextDecoder("utf-8", { fatal: true }).decode(await input.arrayBuffer());
+      } catch {
+        error.value = t("eventGuests.import.invalidFile");
+        return;
+      }
+      const { data } = await api.prepareGuestImportPreview(props.eventId, csv);
+      batchId = data.batchId;
     }
-    const batch = await api.prepareGuestImportPreview(props.eventId, csv);
-    preview.value = (await api.getGuestImportPreview(props.eventId, batch.data.batchId)).data;
+    preview.value = (await api.getGuestImportPreview(props.eventId, batchId)).data;
   } catch (failure) {
-    error.value = failure instanceof ApiError
-      ? (failure.code === "GUEST_IMPORT_CSV_INVALID" ? t("eventGuests.import.invalidCsv") : formatApiError(failure, t))
-      : t("eventGuests.import.failed");
+    if (failure instanceof ApiError && failure.code === "GUEST_IMPORT_XLSX_INVALID") {
+      error.value = t("eventGuests.import.invalidWorkbook");
+    } else if (failure instanceof ApiError && failure.code === "GUEST_IMPORT_CSV_INVALID") {
+      error.value = t("eventGuests.import.invalidCsv");
+    } else {
+      error.value = failure instanceof ApiError ? formatApiError(failure, t) : t("eventGuests.import.failed");
+    }
   } finally {
     busy.value = false;
   }
@@ -103,9 +140,21 @@ async function downloadReport(): Promise<void> {
     <h3 id="guest-import-heading">{{ t("eventGuests.import.title") }}</h3>
     <p>{{ t("eventGuests.import.instructions") }}</p>
     <form @submit.prevent="prepare">
-      <label for="guest-csv">{{ t("eventGuests.import.file") }}</label>
-      <input id="guest-csv" type="file" accept=".csv,text/csv" :disabled="busy" @change="selectFile">
-      <button class="button button-primary" type="submit" :disabled="busy || !file">{{ t("eventGuests.import.preview") }}</button>
+      <label for="guest-import-file">{{ t("eventGuests.import.file") }}</label>
+      <input id="guest-import-file" type="file" accept=".csv,.xlsx,text/csv,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
+        :disabled="busy" @change="selectFile">
+      <template v-if="workbook">
+        <label for="guest-import-sheet">{{ t("eventGuests.import.worksheet") }}</label>
+        <select id="guest-import-sheet" v-model.number="sheetIndex" :disabled="busy" @change="clearPreview">
+          <option v-for="sheet in workbook.sheets" :key="sheet.index" :value="sheet.index">{{ sheet.name }}</option>
+        </select>
+        <label for="guest-import-header">{{ t("eventGuests.import.headerRow") }}</label>
+        <input id="guest-import-header" v-model.number="headerRow" type="number" min="1" max="1048575" required
+          :disabled="busy" @input="clearPreview">
+      </template>
+      <button class="button button-primary" type="submit" :disabled="busy || !file">
+        {{ t(isWorkbook && !workbook ? "eventGuests.import.chooseWorksheet" : "eventGuests.import.preview") }}
+      </button>
     </form>
     <p v-if="error" class="form-error" role="alert">{{ error }}</p>
     <template v-if="preview">

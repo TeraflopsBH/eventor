@@ -16,11 +16,14 @@
     "pg": "8.23.1",
     "argon2": "0.45.2",
     "csv-parse": "7.0.3",
-    "nodemailer": "10.5.0"
+    "nodemailer": "10.5.0",
+    "saxes": "6.0.0",
+    "yauzl": "3.4.0"
   },
   "devDependencies": {
     "@types/node": "22.15.30",
     "@types/pg": "8.15.5",
+    "@types/yauzl": "3.4.0",
     "openapi-typescript": "7.13.0",
     "typescript": "5.9.3",
     "@types/nodemailer": "7.0.4"
