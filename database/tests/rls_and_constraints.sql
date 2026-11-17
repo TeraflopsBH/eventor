@@ -1877,6 +1877,11 @@ BEGIN
     RAISE EXCEPTION 'event administration without guest permission exposed a guest list';
   EXCEPTION WHEN insufficient_privilege THEN NULL;
   END;
+  BEGIN
+    PERFORM eogp.read_event_guest_roster_export(v_org, v_first_event, v_actor, NULL);
+    RAISE EXCEPTION 'event administration without guest permission exposed a roster export';
+  EXCEPTION WHEN insufficient_privilege THEN NULL;
+  END;
   INSERT INTO eogp.role_permissions (organization_id, role_id, permission_code)
   SELECT v_org, role.id, permission.code
   FROM eogp.roles role CROSS JOIN (VALUES ('guest.manage'),('invitation.manage')) permission(code)
@@ -1901,6 +1906,14 @@ BEGIN
      OR eogp.read_event_guest_list(v_org, v_first_event, v_actor, 'waitlisted', 0)->'people' <> '[]'::jsonb
      OR NOT eogp.list_event_guest_workspaces(v_org, v_actor) @> jsonb_build_array(jsonb_build_object('eventId', v_first_event)) THEN
     RAISE EXCEPTION 'roster must show the scoped pinned name, filter statuses, and omit Registry identifiers';
+  END IF;
+  v_result := eogp.read_event_guest_roster_export(v_org, v_first_event, v_actor, 'eligible');
+  IF v_result->'people' IS DISTINCT FROM '[{"displayName":"Pinned Name","status":"eligible","categoryCode":null}]'::jsonb
+     OR eogp.read_event_guest_roster_export(v_org, v_first_event, v_actor, 'waitlisted')->'people' IS DISTINCT FROM '[]'::jsonb
+     OR has_table_privilege('eventor_runtime', 'eogp.event_guest_roster_rows', 'SELECT')
+     OR NOT EXISTS (SELECT 1 FROM eogp.audit_events WHERE organization_id = v_org AND aggregate_id = v_first_event
+        AND action = 'guest.event_roster.exported' AND safe_metadata @> '{"exportedCount":1,"statusFilter":"eligible"}') THEN
+    RAISE EXCEPTION 'roster export exposed a wrong projection, missed the filter or did not audit';
   END IF;
   IF NOT eogp.list_guest_invitation_participations(v_org, v_first_event, v_actor)
       @> '[{"displayName":"Pinned Name"}]'::jsonb THEN

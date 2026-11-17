@@ -4214,14 +4214,15 @@ export function buildApi(dependencies: ApiDependencies): FastifyInstance {
       }, 200);
   });
 
-  type GuestListQuery = { status?: "eligible" | "waitlisted" | "withdrawn" | "cancelled" | "ineligible"; offset?: number };
-  server.get<{ Params: { eventId: string }; Querystring: GuestListQuery }>("/events/:eventId/participations", {
+  type GuestListFilter = { status?: "eligible" | "waitlisted" | "withdrawn" | "cancelled" | "ineligible" };
+  const guestListStatus = { type: "string", enum: ["eligible", "waitlisted", "withdrawn", "cancelled", "ineligible"] };
+  server.get<{ Params: { eventId: string }; Querystring: GuestListFilter & { offset?: number } }>("/events/:eventId/participations", {
     schema: {
       params: participationEventParams,
       querystring: {
         type: "object",
         properties: {
-          status: { type: "string", enum: ["eligible", "waitlisted", "withdrawn", "cancelled", "ineligible"] },
+          status: guestListStatus,
           offset: { type: "integer", minimum: 0, maximum: 100000 },
         },
       },
@@ -4229,6 +4230,21 @@ export function buildApi(dependencies: ApiDependencies): FastifyInstance {
   }, (request, reply) => withRegistryRead(reply, registryPrincipal(request),
     "SELECT eogp.read_event_guest_list($1::uuid,$3::uuid,$2::uuid,$4::text,$5::integer) AS result",
     [request.params.eventId, request.query.status ?? null, request.query.offset ?? 0]));
+
+  server.get<{ Params: { eventId: string }; Querystring: GuestListFilter }>("/events/:eventId/participations/export", {
+    schema: {
+      params: participationEventParams,
+      querystring: { type: "object", properties: { status: guestListStatus } },
+    },
+  }, (request, reply) => withRegistryRead(reply, registryPrincipal(request),
+    "SELECT eogp.read_event_guest_roster_export($1::uuid,$3::uuid,$2::uuid,$4::text) AS result",
+    [request.params.eventId, request.query.status ?? null], (value) => {
+      const result = value as { limitExceeded?: boolean };
+      if (result.limitExceeded) {
+        throw new ApiError(422, "GUEST_ROSTER_EXPORT_LIMIT", "The export exceeds 20,000 guests. Try exporting by status.");
+      }
+      return result;
+    }));
 
   server.post<{ Params: { eventId: string }; Body: ParticipationLinkBody }>("/events/:eventId/participations", {
     schema: {

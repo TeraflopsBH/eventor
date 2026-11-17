@@ -141,6 +141,8 @@ export default {
     allStatuses: "All statuses",
     noGuests: "No guests match this status.",
     category: "Category",
+    exportCsv: "Export guest list as CSV",
+    exportLimit: "This export exceeds 20,000 guests. Try exporting by status.",
   },
   registry: {
     contacts: {
