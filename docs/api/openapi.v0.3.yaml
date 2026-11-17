@@ -3309,6 +3309,39 @@ paths:
         '409': { $ref: '#/components/responses/Conflict' }
         '422': { $ref: '#/components/responses/UnprocessableEntity' }
         '500': { $ref: '#/components/responses/InternalServerError' }
+  "/organizations/{organizationId}/events/{eventId}/sessions/{sessionId}":
+    patch:
+      tags: ["Events"]
+      operationId: updateOrganizerEventSession
+      summary: "Edit the title and timing of a planned session"
+      security: [{ StaffSession: [], StaffCsrf: [] }]
+      parameters:
+        - $ref: '#/components/parameters/POrganizationId'
+        - $ref: '#/components/parameters/PEventId'
+        - $ref: '#/components/parameters/PSessionId'
+        - name: Idempotency-Key
+          in: header
+          required: true
+          schema: { type: string, minLength: 8, maxLength: 200 }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/UpdateOrganizerEventSessionRequest' }
+      responses:
+        '200':
+          description: "Planned session updated."
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/OrganizerEventSessionDetailsEnvelope' }
+        '400': { $ref: '#/components/responses/BadRequest' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '404': { $ref: '#/components/responses/NotFound' }
+        '409': { $ref: '#/components/responses/Conflict' }
+        '412': { $ref: '#/components/responses/PreconditionFailed' }
+        '422': { $ref: '#/components/responses/UnprocessableEntity' }
+        '500': { $ref: '#/components/responses/InternalServerError' }
   "/organizations/{organizationId}/guest-invitation-events":
     get:
       tags: ["Invitations and RSVP"]
@@ -6859,13 +6892,34 @@ components:
         startsAt: { type: [string, 'null'], format: date-time }
         endsAt: { type: [string, 'null'], format: date-time }
         timezoneName: { type: string }
+    UpdateOrganizerEventSessionRequest:
+      type: object
+      additionalProperties: false
+      required: [expectedDetailsRevision, title, startsAt, endsAt]
+      properties:
+        expectedDetailsRevision: { type: integer, minimum: 1, maximum: 2147483647 }
+        title: { type: string, minLength: 2, maxLength: 250 }
+        startsAt: { type: [string, 'null'], format: date-time }
+        endsAt: { type: [string, 'null'], format: date-time }
+    OrganizerEventSessionDetails:
+      allOf:
+        - $ref: '#/components/schemas/OrganizerEventSession'
+        - type: object
+          required: [detailsRevision]
+          properties:
+            detailsRevision: { type: integer, minimum: 1 }
+    OrganizerEventSessionDetailsEnvelope:
+      type: object
+      required: [data]
+      properties:
+        data: { $ref: '#/components/schemas/OrganizerEventSessionDetails' }
     OrganizerEventSessionsEnvelope:
       type: object
       required: [data]
       properties:
         data:
           type: array
-          items: { $ref: '#/components/schemas/OrganizerEventSession' }
+          items: { $ref: '#/components/schemas/OrganizerEventSessionDetails' }
     OrganizerEventSessionEnvelope:
       type: object
       required: [data]

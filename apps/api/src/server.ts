@@ -24,6 +24,7 @@ type JsonRequestBody<Path extends keyof paths, Method extends keyof paths[Path]>
     ? Body : never;
 const organizerEventSessionsPath = "/organizations/:organizationId/events/:eventId/sessions";
 type CreateOrganizerEventSessionBody = JsonRequestBody<"/organizations/{organizationId}/events/{eventId}/sessions", "post">;
+type UpdateOrganizerEventSessionBody = JsonRequestBody<"/organizations/{organizationId}/events/{eventId}/sessions/{sessionId}", "patch">;
 type OrganizerEventParams = { organizationId: string; eventId: string };
 type SessionCreateBody = JsonRequestBody<"/auth/session", "post">;
 type LocalePreferenceBody = { locale: "bs-BA" | "en" | null };
@@ -1740,6 +1741,7 @@ export function buildApi(dependencies: ApiDependencies): FastifyInstance {
     body: unknown,
     command: Command,
     authorizeReplay: (client: PoolClient) => Promise<void>,
+    responseStatus = 201,
   ) => {
     const principal = request.staffPrincipal;
     if (!principal) throw new ApiError(401, "UNAUTHENTICATED", "Authentication is required.");
@@ -1747,7 +1749,7 @@ export function buildApi(dependencies: ApiDependencies): FastifyInstance {
     if (typeof key !== "string" || key.length < 8 || key.length > 200) {
       throw new ApiError(400, "IDEMPOTENCY_KEY_REQUIRED", "A valid Idempotency-Key header is required.");
     }
-    const response = await runIdempotentCommand(dependencies, principal, operationId, key, body, command, authorizeReplay);
+    const response = await runIdempotentCommand(dependencies, principal, operationId, key, body, command, authorizeReplay, responseStatus);
     return reply.code(response.status).send(response.body);
   };
 
@@ -3886,6 +3888,51 @@ export function buildApi(dependencies: ApiDependencies): FastifyInstance {
         );
         return (result.rows[0]?.result ?? {}) as Record<string, unknown>;
       }, (client) => assertEventManagePermission(client, principal, eventId));
+    },
+  );
+
+  server.patch<{ Params: OrganizerEventParams & { sessionId: string }; Body: UpdateOrganizerEventSessionBody }>(
+    `${organizerEventSessionsPath}/:sessionId`,
+    {
+      schema: {
+        params: {
+          ...organizerEventParams,
+          required: [...organizerEventParams.required, "sessionId"],
+          properties: { ...organizerEventParams.properties, sessionId: { type: "string", pattern: uuidPattern } },
+        },
+        headers: idempotencyHeaders,
+        body: {
+          type: "object",
+          required: ["expectedDetailsRevision", "title", "startsAt", "endsAt"],
+          properties: {
+            expectedDetailsRevision: { type: "integer", minimum: 1, maximum: 2147483647 },
+            title: { type: "string", minLength: 2, maxLength: 250 },
+            startsAt: { type: ["string", "null"], format: "date-time" },
+            endsAt: { type: ["string", "null"], format: "date-time" },
+          },
+          additionalProperties: false,
+        },
+      },
+    },
+    async (request, reply) => {
+      const principal = request.staffPrincipal!;
+      const { organizationId, eventId, sessionId } = request.params;
+      if (organizationId !== principal.organizationId) {
+        throw new ApiError(403, "ORGANIZATION_SCOPE_MISMATCH", "The requested organization is not available to this session.");
+      }
+      const { expectedDetailsRevision, title, startsAt, endsAt } = request.body;
+      return withCommand(
+        request, reply, "event.session.update", { ...request.body, eventId, sessionId },
+        async (client) => {
+          const result = await client.query<ResultRow>(
+            "SELECT eogp.update_organizer_event_session($1::uuid,$2::uuid,$3::uuid,$4::uuid,$5::integer,$6::text,$7::timestamptz,$8::timestamptz) AS result",
+            [organizationId, eventId, sessionId, principal.membershipId, expectedDetailsRevision, title, startsAt, endsAt],
+          );
+          return (result.rows[0]?.result ?? {}) as Record<string, unknown>;
+        },
+        (client) => assertEventManagePermission(client, principal, eventId),
+        200,
+      );
     },
   );
 

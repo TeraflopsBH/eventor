@@ -135,6 +135,7 @@ export default {
     sessionTitle: "Session title",
     addSession: "Add session",
     sessionCreated: "Planned session added.",
+    sessionUpdated: "Session updated.",
     status: {
       draft: "Draft",
       planned: "Planned",
