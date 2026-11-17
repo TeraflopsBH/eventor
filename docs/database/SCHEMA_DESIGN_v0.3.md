@@ -361,3 +361,7 @@ Event group configuration and membership commands reuse `guest_groups` and `gues
 ## Event roster name search (000146)
 
 Roster search matches event display names and the name fields pinned to the participation. The staff API accepts the name query in a CSRF-protected POST body. CSV and XLSX exports can use the same name, category and status filters. Audit metadata records whether the name filter was applied.
+
+## Event guest relationships (000147)
+
+Guest managers can create and end mutual and directed relationships between participations in one event. The command serializes changes under the event lock, rejects duplicate active links and keeps ended links for history. Relationship reads use the event display-name projection and require `guest.manage`. The projection omits restricted notes.

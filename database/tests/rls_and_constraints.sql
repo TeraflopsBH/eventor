@@ -2524,6 +2524,56 @@ BEGIN
 END;
 $test$;
 
+-- Relationship links stay in one event and preserve direction, retirement and restricted notes.
+DO $test$
+DECLARE
+  v_org CONSTANT uuid := '10000000-0000-0000-0000-00000000000a';
+  v_actor CONSTANT uuid := '30000000-0000-0000-0000-00000000000a';
+  v_event uuid;
+  v_other_event uuid;
+  v_guest uuid;
+  v_related uuid;
+  v_foreign uuid;
+  v_link uuid;
+  v_result jsonb;
+BEGIN
+  SELECT id INTO STRICT v_event FROM eogp.events WHERE organization_id=v_org AND event_code='CI-LINK-A';
+  SELECT id INTO STRICT v_other_event FROM eogp.events WHERE organization_id=v_org AND event_code='CI-LINK-B';
+  SELECT id INTO STRICT v_guest FROM eogp.event_participations WHERE organization_id=v_org AND event_id=v_event
+    AND person_identity_snapshot->>'lastName'='Workbook Fixture';
+  SELECT id INTO STRICT v_related FROM eogp.event_participations WHERE organization_id=v_org AND event_id=v_event
+    AND person_identity_snapshot->>'displayName'='Destination Fixture';
+  SELECT id INTO STRICT v_foreign FROM eogp.event_participations WHERE organization_id=v_org AND event_id=v_other_event;
+  BEGIN
+    PERFORM eogp.write_event_guest_relationship(v_org,v_event,v_actor,v_guest,NULL,v_foreign,'Interpreter','directed');
+    RAISE EXCEPTION 'a cross-event relationship was accepted';
+  EXCEPTION WHEN no_data_found THEN NULL;
+  END;
+
+  v_link := (eogp.write_event_guest_relationship(v_org,v_event,v_actor,v_guest,NULL,v_related,'Interpreter','directed')->>'relationshipId')::uuid;
+  UPDATE eogp.guest_relationships SET notes_restricted_ciphertext=convert_to('synthetic note','UTF8')
+  WHERE organization_id=v_org AND id=v_link;
+  v_result := eogp.read_event_guest_relationships(v_org,v_event,v_actor,v_guest)->0;
+  IF v_result->>'direction' IS DISTINCT FROM 'outgoing' OR v_result->>'relatedDisplayName' IS DISTINCT FROM 'Destination Fixture'
+     OR v_result ? 'notes' OR v_result ? 'notesCiphertext'
+     OR (eogp.read_event_guest_relationships(v_org,v_event,v_actor,v_related)#>>'{0,direction}') IS DISTINCT FROM 'incoming'
+     OR has_table_privilege('eventor_runtime','eogp.guest_relationships','SELECT,INSERT,UPDATE,DELETE') THEN
+    RAISE EXCEPTION 'relationship direction or restricted data projection is incorrect';
+  END IF;
+
+  PERFORM eogp.write_event_guest_relationship(v_org,v_event,v_actor,v_related,v_link,NULL,NULL,NULL);
+  IF (eogp.read_event_guest_relationships(v_org,v_event,v_actor,v_guest)#>>'{0,retiredAt}') IS NULL THEN
+    RAISE EXCEPTION 'ended relationship lost its history';
+  END IF;
+  PERFORM eogp.write_event_guest_relationship(v_org,v_event,v_actor,v_guest,NULL,v_related,'Family','mutual');
+  BEGIN
+    PERFORM eogp.write_event_guest_relationship(v_org,v_event,v_actor,v_related,NULL,v_guest,' family ','mutual');
+    RAISE EXCEPTION 'a reversed duplicate mutual relationship was accepted';
+  EXCEPTION WHEN object_not_in_prerequisite_state THEN NULL;
+  END;
+END;
+$test$;
+
 COMMIT;
 
 \echo 'PostgreSQL migration smoke tests passed.'
