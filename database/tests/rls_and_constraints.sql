@@ -2368,6 +2368,79 @@ BEGIN
 END;
 $test$;
 
+-- Profile merge needs a separate grant, checks both reviewed revisions, and can restore the source.
+DO $test$
+DECLARE
+  v_org CONSTANT uuid := '10000000-0000-0000-0000-00000000000a';
+  v_actor CONSTANT uuid := '30000000-0000-0000-0000-00000000000a';
+  v_event uuid;
+  v_source uuid;
+  v_destination uuid;
+  v_participation uuid;
+  v_merge uuid;
+  v_review uuid;
+  v_result jsonb;
+BEGIN
+  SELECT id INTO STRICT v_event FROM eogp.events WHERE organization_id = v_org AND event_code = 'CI-LINK-A';
+  v_source := (eogp.write_guest_registry_person(v_org,v_actor,NULL,NULL,'create',
+    '{"firstName":"Duplicate","lastName":"Merge Fixture","displayName":"Source Fixture"}')->>'personId')::uuid;
+  v_destination := (eogp.write_guest_registry_person(v_org,v_actor,NULL,NULL,'create',
+    '{"firstName":"Duplicate","lastName":"Merge Fixture","displayName":"Destination Fixture"}')->>'personId')::uuid;
+  v_participation := (eogp.link_registry_person_to_event(v_org,v_event,v_actor,v_destination,'eligible')->>'participationId')::uuid;
+
+  BEGIN
+    PERFORM eogp.preview_guest_registry_merge(v_org,v_actor,v_source,v_destination);
+    RAISE EXCEPTION 'ordinary Registry management unexpectedly permitted merge review';
+  EXCEPTION WHEN insufficient_privilege THEN NULL;
+  END;
+  INSERT INTO eogp.role_permissions (organization_id, role_id, permission_code)
+  SELECT v_org, id, 'guest.registry.merge' FROM eogp.roles WHERE organization_id = v_org AND code = 'CI-REGISTRY';
+  IF eogp.preview_guest_registry_merge(v_org,v_actor,v_destination,v_source)->>'blocker' IS DISTINCT FROM 'source_has_linked_records'
+     OR eogp.preview_guest_registry_merge(v_org,v_actor,v_source,v_destination)->'blocker' IS DISTINCT FROM 'null'::jsonb
+     OR eogp.read_guest_registry(v_org,v_actor,NULL,'',false,0)->>'canMerge' IS DISTINCT FROM 'true' THEN
+    RAISE EXCEPTION 'merge review did not account for source dependencies or capability';
+  END IF;
+  v_review := (eogp.preview_guest_registry_merge(v_org,v_actor,v_destination,v_source)->>'reviewId')::uuid;
+  BEGIN
+    PERFORM eogp.commit_guest_registry_merge(v_org,v_actor,v_destination,v_source,1,1,'duplicate_profile',v_review);
+    RAISE EXCEPTION 'linked source unexpectedly merged';
+  EXCEPTION WHEN object_not_in_prerequisite_state THEN NULL;
+  END;
+
+  BEGIN
+    PERFORM eogp.commit_guest_registry_merge(v_org,v_actor,v_source,v_destination,1,1,'duplicate_profile',gen_random_uuid());
+    RAISE EXCEPTION 'merge unexpectedly committed without a valid recorded review';
+  EXCEPTION WHEN object_not_in_prerequisite_state THEN NULL;
+  END;
+  v_review := (eogp.preview_guest_registry_merge(v_org,v_actor,v_source,v_destination)->>'reviewId')::uuid;
+  PERFORM eogp.write_guest_registry_person(v_org,v_actor,v_destination,1,'update','{"preferredName":"Reviewed"}');
+  BEGIN
+    PERFORM eogp.commit_guest_registry_merge(v_org,v_actor,v_source,v_destination,1,1,'duplicate_profile',v_review);
+    RAISE EXCEPTION 'stale destination review unexpectedly merged';
+  EXCEPTION WHEN serialization_failure THEN NULL;
+  END;
+  v_review := (eogp.preview_guest_registry_merge(v_org,v_actor,v_source,v_destination)->>'reviewId')::uuid;
+  v_merge := (eogp.commit_guest_registry_merge(v_org,v_actor,v_source,v_destination,1,2,'duplicate_profile',v_review)->>'mergeId')::uuid;
+  IF eogp.read_guest_registry(v_org,v_actor,v_source,'',false,0)->>'status' IS DISTINCT FROM 'merged'
+     OR eogp.read_guest_registry(v_org,v_actor,NULL,'Source Fixture',false,0)->'people' IS DISTINCT FROM '[]'::jsonb
+     OR (SELECT person_identity_snapshot->>'displayName' FROM eogp.event_participations
+          WHERE organization_id=v_org AND id=v_participation) IS DISTINCT FROM 'Destination Fixture'
+     OR (eogp.list_guest_registry_merges(v_org,v_actor,0)#>>'{merges,0,mergeId}') IS DISTINCT FROM v_merge::text
+     OR has_table_privilege('eventor_runtime','eogp.person_merge_records','SELECT,INSERT,UPDATE,DELETE') THEN
+    RAISE EXCEPTION 'merge lost its audit, directory or historical event boundary';
+  END IF;
+  v_result := eogp.restore_guest_registry_merge(v_org,v_actor,v_merge);
+  IF v_result->>'status' IS DISTINCT FROM 'restored'
+     OR eogp.restore_guest_registry_merge(v_org,v_actor,v_merge) IS DISTINCT FROM v_result
+     OR NOT EXISTS (SELECT 1 FROM eogp.persons WHERE organization_id=v_org AND id=v_source
+        AND status='active' AND display_name='Source Fixture' AND merged_into_person_id IS NULL AND revision=3)
+     OR NOT EXISTS (SELECT 1 FROM eogp.audit_events WHERE organization_id=v_org AND aggregate_id=v_source
+        AND action='guest.registry.merge_restored' AND safe_metadata @> jsonb_build_object('mergeId',v_merge)) THEN
+    RAISE EXCEPTION 'restoring the profile lost the original record or audit';
+  END IF;
+END;
+$test$;
+
 COMMIT;
 
 \echo 'PostgreSQL migration smoke tests passed.'

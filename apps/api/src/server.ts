@@ -4056,6 +4056,75 @@ export function buildApi(dependencies: ApiDependencies): FastifyInstance {
       return result;
     }));
 
+  server.get<{ Params: { organizationId: string }; Querystring: { offset?: number } }>(`${registryPath}/merges`, {
+    schema: {
+      params: registryOrgParams,
+      querystring: { type: "object", properties: { offset: { type: "integer", minimum: 0, maximum: 100000 } } },
+    },
+  }, (request, reply) => withRegistryRead(reply, registryPrincipal(request, request.params.organizationId),
+    "SELECT eogp.list_guest_registry_merges($1::uuid,$2::uuid,$3::integer) AS result", [request.query.offset ?? 0]));
+
+  const mergeTarget = { type: "string", pattern: uuidPattern };
+  server.post<{ Params: { personId: string }; Body: { destinationPersonId: string } }>("/persons/:personId/merge-preview", {
+    schema: {
+      params: registryPersonParams,
+      body: {
+        type: "object", additionalProperties: false, required: ["destinationPersonId"],
+        properties: { destinationPersonId: mergeTarget },
+      },
+    },
+  }, (request, reply) => withRegistryRead(reply, registryPrincipal(request),
+    "SELECT eogp.preview_guest_registry_merge($1::uuid,$2::uuid,$3::uuid,$4::uuid) AS result",
+    [request.params.personId, request.body.destinationPersonId]));
+
+  function withRegistryMergeCommand(
+    request: FastifyRequest, reply: FastifyReply, principal: StaffPrincipal, operation: string,
+    body: Record<string, unknown>, query: string, args: readonly unknown[], statusCode = 200,
+  ) {
+    const identity = [principal.organizationId, principal.membershipId];
+    return withCommand(request, reply.header("cache-control", "no-store, private"), operation, body, async (client) => {
+      const result = await client.query<ResultRow>(query, [...identity, ...args]);
+      return (result.rows[0]?.result ?? {}) as Record<string, unknown>;
+    }, async (client) => {
+      await client.query("SELECT eogp.assert_guest_registry_merge_permission($1::uuid,$2::uuid)", identity);
+    }, statusCode);
+  }
+
+  type RegistryMergeBody = JsonRequestBody<"/persons/{personId}/merge", "post">;
+  server.post<{ Params: { personId: string }; Body: RegistryMergeBody }>("/persons/:personId/merge", {
+    schema: {
+      params: registryPersonParams, headers: idempotencyHeaders,
+      body: {
+        type: "object", additionalProperties: false,
+        required: ["reviewId", "destinationPersonId", "sourceRevision", "destinationRevision", "reason"],
+        properties: {
+          destinationPersonId: mergeTarget, sourceRevision: personRevision, destinationRevision: personRevision,
+          reviewId: mergeTarget,
+          reason: { type: "string", const: "duplicate_profile" },
+        },
+      },
+    },
+  }, (request, reply) => {
+    const { personId } = request.params;
+    const { destinationPersonId, sourceRevision, destinationRevision, reason, reviewId } = request.body;
+    return withRegistryMergeCommand(request, reply, registryPrincipal(request), "guest.registry.merge",
+      { personId, ...request.body },
+      "SELECT eogp.commit_guest_registry_merge($1::uuid,$2::uuid,$3::uuid,$4::uuid,$5::integer,$6::integer,$7::text,$8::uuid) AS result",
+      [personId, destinationPersonId, sourceRevision, destinationRevision, reason, reviewId], 201);
+  });
+
+  server.post<{ Params: { organizationId: string; mergeId: string } }>(`${registryPath}/merges/:mergeId/restore`, {
+    schema: {
+      params: {
+        ...registryOrgParams, required: ["organizationId", "mergeId"],
+        properties: { ...registryOrgParams.properties, mergeId: { type: "string", pattern: uuidPattern } },
+      },
+      headers: idempotencyHeaders,
+    },
+  }, (request, reply) => withRegistryMergeCommand(request, reply, registryPrincipal(request, request.params.organizationId),
+    "guest.registry.merge.restore", { mergeId: request.params.mergeId },
+    "SELECT eogp.restore_guest_registry_merge($1::uuid,$2::uuid,$3::uuid) AS result", [request.params.mergeId]));
+
   server.get<{ Params: { personId: string } }>("/persons/:personId", { schema: { params: registryPersonParams } },
     (request, reply) => readRegistry(reply, registryPrincipal(request), request.params.personId));
 

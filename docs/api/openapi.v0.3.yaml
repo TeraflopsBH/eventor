@@ -5461,6 +5461,50 @@ paths:
           content:
             application/problem+json:
               schema: { $ref: '#/components/schemas/Problem' }
+  "/organizations/{organizationId}/persons/merges":
+    get:
+      tags: ["Guest Registry"]
+      operationId: listGuestRegistryMerges
+      summary: "List recorded guest identity merges"
+      security: [{ StaffSession: [] }]
+      parameters:
+        - $ref: '#/components/parameters/POrganizationId'
+        - name: offset
+          in: query
+          schema: { type: integer, minimum: 0, maximum: 100000 }
+      responses:
+        '200':
+          description: "A page of merge records with current profile names."
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/GuestRegistryMergeHistoryEnvelope' }
+        '400': { $ref: '#/components/responses/BadRequest' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+  "/organizations/{organizationId}/persons/merges/{mergeId}/restore":
+    post:
+      tags: ["Guest Registry"]
+      operationId: restoreGuestRegistryMerge
+      summary: "Restore the original source profile after an incorrect match"
+      security: [{ StaffSession: [], StaffCsrf: [] }]
+      parameters:
+        - $ref: '#/components/parameters/POrganizationId'
+        - $ref: '#/components/parameters/IdempotencyKey'
+        - name: mergeId
+          in: path
+          required: true
+          schema: { type: string, format: uuid }
+      responses:
+        '200':
+          description: "The source was restored."
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/GuestRegistryMergeChangeEnvelope' }
+        '400': { $ref: '#/components/responses/BadRequest' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '404': { $ref: '#/components/responses/NotFound' }
+        '412': { $ref: '#/components/responses/PreconditionFailed' }
   "/organizations/{organizationId}/roles":
     get:
       tags: ["Authorization"]
@@ -5615,6 +5659,84 @@ paths:
         '422': { $ref: '#/components/responses/UnprocessableEntity' }
         '429': { $ref: '#/components/responses/TooManyRequests' }
         '500': { $ref: '#/components/responses/InternalServerError' }
+  "/persons/{personId}/merge-preview":
+    post:
+      tags: ["Guest Registry"]
+      operationId: previewGuestRegistryMerge
+      summary: "Compare guest profiles and check if the source can be merged"
+      security: [{ StaffSession: [], StaffCsrf: [] }]
+      parameters:
+        - $ref: '#/components/parameters/PPersonId'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              additionalProperties: false
+              required: [destinationPersonId]
+              properties:
+                destinationPersonId: { type: string, format: uuid }
+      responses:
+        '200':
+          description: "The compared profiles, revisions and eligibility."
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [data]
+                properties:
+                  data:
+                    type: object
+                    required: [reviewId, source, destination, blocker]
+                    properties:
+                      reviewId: { type: string, format: uuid }
+                      source: { $ref: '#/components/schemas/GuestRegistryProfile' }
+                      destination: { $ref: '#/components/schemas/GuestRegistryProfile' }
+                      blocker:
+                        type: [string, 'null']
+                        enum: [inactive_profile, source_has_linked_records, null]
+        '400': { $ref: '#/components/responses/BadRequest' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '404': { $ref: '#/components/responses/NotFound' }
+        '422': { $ref: '#/components/responses/UnprocessableEntity' }
+  "/persons/{personId}/merge":
+    post:
+      tags: ["Guest Registry"]
+      operationId: commitGuestRegistryMerge
+      summary: "Merge a duplicate profile with no linked records"
+      security: [{ StaffSession: [], StaffCsrf: [] }]
+      parameters:
+        - $ref: '#/components/parameters/PPersonId'
+        - $ref: '#/components/parameters/IdempotencyKey'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              additionalProperties: false
+              required: [reviewId, destinationPersonId, sourceRevision, destinationRevision, reason]
+              properties:
+                reviewId: { type: string, format: uuid }
+                destinationPersonId: { type: string, format: uuid }
+                sourceRevision: { type: integer, minimum: 1, maximum: 2147483647 }
+                destinationRevision: { type: integer, minimum: 1, maximum: 2147483647 }
+                reason: { type: string, const: duplicate_profile }
+      responses:
+        '201':
+          description: "The merge was recorded and the source was marked merged."
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/GuestRegistryMergeChangeEnvelope' }
+        '400': { $ref: '#/components/responses/BadRequest' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '404': { $ref: '#/components/responses/NotFound' }
+        '409': { $ref: '#/components/responses/Conflict' }
+        '412': { $ref: '#/components/responses/PreconditionFailed' }
+        '422': { $ref: '#/components/responses/UnprocessableEntity' }
   "/persons/{personId}/linkable-events":
     get:
       tags: ["Guest Registry"]
@@ -7393,11 +7515,46 @@ components:
       properties:
         data:
           type: object
-          required: [people, canManage, canExport, nextOffset]
+          required: [people, canManage, canExport, canMerge, nextOffset]
           properties:
             people: { type: array, items: { $ref: '#/components/schemas/GuestRegistryProfile' } }
             canManage: { type: boolean }
             canExport: { type: boolean }
+            canMerge: { type: boolean }
+            nextOffset: { type: [integer, 'null'], minimum: 0 }
+    GuestRegistryMergeChangeEnvelope:
+      type: object
+      required: [data]
+      properties:
+        data:
+          type: object
+          required: [mergeId, sourcePersonId, destinationPersonId, sourceRevision, status]
+          properties:
+            mergeId: { type: string, format: uuid }
+            sourcePersonId: { type: string, format: uuid }
+            destinationPersonId: { type: string, format: uuid }
+            sourceRevision: { type: integer, minimum: 1 }
+            status: { type: string, enum: [merged, restored] }
+    GuestRegistryMergeHistoryEnvelope:
+      type: object
+      required: [data]
+      properties:
+        data:
+          type: object
+          required: [merges, nextOffset]
+          properties:
+            merges:
+              type: array
+              maxItems: 50
+              items:
+                type: object
+                required: [mergeId, sourceName, destinationName, mergedAt, restoredAt]
+                properties:
+                  mergeId: { type: string, format: uuid }
+                  sourceName: { type: string }
+                  destinationName: { type: string }
+                  mergedAt: { type: string, format: date-time }
+                  restoredAt: { type: [string, 'null'], format: date-time }
             nextOffset: { type: [integer, 'null'], minimum: 0 }
     GuestRegistryExportEnvelope:
       type: object
