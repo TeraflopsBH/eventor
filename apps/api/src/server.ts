@@ -4331,7 +4331,7 @@ export function buildApi(dependencies: ApiDependencies): FastifyInstance {
   }, (request, reply) => withRegistryRead(reply, registryPrincipal(request),
     "SELECT eogp.list_event_guest_categories($1::uuid,$3::uuid,$2::uuid) AS result", [request.params.eventId]));
 
-  function writeEventGuestCategory(
+  function withGuestListCommand(
     request: FastifyRequest, reply: FastifyReply, eventId: string, operation: string,
     input: Record<string, unknown>, query: string, values: readonly unknown[], statusCode = 200,
   ) {
@@ -4345,16 +4345,17 @@ export function buildApi(dependencies: ApiDependencies): FastifyInstance {
     }, statusCode);
   }
 
+  const guestLabelBody = {
+    type: "object", required: ["code", "label"], additionalProperties: false,
+    properties: { code: { type: "string", pattern: "^[A-Z0-9][A-Z0-9_-]{0,39}$" }, label: { type: "string", minLength: 1, maxLength: 120 } },
+  };
   type CategoryCreateBody = JsonRequestBody<"/events/{eventId}/guest-categories", "post">;
   server.post<{ Params: { eventId: string }; Body: CategoryCreateBody }>("/events/:eventId/guest-categories", {
     schema: {
       params: participationEventParams, headers: idempotencyHeaders,
-      body: {
-        type: "object", required: ["code", "label"], additionalProperties: false,
-        properties: { code: { type: "string", pattern: "^[A-Z0-9][A-Z0-9_-]{0,39}$" }, label: { type: "string", minLength: 1, maxLength: 120 } },
-      },
+      body: guestLabelBody,
     },
-  }, (request, reply) => writeEventGuestCategory(request, reply, request.params.eventId, "guest.category.create", request.body,
+  }, (request, reply) => withGuestListCommand(request, reply, request.params.eventId, "guest.category.create", request.body,
     "SELECT eogp.write_event_guest_category($1::uuid,$2::uuid,$3::uuid,NULL,$4::text,$5::text) AS result",
     [request.body.code, request.body.label], 201));
 
@@ -4366,7 +4367,7 @@ export function buildApi(dependencies: ApiDependencies): FastifyInstance {
       },
       headers: idempotencyHeaders,
     },
-  }, (request, reply) => writeEventGuestCategory(request, reply, request.params.eventId, "guest.category.retire",
+  }, (request, reply) => withGuestListCommand(request, reply, request.params.eventId, "guest.category.retire",
     { categoryId: request.params.categoryId },
     "SELECT eogp.write_event_guest_category($1::uuid,$2::uuid,$3::uuid,$4::uuid,NULL,NULL) AS result", [request.params.categoryId]));
 
@@ -4384,10 +4385,59 @@ export function buildApi(dependencies: ApiDependencies): FastifyInstance {
           properties: { categoryId: { type: ["string", "null"], pattern: uuidPattern }, expectedRevision: personRevision },
         },
       },
-    }, (request, reply) => writeEventGuestCategory(request, reply, request.params.eventId, "guest.participation.category",
+    }, (request, reply) => withGuestListCommand(request, reply, request.params.eventId, "guest.participation.category",
       { participationId: request.params.participationId, ...request.body },
       "SELECT eogp.set_event_guest_category($1::uuid,$2::uuid,$3::uuid,$4::uuid,$5::integer,$6::uuid) AS result",
       [request.params.participationId, request.body.expectedRevision, request.body.categoryId]));
+
+  server.get<{ Params: { eventId: string } }>("/events/:eventId/guest-tags", {
+    schema: { params: participationEventParams },
+  }, (request, reply) => withRegistryRead(reply, registryPrincipal(request),
+    "SELECT eogp.list_event_guest_tags($1::uuid,$3::uuid,$2::uuid) AS result", [request.params.eventId]));
+
+  server.post<{ Params: { eventId: string }; Body: CategoryCreateBody }>("/events/:eventId/guest-tags", {
+    schema: { params: participationEventParams, headers: idempotencyHeaders, body: guestLabelBody },
+  }, (request, reply) => withGuestListCommand(request, reply, request.params.eventId, "guest.tag.create", request.body,
+    "SELECT eogp.write_event_guest_tag($1::uuid,$2::uuid,$3::uuid,NULL,$4::text,$5::text) AS result",
+    [request.body.code, request.body.label], 201));
+
+  server.post<{ Params: { eventId: string; tagId: string } }>("/events/:eventId/guest-tags/:tagId/retire", {
+    schema: {
+      params: {
+        ...participationEventParams, required: ["eventId", "tagId"],
+        properties: { ...participationEventParams.properties, tagId: { type: "string", pattern: uuidPattern } },
+      },
+      headers: idempotencyHeaders,
+    },
+  }, (request, reply) => withGuestListCommand(request, reply, request.params.eventId, "guest.tag.retire",
+    { tagId: request.params.tagId },
+    "SELECT eogp.write_event_guest_tag($1::uuid,$2::uuid,$3::uuid,$4::uuid,NULL,NULL) AS result", [request.params.tagId]));
+
+  type ParticipationTagsBody = JsonRequestBody<"/events/{eventId}/participations/{participationId}/tags", "patch">;
+  server.patch<{ Params: { eventId: string; participationId: string }; Body: ParticipationTagsBody }>(
+    "/events/:eventId/participations/:participationId/tags", {
+      schema: {
+        params: {
+          ...participationEventParams, required: ["eventId", "participationId"],
+          properties: { ...participationEventParams.properties, participationId: { type: "string", pattern: uuidPattern } },
+        },
+        headers: idempotencyHeaders,
+        body: {
+          type: "object", required: ["tagIds", "expectedRevision"], additionalProperties: false,
+          properties: {
+            tagIds: { type: "array", uniqueItems: true, maxItems: 1000, items: { type: "string", pattern: uuidPattern } },
+            expectedRevision: personRevision,
+          },
+        },
+      },
+    }, (request, reply) => {
+      const { eventId, participationId } = request.params;
+      const { expectedRevision } = request.body;
+      const tagIds = request.body.tagIds.map((id) => id.toLowerCase()).sort();
+      return withGuestListCommand(request, reply, eventId, "guest.participation.tags", { participationId, expectedRevision, tagIds },
+        "SELECT eogp.set_event_guest_tags($1::uuid,$2::uuid,$3::uuid,$4::uuid,$5::integer,$6::uuid[]) AS result",
+        [participationId, expectedRevision, tagIds]);
+    });
 
   server.post<{ Params: { eventId: string }; Body: ParticipationLinkBody }>("/events/:eventId/participations", {
     schema: {
