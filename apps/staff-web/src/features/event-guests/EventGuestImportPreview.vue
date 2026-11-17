@@ -1,19 +1,23 @@
 <script setup lang="ts">
-import { ref } from "vue";
+import { computed, ref } from "vue";
 import { useI18n } from "vue-i18n";
-import { api, ApiError, type GuestImportPreview } from "../../api";
+import { api, ApiError, type GuestImportCommit, type GuestImportPreview } from "../../api";
 import { formatApiError } from "../../i18n/api-errors";
 
 const props = defineProps<{ eventId: string }>();
+const emit = defineEmits<{ committed: [] }>();
 const { t } = useI18n();
 const file = ref<File | null>(null);
 const preview = ref<GuestImportPreview | null>(null);
 const error = ref("");
+const committed = ref<GuestImportCommit | null>(null);
+const cleanCount = computed(() => preview.value?.rows.filter((row) => !row.errors.length && !row.duplicateCount).length ?? 0);
 const busy = ref(false);
 
 function selectFile(event: Event): void {
   file.value = (event.target as HTMLInputElement).files?.[0] ?? null;
   preview.value = null;
+  committed.value = null;
   error.value = "";
 }
 
@@ -28,6 +32,7 @@ async function prepare(): Promise<void> {
   error.value = "";
   busy.value = true;
   preview.value = null;
+  committed.value = null;
   try {
     let csv: string;
     try {
@@ -46,6 +51,22 @@ async function prepare(): Promise<void> {
     busy.value = false;
   }
 }
+async function commit(): Promise<void> {
+  const batch = preview.value;
+  if (!batch || !cleanCount.value || !window.confirm(t("eventGuests.import.confirmCommit", { count: cleanCount.value }))) return;
+  busy.value = true;
+  error.value = "";
+  try {
+    committed.value = (await api.commitCleanGuestImport(props.eventId, batch.batchId)).data;
+    emit("committed");
+  } catch (failure) {
+    error.value = failure instanceof ApiError
+      ? (failure.status === 412 ? t("eventGuests.import.refreshPreview") : formatApiError(failure, t))
+      : t("eventGuests.import.commitFailed");
+  } finally {
+    busy.value = false;
+  }
+}
 </script>
 
 <template>
@@ -59,7 +80,14 @@ async function prepare(): Promise<void> {
     </form>
     <p v-if="error" class="form-error" role="alert">{{ error }}</p>
     <template v-if="preview">
-      <p role="status">{{ t("eventGuests.import.ready", { count: preview.rows.length }) }}</p>
+      <p v-if="committed" role="status">{{ t("eventGuests.import.committed", { imported: committed.importedCount, skipped: committed.skippedCount }) }}</p>
+      <template v-else>
+        <p role="status">{{ t("eventGuests.import.ready", { count: preview.rows.length }) }}</p>
+        <button v-if="cleanCount" class="button button-primary" type="button" :disabled="busy" @click="commit">
+          {{ t("eventGuests.import.commit", { count: cleanCount }) }}
+        </button>
+        <p v-else class="muted">{{ t("eventGuests.import.noCleanRows") }}</p>
+      </template>
       <div class="table-scroll">
         <table class="data-table">
           <thead><tr>

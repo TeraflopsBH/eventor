@@ -116,6 +116,12 @@ export default {
       failed: "Priprema pregleda uvoza nije uspjela.",
       ready: "Red",
       row: "Pregled",
+      commit: "Uvezi {count} ispravnih redova",
+      confirmCommit: "Kreirati profile i učešća za {count} ispravnih redova? Redovi s greškama ili mogućim podudaranjima bit će preskočeni.",
+      committed: "Uvezeno: {imported}. Preskočeno: {skipped}.",
+      noCleanRows: "Nema redova spremnih za uvoz.",
+      refreshPreview: "Podaci registra su promijenjeni. Pripremite novi pregled prije uvoza.",
+      commitFailed: "Uvoz nije moguće potvrditi.",
       review: "Moguća podudaranja u registru: {count}",
       matches: "Spremno za pregled",
       issue: {

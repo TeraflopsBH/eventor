@@ -1263,6 +1263,12 @@ export interface EventGuestList {
   nextOffset: number | null;
 }
 
+export interface GuestImportCommit {
+  batchId: string;
+  importedCount: number;
+  skippedCount: number;
+}
+
 export interface GuestImportPreview {
   batchId: string;
   rows: {
@@ -1287,6 +1293,10 @@ export const api = {
   prepareGuestImportPreview: (eventId: string, csv: string) =>
     request<Envelope<{ batchId: string; rowCount: number }>>(`/events/${encodeURIComponent(eventId)}/guest-imports`, {
       method: "POST", body: { csv }, idempotent: true,
+    }),
+  commitCleanGuestImport: (eventId: string, batchId: string) =>
+    request<Envelope<GuestImportCommit>>(`/events/${encodeURIComponent(eventId)}/guest-imports/${encodeURIComponent(batchId)}/commit`, {
+      method: "POST", idempotent: true,
     }),
   getGuestImportPreview: (eventId: string, batchId: string) =>
     request<Envelope<GuestImportPreview>>(`/events/${encodeURIComponent(eventId)}/guest-imports/${encodeURIComponent(batchId)}`),

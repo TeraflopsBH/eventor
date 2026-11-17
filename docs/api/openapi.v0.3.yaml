@@ -3512,6 +3512,32 @@ paths:
         '403': { $ref: '#/components/responses/Forbidden' }
         '404': { $ref: '#/components/responses/NotFound' }
         '503': { $ref: '#/components/responses/ServiceUnavailable' }
+  "/events/{eventId}/guest-imports/{batchId}/commit":
+    post:
+      tags: ["Event Participation"]
+      operationId: commitCleanGuestImportRows
+      summary: "Create profiles and participation for all clean rows in a preview"
+      security: [{ StaffSession: [], StaffCsrf: [] }]
+      parameters:
+        - $ref: '#/components/parameters/PEventId'
+        - name: batchId
+          in: path
+          required: true
+          schema: { type: string, format: uuid }
+        - $ref: '#/components/parameters/IdempotencyKey'
+      responses:
+        '200':
+          description: "The batch committed or was already committed."
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/GuestImportCommitEnvelope' }
+        '400': { $ref: '#/components/responses/BadRequest' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '404': { $ref: '#/components/responses/NotFound' }
+        '409': { $ref: '#/components/responses/Conflict' }
+        '412': { $ref: '#/components/responses/PreconditionFailed' }
+        '503': { $ref: '#/components/responses/ServiceUnavailable' }
   "/events/{eventId}/guest-registry/enable":
     post:
       tags: ["Event Participation"]
@@ -7083,6 +7109,17 @@ components:
           properties:
             batchId: { type: string, format: uuid }
             rowCount: { type: integer, minimum: 1, maximum: 500 }
+    GuestImportCommitEnvelope:
+      type: object
+      required: [data]
+      properties:
+        data:
+          type: object
+          required: [batchId, importedCount, skippedCount]
+          properties:
+            batchId: { type: string, format: uuid }
+            importedCount: { type: integer, minimum: 1, maximum: 500 }
+            skippedCount: { type: integer, minimum: 0, maximum: 499 }
     GuestImportPreviewEnvelope:
       type: object
       required: [data]
