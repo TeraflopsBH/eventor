@@ -2441,6 +2441,63 @@ BEGIN
 END;
 $test$;
 
+-- Group membership changes are event-scoped and retain existing membership roles.
+DO $test$
+DECLARE
+  v_org CONSTANT uuid := '10000000-0000-0000-0000-00000000000a';
+  v_actor CONSTANT uuid := '30000000-0000-0000-0000-00000000000a';
+  v_event uuid;
+  v_other_event uuid;
+  v_participation uuid;
+  v_revision integer;
+  v_first uuid;
+  v_second uuid;
+  v_foreign uuid;
+BEGIN
+  SELECT id INTO STRICT v_event FROM eogp.events WHERE organization_id = v_org AND event_code = 'CI-LINK-A';
+  SELECT id INTO STRICT v_other_event FROM eogp.events WHERE organization_id = v_org AND event_code = 'CI-LINK-B';
+  SELECT p.id, p.revision INTO STRICT v_participation, v_revision
+  FROM eogp.event_participations p JOIN eogp.persons person
+    ON person.organization_id = p.organization_id AND person.id = p.person_id
+  WHERE p.organization_id = v_org AND p.event_id = v_event AND person.last_name = 'Workbook Fixture';
+  v_first := (eogp.write_event_guest_group(v_org,v_event,v_actor,NULL,'DELEGATION','Delegation A')->>'groupId')::uuid;
+  v_second := (eogp.write_event_guest_group(v_org,v_event,v_actor,NULL,'TEAM','Team B')->>'groupId')::uuid;
+  v_foreign := (eogp.write_event_guest_group(v_org,v_other_event,v_actor,NULL,'DELEGATION','Other event group')->>'groupId')::uuid;
+  INSERT INTO eogp.guest_group_memberships(organization_id,event_id,group_id,participation_id,membership_kind)
+  VALUES (v_org,v_event,v_first,v_participation,'lead');
+  BEGIN
+    PERFORM eogp.set_event_guest_groups(v_org,v_event,v_actor,v_participation,v_revision,ARRAY[v_first,v_foreign]);
+    RAISE EXCEPTION 'group from a different event was accepted';
+  EXCEPTION WHEN object_not_in_prerequisite_state THEN NULL;
+  END;
+  PERFORM eogp.set_event_guest_groups(v_org,v_event,v_actor,v_participation,v_revision,ARRAY[v_first,v_second]);
+  IF NOT (eogp.read_event_guest_list(v_org,v_event,v_actor,NULL,0)->'people')
+       @> jsonb_build_array(jsonb_build_object('participationId',v_participation,'groupIds',ARRAY[v_first,v_second]))
+     OR NOT EXISTS (SELECT 1 FROM eogp.guest_group_memberships WHERE organization_id=v_org AND event_id=v_event
+         AND group_id=v_first AND participation_id=v_participation AND membership_kind='lead')
+     OR has_table_privilege('eventor_runtime','eogp.guest_group_memberships','SELECT,INSERT,UPDATE,DELETE') THEN
+    RAISE EXCEPTION 'group assignment did not retain membership or grants correctly';
+  END IF;
+
+  PERFORM eogp.write_event_guest_group(v_org,v_event,v_actor,v_first,NULL,NULL);
+  IF NOT eogp.list_event_guest_groups(v_org,v_event,v_actor)
+      @> jsonb_build_array(jsonb_build_object('groupId',v_first,'retired',true)) THEN
+    RAISE EXCEPTION 'group retirement was not recorded';
+  END IF;
+  BEGIN
+    PERFORM eogp.set_event_guest_groups(v_org,v_event,v_actor,v_participation,v_revision,ARRAY[v_second]);
+    RAISE EXCEPTION 'stale group selection unexpectedly committed';
+  EXCEPTION WHEN serialization_failure THEN NULL;
+  END;
+  PERFORM eogp.set_event_guest_groups(v_org,v_event,v_actor,v_participation,v_revision+1,ARRAY[v_second]);
+  BEGIN
+    PERFORM eogp.set_event_guest_groups(v_org,v_event,v_actor,v_participation,v_revision+2,ARRAY[v_first,v_second]);
+    RAISE EXCEPTION 'retired group was newly selected';
+  EXCEPTION WHEN object_not_in_prerequisite_state THEN NULL;
+  END;
+END;
+$test$;
+
 COMMIT;
 
 \echo 'PostgreSQL migration smoke tests passed.'

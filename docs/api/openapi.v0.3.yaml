@@ -3820,6 +3820,84 @@ paths:
         '403': { $ref: '#/components/responses/Forbidden' }
         '404': { $ref: '#/components/responses/NotFound' }
         '409': { $ref: '#/components/responses/Conflict' }
+  "/events/{eventId}/guest-groups":
+    get:
+      tags: ["Event Participation"]
+      operationId: listEventGuestGroups
+      summary: "List the active and retired guest groups for an event"
+      security: [{ StaffSession: [] }]
+      parameters:
+        - $ref: '#/components/parameters/PEventId'
+      responses:
+        '200':
+          description: "Event guest groups."
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [data]
+                properties:
+                  data:
+                    type: array
+                    items: { $ref: '#/components/schemas/EventGuestGroup' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '404': { $ref: '#/components/responses/NotFound' }
+    post:
+      tags: ["Event Participation"]
+      operationId: createEventGuestGroup
+      summary: "Create an event guest group with a stable code"
+      security: [{ StaffSession: [], StaffCsrf: [] }]
+      parameters:
+        - $ref: '#/components/parameters/PEventId'
+        - $ref: '#/components/parameters/IdempotencyKey'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              additionalProperties: false
+              required: [code, label]
+              properties:
+                code: { type: string, pattern: '^[A-Z0-9][A-Z0-9_-]{0,39}$' }
+                label: { type: string, minLength: 1, maxLength: 120 }
+      responses:
+        '201':
+          description: "Guest group created."
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/EventGuestGroupEnvelope' }
+        '400': { $ref: '#/components/responses/BadRequest' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '404': { $ref: '#/components/responses/NotFound' }
+        '409': { $ref: '#/components/responses/Conflict' }
+        '422': { $ref: '#/components/responses/UnprocessableEntity' }
+  "/events/{eventId}/guest-groups/{groupId}/retire":
+    post:
+      tags: ["Event Participation"]
+      operationId: retireEventGuestGroup
+      summary: "Retire a guest group while preserving existing assignments"
+      security: [{ StaffSession: [], StaffCsrf: [] }]
+      parameters:
+        - $ref: '#/components/parameters/PEventId'
+        - $ref: '#/components/parameters/IdempotencyKey'
+        - name: groupId
+          in: path
+          required: true
+          schema: { type: string, format: uuid }
+      responses:
+        '200':
+          description: "The group is retired."
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/EventGuestGroupEnvelope' }
+        '400': { $ref: '#/components/responses/BadRequest' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '404': { $ref: '#/components/responses/NotFound' }
+        '409': { $ref: '#/components/responses/Conflict' }
   "/events/{eventId}/participations":
     get:
       tags: ["Event Participation"]
@@ -4014,6 +4092,49 @@ paths:
                     properties:
                       participationId: { type: string, format: uuid }
                       tagIds: { type: array, items: { type: string, format: uuid }, uniqueItems: true, maxItems: 1000 }
+                      revision: { type: integer, minimum: 1 }
+        '400': { $ref: '#/components/responses/BadRequest' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '404': { $ref: '#/components/responses/NotFound' }
+        '409': { $ref: '#/components/responses/Conflict' }
+        '412': { $ref: '#/components/responses/PreconditionFailed' }
+  "/events/{eventId}/participations/{participationId}/groups":
+    patch:
+      tags: ["Event Participation"]
+      operationId: setEventGuestGroups
+      summary: "Replace the selected groups for an event guest"
+      security: [{ StaffSession: [], StaffCsrf: [] }]
+      parameters:
+        - $ref: '#/components/parameters/PEventId'
+        - $ref: '#/components/parameters/PParticipationId'
+        - $ref: '#/components/parameters/IdempotencyKey'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              additionalProperties: false
+              required: [groupIds, expectedRevision]
+              properties:
+                groupIds: { type: array, items: { type: string, format: uuid }, uniqueItems: true, maxItems: 1000 }
+                expectedRevision: { type: integer, minimum: 1, maximum: 2147483647 }
+      responses:
+        '200':
+          description: "Current group IDs and participation revision."
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [data]
+                properties:
+                  data:
+                    type: object
+                    required: [participationId, groupIds, revision]
+                    properties:
+                      participationId: { type: string, format: uuid }
+                      groupIds: { type: array, items: { type: string, format: uuid }, uniqueItems: true, maxItems: 1000 }
                       revision: { type: integer, minimum: 1 }
         '400': { $ref: '#/components/responses/BadRequest' }
         '401': { $ref: '#/components/responses/Unauthorized' }
@@ -7859,6 +7980,19 @@ components:
       required: [data]
       properties:
         data: { $ref: '#/components/schemas/EventGuestTag' }
+    EventGuestGroup:
+      type: object
+      required: [groupId, code, label, retired]
+      properties:
+        groupId: { type: string, format: uuid }
+        code: { type: string }
+        label: { type: string }
+        retired: { type: boolean }
+    EventGuestGroupEnvelope:
+      type: object
+      required: [data]
+      properties:
+        data: { $ref: '#/components/schemas/EventGuestGroup' }
     EventGuestListEnvelope:
       type: object
       required: [data]
@@ -7871,7 +8005,7 @@ components:
               type: array
               items:
                 type: object
-                required: [participationId, displayName, status, revision, categoryCode, categoryId, participationCode, tagIds]
+                required: [participationId, displayName, status, revision, categoryCode, categoryId, participationCode, tagIds, groupIds]
                 properties:
                   participationId: { type: string, format: uuid }
                   displayName: { type: string }
@@ -7884,6 +8018,10 @@ components:
                     type: array
                     items: { type: string, format: uuid }
                     description: "Internal tags assigned to this event guest."
+                  groupIds:
+                    type: array
+                    items: { type: string, format: uuid }
+                    description: "Groups that include this event guest."
             canManage: { type: boolean }
             nextOffset: { type: [integer, 'null'], minimum: 0 }
     ParticipationStatusRequest:

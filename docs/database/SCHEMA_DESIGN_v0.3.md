@@ -353,3 +353,7 @@ Internal tags reuse `guest_tags` and `event_participation_tags`. Event guest rea
 ## Supervised Guest Registry merge (000144)
 
 The `person_merge_records` table records both profile IDs and revisions, the name resolution, the reason, the reviewer, the review audit reference and the optional restoration. The command locks both profiles in UUID order, rechecks their revisions, and requires the separate `guest.registry.merge` grant plus Registry management. The original source row holds its own names in merged state. Restoration clears the source's merge target, reactivates that row and records the correction.
+
+## Event guest groups (000145)
+
+Event group configuration and membership commands reuse `guest_groups` and `guest_group_memberships`. Groups have stable codes and can retire with existing memberships intact. Membership updates compare the participation revision, preserve the roles of retained memberships, and use the existing default member role for new links. The roster returns group IDs under event guest-list permissions.
