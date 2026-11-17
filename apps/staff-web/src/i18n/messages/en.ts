@@ -105,6 +105,23 @@ export default {
     settings: "Settings",
   },
   registry: {
+    history: "View history",
+    participationHistory: "Event participation",
+    changeHistory: "Profile changes",
+    noParticipations: "No visible event participation on this page.",
+    noChanges: "No profile changes on this page.",
+    historyAction: {
+      create: "Created",
+      update: "Updated",
+      archive: "Archived",
+    },
+    participationStatus: {
+      eligible: "Eligible",
+      waitlisted: "Waitlisted",
+      withdrawn: "Withdrawn",
+      cancelled: "Cancelled",
+      ineligible: "Ineligible",
+    },
     nameSearch: "Search by name",
     archived: "Archived profiles",
     search: "Search",

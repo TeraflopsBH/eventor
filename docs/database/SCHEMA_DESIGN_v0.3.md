@@ -187,6 +187,8 @@ No response is unanswered, never an implicit decline. A cancellation or schedule
 
 Migration `000128` makes persistent person profiles accessible through organization-scoped commands. Grant `guest.registry.read` to browse and view profiles, and `guest.registry.manage` to browse, create, edit and archive. An event-scoped role grants no Registry-wide access. Commands expose identity names and revisions, record searches and profile views without names in audit, and keep contact values outside these projections. Archive preserves the person and existing participation references. Resolve eligible or waitlisted participation in unfinished events before archiving.
 
+Migration `000129` exposes paged profile changes and participation history on the Registry profile. Organization Registry permission is required for the profile. Each participation requires `guest.read` or `guest.manage` on its event. Changes show actions and revisions, with history reads recorded in audit.
+
 ### 3.9 Event cancellation, postponement and communications
 
 | Proposed relation | Purpose / key invariants |
