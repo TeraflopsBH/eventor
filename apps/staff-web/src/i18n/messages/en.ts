@@ -194,7 +194,7 @@ export default {
     },
     exportCsv: "Export guest list as CSV",
     exportXlsx: "Export guest list as XLSX",
-    exportLimit: "This export exceeds 20,000 guests. Narrow it by status or category.",
+    exportLimit: "This export exceeds 20,000 guests. Narrow the search or filters.",
   },
   registry: {
     merge: {

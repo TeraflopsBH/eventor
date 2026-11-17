@@ -357,3 +357,7 @@ The `person_merge_records` table records both profile IDs and revisions, the nam
 ## Event guest groups (000145)
 
 Event group configuration and membership commands reuse `guest_groups` and `guest_group_memberships`. Groups have stable codes and can retire with existing memberships intact. Membership updates compare the participation revision, preserve the roles of retained memberships, and use the existing default member role for new links. The roster returns group IDs under event guest-list permissions.
+
+## Event roster name search (000146)
+
+Roster search matches event display names and the name fields pinned to the participation. The staff API accepts the name query in a CSRF-protected POST body. CSV and XLSX exports can use the same name, category and status filters. Audit metadata records whether the name filter was applied.

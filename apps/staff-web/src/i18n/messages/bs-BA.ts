@@ -194,7 +194,7 @@ export default {
     },
     exportCsv: "Izvezi listu gostiju kao CSV",
     exportXlsx: "Izvezi listu gostiju kao XLSX",
-    exportLimit: "Izvoz prelazi 20.000 gostiju. Suzite izbor prema statusu ili kategoriji.",
+    exportLimit: "Izvoz prelazi 20.000 gostiju. Suzite pretragu ili filtere.",
   },
   registry: {
     merge: {
