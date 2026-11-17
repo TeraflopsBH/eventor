@@ -11,12 +11,19 @@ const file = ref<File | null>(null);
 const preview = ref<GuestImportPreview | null>(null);
 const error = ref("");
 const committed = ref<GuestImportCommit | null>(null);
+const selected = ref<Record<number, string>>({});
 const cleanCount = computed(() => preview.value?.rows.filter((row) => !row.errors.length && !row.duplicateCount).length ?? 0);
+const reuse = computed(() => (preview.value?.rows ?? []).flatMap(({ rowNumber, matches }) => {
+  const match = matches.find(({ personId }) => personId === selected.value[rowNumber]);
+  return match ? [{ rowNumber, personId: match.personId, expectedRevision: match.revision }] : [];
+}));
+const importCount = computed(() => cleanCount.value + reuse.value.length);
 const busy = ref(false);
 
 function selectFile(event: Event): void {
   file.value = (event.target as HTMLInputElement).files?.[0] ?? null;
   preview.value = null;
+  selected.value = {};
   committed.value = null;
   error.value = "";
 }
@@ -32,6 +39,7 @@ async function prepare(): Promise<void> {
   error.value = "";
   busy.value = true;
   preview.value = null;
+  selected.value = {};
   committed.value = null;
   try {
     let csv: string;
@@ -53,11 +61,13 @@ async function prepare(): Promise<void> {
 }
 async function commit(): Promise<void> {
   const batch = preview.value;
-  if (!batch || !cleanCount.value || !window.confirm(t("eventGuests.import.confirmCommit", { count: cleanCount.value }))) return;
+  if (!batch || !importCount.value || !window.confirm(t("eventGuests.import.confirmCommit", {
+    created: cleanCount.value, reused: reuse.value.length,
+  }))) return;
   busy.value = true;
   error.value = "";
   try {
-    committed.value = (await api.commitCleanGuestImport(props.eventId, batch.batchId)).data;
+    committed.value = (await api.commitGuestImport(props.eventId, batch.batchId, reuse.value)).data;
     emit("committed");
   } catch (failure) {
     error.value = failure instanceof ApiError
@@ -83,10 +93,6 @@ async function commit(): Promise<void> {
       <p v-if="committed" role="status">{{ t("eventGuests.import.committed", { imported: committed.importedCount, skipped: committed.skippedCount }) }}</p>
       <template v-else>
         <p role="status">{{ t("eventGuests.import.ready", { count: preview.rows.length }) }}</p>
-        <button v-if="cleanCount" class="button button-primary" type="button" :disabled="busy" @click="commit">
-          {{ t("eventGuests.import.commit", { count: cleanCount }) }}
-        </button>
-        <p v-else class="muted">{{ t("eventGuests.import.noCleanRows") }}</p>
       </template>
       <div class="table-scroll">
         <table class="data-table">
@@ -104,11 +110,31 @@ async function commit(): Promise<void> {
               <td><ul v-if="row.errors.length || row.duplicateCount">
                 <li v-for="issue in row.errors" :key="issue">{{ t(`eventGuests.import.issue.${issue}`) }}</li>
                 <li v-if="row.duplicateCount">{{ t("eventGuests.import.matches", { count: row.duplicateCount }) }}</li>
-              </ul><span v-else>{{ t("eventGuests.import.clear") }}</span></td>
+              </ul><span v-else>{{ t("eventGuests.import.clear") }}</span>
+                <label v-if="!committed && row.matches.length">
+                  {{ t("eventGuests.import.reuse", { row: row.rowNumber }) }}
+                  <select :value="selected[row.rowNumber] ?? ''" :disabled="busy"
+                    @change="selected[row.rowNumber] = ($event.target as HTMLSelectElement).value">
+                    <option value="">{{ t("eventGuests.import.skip") }}</option>
+                    <option v-for="match in row.matches" :key="match.personId" :value="match.personId">
+                      {{ [...new Set([match.name, match.displayName, match.preferredName].filter(Boolean))].join(" · ") }}
+                    </option>
+                  </select>
+                </label>
+                <p v-else-if="!committed && row.duplicateCount && !row.errors.length" class="muted">
+                  {{ t("eventGuests.import.noLinkableMatches") }}
+                </p>
+              </td>
             </tr>
           </tbody>
         </table>
       </div>
+      <template v-if="!committed">
+        <button v-if="importCount" class="button button-primary" type="button" :disabled="busy" @click="commit">
+          {{ t("eventGuests.import.commit", { count: importCount }) }}
+        </button>
+        <p v-else class="muted">{{ t("eventGuests.import.noCleanRows") }}</p>
+      </template>
     </template>
   </section>
 </template>

@@ -3516,7 +3516,7 @@ paths:
     post:
       tags: ["Event Participation"]
       operationId: commitCleanGuestImportRows
-      summary: "Create profiles and participation for all clean rows in a preview"
+      summary: "Import clean rows and explicitly selected Registry matches"
       security: [{ StaffSession: [], StaffCsrf: [] }]
       parameters:
         - $ref: '#/components/parameters/PEventId'
@@ -3525,6 +3525,10 @@ paths:
           required: true
           schema: { type: string, format: uuid }
         - $ref: '#/components/parameters/IdempotencyKey'
+      requestBody:
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/GuestImportCommitInput' }
       responses:
         '200':
           description: "The batch committed or was already committed."
@@ -7109,6 +7113,22 @@ components:
           properties:
             batchId: { type: string, format: uuid }
             rowCount: { type: integer, minimum: 1, maximum: 500 }
+    GuestImportCommitInput:
+      type: object
+      additionalProperties: false
+      properties:
+        reuse:
+          type: array
+          maxItems: 500
+          description: "Choose at most one preview match per row, and use each profile only once. Other flagged rows are skipped."
+          items:
+            type: object
+            additionalProperties: false
+            required: [rowNumber, personId, expectedRevision]
+            properties:
+              rowNumber: { type: integer, minimum: 2, maximum: 501 }
+              personId: { type: string, format: uuid }
+              expectedRevision: { type: integer, minimum: 1, maximum: 2147483647 }
     GuestImportCommitEnvelope:
       type: object
       required: [data]
@@ -7134,10 +7154,22 @@ components:
               maxItems: 500
               items:
                 type: object
-                required: [rowNumber, names, errors, duplicateCount]
+                required: [rowNumber, names, errors, duplicateCount, matches]
                 properties:
                   rowNumber: { type: integer, minimum: 2 }
                   duplicateCount: { type: integer, minimum: 0, maximum: 20 }
+                  matches:
+                    type: array
+                    maxItems: 20
+                    items:
+                      type: object
+                      required: [personId, revision, name, displayName, preferredName]
+                      properties:
+                        personId: { type: string, format: uuid }
+                        revision: { type: integer, minimum: 1 }
+                        name: { type: string }
+                        displayName: { type: [string, 'null'] }
+                        preferredName: { type: [string, 'null'] }
                   errors:
                     type: array
                     items: { type: string, enum: [column_count, name_required, name_invalid, duplicate_in_file] }

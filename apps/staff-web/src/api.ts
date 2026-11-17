@@ -1269,6 +1269,12 @@ export interface GuestImportCommit {
   skippedCount: number;
 }
 
+export interface GuestImportReuse {
+  rowNumber: number;
+  personId: string;
+  expectedRevision: number;
+}
+
 export interface GuestImportPreview {
   batchId: string;
   rows: {
@@ -1276,6 +1282,13 @@ export interface GuestImportPreview {
     names: GuestRegistryNames;
     errors: ("column_count" | "name_required" | "name_invalid" | "duplicate_in_file")[];
     duplicateCount: number;
+    matches: {
+      personId: string;
+      revision: number;
+      name: string;
+      displayName: string | null;
+      preferredName: string | null;
+    }[];
   }[];
 }
 
@@ -1294,9 +1307,9 @@ export const api = {
     request<Envelope<{ batchId: string; rowCount: number }>>(`/events/${encodeURIComponent(eventId)}/guest-imports`, {
       method: "POST", body: { csv }, idempotent: true,
     }),
-  commitCleanGuestImport: (eventId: string, batchId: string) =>
+  commitGuestImport: (eventId: string, batchId: string, reuse: GuestImportReuse[]) =>
     request<Envelope<GuestImportCommit>>(`/events/${encodeURIComponent(eventId)}/guest-imports/${encodeURIComponent(batchId)}/commit`, {
-      method: "POST", idempotent: true,
+      method: "POST", body: { reuse }, idempotent: true,
     }),
   getGuestImportPreview: (eventId: string, batchId: string) =>
     request<Envelope<GuestImportPreview>>(`/events/${encodeURIComponent(eventId)}/guest-imports/${encodeURIComponent(batchId)}`),

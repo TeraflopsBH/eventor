@@ -327,3 +327,7 @@ These require explicit product, GHB or infrastructure validation. They must not 
 Events now have `details_revision` for optimistic metadata updates, separate from the immutable schedule revision counter. Creation atomically records the event, original schedule, empty draft capability revision and audit entry. Existing `event.manage` grants govern list/create/update/archive. Migration 000122 revokes direct INSERT/UPDATE/DELETE on `events` from `eventor_runtime`; writes must pass through permissioned commands. Session administration and persistent Guest Registry workflows remain outside this slice.
 
 Migration 000123 pins the four event-administration SECURITY DEFINER functions to `pg_catalog, eogp`, excluding the public schema in accordance with the authentication-role security audit.
+
+## Event guest import review (000134–000136)
+
+Preview staging stores encrypted source and normalized name fields in `guest_import_rows`, alongside validation codes and candidate person IDs. A reviewed commit may link an active Registry profile from a staged candidate list if its revision still matches the operator's selection and it has no existing event participation. The commit records the selected IDs and revisions in the batch mapping snapshot for replay and uses normal participation commands to pin the guest identity and audit the link. Clean rows and reviewed matches commit in one transaction. Rows with validation errors and unresolved matches are skipped.

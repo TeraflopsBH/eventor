@@ -2089,6 +2089,59 @@ BEGIN
 END;
 $test$;
 
+-- A reviewed match reuses an active Registry profile and pins the reviewed revision.
+DO $test$
+DECLARE
+  v_org CONSTANT uuid := '10000000-0000-0000-0000-00000000000a';
+  v_actor CONSTANT uuid := '30000000-0000-0000-0000-00000000000a';
+  v_cipher text := encode(convert_to('ECP1' || repeat('x', 32), 'UTF8'), 'base64');
+  v_event uuid;
+  v_batch uuid;
+  v_person uuid;
+  v_choices jsonb;
+  v_result jsonb;
+BEGIN
+  SELECT id INTO STRICT v_event FROM eogp.events WHERE organization_id = v_org AND event_code = 'CI-LINK-A';
+  SELECT id INTO STRICT v_person FROM eogp.persons WHERE organization_id = v_org
+    AND first_name = 'Import' AND last_name = 'Late Match';
+  v_batch := (eogp.prepare_guest_import_preview(v_org, v_event, v_actor, repeat('d',64), jsonb_build_array(
+    jsonb_build_object('rowNumber',2,'firstName','Import','lastName','Late Match',
+      'sourceCiphertext',v_cipher,'namesCiphertext',v_cipher,'errors','[]'::jsonb),
+    jsonb_build_object('rowNumber',3,'firstName','Import','lastName','Late Match',
+      'sourceCiphertext',v_cipher,'namesCiphertext',v_cipher,'errors','["duplicate_in_file"]'::jsonb)
+  ))->>'batchId')::uuid;
+  v_result := eogp.read_guest_import_preview(v_org, v_event, v_actor, v_batch);
+  IF v_result#>>'{rows,0,matches,0,personId}' IS DISTINCT FROM v_person::text
+     OR v_result#>>'{rows,0,matches,0,revision}' IS DISTINCT FROM '1'
+     OR v_result#>'{rows,1,matches}' IS DISTINCT FROM '[]'::jsonb THEN
+    RAISE EXCEPTION 'review exposed a wrong, stale or invalid candidate';
+  END IF;
+  v_choices := jsonb_build_array(jsonb_build_object('rowNumber',2,'personId',v_person,'expectedRevision',1));
+  PERFORM eogp.write_guest_registry_person(v_org,v_actor,v_person,1,'update','{"displayName":"Reviewed Fixture"}');
+  BEGIN
+    PERFORM eogp.commit_reviewed_guest_import(v_org,v_event,v_actor,v_batch,'[]',v_choices);
+    RAISE EXCEPTION 'stale match unexpectedly committed';
+  EXCEPTION WHEN serialization_failure THEN NULL;
+  END;
+  v_choices := jsonb_set(v_choices, '{0,expectedRevision}', '2');
+  v_result := eogp.commit_reviewed_guest_import(v_org,v_event,v_actor,v_batch,'[]',v_choices);
+  IF v_result->>'importedCount' IS DISTINCT FROM '1' OR v_result->>'skippedCount' IS DISTINCT FROM '1'
+     OR eogp.commit_reviewed_guest_import(v_org,v_event,v_actor,v_batch,'[]',v_choices) IS DISTINCT FROM v_result
+     OR NOT EXISTS (SELECT 1 FROM eogp.event_participations WHERE organization_id = v_org AND event_id = v_event
+                   AND person_id = v_person AND person_identity_snapshot->>'displayName' = 'Reviewed Fixture'
+                   AND person_identity_snapshot->>'personRevision' = '2')
+     OR (SELECT count(*) FROM eogp.persons WHERE organization_id = v_org AND first_name = 'Import'
+         AND last_name = 'Late Match') <> 1 THEN
+    RAISE EXCEPTION 'review did not link and pin the existing profile';
+  END IF;
+  BEGIN
+    PERFORM eogp.commit_clean_guest_import(v_org,v_event,v_actor,v_batch,'[]');
+    RAISE EXCEPTION 'different duplicate choices replayed a committed batch';
+  EXCEPTION WHEN object_not_in_prerequisite_state THEN NULL;
+  END;
+END;
+$test$;
+
 COMMIT;
 
 \echo 'PostgreSQL migration smoke tests passed.'
