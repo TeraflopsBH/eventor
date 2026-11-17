@@ -3958,6 +3958,36 @@ paths:
         '422': { $ref: '#/components/responses/UnprocessableEntity' }
         '429': { $ref: '#/components/responses/TooManyRequests' }
         '500': { $ref: '#/components/responses/InternalServerError' }
+  "/events/{eventId}/participations/search":
+    post:
+      tags: ["Event Participation"]
+      operationId: searchEventGuestRoster
+      summary: "Search the event guest list by name"
+      security: [{ StaffSession: [], StaffCsrf: [] }]
+      parameters:
+        - $ref: '#/components/parameters/PEventId'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              additionalProperties: false
+              properties:
+                query: { type: string, maxLength: 200 }
+                status: { type: string, enum: [eligible, waitlisted, withdrawn, cancelled, ineligible] }
+                category: { $ref: '#/components/schemas/EventGuestCategoryFilter' }
+                offset: { type: integer, minimum: 0, maximum: 100000 }
+      responses:
+        '200':
+          description: "A page of the authorized event roster."
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/EventGuestListEnvelope' }
+        '400': { $ref: '#/components/responses/BadRequest' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '404': { $ref: '#/components/responses/NotFound' }
   "/events/{eventId}/participations/export":
     get:
       tags: ["Event Participation"]
@@ -3970,6 +4000,39 @@ paths:
         - name: status
           in: query
           schema: { type: string, enum: [eligible, waitlisted, withdrawn, cancelled, ineligible] }
+      responses:
+        '200':
+          description: "Event display names, participation statuses and category codes."
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/EventGuestRosterExportEnvelope' }
+        '400': { $ref: '#/components/responses/BadRequest' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '404': { $ref: '#/components/responses/NotFound' }
+        '422':
+          description: "The filtered roster exceeds the interactive export limit of 20,000 rows."
+          content:
+            application/problem+json:
+              schema: { $ref: '#/components/schemas/Problem' }
+    post:
+      tags: ["Event Participation"]
+      operationId: exportEventGuestRosterSearch
+      summary: "Get matching guests for CSV/XLSX export with a name filter"
+      security: [{ StaffSession: [], StaffCsrf: [] }]
+      parameters:
+        - $ref: '#/components/parameters/PEventId'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              additionalProperties: false
+              properties:
+                query: { type: string, maxLength: 200 }
+                status: { type: string, enum: [eligible, waitlisted, withdrawn, cancelled, ineligible] }
+                category: { $ref: '#/components/schemas/EventGuestCategoryFilter' }
       responses:
         '200':
           description: "Event display names, participation statuses and category codes."
@@ -6621,10 +6684,7 @@ components:
       name: category
       in: query
       description: "Category UUID or unassigned for guests without a category code."
-      schema:
-        oneOf:
-          - { type: string, const: unassigned }
-          - { type: string, format: uuid }
+      schema: { $ref: '#/components/schemas/EventGuestCategoryFilter' }
     PParticipationId:
       name: participationId
       in: path
@@ -7954,6 +8014,10 @@ components:
                   displayName: { type: string }
                   status: { type: string, enum: [eligible, waitlisted, withdrawn, cancelled, ineligible] }
                   categoryCode: { type: [string, 'null'] }
+    EventGuestCategoryFilter:
+      oneOf:
+        - { type: string, const: unassigned }
+        - { type: string, format: uuid }
     EventGuestCategory:
       type: object
       required: [categoryId, code, label, retired]

@@ -4360,40 +4360,61 @@ export function buildApi(dependencies: ApiDependencies): FastifyInstance {
   });
 
   type GuestListFilter = { status?: "eligible" | "waitlisted" | "withdrawn" | "cancelled" | "ineligible"; category?: string };
+  type GuestListSearch = GuestListFilter & { query?: string };
+  type GuestListPage = GuestListSearch & { offset?: number };
   const guestListFilters = {
     status: { type: "string", enum: ["eligible", "waitlisted", "withdrawn", "cancelled", "ineligible"] },
     category: { type: "string", anyOf: [{ const: "unassigned" }, { pattern: uuidPattern }] },
   };
   const guestCategoryFilter = (filter?: string) => [filter === "unassigned" ? null : filter ?? null, filter === "unassigned"] as const;
+  const guestListOffset = { type: "integer", minimum: 0, maximum: 100000 };
+  const guestListSearchFields = { ...guestListFilters, query: { type: "string", maxLength: 200 } };
+
+  function readEventGuestPage(reply: FastifyReply, principal: StaffPrincipal, eventId: string, filter: GuestListPage) {
+    return withRegistryRead(reply, principal,
+      "SELECT eogp.read_event_guest_list($1::uuid,$3::uuid,$2::uuid,$4::text,$5::integer,$6::uuid,$7::boolean,$8::text) AS result",
+      [eventId, filter.status ?? null, filter.offset ?? 0, ...guestCategoryFilter(filter.category), filter.query ?? null]);
+  }
+
+  function readEventGuestExport(reply: FastifyReply, principal: StaffPrincipal, eventId: string, filter: GuestListSearch) {
+    return withRegistryRead(reply, principal,
+      "SELECT eogp.read_event_guest_roster_export($1::uuid,$3::uuid,$2::uuid,$4::text,$5::uuid,$6::boolean,$7::text) AS result",
+      [eventId, filter.status ?? null, ...guestCategoryFilter(filter.category), filter.query ?? null], (value) => {
+        const result = value as { limitExceeded?: boolean };
+        if (result.limitExceeded) {
+          throw new ApiError(422, "GUEST_ROSTER_EXPORT_LIMIT", "The export exceeds 20,000 guests. Narrow the filters.");
+        }
+        return result;
+      });
+  }
+
   server.get<{ Params: { eventId: string }; Querystring: GuestListFilter & { offset?: number } }>("/events/:eventId/participations", {
     schema: {
       params: participationEventParams,
-      querystring: {
-        type: "object",
-        properties: {
-          ...guestListFilters,
-          offset: { type: "integer", minimum: 0, maximum: 100000 },
-        },
-      },
+      querystring: { type: "object", properties: { ...guestListFilters, offset: guestListOffset } },
     },
-  }, (request, reply) => withRegistryRead(reply, registryPrincipal(request),
-    "SELECT eogp.read_event_guest_list($1::uuid,$3::uuid,$2::uuid,$4::text,$5::integer,$6::uuid,$7::boolean) AS result",
-    [request.params.eventId, request.query.status ?? null, request.query.offset ?? 0, ...guestCategoryFilter(request.query.category)]));
+  }, (request, reply) => readEventGuestPage(reply, registryPrincipal(request), request.params.eventId, request.query));
+
+  server.post<{ Params: { eventId: string }; Body: GuestListPage }>("/events/:eventId/participations/search", {
+    schema: {
+      params: participationEventParams,
+      body: { type: "object", additionalProperties: false, properties: { ...guestListSearchFields, offset: guestListOffset } },
+    },
+  }, (request, reply) => readEventGuestPage(reply, registryPrincipal(request), request.params.eventId, request.body));
 
   server.get<{ Params: { eventId: string }; Querystring: GuestListFilter }>("/events/:eventId/participations/export", {
     schema: {
       params: participationEventParams,
       querystring: { type: "object", properties: guestListFilters },
     },
-  }, (request, reply) => withRegistryRead(reply, registryPrincipal(request),
-    "SELECT eogp.read_event_guest_roster_export($1::uuid,$3::uuid,$2::uuid,$4::text,$5::uuid,$6::boolean) AS result",
-    [request.params.eventId, request.query.status ?? null, ...guestCategoryFilter(request.query.category)], (value) => {
-      const result = value as { limitExceeded?: boolean };
-      if (result.limitExceeded) {
-        throw new ApiError(422, "GUEST_ROSTER_EXPORT_LIMIT", "The export exceeds 20,000 guests. Narrow it by status or category.");
-      }
-      return result;
-    }));
+  }, (request, reply) => readEventGuestExport(reply, registryPrincipal(request), request.params.eventId, request.query));
+
+  server.post<{ Params: { eventId: string }; Body: GuestListSearch }>("/events/:eventId/participations/export", {
+    schema: {
+      params: participationEventParams,
+      body: { type: "object", additionalProperties: false, properties: guestListSearchFields },
+    },
+  }, (request, reply) => readEventGuestExport(reply, registryPrincipal(request), request.params.eventId, request.body));
 
   server.get<{ Params: { eventId: string } }>("/events/:eventId/guest-categories", {
     schema: { params: participationEventParams },

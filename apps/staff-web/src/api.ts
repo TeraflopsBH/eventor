@@ -1370,19 +1370,31 @@ export const api = {
     request<Envelope<GuestImportReport>>(`/events/${encodeURIComponent(eventId)}/guest-imports/${encodeURIComponent(batchId)}/report`),
   listEventGuestWorkspaces: (organizationId: string) =>
     request<Envelope<EventGuestWorkspace[]>>(`/organizations/${encodeURIComponent(organizationId)}/events/guest-lists`),
-  getEventGuestList: (eventId: string, offset: number, status: EventGuestRow["status"] | "", category = "") => {
+  getEventGuestList: (eventId: string, offset: number, status: EventGuestRow["status"] | "", category = "", name = "") => {
+    const path = `/events/${encodeURIComponent(eventId)}/participations`;
+    if (name) {
+      return request<Envelope<EventGuestList>>(`${path}/search`, {
+        method: "POST", body: { offset, status: status || undefined, category: category || undefined, query: name },
+      });
+    }
     const query = new URLSearchParams({ offset: String(offset) });
     if (status) query.set("status", status);
     if (category) query.set("category", category);
-    return request<Envelope<EventGuestList>>(`/events/${encodeURIComponent(eventId)}/participations?${query}`);
+    return request<Envelope<EventGuestList>>(`${path}?${query}`);
   },
-  getEventGuestExport: (eventId: string, status: EventGuestRow["status"] | "", category = "") => {
+  getEventGuestExport: (eventId: string, status: EventGuestRow["status"] | "", category = "", name = "") => {
+    type ExportRow = Pick<EventGuestRow, "displayName" | "status" | "categoryCode">;
+    const path = `/events/${encodeURIComponent(eventId)}/participations/export`;
+    if (name) {
+      return request<Envelope<{ people: ExportRow[] }>>(path, {
+        method: "POST", body: { status: status || undefined, category: category || undefined, query: name },
+      });
+    }
     const query = new URLSearchParams();
     if (status) query.set("status", status);
     if (category) query.set("category", category);
     const filter = query.size ? `?${query}` : "";
-    type ExportRow = Pick<EventGuestRow, "displayName" | "status" | "categoryCode">;
-    return request<Envelope<{ people: ExportRow[] }>>(`/events/${encodeURIComponent(eventId)}/participations/export${filter}`);
+    return request<Envelope<{ people: ExportRow[] }>>(`${path}${filter}`);
   },
   listEventGuestCategories: (eventId: string) =>
     request<Envelope<EventGuestCategory[]>>(`/events/${encodeURIComponent(eventId)}/guest-categories`),

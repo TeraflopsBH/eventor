@@ -2498,6 +2498,32 @@ BEGIN
 END;
 $test$;
 
+-- Name search uses event identity snapshots and keeps raw names out of export audit data.
+DO $test$
+DECLARE
+  v_org CONSTANT uuid := '10000000-0000-0000-0000-00000000000a';
+  v_actor CONSTANT uuid := '30000000-0000-0000-0000-00000000000a';
+  v_first uuid;
+  v_second uuid;
+  v_export jsonb;
+BEGIN
+  SELECT id INTO STRICT v_first FROM eogp.events WHERE organization_id=v_org AND event_code='CI-LINK-A';
+  SELECT id INTO STRICT v_second FROM eogp.events WHERE organization_id=v_org AND event_code='CI-LINK-B';
+  v_export := eogp.read_event_guest_roster_export(v_org,v_second,v_actor,'waitlisted',NULL,false,' current name ');
+  IF NOT (eogp.read_event_guest_list(v_org,v_first,v_actor,'withdrawn',0,NULL,false,'synthetic original')->'people')
+     @> '[{"displayName":"Pinned Name"}]'::jsonb
+     OR eogp.read_event_guest_list(v_org,v_first,v_actor,NULL,0,NULL,false,'current name')->'people' IS DISTINCT FROM '[]'::jsonb
+     OR v_export->'people' IS DISTINCT FROM '[{"displayName":"Current Name","status":"waitlisted","categoryCode":null}]'::jsonb THEN
+    RAISE EXCEPTION 'name search or export did not preserve event identity';
+  END IF;
+  IF NOT EXISTS (SELECT 1 FROM eogp.audit_events WHERE organization_id=v_org AND aggregate_id=v_second
+        AND action='guest.event_roster.exported'
+        AND safe_metadata = '{"exportedCount":1,"statusFilter":"waitlisted","nameFilterApplied":true}'::jsonb) THEN
+    RAISE EXCEPTION 'export audit is missing safe name search metadata';
+  END IF;
+END;
+$test$;
+
 COMMIT;
 
 \echo 'PostgreSQL migration smoke tests passed.'
