@@ -6,6 +6,9 @@ CREATE TABLE eogp.event_guest_reference_counters (
   FOREIGN KEY (organization_id,event_id) REFERENCES eogp.events(organization_id,id) ON DELETE CASCADE
 );
 ALTER TABLE eogp.event_guest_reference_counters ENABLE ROW LEVEL SECURITY;
+ALTER TABLE eogp.event_guest_reference_counters FORCE ROW LEVEL SECURITY;
+CREATE POLICY tenant_isolation ON eogp.event_guest_reference_counters
+  USING (organization_id=eogp.current_organization_id()) WITH CHECK (organization_id=eogp.current_organization_id());
 REVOKE ALL ON eogp.event_guest_reference_counters FROM PUBLIC,eventor_runtime;
 
 CREATE INDEX event_participations_reference_search_idx
@@ -54,10 +57,23 @@ CREATE TRIGGER event_participations_assign_reference
   BEFORE INSERT OR UPDATE OF participation_code ON eogp.event_participations
   FOR EACH ROW EXECUTE FUNCTION eogp.assign_event_guest_reference();
 
--- The migration fills missing references across tenants under the table owner.
+-- Find affected tenants under the table owner, then set the tenant context for each backfill.
 ALTER TABLE eogp.event_participations NO FORCE ROW LEVEL SECURITY;
-UPDATE eogp.event_participations SET participation_code=NULL
-WHERE nullif(btrim(participation_code),'') IS NULL;
+DO $backfill$
+DECLARE
+  v_org uuid;
+  v_prior_org text := current_setting('app.organization_id',true);
+BEGIN
+  FOR v_org IN
+    SELECT DISTINCT organization_id FROM eogp.event_participations WHERE nullif(btrim(participation_code),'') IS NULL
+  LOOP
+    PERFORM set_config('app.organization_id',v_org::text,true);
+    UPDATE eogp.event_participations SET participation_code=NULL
+    WHERE organization_id=v_org AND nullif(btrim(participation_code),'') IS NULL;
+  END LOOP;
+  PERFORM set_config('app.organization_id',coalesce(v_prior_org,''),true);
+END;
+$backfill$;
 ALTER TABLE eogp.event_participations FORCE ROW LEVEL SECURITY;
 ALTER TABLE eogp.event_participations ALTER COLUMN participation_code SET NOT NULL;
 
