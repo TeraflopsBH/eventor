@@ -1341,7 +1341,7 @@ export interface EventGuestRow {
   tagIds: string[];
   groupIds: string[];
   groupRoles: Record<string, string>;
-  participationCode: string | null;
+  participationCode: string;
 }
 
 export interface GuestListOption {

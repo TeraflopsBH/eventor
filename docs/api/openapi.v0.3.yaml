@@ -4215,7 +4215,7 @@ paths:
     post:
       tags: ["Event Participation"]
       operationId: searchEventGuestRoster
-      summary: "Search the event guest list by name"
+      summary: "Search the event guest list by name or exact guest reference"
       security: [{ StaffSession: [], StaffCsrf: [] }]
       parameters:
         - $ref: '#/components/parameters/PEventId'
@@ -4281,7 +4281,7 @@ paths:
     post:
       tags: ["Event Participation"]
       operationId: exportEventGuestRosterSearch
-      summary: "Get matching guests for CSV/XLSX export with a name filter"
+      summary: "Get matching guests for CSV/XLSX export by name or exact guest reference"
       security: [{ StaffSession: [], StaffCsrf: [] }]
       parameters:
         - $ref: '#/components/parameters/PEventId'
@@ -9650,7 +9650,7 @@ components:
                   revision: { type: integer, minimum: 1 }
                   categoryCode: { type: [string, 'null'] }
                   categoryId: { type: [string, 'null'], format: uuid }
-                  participationCode: { type: [string, 'null'] }
+                  participationCode: { type: string, description: "Immutable human-readable reference scoped to this event." }
                   tagIds:
                     type: array
                     items: { type: string, format: uuid }
