@@ -249,6 +249,12 @@ export default {
       failed: "Could not load or update saved views.",
     },
     bulk: {
+      tag: "Tag for selected guests",
+      chooseTag: "Choose a tag",
+      addTag: "Add tag to selected",
+      removeTag: "Remove tag from selected",
+      confirmTagAdd: "Add {label} to {count} selected guests?",
+      confirmTagRemove: "Remove {label} from {count} selected guests?",
       status: "Status for selected guests",
       chooseStatus: "Choose a status",
       applyStatus: "Apply status",

@@ -417,3 +417,7 @@ A mapped import can select an uppercase source-system code and a distinct refere
 ## Staff-confirmed contact verification (000160)
 
 Staff with the dedicated verification grant can record in-person confirmation or a successful phone callback, and can revoke verification. The contact records the verification method, time and organization membership independent of consent and primary-channel preferences. The same contact revision protects both evidence and preferences. The audit log contains the contact ID and verification method, and the workflow performs no contact delivery.
+
+## Bulk event guest tags (000161)
+
+Staff can add or remove one internal tag across up to 50 selected event guests in a single transaction. The batch uses individual tag assignment checks and revision handling. Retired tags may be removed. Other assignments are preserved, including restricted assignments.

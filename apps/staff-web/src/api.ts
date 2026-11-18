@@ -1539,6 +1539,12 @@ export const api = {
     request<Envelope<{ viewId: string }>>(`/events/${encodeURIComponent(eventId)}/guest-saved-views/${encodeURIComponent(viewId)}`, {
       method: "DELETE", idempotent: true,
     }),
+  setEventGuestBulkTag: (
+    eventId: string, tagId: string, action: "add" | "remove", guests: { participationId: string; expectedRevision: number }[],
+  ) => request<Envelope<{ processedCount: number; updatedCount: number }>>(
+    `/events/${encodeURIComponent(eventId)}/participations/bulk/tags`, {
+      method: "PATCH", body: { tagId, action, guests }, idempotent: true,
+    }),
   listEventGuestCategories: (eventId: string) =>
     request<Envelope<EventGuestCategory[]>>(`/events/${encodeURIComponent(eventId)}/guest-categories`),
   createEventGuestCategory: (eventId: string, body: { code: string; label: string }) =>

@@ -3264,6 +3264,74 @@ BEGIN
 END;
 $test$;
 
+-- Bulk tag edits share individual roster guards and roll back as one transaction.
+DO $test$
+DECLARE
+  v_org CONSTANT uuid := '10000000-0000-0000-0000-00000000000a';
+  v_actor CONSTANT uuid := '30000000-0000-0000-0000-00000000000a';
+  v_event uuid;
+  v_person uuid;
+  v_first uuid;
+  v_second uuid;
+  v_tag uuid;
+  v_keep uuid;
+  v_hidden uuid;
+  v_selection jsonb;
+  v_result jsonb;
+BEGIN
+  SELECT id INTO STRICT v_event FROM eogp.events WHERE organization_id=v_org AND event_code='CI-LINK-A';
+  v_person := (eogp.write_guest_registry_person(v_org,v_actor,NULL,NULL,'create',
+    '{"firstName":"Bulk Tag","lastName":"First Fixture"}')->>'personId')::uuid;
+  v_first := (eogp.link_registry_person_to_event(v_org,v_event,v_actor,v_person,'eligible')->>'participationId')::uuid;
+  v_person := (eogp.write_guest_registry_person(v_org,v_actor,NULL,NULL,'create',
+    '{"firstName":"Bulk Tag","lastName":"Second Fixture"}')->>'personId')::uuid;
+  v_second := (eogp.link_registry_person_to_event(v_org,v_event,v_actor,v_person,'waitlisted')->>'participationId')::uuid;
+  v_tag := (eogp.write_event_guest_tag(v_org,v_event,v_actor,NULL,'BULK-TAG','Bulk tag fixture')->>'tagId')::uuid;
+  v_keep := (eogp.write_event_guest_tag(v_org,v_event,v_actor,NULL,'BULK-KEEP','Keep this tag')->>'tagId')::uuid;
+  INSERT INTO eogp.guest_tags(organization_id,event_id,tag_code,label,sensitivity)
+    VALUES (v_org,v_event,'BULK-HIDDEN','Restricted fixture','restricted') RETURNING id INTO v_hidden;
+  INSERT INTO eogp.event_participation_tags(organization_id,event_id,participation_id,tag_id,added_by_membership_id)
+    VALUES (v_org,v_event,v_first,v_hidden,v_actor);
+  PERFORM eogp.set_event_guest_tags(v_org,v_event,v_actor,v_first,1,ARRAY[v_keep]);
+
+  -- The later sorted participant is stale so the earlier write must roll back.
+  SELECT jsonb_agg(jsonb_build_object('participationId',guest.id,
+    'expectedRevision', CASE WHEN guest.id=greatest(v_first,v_second) THEN guest.revision+1 ELSE guest.revision END))
+  INTO v_selection FROM eogp.event_participations guest WHERE guest.id IN (v_first,v_second);
+  BEGIN
+    PERFORM eogp.set_event_guest_bulk_tag(v_org,v_event,v_actor,v_tag,'add',v_selection);
+    RAISE EXCEPTION 'stale bulk tag selection was accepted';
+  EXCEPTION WHEN serialization_failure THEN NULL;
+  END;
+  IF EXISTS (SELECT 1 FROM eogp.event_participation_tags WHERE organization_id=v_org AND event_id=v_event AND tag_id=v_tag) THEN
+    RAISE EXCEPTION 'earlier bulk tag edit survived the failed batch';
+  END IF;
+
+  v_selection := jsonb_build_array(jsonb_build_object('participationId',v_first,'expectedRevision',2),
+    jsonb_build_object('participationId',v_second,'expectedRevision',1));
+  v_result := eogp.set_event_guest_bulk_tag(v_org,v_event,v_actor,v_tag,'add',v_selection);
+  IF v_result <> '{"processedCount":2,"updatedCount":2}'::jsonb
+    OR (SELECT count(*) FROM eogp.event_participation_tags WHERE organization_id=v_org AND event_id=v_event AND tag_id=v_tag) <> 2 THEN
+    RAISE EXCEPTION 'bulk tag did not update both guests';
+  END IF;
+  PERFORM eogp.write_event_guest_tag(v_org,v_event,v_actor,v_tag,NULL,NULL);
+  v_selection := jsonb_build_array(jsonb_build_object('participationId',v_first,'expectedRevision',3),
+    jsonb_build_object('participationId',v_second,'expectedRevision',2));
+  BEGIN
+    PERFORM eogp.set_event_guest_bulk_tag(v_org,v_event,v_actor,v_tag,'add',v_selection);
+    RAISE EXCEPTION 'bulk add accepted a retired tag';
+  EXCEPTION WHEN object_not_in_prerequisite_state THEN NULL;
+  END;
+  v_result := eogp.set_event_guest_bulk_tag(v_org,v_event,v_actor,v_tag,'remove',v_selection);
+  IF v_result <> '{"processedCount":2,"updatedCount":2}'::jsonb
+    OR EXISTS (SELECT 1 FROM eogp.event_participation_tags WHERE organization_id=v_org AND event_id=v_event AND tag_id=v_tag)
+    OR (SELECT count(*) FROM eogp.event_participation_tags WHERE organization_id=v_org AND event_id=v_event
+      AND participation_id=v_first AND tag_id IN (v_keep,v_hidden)) <> 2 THEN
+    RAISE EXCEPTION 'bulk removal changed an unrelated tag or retained the requested tag';
+  END IF;
+END;
+$test$;
+
 COMMIT;
 
 \echo 'PostgreSQL migration smoke tests passed.'
