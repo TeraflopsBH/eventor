@@ -193,6 +193,8 @@ export default {
       failed: "Ograničene oznake nije bilo moguće učitati ili sačuvati.",
     },
     tags: {
+      filter: "Filter oznaka",
+      all: "Sve oznake",
       heading: "Oznake",
       manage: "Upravljaj oznakama gostiju",
       code: "Šifra oznake",
@@ -208,6 +210,8 @@ export default {
       failed: "Spremanje oznake gostiju nije uspjelo.",
     },
     groups: {
+      filter: "Filter grupa",
+      all: "Sve grupe",
       groupKind: "Vrsta grupe",
       parentGroup: "Nadređena grupa",
       noParentGroup: "Bez nadređene grupe",

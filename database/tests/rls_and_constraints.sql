@@ -3517,6 +3517,59 @@ BEGIN
 END;
 $test$;
 
+-- Roster membership filters apply to pagination, exports and personal views without using restricted tags.
+DO $test$
+DECLARE
+  v_org CONSTANT uuid := '10000000-0000-0000-0000-00000000000a';
+  v_actor CONSTANT uuid := '30000000-0000-0000-0000-00000000000a';
+  v_cipher bytea := convert_to('ECP1' || repeat('v',32),'UTF8');
+  v_event uuid;
+  v_person uuid;
+  v_first uuid;
+  v_second uuid;
+  v_tag uuid;
+  v_group uuid;
+  v_restricted uuid;
+  v_view uuid := gen_random_uuid();
+  v_rows jsonb;
+BEGIN
+  SELECT id INTO STRICT v_event FROM eogp.events WHERE organization_id=v_org AND event_code='CI-LINK-A';
+  v_person := (eogp.write_guest_registry_person(v_org,v_actor,NULL,NULL,'create',
+    '{"firstName":"Filter","lastName":"One","displayName":"Filter One"}')->>'personId')::uuid;
+  v_first := (eogp.link_registry_person_to_event(v_org,v_event,v_actor,v_person,'eligible')->>'participationId')::uuid;
+  v_person := (eogp.write_guest_registry_person(v_org,v_actor,NULL,NULL,'create',
+    '{"firstName":"Filter","lastName":"Two","displayName":"Filter Two"}')->>'personId')::uuid;
+  v_second := (eogp.link_registry_person_to_event(v_org,v_event,v_actor,v_person,'eligible')->>'participationId')::uuid;
+  v_tag := (eogp.write_event_guest_tag(v_org,v_event,v_actor,NULL,'FILTER-TAG','Tag filter fixture')->>'tagId')::uuid;
+  v_group := (eogp.write_event_guest_group(v_org,v_event,v_actor,NULL,'FILTER-GROUP','Group filter fixture')->>'groupId')::uuid;
+  PERFORM eogp.set_event_guest_tags(v_org,v_event,v_actor,v_first,1,ARRAY[v_tag]);
+  PERFORM eogp.set_event_guest_groups(v_org,v_event,v_actor,v_first,2,ARRAY[v_group]);
+  PERFORM eogp.set_event_guest_groups(v_org,v_event,v_actor,v_second,1,ARRAY[v_group]);
+  INSERT INTO eogp.guest_tags(organization_id,event_id,tag_code,label,sensitivity)
+    VALUES (v_org,v_event,'FILTER-RESTRICTED','Restricted filter fixture','restricted') RETURNING id INTO v_restricted;
+  INSERT INTO eogp.event_participation_tags(organization_id,event_id,participation_id,tag_id,added_by_membership_id)
+    VALUES (v_org,v_event,v_first,v_restricted,v_actor);
+
+  v_rows := eogp.read_event_guest_list(v_org,v_event,v_actor,NULL,0,NULL,false,'Filter',v_tag,v_group)->'people';
+  IF jsonb_array_length(v_rows) <> 1 OR v_rows#>>'{0,participationId}' IS DISTINCT FROM v_first::text
+    OR (eogp.read_event_guest_roster_export(v_org,v_event,v_actor,NULL,NULL,false,'Filter',v_tag,v_group)->'people')
+      IS DISTINCT FROM '[{"displayName":"Filter One","status":"eligible","categoryCode":null}]'::jsonb
+    OR eogp.read_event_guest_list(v_org,v_event,v_actor,NULL,0,NULL,false,NULL,v_restricted,NULL)->'people' <> '[]'::jsonb THEN
+    RAISE EXCEPTION 'tag and group filters did not preserve roster scope or export parity';
+  END IF;
+  PERFORM eogp.save_event_guest_view(v_org,v_event,v_actor,v_view,repeat('9',64),v_cipher,NULL,NULL,false,v_tag,v_group);
+  IF NOT eogp.list_event_guest_saved_views(v_org,v_event,v_actor) @> jsonb_build_array(
+    jsonb_build_object('viewId',v_view,'tagId',v_tag,'groupId',v_group)) THEN
+    RAISE EXCEPTION 'saved view lost its membership filters';
+  END IF;
+  BEGIN
+    PERFORM eogp.save_event_guest_view(v_org,v_event,v_actor,gen_random_uuid(),repeat('8',64),v_cipher,NULL,NULL,false,v_restricted,v_group);
+    RAISE EXCEPTION 'saved view exposed a restricted tag as an ordinary filter';
+  EXCEPTION WHEN invalid_parameter_value THEN NULL;
+  END;
+END;
+$test$;
+
 COMMIT;
 
 \echo 'PostgreSQL migration smoke tests passed.'

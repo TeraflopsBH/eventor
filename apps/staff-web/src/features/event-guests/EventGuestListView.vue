@@ -19,6 +19,12 @@ const roster = ref<EventGuestList | null>(null);
 const offset = ref(0);
 const status = ref<EventGuestRow["status"] | "">("");
 const categoryFilter = ref("");
+const tagFilter = ref("");
+const groupFilter = ref("");
+const membershipFilters = computed(() => ({
+  ...(tagFilter.value ? { tagId: tagFilter.value } : {}),
+  ...(groupFilter.value ? { groupId: groupFilter.value } : {}),
+}));
 const nameInput = ref("");
 const nameFilter = ref("");
 const statuses: ManagedParticipationStatus[] = ["eligible", "waitlisted", "ineligible", "withdrawn"];
@@ -118,7 +124,7 @@ async function loadPage(pageOffset: number): Promise<void> {
   categoryEdit.value = null;
   membershipEdit.value = null;
   if (!eventId.value) return;
-  roster.value = (await api.getEventGuestList(eventId.value, pageOffset, status.value, categoryFilter.value, nameFilter.value)).data;
+  roster.value = (await api.getEventGuestList(eventId.value, pageOffset, status.value, categoryFilter.value, nameFilter.value, membershipFilters.value)).data;
   offset.value = pageOffset;
 }
 
@@ -150,6 +156,8 @@ function chooseEvent(): void {
   groups.value = [];
   status.value = "";
   categoryFilter.value = "";
+  tagFilter.value = "";
+  groupFilter.value = "";
   nameInput.value = "";
   nameFilter.value = "";
   roster.value = null;
@@ -234,6 +242,8 @@ function applyNameSearch(): void {
 function applySavedView(filters: EventGuestViewFilters): void {
   status.value = filters.status ?? "";
   categoryFilter.value = filters.category ?? "";
+  tagFilter.value = filters.tagId ?? "";
+  groupFilter.value = filters.groupId ?? "";
   nameInput.value = filters.query;
   applyNameSearch();
 }
@@ -331,7 +341,7 @@ function save(): Promise<void> {
 function downloadRoster(format: "csv" | "xlsx"): Promise<void> {
   return run(async () => {
     const category = categoryFilter.value;
-    const { data } = await api.getEventGuestExport(eventId.value, status.value, category, nameFilter.value);
+    const { data } = await api.getEventGuestExport(eventId.value, status.value, category, nameFilter.value, membershipFilters.value);
     const rows = [
       ["event_display_name", "participation_status", "category_code"],
       ...data.people.map((guest) => [guest.displayName, guest.status, guest.categoryCode]),
@@ -392,6 +402,24 @@ onMounted(() => run(async () => {
           </option>
         </select>
       </div>
+      <div v-if="tags.length">
+        <label for="roster-filter-tag">{{ t("eventGuests.tags.filter") }}</label>
+        <select id="roster-filter-tag" v-model="tagFilter" :disabled="busy" @change="applyFilters">
+          <option value="">{{ t("eventGuests.tags.all") }}</option>
+          <option v-for="tag in tags" :key="tag.tagId" :value="tag.tagId">
+            {{ tag.retired ? t("eventGuests.tags.retiredOption", { label: tag.label }) : tag.label }}
+          </option>
+        </select>
+      </div>
+      <div v-if="groups.length">
+        <label for="roster-filter-group">{{ t("eventGuests.groups.filter") }}</label>
+        <select id="roster-filter-group" v-model="groupFilter" :disabled="busy" @change="applyFilters">
+          <option value="">{{ t("eventGuests.groups.all") }}</option>
+          <option v-for="group in groups" :key="group.groupId" :value="group.groupId">
+            {{ group.retired ? t("eventGuests.groups.retiredOption", { label: group.label }) : group.label }}
+          </option>
+        </select>
+      </div>
       <button v-if="roster" class="button button-secondary" type="button" :disabled="busy" @click="downloadRoster('csv')">
         {{ t("eventGuests.exportCsv") }}
       </button>
@@ -403,7 +431,7 @@ onMounted(() => run(async () => {
       <button class="button button-secondary" type="button" :disabled="busy || rowEditing" :aria-expanded="showSavedViews"
         @click="showSavedViews = !showSavedViews">{{ t("eventGuests.savedViews.title") }}</button>
       <EventGuestSavedViews v-if="showSavedViews" :key="eventId" :event-id="eventId" :disabled="busy || rowEditing"
-        :filters="{ status: status || null, category: categoryFilter || null, query: nameFilter }" @apply="applySavedView" />
+        :filters="{ status: status || null, category: categoryFilter || null, query: nameFilter, ...membershipFilters }" @apply="applySavedView" />
     </div>
     <div v-if="roster?.canManage">
       <button class="button button-secondary" type="button" :disabled="busy" :aria-expanded="showImport" @click="showImport = !showImport">

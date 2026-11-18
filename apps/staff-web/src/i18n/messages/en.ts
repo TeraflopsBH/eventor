@@ -193,6 +193,8 @@ export default {
       failed: "Could not load or save restricted tags.",
     },
     tags: {
+      filter: "Tag filter",
+      all: "All tags",
       heading: "Tags",
       manage: "Manage guest tags",
       code: "Tag code",
@@ -208,6 +210,8 @@ export default {
       failed: "Could not save the guest tag.",
     },
     groups: {
+      filter: "Group filter",
+      all: "All groups",
       groupKind: "Group type",
       parentGroup: "Parent group",
       noParentGroup: "No parent group",
