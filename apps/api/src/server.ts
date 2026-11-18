@@ -3980,13 +3980,16 @@ export function buildApi(dependencies: ApiDependencies): FastifyInstance {
         [request.params.personId], (value) => {
           const directory = value as {
             canManage: boolean;
+            canVerify: boolean;
             contacts: {
               contactId: string; kind: "email" | "phone"; ciphertext: string; revision: number;
               consent: string; primary: boolean; verified: boolean;
+              verification: { method: "in_person" | "callback"; at: string } | null;
             }[];
           };
           return {
             canManage: directory.canManage,
+            canVerify: directory.canVerify,
             contacts: directory.contacts.map(({ ciphertext, kind, ...metadata }) => ({
               ...metadata, kind,
               value: decryptContactValue(Buffer.from(ciphertext, "base64"), key, {
@@ -4024,6 +4027,36 @@ export function buildApi(dependencies: ApiDependencies): FastifyInstance {
       },
     },
   }, (request, reply) => writeRegistryContact(request, reply, request.params.personId, request.params.contactId, request.body));
+
+  type ContactVerificationBody = JsonRequestBody<"/persons/{personId}/contacts/{contactId}/verification", "patch">;
+  server.patch<{ Params: { personId: string; contactId: string }; Body: ContactVerificationBody }>(
+    "/persons/:personId/contacts/:contactId/verification", {
+      schema: {
+        params: {
+          ...registryPersonParams, required: ["personId", "contactId"],
+          properties: { ...registryPersonParams.properties, contactId: { type: "string", pattern: uuidPattern } },
+        },
+        headers: idempotencyHeaders,
+        body: {
+          type: "object", additionalProperties: false, required: ["expectedRevision", "method"],
+          properties: { expectedRevision: personRevision, method: { enum: ["in_person", "callback", null] } },
+        },
+      },
+    }, (request, reply) => {
+      const { organizationId, membershipId } = registryPrincipal(request);
+      const { personId, contactId } = request.params;
+      const { expectedRevision, method } = request.body;
+      return withCommand(request, reply.header("cache-control", "no-store, private"), "guest.registry.contact.verification",
+        { personId, contactId, expectedRevision, method }, async (client) => {
+          const { rows } = await client.query<ResultRow>(
+            "SELECT eogp.set_guest_registry_contact_verification($1::uuid,$2::uuid,$3::uuid,$4::uuid,$5::integer,$6::text) AS result",
+            [organizationId, membershipId, personId, contactId, expectedRevision, method],
+          );
+          return (rows[0]?.result ?? {}) as Record<string, unknown>;
+        }, async (client) => {
+          await client.query("SELECT eogp.assert_guest_contact_verification_permission($1::uuid,$2::uuid)", [organizationId, membershipId]);
+        }, 200);
+    });
 
   const sourceReferenceWriteProperties = {
     source: { type: "string", pattern: sourceCodePattern },
