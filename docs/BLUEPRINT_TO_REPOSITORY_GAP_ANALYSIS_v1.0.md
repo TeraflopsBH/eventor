@@ -1,6 +1,6 @@
 # Blueprint-to-repository gap analysis — v1.0
 
-**Audit baseline:** `main` at `47db5acf2d147c31428ae5b61cce077efe9191bf`, with the guest CSV commit branch assessed separately (2026-11-17)
+**Audit baseline:** `main` at `a0a346268016079d58756bd95e7af2b87ccc4fec` (2026-11-18).
 
 **Blueprint:** Technical Blueprint v1.2  
 **Purpose:** establish what exists in the repository, what is only a design/schema foundation, what is partially usable, and what remains to be built before Eventor is a ready-to-use event operations product.
@@ -11,9 +11,9 @@ This is a static repository audit of the source tree, API route registrations, V
 
 Eventor is **not yet a complete event operations application**. The current implementation is materially weighted toward the venue-booking/commercial vertical. It has a substantial PostgreSQL/security foundation, working staff authentication, a Vue staff shell, public booking inquiry forms, booking inquiry/draft/offer workflows, commercial configuration, notification campaigns/delivery, a meaningful invitation/RSVP slice, and an integrated booking-cancellation request/review/approved-execution workflow with a public customer request/status journey.
 
-The event-operations domains that make the product distinctive remain mostly unimplemented at runtime: persistent guest registry management, venue/floor-plan editing, guest seating and zone allocation, solver-assisted allocation, admission QR credentials, gate scanning, live operations cockpit, role-specific event-day workspaces, branding inheritance, CDI/prerequisite coordination, and reporting/print/display outputs.
+The organizer workspace now supports event and session lifecycle, persistent guest profiles, event rosters, mapped imports, exports, supervised merge and roster organization. The spatial editor, guest allocation, admission, check-in, operations cockpit, branding and external prerequisites still need product workflows.
 
-The distinction is important: **a database table, migration, OpenAPI schema, test fixture or design document is not a finished user-facing feature**. The status below separates foundations from usable application workflows.
+A usable slice connects the role-scoped API and staff or guest interface. The matrix records the remaining work within each slice.
 
 ### Status vocabulary
 
@@ -31,10 +31,11 @@ The distinction is important: **a database table, migration, OpenAPI schema, tes
 | Venue booking and public inquiry | Public booking form projection/submission, spam/rate protections, inquiry inbox/detail, assignment/status/notes/history, draft conversion and revisions, allocation availability preview | **Implemented slice** | Finish and acceptance-test the end-to-end commercial booking lifecycle, fulfilment tasks and operational communications; distinguish requested, approved and delivered service. |
 | Commercial offers, approval, pricing and tax | Offer lifecycle, approval policies, price lists, tax profiles/calculation, cancellation policies, public offer acceptance/rejection and booking reservation commands; staff views | **Implemented slice / needs end-to-end acceptance** | Close remaining workflow edges, customer-facing presentation, manual booking path, resource fulfilment and cancellation/change lifecycle acceptance. 
 | Booking cancellation and disruption | Migrations 000115–000120; staff request queue/detail, approve/reject/return-for-changes, policy-pinned preview, approved execution with atomic reservation release, public single-use request capability and reusable read-only status capability | **Partial / implemented cancellation slice** | Complete venue/event disruption notices and follow-up projection, amendment/postponement lifecycle, and a dedicated public cancellation browser E2E journey. A customer request is not effective cancellation and does not move money. |
-| Event administration and sessions | Migrations 000121–000123 and the bilingual Events workspace provide event list/create/edit/archive. Migration 000124 adds session listing and planned-session creation. Migration 000125 adds revision-checked session editing. Migration 000126 adds organizer approval and schedule publication. Migration 000127 adds event start and close and session scheduling, start and completion. | **Partial** | Session-specific disruption handling, event settings, capability activation, and venue assignment. |
-| Persistent Guest Registry | Migration 000128 adds organization-scoped name search, profile creation, viewing, editing and archival to the existing person records. Migration 000129 adds profile and event participation history. Migration 000132 adds encrypted contact capture and consent. Migrations 000134–000135 add encrypted event guest CSV preview and clean-row commit. | **Partial** | Contact verification, duplicate review and audited merge, import/export, saved views, relationships and groups. |
-| Event participation and guest list | Participation/eligibility projections, RSVP/invitation runtime and permissioned Registry linking with pinned identity snapshots, revision-checked status changes, and a permission-filtered staff roster | **Partial** | Complete event guest-list management, categories/tags/custom fields, groups, bulk actions, event-specific snapshots, search and data provenance. |
-| Invitations and RSVP | Guest capability resolution, invitation view, RSVP submission/history, issue/reissue/revoke, staff-recorded RSVP/correction, delivery-attempt history; staff invitation workspace and guest invitation page | **Implemented slice** | Batch issuance, reminders, broader guest self-service, full communication controls, provider callback/reconciliation for ambiguous guest-invitation delivery, and full guest journey acceptance. |
+| Event administration and sessions | The bilingual Events workspace supports list/create/edit/archive, approval and publication, and event start and close. Sessions support list/create/edit, scheduling, start and completion. The guest list can be activated per event. | **Implemented slice** | Broader event settings, session-specific disruption handling and venue assignment. |
+| Persistent Guest Registry | Organization-scoped search, profile creation/edit/archive and history. Encrypted contact values and source references have separate access grants. Staff can record or revoke contact confirmation. Mutual and directed relationships are available with dedicated grants. Supervised merge preserves original closed-event references and can restore the source. | **Implemented slice** | Controlled merge resolution for linked contacts, identifiers, active relationships and open or overlapping event history, configurable profile fields, anonymization and retention. |
+| Event participation and guest list | Permissioned Registry linking with pinned event identity. Staff can filter/search the roster, save personal views, manage categories, internal and restricted tags, group hierarchy and roles, event relationships and encrypted custom fields. Bulk status, category and internal tag actions use revision checks and transactions. | **Implemented slice** | Broader field search and sorting/grouping, allocation preferences and group-to-group relationships, controlled bulk archival and event identity overrides. |
+| Guest imports and exports | Staff can map CSV/XLSX name columns, select a worksheet/header row, preview conflicts, and explicitly reuse or update a Registry match or create a separate profile during name review. Exact source-reference matching uses protected Registry identifiers. Filtered exports and row reports are available. | **Implemented slice** | Create profiles with unmatched source references, support more import fields and matching strategies, and verify a full controlled import-to-export journey. |
+| Invitations and RSVP | Guest capability resolution, invitation view, RSVP submission/history, issue/reissue/revoke, staff-recorded RSVP/correction, delivery-attempt history, staff invitation workspace and guest invitation page | **Implemented slice** | Batch issuance, reminders, broader guest self-service, provider reconciliation for ambiguous delivery and full journey acceptance. |
 | Guest Portal and wayfinding | Public guest invitation page and RSVP flow | **Partial** | Authenticated/personal portal home, event information, personal allocation, guest-safe interactive maps, directions, accessibility-aware wayfinding and branded guest materials. |
 | Venue, building, room and space registry | Venue/resource schema foundation and booking resource APIs | **Foundation / partial** | Reusable venue hierarchy and template management UI/API, versioned rooms/spaces, capacities and event-owned snapshots. Booking resource availability is not a venue editor. |
 | Floor-plan import and spatial editor | Blueprint describes SVG-native editor and source-plan onboarding; no corresponding frontend feature, API route family or runtime module found | **Missing** | PDF/image/SVG background import, XLSX source-plan workflow, geometry editor, layers, scale calibration, spatial features, rows, zones and floor-position resources. |
@@ -52,7 +53,7 @@ The distinction is important: **a database table, migration, OpenAPI schema, tes
 | Public forms and data/request submission | Versioned public booking forms, field schema, published revision validation, public inquiry submission and staff review workflow | **Implemented for booking inquiries** | Generalize only where product workflows require it; do not conflate booking inquiry forms with guest registration, vendor submissions or event data capture forms. |
 | Branding and reusable templates | No brand profile/asset/inheritance runtime or UI found in migrations/API/frontend | **Missing** | Organization → venue → event inheritance, asset library, revisions, template assignments and pinned brand snapshots. |
 | Notifications and realtime synchronization | Transactional outbox, notification campaigns, email/SMS abstractions and delivery worker | **Partial** | Event-triggered notifications across all workflows, WebSocket delivery, subscriptions, change propagation and operational alerting. |
-| Reports, exports, guest cards, signage and information displays | No complete report/export/document-generation or display-panel feature found | **Missing** | Permission-scoped exports, operational reports, printable plans/cards, configurable signage and read-only information display mode. |
+| Reports, exports, guest cards, signage and information displays | Filtered roster CSV/XLSX exports, separate Registry export permission and downloadable import diagnostics | **Partial** | Operational reports, printable plans/cards, configurable signage and read-only display mode. |
 | Localization and accessibility | English and Bosnian locale support in staff UI and selected booking/guest flows | **Partial** | Complete coverage of all workflows, localized templates/outputs, keyboard alternatives to drag/drop and accessibility testing. |
 | Import/onboarding of existing floor plans | No source-plan artifact/conversion workflow found | **Missing** | Preserve original workbook/PDF, map source cells/regions to native geometry, validation and human sign-off. |
 | Monitoring and operational administration | systemd API/worker templates, migration runner, backup/restore CI rehearsal and deployment runbook | **Partial** | Liveness/readiness, metrics, structured operational dashboard, tested backup policy/PITR, installer and host-level validation. |
@@ -73,7 +74,8 @@ The current staff navigation includes:
 - Booking cancellation request/review workspace.
 - Tax profiles.
 - Organization locale settings.
-- Organizer event administration.
+- Organizer event and session administration.
+- Guest Registry, event roster and import/export.
 
 This is a real staff application, not a blank shell. However, it is not yet the blueprint's event operations cockpit or the complete navigation/workspace map.
 
@@ -81,13 +83,13 @@ This is a real staff application, not a blank shell. However, it is not yet the 
 
 The current API route families include booking forms/inquiries/drafts/offers, price/tax/approval/cancellation policies, booking reservation commands, staff booking-cancellation review/detail/decision/preview/execution, external booking-action capability issue/revoke/resolve, public cancellation request/status, organizer event administration, event invitation projections, guest invitation issue/revoke, guest RSVP and delivery configuration/campaign operations.
 
-The audited route registrations did not reveal runtime route families for Guest Registry CRUD/import, venue/floor-plan editing, event guest allocation, admission QR, check-in stations/scanning, cockpit/realtime, external prerequisites, branding or vendor workspaces. Their appearance in design documents or early migrations must not be counted as implementation.
+Guest Registry profiles, imports, restricted roster operations and permission-filtered exports have runtime API and staff UI paths. Venue/floor-plan editing, event guest allocation, admission QR, check-in stations, cockpit/realtime, external prerequisites, branding and vendor workspaces need runtime slices.
 
 The current API has separate API and notification-worker entry points. The worker handles notification delivery; it is not the planned allocation solver or event-operations job platform.
 
 ### 3.3 Database maturity
 
-Main has 134 ordered migrations. The guest CSV commit branch adds migration 000135. They provide a substantial foundation for tenancy, authorization, venue/resource booking, event/guest/invitation/attendance concepts, collaboration, notifications and commercial booking. The migration count is not a feature-completion metric: later runtime/API/UI work is still required for several domains. Migrations 000115–000120 add the cancellation request/review/execution and public status-capability slice; they do not complete event administration or the Guest Registry.
+Migrations 000124–000127 provide session administration and organizer lifecycle commands. Migrations 000128–000163 extend the existing person, participation and roster tables with tenant-scoped commands, protected fields and reviewed imports. CI covers PostgreSQL migrations, RLS, concurrency, populated upgrade and logical backup/restore.
 
 ### 3.4 Email and forms
 
@@ -121,9 +123,9 @@ The following order prioritizes a coherent, usable product and avoids building a
 
 ### Track B — Build the event organizer foundation
 
-6. Complete organization/user/membership/role administration and event CRUD/session lifecycle.
-7. Implement persistent Guest Registry CRUD, import/export, deduplication, supervised merge and event participation management.
-8. Complete guest categories, tags, groups, relationships, custom fields and bulk workflows.
+6. Complete organization/user/membership and role administration, event settings and session disruption handling.
+7. Extend the delivered Guest Registry and import workflows to new source references and reviewed resolution of linked records.
+8. Extend roster configuration, group allocation preferences, bulk controls and permission-scoped acceptance.
 9. Extend invitations/RSVP to batches, reminders and the full guest portal journey.
 
 ### Track C — Venue geometry, allocation and plans
@@ -193,19 +195,19 @@ The installer is a product deliverable and must support two explicit deployment 
 - SMTP is optional at install time; support local development/test capture (for example Mailpit) and later SMTP configuration such as Gmail SMTP or a transactional provider.
 - Installation mode must not alter application features or security guarantees.
 
-The existing systemd unit templates, role bootstrap and migration runner are useful foundations, but they are not yet a complete native installer. Development Compose supplies PostgreSQL 18.6. The release Compose topology and application images remain outstanding.
+Native deployment has systemd unit templates, role bootstrap, migration and backup/restore checks. The native installer and operator runbook still need prerequisite detection, secure first-admin bootstrap, release staging, health/readiness and tested upgrade and recovery. The development Compose file starts PostgreSQL 18.6 on loopback. The release Docker topology and application images remain outstanding.
 
 ## 6. Immediate engineering priorities
 
-1. Treat this document as the current static gap baseline and reconcile the older roadmap/project-state documents so they no longer refer to superseded draft PR stacks or stale phase status.
-2. Create a dependency-aware product backlog with one issue per vertical slice, each defining API, UI, database, security, localization and acceptance criteria.
-3. Agree the first complete usable product milestone. Recommended: finish the venue-provider booking lifecycle as a coherent product while starting the Guest Registry/event organizer foundation; do not declare Eventor complete at the booking-only milestone.
-4. Implement Guest Registry CRUD, search and history using the existing person and participation foundations. Follow with import preview and commit, duplicate handling and supervised merge.
+1. Finish the organizer workflows in issue #104, starting with reviewed import creation for new source references and supervised merge cases involving active records.
+2. Use issues #105–#107 for venue geometry, guest allocation and admission/check-in, in that dependency order.
+3. Complete the booking lifecycle edges and disruption coordination tracked in issue #112.
+4. Prepare the two production installation paths under issue #108 with controlled migrations, health verification, secure configuration and recovery.
 5. Keep CI/unit/PostgreSQL/browser tests running on every feature PR. Reserve the dedicated `eventor-acceptance` VM for the final integrated release candidate.
 
 ## 7. Known limitations of this audit
 
-- Static source inspection only; no local build, browser session, database deployment or VM test was run for this audit.
+- The matrix summarizes source inspection and references repository verification. Product-wide end-to-end acceptance, deployed-host testing and the final VM run remain outstanding.
 - A route/schema/test fixture is not proof of a complete user workflow; classifications intentionally require both runtime and UI evidence for a usable feature.
 - The GHB reference venue workbook, venue capacities, physical hierarchy, branding assets and operational policies still require validation with authorized venue representatives.
 - No independent human reviewer was available for this audit. It is an implementation inventory and planning artifact, not an independent security or product certification.
