@@ -3850,6 +3850,46 @@ BEGIN
 END;
 $test$;
 
+-- Guest references are immutable, event-scoped and available in roster and export searches.
+DO $test$
+DECLARE
+  v_org CONSTANT uuid := '10000000-0000-0000-0000-00000000000a';
+  v_actor CONSTANT uuid := '30000000-0000-0000-0000-00000000000a';
+  v_event uuid;
+  v_other uuid;
+  v_person uuid;
+  v_guest uuid;
+  v_reference text;
+  v_other_reference text;
+BEGIN
+  SELECT id INTO STRICT v_event FROM eogp.events WHERE organization_id=v_org AND event_code='CI-LINK-A';
+  SELECT id INTO STRICT v_other FROM eogp.events WHERE organization_id=v_org AND event_code='CI-LINK-B';
+  v_person := (eogp.write_guest_registry_person(v_org,v_actor,NULL,NULL,'create',
+    '{"firstName":"Reference","lastName":"Fixture"}')->>'personId')::uuid;
+  v_guest := (eogp.link_registry_person_to_event(v_org,v_event,v_actor,v_person,'eligible')->>'participationId')::uuid;
+  PERFORM eogp.link_registry_person_to_event(v_org,v_other,v_actor,v_person,'waitlisted');
+  SELECT participation_code INTO STRICT v_reference FROM eogp.event_participations WHERE organization_id=v_org AND id=v_guest;
+  SELECT participation_code INTO STRICT v_other_reference FROM eogp.event_participations
+    WHERE organization_id=v_org AND event_id=v_other AND person_id=v_person;
+  BEGIN
+    UPDATE eogp.event_participations SET participation_code='REPLACED' WHERE organization_id=v_org AND id=v_guest;
+    RAISE EXCEPTION 'changing the guest reference was accepted';
+  EXCEPTION WHEN object_not_in_prerequisite_state THEN NULL;
+  END;
+  IF v_reference !~ '^G-[0-9]{6,}$' OR v_other_reference !~ '^G-[0-9]{6,}$'
+    OR jsonb_array_length(eogp.read_event_guest_list(v_org,v_event,v_actor,NULL,0,NULL,false,lower(v_reference))->'people') <> 1
+    OR NOT (eogp.read_event_guest_list(v_org,v_event,v_actor,NULL,0,NULL,false,lower(v_reference))->'people')
+       @> jsonb_build_array(jsonb_build_object('participationId',v_guest,'participationCode',v_reference))
+    OR eogp.read_event_guest_roster_export(v_org,v_event,v_actor,NULL,NULL,false,lower(v_reference))->'people'
+       IS DISTINCT FROM '[{"displayName":"Reference Fixture","status":"eligible","categoryCode":null}]'::jsonb
+    OR EXISTS (SELECT 1 FROM eogp.event_participations WHERE organization_id=v_org AND event_id=v_event
+      AND id<>v_guest AND lower(btrim(participation_code))=lower(v_reference))
+    OR has_table_privilege('eventor_runtime','eogp.event_guest_reference_counters','SELECT,INSERT,UPDATE,DELETE') THEN
+    RAISE EXCEPTION 'guest reference generation, filtering or authorization failed';
+  END IF;
+END;
+$test$;
+
 COMMIT;
 
 \echo 'PostgreSQL migration smoke tests passed.'

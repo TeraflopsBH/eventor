@@ -187,6 +187,8 @@ export default {
       invalid: "Use up to 40 letters, digits, underscores or hyphens for the code. Start with a letter or digit and enter a name.",
       failed: "Could not save the guest category.",
     },
+    rosterSearch: "Search by name or guest reference",
+    guestReference: "Guest reference",
     notes: {
       open: "Staff notes",
       forGuest: "Staff notes for {name}",

@@ -428,6 +428,8 @@ The restricted tag catalogue and individual assignments require dedicated event-
 
 Staff notes require a dedicated event grant alongside roster access. The encryption key is bound to the organization, event, participation and note. Withdrawal retains the protected record and audit metadata while hiding the note text from subsequent reads. The staff notes API handles versioned note envelopes and leaves older rows in place.
 
+Event participations receive an immutable human-readable reference from an event-scoped counter. Existing nonblank references are preserved and skipped when allocating a new code. The staff roster and export filters accept an exact case-insensitive reference alongside the existing name search.
+
 ## Guest Registry relationships (000163)
 
 Organization-scoped relationships between active Registry profiles support mutual and directed links. Separate Registry grants cover read and management access. Composite foreign keys and forced tenant RLS confine each link to one organization. Ending a relationship records its end while preserving history. Supervised merges hold sources with active relationships for separate resolution.

@@ -427,7 +427,7 @@ onMounted(() => run(async () => {
       </div>
       <form v-if="eventId" class="guest-list-controls" @submit.prevent="applyNameSearch">
         <div>
-          <label for="roster-name-search">{{ t("registry.nameSearch") }}</label>
+          <label for="roster-name-search">{{ t("eventGuests.rosterSearch") }}</label>
           <input id="roster-name-search" v-model="nameInput" type="search" maxlength="200" :disabled="busy">
         </div>
         <button class="button button-secondary" type="submit" :disabled="busy">{{ t("registry.search") }}</button>
@@ -580,6 +580,7 @@ onMounted(() => run(async () => {
               @change="togglePageSelection">
           </th>
           <th scope="col">{{ t("registry.displayName") }}</th>
+          <th scope="col">{{ t("eventGuests.guestReference") }}</th>
           <th scope="col">{{ t("registry.linkStatus") }}</th>
           <th scope="col">{{ t("eventGuests.category") }}</th>
           <th v-for="kind in membershipKinds" :key="kind" scope="col">{{ t(`eventGuests.${kind}.heading`) }}</th>
@@ -605,6 +606,7 @@ onMounted(() => run(async () => {
                 <small v-if="row.displayNameOverride">· {{ t("eventGuests.rosterName.override") }}</small>
               </template>
             </td>
+            <td>{{ row.participationCode }}</td>
             <td>{{ t(`registry.participationStatus.${row.status}`) }}</td>
             <td>
               <form v-if="categoryEdit?.row.participationId === row.participationId" @submit.prevent="saveCategory">

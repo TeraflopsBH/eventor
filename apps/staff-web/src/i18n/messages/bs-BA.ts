@@ -187,6 +187,8 @@ export default {
       invalid: "Za šifru koristite do 40 slova, cifara, donjih crta ili crtica. Počnite slovom ili cifrom i unesite naziv.",
       failed: "Spremanje kategorije gostiju nije uspjelo.",
     },
+    rosterSearch: "Pretraga po imenu ili oznaci gosta",
+    guestReference: "Oznaka gosta",
     notes: {
       open: "Bilješke osoblja",
       forGuest: "Bilješke osoblja za {name}",
