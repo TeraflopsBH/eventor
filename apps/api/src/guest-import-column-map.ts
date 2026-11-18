@@ -1,4 +1,6 @@
 export const guestImportMaxColumns = 64;
+export const sourceCodePattern = "^[A-Za-z0-9][A-Za-z0-9_-]{0,39}$";
+export const sourceReferencePattern = "^[A-Za-z0-9][A-Za-z0-9._:/-]{0,127}$";
 const nameHeaders = [
   ["firstName", "first_name"], ["lastName", "last_name"], ["displayName", "display_name"], ["preferredName", "preferred_name"],
 ] as const;
@@ -17,7 +19,9 @@ export interface GuestImportColumn {
 
 export class GuestImportColumnError extends Error {}
 
-export function mappedNameColumns(mapping: GuestImportColumnMapping, available: readonly GuestImportColumn[]) {
+export function mappedGuestColumns(
+  mapping: GuestImportColumnMapping, available: readonly GuestImportColumn[], referenceColumn?: number,
+) {
   const columns = new Set(available.map(({ index }) => index));
   const selected = new Set<number>();
   const headers: string[] = [];
@@ -31,6 +35,13 @@ export function mappedNameColumns(mapping: GuestImportColumnMapping, available: 
     selected.add(index);
     headers.push(header);
     indices.push(index);
+  }
+  if (referenceColumn !== undefined) {
+    if (!columns.has(referenceColumn) || selected.has(referenceColumn)) {
+      throw new GuestImportColumnError("Select a separate available column for the source reference.");
+    }
+    headers.push("source_reference");
+    indices.push(referenceColumn);
   }
   return { headers, indices };
 }

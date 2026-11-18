@@ -34,3 +34,13 @@ test("guest CSV mapping selects only the requested source columns", () => {
   assert.deepEqual(rows[1]?.errors, ["column_count", "name_required"]);
   assert.throws(() => parseGuestImportCsv(csv, { firstName: 1, lastName: 1 }), /distinct available columns/);
 });
+
+test("guest CSV reference mapping validates and compares exact keys independently of names", () => {
+  const csv = "Given,Surname,Reference\nAna,Doe,Case-001\nAna,Doe,case-001\nNew,Name,Repeated\nOther,Name,Repeated\nBad,Name,contains space\n";
+  const mapping = { firstName: 1, lastName: 2 };
+  const rows = parseGuestImportCsv(csv, mapping, 3);
+  assert.deepEqual(rows.map(({ errors }) => errors), [[], [], ["duplicate_in_file"], ["duplicate_in_file"], ["reference_invalid"]]);
+  assert.deepEqual(rows.slice(0, 2).map(({ sourceReference }) => sourceReference), ["Case-001", "case-001"]);
+  assert.throws(() => parseGuestImportCsv(csv, mapping, 1), /separate available column/);
+  assert.throws(() => parseGuestImportCsv("first_name,last_name,source_reference\nAda,Example,Id"), GuestImportCsvError);
+});

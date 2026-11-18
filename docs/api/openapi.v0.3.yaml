@@ -3477,6 +3477,7 @@ paths:
               properties:
                 csv: { type: string, minLength: 1, maxLength: 65536 }
                 mapping: { $ref: '#/components/schemas/GuestImportColumnMapping' }
+                referenceMatch: { $ref: '#/components/schemas/GuestImportReferenceMatch' }
       responses:
         '201':
           description: "Preview created with no changes to Registry profiles or event guests."
@@ -3615,6 +3616,7 @@ paths:
                 sheetIndex: { type: integer, minimum: 1, maximum: 32 }
                 headerRow: { type: integer, minimum: 1, maximum: 1048575 }
                 mapping: { $ref: '#/components/schemas/GuestImportColumnMapping' }
+                referenceMatch: { $ref: '#/components/schemas/GuestImportReferenceMatch' }
       responses:
         '201':
           description: "Preview created with original worksheet row numbers."
@@ -8553,6 +8555,14 @@ components:
       properties:
         personId: { type: string, format: uuid }
         status: { type: string, enum: [eligible, waitlisted, ineligible], default: eligible }
+    GuestImportReferenceMatch:
+      type: object
+      additionalProperties: false
+      required: [source, column]
+      description: "Match mapped rows to an existing active profile by its exact case-sensitive source reference. Requires a distinct column, a name mapping, and Registry reference read access. Unmatched rows are reported. This mode does not create profiles."
+      properties:
+        source: { type: string, pattern: '^[A-Za-z0-9][A-Za-z0-9_-]{0,39}$' }
+        column: { type: integer, minimum: 1, maximum: 64 }
     GuestImportColumnMapping:
       type: object
       additionalProperties: false
@@ -8614,7 +8624,7 @@ components:
           type: array
           maxItems: 500
           uniqueItems: true
-          description: "Create a separate profile for each explicitly selected, valid row flagged as a possible duplicate. Each row may have only one resolution."
+          description: "Create a separate profile for each explicitly selected, valid row flagged as a possible duplicate. Each row may have only one resolution. Available for name matches."
           items: { type: integer, minimum: 2, maximum: 1048576 }
         reuse:
           type: array
@@ -8661,16 +8671,17 @@ components:
                   duplicateCount: { type: integer, minimum: 0, maximum: 20 }
                   errors:
                     type: array
-                    items: { type: string, enum: [column_count, name_required, name_invalid, duplicate_in_file, cell_not_text] }
+                    items: { type: string, enum: [column_count, name_required, name_invalid, duplicate_in_file, cell_not_text, reference_invalid, reference_unmatched] }
     GuestImportPreviewEnvelope:
       type: object
       required: [data]
       properties:
         data:
           type: object
-          required: [batchId, rows]
+          required: [batchId, matchingSource, rows]
           properties:
             batchId: { type: string, format: uuid }
+            matchingSource: { type: [string, 'null'] }
             rows:
               type: array
               maxItems: 500
@@ -8679,6 +8690,7 @@ components:
                 required: [rowNumber, names, errors, duplicateCount, matches, updateMatches]
                 properties:
                   rowNumber: { type: integer, minimum: 2 }
+                  sourceReference: { type: string, maxLength: 128 }
                   duplicateCount: { type: integer, minimum: 0, maximum: 20 }
                   matches:
                     type: array
@@ -8718,7 +8730,7 @@ components:
                               proposed: { type: string }
                   errors:
                     type: array
-                    items: { type: string, enum: [column_count, name_required, name_invalid, duplicate_in_file, cell_not_text] }
+                    items: { type: string, enum: [column_count, name_required, name_invalid, duplicate_in_file, cell_not_text, reference_invalid, reference_unmatched] }
                   names:
                     type: object
                     required: [firstName, lastName, displayName, preferredName]

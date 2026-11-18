@@ -9,7 +9,7 @@ import { createGuestInvitationCapability, hashGuestInvitationToken } from "./gue
 import { guestInvitationIssuanceIdempotencyDigest } from "./guest-invitation-idempotency.js";
 import { classifySmtpFailure, sendSmtpTestMessage, type SmtpSettings, type SmtpTransportFactory } from "./smtp-transport.js";
 import { GuestImportCsvError, inspectGuestCsvColumns, parseGuestImportCsv, type GuestImportRow, type ImportNames } from "./guest-import-csv.js";
-import { GuestImportColumnError, guestImportMaxColumns, type GuestImportColumnMapping } from "./guest-import-column-map.js";
+import { GuestImportColumnError, guestImportMaxColumns, sourceCodePattern, sourceReferencePattern, type GuestImportColumnMapping } from "./guest-import-column-map.js";
 import { GuestImportWorkbookError, guestWorkbookMaxBytes, guestWorkbookMaxRow, inspectGuestWorkbook, inspectGuestWorkbookColumns, parseGuestWorkbook } from "./guest-import-xlsx.js";
 import type { paths } from "./generated/openapi.js";
 import {
@@ -4025,8 +4025,6 @@ export function buildApi(dependencies: ApiDependencies): FastifyInstance {
     },
   }, (request, reply) => writeRegistryContact(request, reply, request.params.personId, request.params.contactId, request.body));
 
-  const sourceCodePattern = "^[A-Za-z0-9][A-Za-z0-9_-]{0,39}$";
-  const sourceReferencePattern = "^[A-Za-z0-9][A-Za-z0-9._:/-]{0,127}$";
   const sourceReferenceWriteProperties = {
     source: { type: "string", pattern: sourceCodePattern },
     value: { type: "string", pattern: sourceReferencePattern },
@@ -4264,6 +4262,17 @@ export function buildApi(dependencies: ApiDependencies): FastifyInstance {
     properties: { firstName: guestImportColumn, lastName: guestImportColumn, displayName: guestImportColumn, preferredName: guestImportColumn },
   };
 
+  type GuestImportReferenceMatch = { source: string; column: number };
+  type GuestImportMappingOptions = { mapping?: GuestImportColumnMapping; referenceMatch?: GuestImportReferenceMatch };
+  const guestImportMappingProperties = {
+    mapping: guestImportMapping,
+    referenceMatch: {
+      type: "object", additionalProperties: false, required: ["source", "column"],
+      properties: { source: { type: "string", pattern: sourceCodePattern }, column: guestImportColumn },
+    },
+  };
+  type StagedImportNames = ImportNames & { sourceReference?: string };
+
   async function readGuestImportSource<T>(read: () => T | Promise<T>): Promise<T> {
     try {
       return await read();
@@ -4277,10 +4286,14 @@ export function buildApi(dependencies: ApiDependencies): FastifyInstance {
 
   function prepareGuestImport(
     request: FastifyRequest, reply: FastifyReply, eventId: string, source: Buffer | string,
-    parseRows: () => GuestImportRow[] | Promise<GuestImportRow[]>, worksheet?: { sheetIndex: number; headerRow: number },
-    mapping?: GuestImportColumnMapping,
+    parseRows: () => GuestImportRow[] | Promise<GuestImportRow[]>, worksheet: { sheetIndex: number; headerRow: number } | undefined,
+    { mapping, referenceMatch }: GuestImportMappingOptions,
   ) {
     const principal = registryPrincipal(request);
+    const matching = referenceMatch ? { ...referenceMatch, source: referenceMatch.source.toUpperCase() } : undefined;
+    if (matching && !mapping) {
+      throw new ApiError(422, "GUEST_IMPORT_MAPPING_INVALID", "Map guest name columns and the reference column before matching by reference.");
+    }
     const key = guestImportKey();
     if (dependencies.privateFieldEncryptionKey?.length !== 32) {
       throw new ApiError(503, "PRIVATE_FIELD_ENCRYPTION_UNAVAILABLE", "Guest import protection is not configured.");
@@ -4288,19 +4301,34 @@ export function buildApi(dependencies: ApiDependencies): FastifyInstance {
     const sourceHash = createHash("sha256").update(source).digest("hex");
     const context = { organizationId: principal.organizationId, contactKind: "other" as const };
     const args = [principal.organizationId, eventId, principal.membershipId];
-    const authorize = (client: PoolClient) => client.query("SELECT eogp.assert_guest_import_permission($1::uuid,$2::uuid,$3::uuid)", args);
+    const authorize = async (client: PoolClient) => {
+      await client.query("SELECT eogp.assert_guest_import_permission($1::uuid,$2::uuid,$3::uuid)", args);
+      if (matching) await client.query("SELECT eogp.assert_guest_reference_permission($1::uuid,$2::uuid,false)",
+        [principal.organizationId, principal.membershipId]);
+    };
     return withCommand(request, reply.header("cache-control", "no-store, private"),
-      "guest.import.preview", { eventId, sourceHash, ...worksheet, ...(mapping ? { mapping } : {}) }, async (client) => {
+      "guest.import.preview", { eventId, sourceHash, ...worksheet, ...(mapping ? { mapping } : {}),
+        ...(matching ? { referenceMatch: matching } : {}) }, async (client) => {
         if (worksheet || mapping) await authorize(client);
         const rows = await readGuestImportSource(parseRows);
-        const encryptedRows = rows.map(({ rowNumber, source, names, errors }) => ({
-          rowNumber, errors, firstName: names.firstName, lastName: names.lastName,
-          sourceCiphertext: encryptContactValue(JSON.stringify(source), key, context).toString("base64"),
-          namesCiphertext: encryptContactValue(JSON.stringify(names), key, context).toString("base64"),
-        }));
+        const encryptedRows = rows.map(({ rowNumber, source, names, errors, sourceReference }) => {
+          const reference = sourceReference && !errors.includes("reference_invalid") ? sourceReference : undefined;
+          return {
+            rowNumber, errors, firstName: names.firstName, lastName: names.lastName,
+            ...(matching && reference && !errors.length
+              ? { referenceFingerprint: sourceReferenceFingerprint(principal.organizationId, matching.source, reference) } : {}),
+            sourceCiphertext: encryptContactValue(JSON.stringify(source), key, context).toString("base64"),
+            namesCiphertext: encryptContactValue(JSON.stringify(reference ? { ...names, sourceReference: reference } : names), key, context)
+              .toString("base64"),
+          };
+        });
         const input = [...args, sourceHash, JSON.stringify(encryptedRows)];
         let result;
-        if (mapping) {
+        if (matching) {
+          result = await client.query<ResultRow>(
+            "SELECT eogp.prepare_reference_guest_import_preview($1::uuid,$2::uuid,$3::uuid,$4::text,$5::jsonb,$6::jsonb,$7::integer,$8::integer,$9::text,$10::integer) AS result",
+            [...input, JSON.stringify(mapping), worksheet?.sheetIndex ?? null, worksheet?.headerRow ?? null, matching.source, matching.column]);
+        } else if (mapping) {
           result = await client.query<ResultRow>(
             "SELECT eogp.prepare_mapped_guest_import_preview($1::uuid,$2::uuid,$3::uuid,$4::text,$5::jsonb,$6::jsonb,$7::integer,$8::integer) AS result",
             [...input, JSON.stringify(mapping), worksheet?.sheetIndex ?? null, worksheet?.headerRow ?? null]);
@@ -4317,17 +4345,17 @@ export function buildApi(dependencies: ApiDependencies): FastifyInstance {
   }
 
   const guestImportCsvField = { type: "string", minLength: 1, maxLength: 65536 };
-  server.post<{ Params: { eventId: string }; Body: { csv: string; mapping?: GuestImportColumnMapping } }>("/events/:eventId/guest-imports", {
+  server.post<{ Params: { eventId: string }; Body: { csv: string } & GuestImportMappingOptions }>("/events/:eventId/guest-imports", {
     bodyLimit: 256 * 1024,
     schema: {
       params: participationEventParams, headers: idempotencyHeaders,
       body: {
         type: "object", additionalProperties: false, required: ["csv"],
-        properties: { csv: guestImportCsvField, mapping: guestImportMapping },
+        properties: { csv: guestImportCsvField, ...guestImportMappingProperties },
       },
     },
   }, (request, reply) => prepareGuestImport(request, reply, request.params.eventId, request.body.csv,
-    () => parseGuestImportCsv(request.body.csv, request.body.mapping), undefined, request.body.mapping));
+    () => parseGuestImportCsv(request.body.csv, request.body.mapping, request.body.referenceMatch?.column), undefined, request.body));
 
   server.post<{ Params: { eventId: string }; Body: { csv: string } }>("/events/:eventId/guest-imports/columns", {
     bodyLimit: 256 * 1024,
@@ -4377,20 +4405,20 @@ export function buildApi(dependencies: ApiDependencies): FastifyInstance {
       guestWorkbookBytes(request.body.xlsx), request.body.sheetIndex, request.body.headerRow,
     ) }))));
 
-  server.post<{ Params: { eventId: string }; Body: WorkbookPreview & { mapping?: GuestImportColumnMapping } }>("/events/:eventId/guest-imports/xlsx", {
+  server.post<{ Params: { eventId: string }; Body: WorkbookPreview & GuestImportMappingOptions }>("/events/:eventId/guest-imports/xlsx", {
     bodyLimit: workbookBodyLimit,
     schema: {
       params: participationEventParams, headers: idempotencyHeaders,
       body: {
         type: "object", additionalProperties: false, required: ["xlsx", "sheetIndex", "headerRow"],
-        properties: { ...guestWorkbookSourceFields, mapping: guestImportMapping },
+        properties: { ...guestWorkbookSourceFields, ...guestImportMappingProperties },
       },
     },
   }, (request, reply) => {
-    const { xlsx, sheetIndex, headerRow, mapping } = request.body;
+    const { xlsx, sheetIndex, headerRow, mapping, referenceMatch } = request.body;
     const bytes = guestWorkbookBytes(xlsx);
     return prepareGuestImport(request, reply, request.params.eventId, bytes,
-      () => parseGuestWorkbook(bytes, sheetIndex, headerRow, mapping), { sheetIndex, headerRow }, mapping);
+      () => parseGuestWorkbook(bytes, sheetIndex, headerRow, mapping, referenceMatch?.column), { sheetIndex, headerRow }, request.body);
   });
 
   const guestImportBatchParams = {
@@ -4411,6 +4439,7 @@ export function buildApi(dependencies: ApiDependencies): FastifyInstance {
       (value) => {
         const preview = value as {
           batchId: string;
+          matchingSource: string | null;
           rows: {
             rowNumber: number; namesCiphertext: string; errors: string[]; duplicateCount: number;
             matches: ImportMatch[];
@@ -4419,12 +4448,14 @@ export function buildApi(dependencies: ApiDependencies): FastifyInstance {
         };
         return {
           batchId: preview.batchId,
+          matchingSource: preview.matchingSource,
           rows: preview.rows.map(({ namesCiphertext, updateMatches, ...row }) => {
-            const names = JSON.parse(decryptContactValue(Buffer.from(namesCiphertext, "base64"), key,
-              { organizationId: principal.organizationId, contactKind: "other" })) as ImportNames;
+            const { sourceReference, ...names } = JSON.parse(decryptContactValue(Buffer.from(namesCiphertext, "base64"), key,
+              { organizationId: principal.organizationId, contactKind: "other" })) as StagedImportNames;
             return {
               ...row,
               names,
+              ...(sourceReference !== undefined ? { sourceReference } : {}),
               updateMatches: updateMatches.flatMap((match) => {
                 const changes = importNameFields.flatMap((field) => {
                   const proposed = names[field];
@@ -4515,8 +4546,7 @@ export function buildApi(dependencies: ApiDependencies): FastifyInstance {
         );
         return (result.rows[0]?.result ?? {}) as Record<string, unknown>;
       }, async (client) => {
-        await client.query("SELECT eogp.assert_guest_import_permission($1::uuid,$2::uuid,$3::uuid)",
-          [principal.organizationId, eventId, principal.membershipId]);
+        await client.query("SELECT eogp.assert_guest_import_batch_permission($1::uuid,$2::uuid,$3::uuid,$4::uuid)", args);
       }, 200);
   });
 

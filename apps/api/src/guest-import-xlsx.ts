@@ -2,7 +2,7 @@ import { posix } from "node:path";
 import { SaxesParser, type SaxesTagNS } from "saxes";
 import { fromBufferPromise } from "yauzl";
 import { GuestImportCsvError, validateGuestImportRecords, type GuestImportRow } from "./guest-import-csv.js";
-import { guestImportMaxColumns, mappedNameColumns, previewColumnLabel, type GuestImportColumn, type GuestImportColumnMapping } from "./guest-import-column-map.js";
+import { guestImportMaxColumns, mappedGuestColumns, previewColumnLabel, type GuestImportColumn, type GuestImportColumnMapping } from "./guest-import-column-map.js";
 
 export const guestWorkbookMaxBytes = 256 * 1024;
 export const guestWorkbookMaxRow = 1_048_576;
@@ -232,12 +232,12 @@ export async function inspectGuestWorkbookColumns(bytes: Buffer, sheetIndex: num
 }
 
 export async function parseGuestWorkbook(
-  bytes: Buffer, sheetIndex: number, headerRow: number, mapping?: GuestImportColumnMapping,
+  bytes: Buffer, sheetIndex: number, headerRow: number, mapping?: GuestImportColumnMapping, referenceColumn?: number,
 ): Promise<GuestImportRow[]> {
   const [header, ...records] = await readGuestWorkbookRows(bytes, sheetIndex, headerRow);
   if (!header || header.rowNumber !== headerRow) invalidWorkbook();
   if (!mapping && (header.cells.size > 4 || [...header.cells.values()].some(({ invalid }) => invalid))) invalidWorkbook();
-  const columns = mapping ? mappedNameColumns(mapping, describeGuestWorkbookColumns(header)) : {
+  const columns = mapping ? mappedGuestColumns(mapping, describeGuestWorkbookColumns(header), referenceColumn) : {
     headers: Array.from({ length: header.cells.size }, (_, index) => header.cells.get(index + 1)?.text.trim() ?? ""),
     indices: Array.from({ length: header.cells.size }, (_, index) => index + 1),
   };
@@ -249,7 +249,7 @@ export async function parseGuestWorkbook(
       const values = mapping ? selected : [...cells.values()];
       const errors = values.some((cell) => cell?.invalid) ? ["cell_not_text"] : [];
       return { rowNumber, source, errors };
-    }));
+    }), referenceColumn !== undefined);
   } catch (error) {
     if (error instanceof GuestImportCsvError) throw new GuestImportWorkbookError(error.message);
     throw error;

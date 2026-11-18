@@ -409,3 +409,7 @@ A merge reviewer needs event guest access to the source participations and can m
 ## Guest Registry source references (000158)
 
 Source-system references reuse `person_identifiers`. The format namespace and uppercase source code scope a keyed exact-match fingerprint to one organization and source. The value is encrypted with a key bound to the person and source. Separate read and write permissions protect the feature, and each add, replace or removal checks the profile revision. Audit records retain the opaque reference ID and revision.
+
+## Guest import matching by source reference (000159)
+
+A mapped import can select an uppercase source-system code and a distinct reference column. The preview matches against active Registry profiles by keyed fingerprint, requires reference read access and reports unmatched values at row level. Staff can review and reuse or update a match. The commit rechecks reference ownership and the reviewed profile revision. Names and source references remain encrypted in import staging, and reports contain outcomes and error codes.

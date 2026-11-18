@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import { computed, ref } from "vue";
 import { useI18n } from "vue-i18n";
-import { api, ApiError, type GuestImportColumn, type GuestImportColumnMapping, type GuestImportCommit, type GuestImportPreview } from "../../api";
+import { api, ApiError, type GuestImportColumn, type GuestImportColumnMapping, type GuestImportCommit, type GuestImportPreview, type GuestImportReferenceMatch } from "../../api";
 import { formatApiError } from "../../i18n/api-errors";
 import { downloadGuestCsv, formatGuestCsv } from "../../guest-export";
 
@@ -19,6 +19,16 @@ const columnFields = [
 ] as const;
 const sourceColumns = ref<GuestImportColumn[]>([]);
 const choices = ref<Record<keyof GuestImportColumnMapping, number | null>>({ firstName: null, lastName: null, displayName: null, preferredName: null });
+const matchReferences = ref(false);
+const matchingSource = ref("");
+const referenceColumn = ref<number | null>(null);
+const referenceMatch = computed<GuestImportReferenceMatch | undefined>(() => {
+  const source = matchingSource.value.trim().toUpperCase();
+  const column = referenceColumn.value;
+  if (!matchReferences.value || column === null || !/^[A-Z0-9][A-Z0-9_-]{0,39}$/.test(source)
+    || Object.values(choices.value).includes(column)) return undefined;
+  return { source, column };
+});
 const columnMapping = computed<GuestImportColumnMapping | undefined>(() => {
   const { firstName, lastName, displayName, preferredName } = choices.value;
   const selected = Object.values(choices.value).filter((index) => index !== null);
@@ -58,6 +68,9 @@ function clearPreview(): void {
 
 function clearMapping(): void {
   sourceColumns.value = [];
+  matchReferences.value = false;
+  matchingSource.value = "";
+  referenceColumn.value = null;
   choices.value = { firstName: null, lastName: null, displayName: null, preferredName: null };
   clearPreview();
 }
@@ -149,6 +162,12 @@ async function prepare(): Promise<void> {
     return;
   }
 
+  const reference = referenceMatch.value;
+  if (matchReferences.value && !reference) {
+    error.value = t("eventGuests.import.invalidReferenceMatch");
+    return;
+  }
+
   clearPreview();
   busy.value = true;
   try {
@@ -161,12 +180,12 @@ async function prepare(): Promise<void> {
         sheetIndex.value = data.sheets[0]!.index;
         return;
       }
-      const { data } = await api.prepareGuestWorkbookPreview(props.eventId, workbook.value.xlsx, sheetIndex.value, headerRow.value, mapping);
+      const { data } = await api.prepareGuestWorkbookPreview(props.eventId, workbook.value.xlsx, sheetIndex.value, headerRow.value, mapping, reference);
       batchId = data.batchId;
     } else {
       const csv = await decodeCsv(input);
       if (csv === null) return;
-      const { data } = await api.prepareGuestImportPreview(props.eventId, csv, mapping);
+      const { data } = await api.prepareGuestImportPreview(props.eventId, csv, mapping, reference);
       batchId = data.batchId;
     }
     preview.value = (await api.getGuestImportPreview(props.eventId, batchId)).data;
@@ -251,6 +270,26 @@ async function downloadReport(): Promise<void> {
             </option>
           </select>
         </div>
+        <label>
+          <input v-model="matchReferences" type="checkbox" @change="clearPreview">
+          {{ t("eventGuests.import.matchReferences") }}
+        </label>
+        <template v-if="matchReferences">
+          <div>
+            <label for="guest-import-reference-source">{{ t("registry.references.source") }}</label>
+            <input id="guest-import-reference-source" v-model="matchingSource" required maxlength="40" @input="clearPreview">
+          </div>
+          <div>
+            <label for="guest-import-reference-column">{{ t("eventGuests.import.referenceColumn") }}</label>
+            <select id="guest-import-reference-column" v-model="referenceColumn" @change="clearPreview">
+              <option :value="null" disabled>{{ t("eventGuests.import.chooseColumn") }}</option>
+              <option v-for="column in sourceColumns" :key="column.index" :value="column.index">
+                {{ column.index }} · {{ column.label || t("eventGuests.import.unnamedColumn") }}
+              </option>
+            </select>
+          </div>
+          <p>{{ t("eventGuests.import.referenceModeHelp") }}</p>
+        </template>
         <button class="button button-secondary" type="button" @click="clearMapping">{{ t("eventGuests.import.standardHeaders") }}</button>
       </fieldset>
       <button class="button button-primary" type="submit" :disabled="busy || !file">
@@ -269,6 +308,7 @@ async function downloadReport(): Promise<void> {
             <th scope="col">{{ t("eventGuests.import.row") }}</th>
             <th scope="col">{{ t("registry.firstName") }}</th>
             <th scope="col">{{ t("registry.lastName") }}</th>
+            <th v-if="preview.matchingSource" scope="col">{{ t("registry.references.value") }}</th>
             <th scope="col">{{ t("eventGuests.import.review") }}</th>
           </tr></thead>
           <tbody>
@@ -276,9 +316,14 @@ async function downloadReport(): Promise<void> {
               <td>{{ row.rowNumber }}</td>
               <td>{{ row.names.firstName }}</td>
               <td>{{ row.names.lastName }}</td>
+              <td v-if="preview.matchingSource">{{ row.sourceReference ?? "—" }}</td>
               <td><ul v-if="row.errors.length || row.duplicateCount">
-                <li v-for="issue in row.errors" :key="issue">{{ t(`eventGuests.import.issue.${issue}`) }}</li>
-                <li v-if="row.duplicateCount">{{ t("eventGuests.import.matches", { count: row.duplicateCount }) }}</li>
+                <li v-for="issue in row.errors" :key="issue">
+                  {{ t(issue === "duplicate_in_file" && preview.matchingSource ? "eventGuests.import.repeatedReference" : `eventGuests.import.issue.${issue}`) }}
+                </li>
+                <li v-if="row.duplicateCount">{{ preview.matchingSource
+                  ? t("eventGuests.import.referenceMatch", { source: preview.matchingSource })
+                  : t("eventGuests.import.matches", { count: row.duplicateCount }) }}</li>
               </ul><span v-else>{{ t("eventGuests.import.clear") }}</span>
                 <div v-if="!committed && row.duplicateCount && !row.errors.length">
                   <label :for="`guest-import-duplicate-${row.rowNumber}`">{{ t("eventGuests.import.resolveDuplicate", { row: row.rowNumber }) }}</label>
@@ -293,7 +338,7 @@ async function downloadReport(): Promise<void> {
                         name: [...new Set([match.name, match.displayName, match.preferredName].filter(Boolean))].join(" · "),
                       }) }}
                     </option>
-                    <option :value="separateProfileChoice">{{ t("eventGuests.import.createSeparate") }}</option>
+                    <option v-if="!preview.matchingSource" :value="separateProfileChoice">{{ t("eventGuests.import.createSeparate") }}</option>
                   </select>
                   <template v-if="selectedUpdates[row.rowNumber]">
                     <ul>
