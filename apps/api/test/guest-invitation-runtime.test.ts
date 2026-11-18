@@ -142,15 +142,8 @@ function makeStaffInvitationApi(
           rowCount: 1,
         };
       }
-      if (normalized.startsWith("SELECT 1 FROM eogp.organization_memberships")) {
-        return { rows: [{ "?column?": 1 }], rowCount: 1 };
-      }
-      if (normalized.includes("FROM eogp.user_role_grants user_grant")
-          && normalized.includes("role_permission.permission_code='rsvp.record'")) {
-        return { rows: [{ "?column?": 1 }], rowCount: 1 };
-      }
-      if (normalized.includes("role_permission.permission_code='rsvp.correct'")) {
-        return { rows: [{ "?column?": 1 }], rowCount: 1 };
+      if (normalized.startsWith("SELECT eogp.assert_staff_event_replay_permission(")) {
+        return { rows: [], rowCount: 1 };
       }
       if (normalized.includes("eogp.record_staff_guest_rsvp(")) {
         return {

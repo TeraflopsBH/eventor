@@ -86,3 +86,40 @@ REVOKE ALL ON FUNCTION eogp.list_organization_access_roles(uuid,uuid),
 GRANT EXECUTE ON FUNCTION eogp.list_organization_access_roles(uuid,uuid),
   eogp.list_organization_access_members(uuid,uuid,integer),
   eogp.list_organization_permission_catalogue(uuid,uuid) TO eventor_runtime;
+
+-- Replay checks expose only the permissions and scopes used by staff commands.
+CREATE FUNCTION eogp.assert_staff_event_replay_permission(p_org uuid,p_event uuid,p_actor uuid,p_permission text)
+RETURNS void LANGUAGE plpgsql SECURITY DEFINER SET search_path = pg_catalog,eogp
+AS $function$
+BEGIN
+  IF p_permission='event.manage'
+    OR (p_event IS NULL AND p_permission IN (
+      'organization.manage','organization.delivery.manage','booking.approve','booking.manage','booking.confirm'
+    ))
+    OR (p_event IS NOT NULL AND p_permission IN (
+      'guest.manage','guest.notes.manage','rsvp.record','rsvp.correct','event.notifications.send',
+      'event.notifications.delivery.manage','event.cancellation.initiate','event.cancellation.approve',
+      'event.cancellation.execute','event.postponement.manage'
+    )) THEN
+    PERFORM eogp.assert_event_command_permission(p_org,p_event,p_actor,p_permission);
+    RETURN;
+  END IF;
+  RAISE EXCEPTION 'unsupported staff replay authorization' USING ERRCODE='42501';
+END;
+$function$;
+
+CREATE FUNCTION eogp.assert_staff_booking_replay_permission(p_org uuid,p_booking uuid,p_actor uuid,p_permission text)
+RETURNS void LANGUAGE plpgsql SECURITY DEFINER SET search_path = pg_catalog,eogp
+AS $function$
+BEGIN
+  IF p_booking IS NULL THEN
+    RAISE EXCEPTION 'booking replay requires a scope' USING ERRCODE='42501';
+  END IF;
+  PERFORM eogp.assert_booking_cancellation_permission(p_org,p_booking,p_actor,p_permission);
+END;
+$function$;
+
+REVOKE ALL ON FUNCTION eogp.assert_staff_event_replay_permission(uuid,uuid,uuid,text),
+  eogp.assert_staff_booking_replay_permission(uuid,uuid,uuid,text) FROM PUBLIC;
+GRANT EXECUTE ON FUNCTION eogp.assert_staff_event_replay_permission(uuid,uuid,uuid,text),
+  eogp.assert_staff_booking_replay_permission(uuid,uuid,uuid,text) TO eventor_runtime;

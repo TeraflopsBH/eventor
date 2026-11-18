@@ -3915,6 +3915,12 @@ BEGIN
   END;
   INSERT INTO eogp.user_role_grants(id,organization_id,membership_id,role_id,scope_kind,granted_by_membership_id)
     VALUES(v_grant,v_org,v_actor,v_role,'organization',v_actor);
+  PERFORM eogp.assert_staff_event_replay_permission(v_org,NULL,v_actor,'organization.manage');
+  BEGIN
+    PERFORM eogp.assert_staff_event_replay_permission(v_org,v_event,v_actor,'organization.manage');
+    RAISE EXCEPTION 'organization manage replay accepted an event scope';
+  EXCEPTION WHEN insufficient_privilege THEN NULL;
+  END;
   v_result := eogp.list_organization_access_members(v_org,v_actor,0);
   IF NOT v_result->'members' @> jsonb_build_array(jsonb_build_object('membershipId',v_actor,'status','active',
       'grants',jsonb_build_array(jsonb_build_object('grantId',v_grant,'scope','organization'),
