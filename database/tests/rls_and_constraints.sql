@@ -2759,6 +2759,35 @@ BEGIN
 END;
 $test$;
 
+-- Mapped previews retain field positions and continue through the encrypted import pipeline.
+DO $test$
+DECLARE
+  v_org CONSTANT uuid := '10000000-0000-0000-0000-00000000000a';
+  v_actor CONSTANT uuid := '30000000-0000-0000-0000-00000000000a';
+  v_cipher text := encode(convert_to('ECP1' || repeat('x', 32), 'UTF8'), 'base64');
+  v_event uuid;
+  v_batch uuid;
+  v_rows jsonb;
+BEGIN
+  SELECT id INTO STRICT v_event FROM eogp.events WHERE organization_id=v_org AND event_code='CI-LINK-A';
+  v_rows := jsonb_build_array(jsonb_build_object('rowNumber',503,'firstName','Mapped','lastName','Columns',
+    'sourceCiphertext',v_cipher,'namesCiphertext',v_cipher,'errors','[]'::jsonb));
+  BEGIN
+    PERFORM eogp.prepare_mapped_guest_import_preview(v_org,v_event,v_actor,repeat('f',64),v_rows,
+      '{"firstName":3,"lastName":3}',2,3);
+    RAISE EXCEPTION 'duplicate source column was accepted';
+  EXCEPTION WHEN invalid_parameter_value THEN NULL;
+  END;
+  v_batch := (eogp.prepare_mapped_guest_import_preview(v_org,v_event,v_actor,repeat('f',64),v_rows,
+    '{"firstName":3,"lastName":1}',2,3)->>'batchId')::uuid;
+  IF NOT EXISTS (SELECT 1 FROM eogp.guest_import_batches WHERE organization_id=v_org AND event_id=v_event AND id=v_batch
+    AND mapping_snapshot @> '{"sourceFormat":"xlsx","sheetIndex":2,"headerRow":3,"columnsByField":{"firstName":3,"lastName":1}}')
+    OR eogp.read_guest_import_preview(v_org,v_event,v_actor,v_batch)#>>'{rows,0,rowNumber}' IS DISTINCT FROM '503' THEN
+    RAISE EXCEPTION 'mapped preview lost source positions or worksheet metadata';
+  END IF;
+END;
+$test$;
+
 COMMIT;
 
 \echo 'PostgreSQL migration smoke tests passed.'

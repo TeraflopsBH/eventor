@@ -2,6 +2,7 @@ import { posix } from "node:path";
 import { SaxesParser, type SaxesTagNS } from "saxes";
 import { fromBufferPromise } from "yauzl";
 import { GuestImportCsvError, validateGuestImportRecords, type GuestImportRow } from "./guest-import-csv.js";
+import { guestImportMaxColumns, mappedNameColumns, previewColumnLabel, type GuestImportColumn, type GuestImportColumnMapping } from "./guest-import-column-map.js";
 
 export const guestWorkbookMaxBytes = 256 * 1024;
 export const guestWorkbookMaxRow = 1_048_576;
@@ -208,20 +209,45 @@ export async function inspectGuestWorkbook(bytes: Buffer): Promise<{ index: numb
   return workbookSheets(await unpackWorkbook(bytes)).map(({ index, name }) => ({ index, name }));
 }
 
-export async function parseGuestWorkbook(bytes: Buffer, sheetIndex: number, headerRow: number): Promise<GuestImportRow[]> {
+async function readGuestWorkbookRows(bytes: Buffer, sheetIndex: number, headerRow: number): Promise<SheetRow[]> {
   const parts = await unpackWorkbook(bytes);
   const sheet = workbookSheets(parts).find(({ index }) => index === sheetIndex);
   if (!sheet) invalidWorkbook();
-  const rows = worksheetRows(parts.get(sheet.file), sharedStrings(parts.get("xl/sharedStrings.xml")), headerRow);
-  const [header, ...records] = rows;
-  if (!header || header.rowNumber !== headerRow || header.cells.size > 4 ||
-      [...header.cells.values()].some(({ invalid }) => invalid)) invalidWorkbook();
-  const columns = Array.from({ length: header.cells.size }, (_, index) => header.cells.get(index + 1)?.text.trim() ?? "");
+  return worksheetRows(parts.get(sheet.file), sharedStrings(parts.get("xl/sharedStrings.xml")), headerRow);
+}
+
+function describeGuestWorkbookColumns(header?: SheetRow): GuestImportColumn[] {
+  if (!header) invalidWorkbook();
+  const columns = [...header.cells]
+    .filter(([index, value]) => index <= guestImportMaxColumns && !value.invalid)
+    .map(([index, value]) => ({ index, label: previewColumnLabel(value.text) }));
+  if (columns.length < 2) invalidWorkbook();
+  return columns;
+}
+
+export async function inspectGuestWorkbookColumns(bytes: Buffer, sheetIndex: number, headerRow: number): Promise<GuestImportColumn[]> {
+  const [header] = await readGuestWorkbookRows(bytes, sheetIndex, headerRow);
+  if (header?.rowNumber !== headerRow) invalidWorkbook();
+  return describeGuestWorkbookColumns(header);
+}
+
+export async function parseGuestWorkbook(
+  bytes: Buffer, sheetIndex: number, headerRow: number, mapping?: GuestImportColumnMapping,
+): Promise<GuestImportRow[]> {
+  const [header, ...records] = await readGuestWorkbookRows(bytes, sheetIndex, headerRow);
+  if (!header || header.rowNumber !== headerRow) invalidWorkbook();
+  if (!mapping && (header.cells.size > 4 || [...header.cells.values()].some(({ invalid }) => invalid))) invalidWorkbook();
+  const columns = mapping ? mappedNameColumns(mapping, describeGuestWorkbookColumns(header)) : {
+    headers: Array.from({ length: header.cells.size }, (_, index) => header.cells.get(index + 1)?.text.trim() ?? ""),
+    indices: Array.from({ length: header.cells.size }, (_, index) => index + 1),
+  };
   try {
-    return validateGuestImportRecords(columns, records.map(({ rowNumber, cells }) => {
-      const source = columns.map((_name, index) => cells.get(index + 1)?.text ?? "");
-      if ([...cells.keys()].some((index) => index > columns.length)) source.push("");
-      const errors = [...cells.values()].some(({ invalid }) => invalid) ? ["cell_not_text"] : [];
+    return validateGuestImportRecords(columns.headers, records.map(({ rowNumber, cells }) => {
+      const selected = columns.indices.map((index) => cells.get(index));
+      const source = selected.map((cell) => cell?.text ?? "");
+      if (!mapping && [...cells.keys()].some((index) => index > columns.indices.length)) source.push("");
+      const values = mapping ? selected : [...cells.values()];
+      const errors = values.some((cell) => cell?.invalid) ? ["cell_not_text"] : [];
       return { rowNumber, source, errors };
     }));
   } catch (error) {

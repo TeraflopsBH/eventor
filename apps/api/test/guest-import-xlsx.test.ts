@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 import { crc32, deflateRawSync } from "node:zlib";
-import { GuestImportWorkbookError, inspectGuestWorkbook, parseGuestWorkbook } from "../src/guest-import-xlsx.js";
+import { GuestImportWorkbookError, inspectGuestWorkbook, inspectGuestWorkbookColumns, parseGuestWorkbook } from "../src/guest-import-xlsx.js";
 
 function zip(parts: Record<string, string>): Buffer {
   const entries: Buffer[] = [];
@@ -88,4 +88,23 @@ test("guest XLSX import rejects malformed ZIP, oversized inflation and XML docty
     "xl/worksheets/sheet3.xml": '<!DOCTYPE worksheet [<!ENTITY example SYSTEM "file:///synthetic-test">]>' + sheetData,
   });
   await assert.rejects(parseGuestWorkbook(withDoctype, 2, 3), GuestImportWorkbookError);
+});
+
+test("guest XLSX mapping keeps worksheet column positions and skips unrelated cells", async () => {
+  const mapped = zip({
+    ...fixture,
+    "xl/worksheets/sheet3.xml": `<worksheet xmlns="${spreadsheet}"><sheetData>
+      <row r="3"><c r="A3" t="inlineStr"><is><t>Surname</t></is></c><c r="C3" t="inlineStr"><is><t>Given</t></is></c>
+        <c r="D3" t="inlineStr"><is><t>Other</t></is></c></row>
+      <row r="503"><c r="A503" t="s"><v>2</v></c><c r="C503" t="inlineStr"><is><t>Ada</t></is></c><c r="D503"><f>NOW()</f></c></row>
+      </sheetData></worksheet>`,
+  });
+  assert.deepEqual(await inspectGuestWorkbookColumns(mapped, 2, 3), [
+    { index: 1, label: "Surname" }, { index: 3, label: "Given" }, { index: 4, label: "Other" },
+  ]);
+  const [row] = await parseGuestWorkbook(mapped, 2, 3, { firstName: 3, lastName: 1 });
+  assert.equal(row?.rowNumber, 503);
+  assert.deepEqual(row?.source, ["Ada", "Fixture"]);
+  assert.deepEqual(row?.errors, []);
+  await assert.rejects(parseGuestWorkbook(mapped, 2, 3, { firstName: 3, lastName: 2 }), /distinct available columns/);
 });

@@ -107,6 +107,12 @@ export default {
   },
   eventGuests: {
     import: {
+      mapColumns: "Poveži kolone",
+      chooseColumn: "Odaberite kolonu",
+      blankColumn: "Ostavite prazno",
+      unnamedColumn: "Kolona bez naziva",
+      standardHeaders: "Koristi standardna zaglavlja",
+      invalidMapping: "Odaberite različite kolone za ime i prezime. Svaka kolona može se koristiti jednom.",
       title: "Uvezi goste",
       instructions: "Koristite do 500 redova gostiju sa zaglavljima first_name i last_name. Opcionalne kolone su display_name i preferred_name. UTF-8 CSV datoteka može imati do 64 KiB, a XLSX do 256 KiB.",
       file: "Datoteka za uvoz gostiju",

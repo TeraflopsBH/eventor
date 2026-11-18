@@ -1348,6 +1348,18 @@ export interface GuestImportCommit {
   skippedCount: number;
 }
 
+export interface GuestImportColumn {
+  index: number;
+  label: string;
+}
+
+export interface GuestImportColumnMapping {
+  firstName: number;
+  lastName: number;
+  displayName?: number;
+  preferredName?: number;
+}
+
 export interface GuestImportReuse {
   rowNumber: number;
   personId: string;
@@ -1391,17 +1403,25 @@ export const api = {
     request<Envelope<{ eventId: string; participationId: string; status: string }>>(`/events/${encodeURIComponent(eventId)}/participations`, {
       method: "POST", body: { personId, status }, idempotent: true,
     }),
-  prepareGuestImportPreview: (eventId: string, csv: string) =>
+  prepareGuestImportPreview: (eventId: string, csv: string, mapping?: GuestImportColumnMapping) =>
     request<Envelope<{ batchId: string; rowCount: number }>>(`/events/${encodeURIComponent(eventId)}/guest-imports`, {
-      method: "POST", body: { csv }, idempotent: true,
+      method: "POST", body: { csv, mapping }, idempotent: true,
     }),
   inspectGuestWorkbook: (eventId: string, xlsx: string) =>
     request<Envelope<{ sheets: { index: number; name: string }[] }>>(`/events/${encodeURIComponent(eventId)}/guest-imports/xlsx/sheets`, {
       method: "POST", body: { xlsx },
     }),
-  prepareGuestWorkbookPreview: (eventId: string, xlsx: string, sheetIndex: number, headerRow: number) =>
+  inspectGuestCsvColumns: (eventId: string, csv: string) =>
+    request<Envelope<{ columns: GuestImportColumn[] }>>(`/events/${encodeURIComponent(eventId)}/guest-imports/columns`, {
+      method: "POST", body: { csv },
+    }),
+  inspectGuestWorkbookColumns: (eventId: string, xlsx: string, sheetIndex: number, headerRow: number) =>
+    request<Envelope<{ columns: GuestImportColumn[] }>>(`/events/${encodeURIComponent(eventId)}/guest-imports/xlsx/columns`, {
+      method: "POST", body: { xlsx, sheetIndex, headerRow },
+    }),
+  prepareGuestWorkbookPreview: (eventId: string, xlsx: string, sheetIndex: number, headerRow: number, mapping?: GuestImportColumnMapping) =>
     request<Envelope<{ batchId: string; rowCount: number }>>(`/events/${encodeURIComponent(eventId)}/guest-imports/xlsx`, {
-      method: "POST", body: { xlsx, sheetIndex, headerRow }, idempotent: true,
+      method: "POST", body: { xlsx, sheetIndex, headerRow, mapping }, idempotent: true,
     }),
   commitGuestImport: (eventId: string, batchId: string, reuse: GuestImportReuse[]) =>
     request<Envelope<GuestImportCommit>>(`/events/${encodeURIComponent(eventId)}/guest-imports/${encodeURIComponent(batchId)}/commit`, {
