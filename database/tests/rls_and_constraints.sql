@@ -3396,6 +3396,71 @@ BEGIN
 END;
 $test$;
 
+-- Registry relationships use their own grants and cannot cross organizations.
+DO $test$
+DECLARE
+  v_org CONSTANT uuid := '10000000-0000-0000-0000-00000000000a';
+  v_actor CONSTANT uuid := '30000000-0000-0000-0000-00000000000a';
+  v_source uuid;
+  v_related uuid;
+  v_foreign CONSTANT uuid := '52000000-0000-4000-8000-00000000000b';
+  v_directed uuid;
+  v_mutual uuid;
+  v_view jsonb;
+BEGIN
+  v_source := (eogp.write_guest_registry_person(v_org,v_actor,NULL,NULL,'create',
+    '{"firstName":"Relationship","lastName":"Source Fixture"}')->>'personId')::uuid;
+  v_related := (eogp.write_guest_registry_person(v_org,v_actor,NULL,NULL,'create',
+    '{"firstName":"Relationship","lastName":"Related Fixture"}')->>'personId')::uuid;
+  BEGIN
+    PERFORM eogp.read_guest_registry_relationships(v_org,v_actor,v_source);
+    RAISE EXCEPTION 'ordinary Registry read exposed relationship history';
+  EXCEPTION WHEN insufficient_privilege THEN NULL;
+  END;
+  INSERT INTO eogp.role_permissions(organization_id,role_id,permission_code)
+    SELECT v_org,id,'guest.registry.relationships.read' FROM eogp.roles WHERE organization_id=v_org AND code='CI-REGISTRY';
+  IF eogp.read_guest_registry_relationships(v_org,v_actor,v_source)->>'canManage' IS DISTINCT FROM 'false' THEN
+    RAISE EXCEPTION 'Registry relationship read grant implied write access';
+  END IF;
+  BEGIN
+    PERFORM eogp.write_guest_registry_relationship(v_org,v_actor,v_source,NULL,v_related,'assistant','directed');
+    RAISE EXCEPTION 'relationship creation accepted read-only permissions';
+  EXCEPTION WHEN insufficient_privilege THEN NULL;
+  END;
+  INSERT INTO eogp.role_permissions(organization_id,role_id,permission_code)
+    SELECT v_org,id,'guest.registry.relationships.manage' FROM eogp.roles WHERE organization_id=v_org AND code='CI-REGISTRY';
+  BEGIN
+    PERFORM eogp.write_guest_registry_relationship(v_org,v_actor,v_source,NULL,v_foreign,'assistant','directed');
+    RAISE EXCEPTION 'relationship crossed the organization boundary';
+  EXCEPTION WHEN no_data_found THEN NULL;
+  END;
+  v_directed := (eogp.write_guest_registry_relationship(v_org,v_actor,v_source,NULL,v_related,'assistant','directed')->>'relationshipId')::uuid;
+  v_mutual := (eogp.write_guest_registry_relationship(v_org,v_actor,v_related,NULL,v_source,'family','mutual')->>'relationshipId')::uuid;
+  BEGIN
+    PERFORM eogp.write_guest_registry_relationship(v_org,v_actor,v_source,NULL,v_related,'family','mutual');
+    RAISE EXCEPTION 'reversed duplicate mutual relationship was accepted';
+  EXCEPTION WHEN unique_violation THEN NULL;
+  END;
+  v_view := eogp.read_guest_registry_relationships(v_org,v_actor,v_source);
+  IF NOT (v_view->'relationships') @> jsonb_build_array(
+      jsonb_build_object('relationshipId',v_directed,'direction','outgoing','relatedPersonId',v_related),
+      jsonb_build_object('relationshipId',v_mutual,'direction','mutual','relatedPersonId',v_related))
+    OR NOT (eogp.read_guest_registry_relationships(v_org,v_actor,v_related)->'relationships')
+      @> jsonb_build_array(jsonb_build_object('relationshipId',v_directed,'direction','incoming','relatedPersonId',v_source))
+    OR eogp.preview_guest_registry_merge(v_org,v_actor,v_source,v_related)->>'blocker' IS DISTINCT FROM 'source_has_linked_records'
+    OR has_table_privilege('eventor_runtime','eogp.person_relationships','SELECT,INSERT,UPDATE,DELETE') THEN
+    RAISE EXCEPTION 'relationship direction, permissions or merge guard was incorrect';
+  END IF;
+  PERFORM eogp.write_guest_registry_relationship(v_org,v_actor,v_related,v_directed,NULL,NULL,NULL);
+  PERFORM eogp.write_guest_registry_relationship(v_org,v_actor,v_source,v_mutual,NULL,NULL,NULL);
+  IF (SELECT count(*) FROM eogp.person_relationships WHERE organization_id=v_org
+      AND id IN (v_directed,v_mutual) AND ended_at IS NOT NULL AND ended_by_membership_id=v_actor) <> 2
+    OR eogp.preview_guest_registry_merge(v_org,v_actor,v_source,v_related)->'blocker' IS DISTINCT FROM 'null'::jsonb THEN
+    RAISE EXCEPTION 'ending relationships lost history or left a stale merge blocker';
+  END IF;
+END;
+$test$;
+
 COMMIT;
 
 \echo 'PostgreSQL migration smoke tests passed.'

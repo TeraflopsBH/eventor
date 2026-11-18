@@ -6600,6 +6600,86 @@ paths:
         '403': { $ref: '#/components/responses/Forbidden' }
         '404': { $ref: '#/components/responses/NotFound' }
         '500': { $ref: '#/components/responses/InternalServerError' }
+  "/persons/{personId}/relationships":
+    get:
+      tags: ["Guest Registry"]
+      operationId: listGuestRegistryRelationships
+      summary: "List organization relationships for a Registry profile"
+      security: [{ StaffSession: [] }]
+      parameters:
+        - name: personId
+          in: path
+          required: true
+          schema: { type: string, format: uuid }
+      responses:
+        '200':
+          description: "Relationships and the actor's ability to edit them."
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/GuestRegistryRelationshipsEnvelope' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '404': { $ref: '#/components/responses/NotFound' }
+    post:
+      tags: ["Guest Registry"]
+      operationId: createGuestRegistryRelationship
+      summary: "Record a mutual or directed relationship between two active Registry profiles"
+      security: [{ StaffSession: [], StaffCsrf: [] }]
+      parameters:
+        - name: personId
+          in: path
+          required: true
+          schema: { type: string, format: uuid }
+        - $ref: '#/components/parameters/IdempotencyKey'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              additionalProperties: false
+              required: [relatedPersonId, kind, directionality]
+              properties:
+                relatedPersonId: { type: string, format: uuid }
+                kind: { $ref: '#/components/schemas/GuestRegistryRelationshipKind' }
+                directionality: { type: string, enum: [mutual, directed] }
+      responses:
+        '201':
+          description: "Relationship recorded."
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/GuestRegistryRelationshipChangeEnvelope' }
+        '400': { $ref: '#/components/responses/BadRequest' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '404': { $ref: '#/components/responses/NotFound' }
+        '409': { $ref: '#/components/responses/Conflict' }
+  "/persons/{personId}/relationships/{relationshipId}/end":
+    post:
+      tags: ["Guest Registry"]
+      operationId: endGuestRegistryRelationship
+      summary: "End a Registry relationship while preserving its history"
+      security: [{ StaffSession: [], StaffCsrf: [] }]
+      parameters:
+        - name: personId
+          in: path
+          required: true
+          schema: { type: string, format: uuid }
+        - name: relationshipId
+          in: path
+          required: true
+          schema: { type: string, format: uuid }
+        - $ref: '#/components/parameters/IdempotencyKey'
+      responses:
+        '200':
+          description: "Relationship ended."
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/GuestRegistryRelationshipChangeEnvelope' }
+        '400': { $ref: '#/components/responses/BadRequest' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '404': { $ref: '#/components/responses/NotFound' }
   "/persons/{personId}/references":
     get:
       tags: ["Guest Registry"]
@@ -8652,6 +8732,41 @@ components:
                     properties:
                       method: { type: string, enum: [in_person, callback] }
                       at: { type: string, format: date-time }
+    GuestRegistryRelationshipKind:
+      type: string
+      enum: [household, family, assistant, delegate, colleague, partner, other]
+    GuestRegistryRelationshipsEnvelope:
+      type: object
+      required: [data]
+      properties:
+        data:
+          type: object
+          required: [relationships, canManage]
+          properties:
+            canManage: { type: boolean }
+            relationships:
+              type: array
+              items:
+                type: object
+                required: [relationshipId, relatedPersonId, relatedDisplayName, relatedStatus, kind, direction, endedAt]
+                properties:
+                  relationshipId: { type: string, format: uuid }
+                  relatedPersonId: { type: string, format: uuid }
+                  relatedDisplayName: { type: string }
+                  relatedStatus: { type: string, enum: [active, archived, merged] }
+                  kind: { $ref: '#/components/schemas/GuestRegistryRelationshipKind' }
+                  direction: { type: string, enum: [mutual, incoming, outgoing] }
+                  endedAt: { type: [string, 'null'], format: date-time }
+    GuestRegistryRelationshipChangeEnvelope:
+      type: object
+      required: [data]
+      properties:
+        data:
+          type: object
+          required: [relationshipId, endedAt]
+          properties:
+            relationshipId: { type: string, format: uuid }
+            endedAt: { type: [string, 'null'], format: date-time }
     GuestRegistryReferenceInput:
       type: object
       additionalProperties: false

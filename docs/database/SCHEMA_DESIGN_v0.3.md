@@ -425,3 +425,7 @@ Staff can add or remove one internal tag across up to 50 selected event guests i
 ## Restricted event guest tags (000162)
 
 The restricted tag catalogue and individual assignments require dedicated event-scoped grants in addition to basic roster access. New restricted names are encrypted with keys bound to the event and tag. Legacy restricted names are visible only through the permissioned catalogue. Restricted codes have their own namespace. Ordinary roster projections and bulk edits omit restricted tags, and assignment revisions preserve each classification independently.
+
+## Guest Registry relationships (000163)
+
+Organization-scoped relationships between active Registry profiles support mutual and directed links. Separate Registry grants cover read and management access. Composite foreign keys and forced tenant RLS confine each link to one organization. Ending a relationship records its end while preserving history. Supervised merges hold sources with active relationships for separate resolution.

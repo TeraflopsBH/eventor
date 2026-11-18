@@ -1279,6 +1279,30 @@ function registryContactPath(personId: string): string {
   return `/persons/${encodeURIComponent(personId)}/contacts`;
 }
 
+export const guestRegistryRelationshipKinds = ["household", "family", "assistant", "delegate", "colleague", "partner", "other"] as const;
+export type GuestRegistryRelationshipKind = typeof guestRegistryRelationshipKinds[number];
+export interface GuestRegistryRelationship {
+  relationshipId: string;
+  relatedPersonId: string;
+  relatedDisplayName: string;
+  relatedStatus: GuestRegistryProfile["status"];
+  kind: GuestRegistryRelationshipKind;
+  direction: "mutual" | "incoming" | "outgoing";
+  endedAt: string | null;
+}
+export interface GuestRegistryRelationships {
+  relationships: GuestRegistryRelationship[];
+  canManage: boolean;
+}
+type GuestRegistryRelationshipInput = {
+  relatedPersonId: string;
+  kind: GuestRegistryRelationshipKind;
+  directionality: "mutual" | "directed";
+};
+function registryRelationshipsPath(personId: string): string {
+  return `/persons/${encodeURIComponent(personId)}/relationships`;
+}
+
 export interface GuestRegistryReference {
   referenceId: string;
   source: string;
@@ -1695,6 +1719,16 @@ export const api = {
     `${registryContactPath(personId)}/${encodeURIComponent(contactId)}/verification`, {
       method: "PATCH", body: { expectedRevision, method }, idempotent: true,
     }),
+  getGuestRegistryRelationships: (personId: string) =>
+    request<Envelope<GuestRegistryRelationships>>(registryRelationshipsPath(personId)),
+  createGuestRegistryRelationship: (personId: string, body: GuestRegistryRelationshipInput) =>
+    request<Envelope<{ relationshipId: string; endedAt: null }>>(registryRelationshipsPath(personId), {
+      method: "POST", body, idempotent: true,
+    }),
+  endGuestRegistryRelationship: (personId: string, relationshipId: string) =>
+    request<Envelope<{ relationshipId: string; endedAt: string }>>(
+      `${registryRelationshipsPath(personId)}/${encodeURIComponent(relationshipId)}/end`, { method: "POST", idempotent: true },
+    ),
   getGuestRegistryReferences: (personId: string) =>
     request<Envelope<GuestRegistryReferences>>(registryReferencesPath(personId)),
   createGuestRegistryReference: (personId: string, body: GuestRegistryReferenceWrite) =>
