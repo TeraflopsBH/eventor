@@ -1,10 +1,10 @@
 <script setup lang="ts">
 import { computed, ref } from "vue";
 import { useI18n } from "vue-i18n";
-import { api, ApiError, guestGroupKinds, type EventGuestGroup, type GuestListOption } from "../../api";
+import { api, ApiError, guestGroupKinds, guestGroupPlacementPreferences, type EventGuestGroup, type GuestGroupPlacementPreference, type GuestListOption } from "../../api";
 import { formatApiError } from "../../i18n/api-errors";
 
-type Option = GuestListOption & Partial<Pick<EventGuestGroup, "kind" | "parentGroupId" | "revision">>;
+type Option = GuestListOption & Partial<Pick<EventGuestGroup, "kind" | "parentGroupId" | "revision" | "placementPreference" | "expectedSize">>;
 const props = defineProps<{ eventId: string; kind: "categories" | "tags" | "groups"; options: Option[] }>();
 const emit = defineEmits<{ changed: [] }>();
 const { t, te } = useI18n();
@@ -15,6 +15,8 @@ const code = ref("");
 const label = ref("");
 const groupKind = ref("custom");
 const parentGroupId = ref("");
+const placementPreference = ref<GuestGroupPlacementPreference | "">("");
+const expectedSize = ref<number | "">("");
 const editing = ref<Option | null>(null);
 const byId = computed(() => new Map(props.options.map((option) => [option.id, option])));
 const parentOptions = computed(() => props.options.filter((option) => {
@@ -55,6 +57,8 @@ function resetForm(): void {
   label.value = "";
   groupKind.value = "custom";
   parentGroupId.value = "";
+  placementPreference.value = "";
+  expectedSize.value = "";
   error.value = "";
 }
 
@@ -64,6 +68,8 @@ function beginEdit(option: Option): void {
   label.value = option.label;
   groupKind.value = option.kind ?? "custom";
   parentGroupId.value = option.parentGroupId ?? "";
+  placementPreference.value = option.placementPreference ?? "";
+  expectedSize.value = option.expectedSize ?? "";
   error.value = "";
 }
 
@@ -78,7 +84,10 @@ function save(): void {
   void run(async () => {
     if (props.kind === "groups") {
       const kind = guestGroupKinds.find((value) => value === groupKind.value);
-      const details = { label: normalizedLabel, ...(kind ? { kind } : {}), parentGroupId: parentGroupId.value || null };
+      const details = {
+        label: normalizedLabel, ...(kind ? { kind } : {}), parentGroupId: parentGroupId.value || null,
+        placementPreference: placementPreference.value || null, expectedSize: expectedSize.value === "" ? null : expectedSize.value,
+      };
       if (option?.revision !== undefined) {
         await api.updateEventGuestGroup(props.eventId, option.id, { ...details, expectedRevision: option.revision });
       } else {
@@ -123,6 +132,19 @@ function retire(option: GuestListOption): void {
             </option>
           </select>
         </div>
+        <div class="group-metadata-field">
+          <label for="guest-group-placement">{{ t(message("placementPreference")) }}</label>
+          <select id="guest-group-placement" v-model="placementPreference" :disabled="busy">
+            <option value="">{{ t(message("noPlacementPreference")) }}</option>
+            <option v-for="preference in guestGroupPlacementPreferences" :key="preference" :value="preference">
+              {{ t(message(`placement.${preference}`)) }}
+            </option>
+          </select>
+        </div>
+        <div class="group-metadata-field">
+          <label for="guest-group-expected-size">{{ t(message("expectedSize")) }}</label>
+          <input id="guest-group-expected-size" v-model.number="expectedSize" type="number" min="1" max="2147483647" :disabled="busy">
+        </div>
       </template>
       <button class="button button-primary" type="submit" :disabled="busy">{{ t(editing ? "common.save" : message("add")) }}</button>
       <button v-if="editing" class="button button-secondary" type="button" :disabled="busy" @click="resetForm">{{ t("common.cancel") }}</button>
@@ -133,6 +155,8 @@ function retire(option: GuestListOption): void {
         <span>{{ option.label }} ({{ option.code }})</span>
         <span v-if="option.kind && option.kind !== 'custom'">· {{ groupKindLabel(option.kind) }}</span>
         <span v-if="option.parentGroupId">· {{ t(message("parentGroupLabel"), { parent: byId.get(option.parentGroupId)?.label ?? "" }) }}</span>
+        <span v-if="option.placementPreference">· {{ t(message(`placement.${option.placementPreference}`)) }}</span>
+        <span v-if="option.expectedSize">· {{ t(message("plannedSize"), { count: option.expectedSize }) }}</span>
         <button v-if="kind === 'groups' && !option.retired" class="button button-secondary" type="button" :disabled="busy"
           :aria-label="t(message('editNamed'), { label: option.label })" @click="beginEdit(option)">{{ t(message("edit")) }}</button>
         <span v-if="option.retired" class="muted">{{ t(message("retired")) }}</span>

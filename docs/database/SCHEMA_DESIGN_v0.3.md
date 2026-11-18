@@ -445,3 +445,7 @@ Reference managers can select individual unmatched rows. The commit verifies the
 ## Event-specific staff roster names (000167)
 
 An event guest may have a staff roster display name in addition to the recorded identity. Authorized staff set or clear this value with the participation revision. The roster, search and roster export use the staff display name. Invitations and Registry identity use their recorded names. The audit records the operation and revision without storing the display name.
+
+## Event group placement preferences (000168)
+
+Event groups can record a preferred placement and expected size for planning. Both fields are optional and can be cleared. Edits use the existing group revision and preserve omitted settings. Later allocation work owns the application of these preferences.

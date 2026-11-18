@@ -219,6 +219,11 @@ export default {
       failed: "Could not save the guest tag.",
     },
     groups: {
+      placementPreference: "Placement preference",
+      noPlacementPreference: "No placement preference",
+      expectedSize: "Expected size",
+      plannedSize: "Expected size {count}",
+      placement: { same_table: "Same table", same_zone: "Same zone", nearby: "Near each other", separate: "Separate areas" },
       filter: "Group filter",
       all: "All groups",
       groupKind: "Group type",

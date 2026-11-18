@@ -5179,6 +5179,8 @@ export function buildApi(dependencies: ApiDependencies): FastifyInstance {
     label: guestLabelBody.properties.label,
     kind: { type: "string", enum: ["custom", "family", "couple", "delegation", "official_party", "team", "organization"] },
     parentGroupId: { anyOf: [{ type: "string", pattern: uuidPattern }, { type: "null" }] },
+    placementPreference: { enum: ["same_table", "same_zone", "nearby", "separate", null] },
+    expectedSize: { type: ["integer", "null"], minimum: 1, maximum: 2147483647 },
   };
   type GroupCreateBody = JsonRequestBody<"/events/{eventId}/guest-groups", "post">;
   server.post<{ Params: { eventId: string }; Body: GroupCreateBody }>("/events/:eventId/guest-groups", {
@@ -5187,8 +5189,9 @@ export function buildApi(dependencies: ApiDependencies): FastifyInstance {
       body: { ...guestLabelBody, properties: { ...guestLabelBody.properties, ...groupMetadataProperties } },
     },
   }, (request, reply) => withGuestListCommand(request, reply, request.params.eventId, "guest.group.create", request.body,
-    "SELECT eogp.write_event_guest_group($1::uuid,$2::uuid,$3::uuid,NULL,$4::text,$5::text,$6::text,$7::uuid) AS result",
-    [request.body.code, request.body.label, request.body.kind ?? "custom", request.body.parentGroupId ?? null], 201));
+    "SELECT eogp.write_event_guest_group($1::uuid,$2::uuid,$3::uuid,NULL,$4::text,$5::text,$6::text,$7::uuid,$8::text,$9::integer) AS result",
+    [request.body.code, request.body.label, request.body.kind ?? "custom", request.body.parentGroupId ?? null,
+      request.body.placementPreference ?? null, request.body.expectedSize ?? null], 201));
 
   const guestGroupParams = {
     ...participationEventParams, required: ["eventId", "groupId"],
@@ -5206,10 +5209,10 @@ export function buildApi(dependencies: ApiDependencies): FastifyInstance {
     },
   }, (request, reply) => {
     const { eventId, groupId } = request.params;
-    const { label, kind, parentGroupId, expectedRevision } = request.body;
+    const { label, kind, parentGroupId, expectedRevision, placementPreference, expectedSize } = request.body;
     return withGuestListCommand(request, reply, eventId, "guest.group.update", { groupId, ...request.body },
-      "SELECT eogp.update_event_guest_group($1::uuid,$2::uuid,$3::uuid,$4::uuid,$5::integer,$6::text,$7::text,$8::uuid) AS result",
-      [groupId, expectedRevision, label, kind ?? null, parentGroupId]);
+      "SELECT eogp.update_event_guest_group($1::uuid,$2::uuid,$3::uuid,$4::uuid,$5::integer,$6::text,$7::text,$8::uuid,$9::jsonb) AS result",
+      [groupId, expectedRevision, label, kind ?? null, parentGroupId, JSON.stringify({ placementPreference, expectedSize })]);
   });
 
   server.post<{ Params: GuestGroupParams }>("/events/:eventId/guest-groups/:groupId/retire", {

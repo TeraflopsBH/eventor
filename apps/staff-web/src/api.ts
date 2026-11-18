@@ -1364,16 +1364,22 @@ function restrictedEventGuestTagsPath(eventId: string): string {
 }
 export const guestGroupKinds = ["custom", "family", "couple", "delegation", "official_party", "team", "organization"] as const;
 export type GuestGroupKind = typeof guestGroupKinds[number];
+export const guestGroupPlacementPreferences = ["same_table", "same_zone", "nearby", "separate"] as const;
+export type GuestGroupPlacementPreference = typeof guestGroupPlacementPreferences[number];
 export type EventGuestGroup = Omit<GuestListOption, "id"> & {
   groupId: string;
   kind: string;
   parentGroupId: string | null;
+  placementPreference: GuestGroupPlacementPreference | null;
+  expectedSize: number | null;
   revision: number;
 };
 interface GuestGroupDetails {
   label: string;
   kind?: GuestGroupKind;
   parentGroupId: string | null;
+  placementPreference?: GuestGroupPlacementPreference | null;
+  expectedSize?: number | null;
 }
 function eventGuestGroupPath(eventId: string, groupId: string): string {
   return `/events/${encodeURIComponent(eventId)}/guest-groups/${encodeURIComponent(groupId)}`;
