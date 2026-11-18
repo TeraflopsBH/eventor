@@ -1275,6 +1275,25 @@ function registryContactPath(personId: string): string {
   return `/persons/${encodeURIComponent(personId)}/contacts`;
 }
 
+export interface GuestRegistryReference {
+  referenceId: string;
+  source: string;
+  value: string;
+}
+
+export interface GuestRegistryReferences {
+  references: GuestRegistryReference[];
+  profileRevision: number;
+  canManage: boolean;
+}
+
+type GuestRegistryReferenceWrite = Pick<GuestRegistryReference, "source" | "value"> & { expectedRevision: number };
+type GuestRegistryReferenceChange = Pick<GuestRegistryReference, "referenceId"> & { profileRevision: number };
+function registryReferencesPath(personId: string, referenceId?: string): string {
+  const base = `/persons/${encodeURIComponent(personId)}/references`;
+  return referenceId ? `${base}/${encodeURIComponent(referenceId)}` : base;
+}
+
 export interface EventGuestWorkspace extends RegistryLinkableEvent {
   status: OrganizerEvent["status"];
 }
@@ -1621,6 +1640,16 @@ export const api = {
   restoreGuestRegistryMerge: (organizationId: string, mergeId: string) =>
     request<Envelope<GuestRegistryMergeChange>>(`/organizations/${encodeURIComponent(organizationId)}/persons/merges/${encodeURIComponent(mergeId)}/restore`, {
       method: "POST", idempotent: true,
+    }),
+  getGuestRegistryReferences: (personId: string) =>
+    request<Envelope<GuestRegistryReferences>>(registryReferencesPath(personId)),
+  createGuestRegistryReference: (personId: string, body: GuestRegistryReferenceWrite) =>
+    request<Envelope<GuestRegistryReferenceChange>>(registryReferencesPath(personId), { method: "POST", body, idempotent: true }),
+  updateGuestRegistryReference: (personId: string, referenceId: string, body: GuestRegistryReferenceWrite) =>
+    request<Envelope<GuestRegistryReferenceChange>>(registryReferencesPath(personId, referenceId), { method: "PATCH", body, idempotent: true }),
+  removeGuestRegistryReference: (personId: string, referenceId: string, expectedRevision: number) =>
+    request<Envelope<GuestRegistryReferenceChange>>(`${registryReferencesPath(personId, referenceId)}/remove`, {
+      method: "POST", body: { expectedRevision }, idempotent: true,
     }),
   getGuestRegistryProfile: (personId: string) =>
     request<Envelope<GuestRegistryProfile>>(`/persons/${encodeURIComponent(personId)}`),

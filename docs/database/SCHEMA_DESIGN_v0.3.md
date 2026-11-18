@@ -405,3 +405,7 @@ Event guest groups have an editable label and type, with an optional parent insi
 ## Supervised merge of closed event history (000157)
 
 A merge reviewer needs event guest access to the source participations and can merge non-overlapping history from completed, cancelled or archived events. The review binds the exact historical participation identifiers through a digest. The destination shows the preserved participations in its permission-filtered history. Original person IDs, snapshots and dependent event records are preserved. Restoring the source removes the destination history links. Open events, overlapping histories, source contacts and identifiers still require separate resolution.
+
+## Guest Registry source references (000158)
+
+Source-system references reuse `person_identifiers`. The format namespace and uppercase source code scope a keyed exact-match fingerprint to one organization and source. The value is encrypted with a key bound to the person and source. Separate read and write permissions protect the feature, and each add, replace or removal checks the profile revision. Audit records retain the opaque reference ID and revision.

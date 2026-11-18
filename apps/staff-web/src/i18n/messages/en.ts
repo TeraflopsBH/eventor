@@ -305,6 +305,19 @@ export default {
     exportLimit: "This export exceeds 20,000 guests. Narrow the search or filters.",
   },
   registry: {
+    references: {
+      title: "Source references",
+      source: "Source system",
+      value: "Reference value",
+      add: "Add reference",
+      remove: "Remove",
+      confirmRemove: "Remove reference from {source}?",
+      empty: "This profile has no source references.",
+      invalid: "Use letters or digits to start. The source system accepts up to 40 characters and can also contain hyphens or underscores. The reference accepts up to 128 letters, digits, dots, colons, slashes, hyphens or underscores.",
+      failed: "Could not load or save the source reference.",
+      reload: "Reload references",
+      stale: "This profile changed. Reload its references before editing again.",
+    },
     merge: {
       review: "Review duplicate profile",
       history: "Merge history",
