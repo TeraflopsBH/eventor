@@ -4555,6 +4555,7 @@ export function buildApi(dependencies: ApiDependencies): FastifyInstance {
         const preview = value as {
           batchId: string;
           matchingSource: string | null;
+          canCreateReferences: boolean;
           rows: {
             rowNumber: number; namesCiphertext: string; errors: string[]; duplicateCount: number;
             matches: ImportMatch[];
@@ -4564,6 +4565,7 @@ export function buildApi(dependencies: ApiDependencies): FastifyInstance {
         return {
           batchId: preview.batchId,
           matchingSource: preview.matchingSource,
+          canCreateReferences: preview.canCreateReferences,
           rows: preview.rows.map(({ namesCiphertext, updateMatches, ...row }) => {
             const { sourceReference, ...names } = JSON.parse(decryptContactValue(Buffer.from(namesCiphertext, "base64"), key,
               { organizationId: principal.organizationId, contactKind: "other" })) as StagedImportNames;
@@ -4605,7 +4607,11 @@ export function buildApi(dependencies: ApiDependencies): FastifyInstance {
   };
   const normalizeImportChoices = (choices: ImportProfileChoice[] = []) => choices
     .map((choice) => ({ ...choice, personId: choice.personId.toLowerCase() })).sort((left, right) => left.rowNumber - right.rowNumber);
-  server.post<{ Params: GuestImportBatchParams; Body: { reuse?: ImportProfileChoice[]; updates?: ImportProfileChoice[]; distinctProfileRows?: number[] } }>("/events/:eventId/guest-imports/:batchId/commit", {
+  const importReferenceRowSelection = {
+    type: "array", maxItems: 500, uniqueItems: true,
+    items: { type: "integer", minimum: 2, maximum: guestWorkbookMaxRow },
+  };
+  server.post<{ Params: GuestImportBatchParams; Body: { reuse?: ImportProfileChoice[]; updates?: ImportProfileChoice[]; distinctProfileRows?: number[]; newReferenceRows?: number[] } }>("/events/:eventId/guest-imports/:batchId/commit", {
     preValidation(request, _reply, done) {
       if (request.body === undefined) request.body = {};
       done();
@@ -4616,10 +4622,8 @@ export function buildApi(dependencies: ApiDependencies): FastifyInstance {
       body: {
         type: "object", additionalProperties: false,
         properties: {
-          distinctProfileRows: {
-            type: "array", maxItems: 500, uniqueItems: true,
-            items: { type: "integer", minimum: 2, maximum: guestWorkbookMaxRow },
-          },
+          distinctProfileRows: importReferenceRowSelection,
+          newReferenceRows: importReferenceRowSelection,
           reuse: importProfileChoices,
           updates: importProfileChoices,
         },
@@ -4631,8 +4635,9 @@ export function buildApi(dependencies: ApiDependencies): FastifyInstance {
     const reuse = normalizeImportChoices(request.body.reuse);
     const updates = normalizeImportChoices(request.body.updates);
     const distinctProfileRows = [...(request.body.distinctProfileRows ?? [])].sort((left, right) => left - right);
+    const newReferenceRows = [...(request.body.newReferenceRows ?? [])].sort((left, right) => left - right);
     const selectedProfiles = [...reuse, ...updates];
-    const selectedRows = [...distinctProfileRows, ...selectedProfiles.map(({ rowNumber }) => rowNumber)];
+    const selectedRows = [...distinctProfileRows, ...newReferenceRows, ...selectedProfiles.map(({ rowNumber }) => rowNumber)];
     if (new Set(selectedRows).size !== selectedRows.length ||
         new Set(selectedProfiles.map(({ personId }) => personId)).size !== selectedProfiles.length) {
       throw new ApiError(400, "VALIDATION_FAILED", "Choose one action per row and use each profile only once.");
@@ -4643,25 +4648,49 @@ export function buildApi(dependencies: ApiDependencies): FastifyInstance {
     const commandBody = {
       eventId, batchId, ...(reuse.length ? { reuse } : {}), ...(distinctProfileRows.length ? { distinctProfileRows } : {}),
       ...(updates.length ? { updates } : {}),
+      ...(newReferenceRows.length ? { newReferenceRows } : {}),
     };
     return withCommand(request, reply.header("cache-control", "no-store, private"),
       "guest.import.commit", commandBody, async (client) => {
         const input = await client.query<ResultRow>(
-          "SELECT eogp.guest_import_commit_input($1::uuid,$2::uuid,$3::uuid,$4::uuid,$5::integer[]) AS result", [...args, explicitRows],
+          "SELECT eogp.guest_import_commit_input($1::uuid,$2::uuid,$3::uuid,$4::uuid,$5::integer[],$6::integer[]) AS result", [...args, explicitRows, newReferenceRows],
         );
         const encrypted = input.rows[0]?.result as { rowNumber: number; namesCiphertext: string }[];
-        const rows = encrypted.map((row) => ({
-          ...row,
-          names: JSON.parse(decryptContactValue(Buffer.from(row.namesCiphertext, "base64"), key,
-            { organizationId: principal.organizationId, contactKind: "other" })) as ImportNames,
-        }));
+        const stagedReferences = new Map<number, string>();
+        const rows = encrypted.map((row) => {
+          const { sourceReference, ...names } = JSON.parse(decryptContactValue(Buffer.from(row.namesCiphertext, "base64"), key,
+            { organizationId: principal.organizationId, contactKind: "other" })) as StagedImportNames;
+          if (sourceReference !== undefined) stagedReferences.set(row.rowNumber, sourceReference);
+          return { ...row, names };
+        });
+        let referenceCreations: { rowNumber: number; personId?: string; fingerprint?: string; ciphertext?: string }[] = [];
+        if (newReferenceRows.length) {
+          const scope = await client.query<ResultRow>(
+            "SELECT eogp.assert_guest_import_batch_permission($1::uuid,$2::uuid,$3::uuid,$4::uuid) AS result", args);
+          const source = scope.rows[0]?.result as string | null;
+          const organizationId = principal.organizationId;
+          referenceCreations = newReferenceRows.map((rowNumber) => {
+            const value = stagedReferences.get(rowNumber);
+            if (!source || !value) return { rowNumber };
+            const personId = randomUUID();
+            return {
+              rowNumber, personId, fingerprint: sourceReferenceFingerprint(organizationId, source, value),
+              ciphertext: encryptContactValue(value, sourceReferenceKey(organizationId, personId, source),
+                { organizationId, contactKind: "other" }).toString("base64"),
+            };
+          });
+        }
         const result = await client.query<ResultRow>(
-          "SELECT eogp.commit_reviewed_guest_import($1::uuid,$2::uuid,$3::uuid,$4::uuid,$5::jsonb,$6::jsonb,$7::integer[],$8::jsonb) AS result",
-          [...args, JSON.stringify(rows), JSON.stringify(reuse), distinctProfileRows, JSON.stringify(updates)],
+          "SELECT eogp.commit_reviewed_guest_import($1::uuid,$2::uuid,$3::uuid,$4::uuid,$5::jsonb,$6::jsonb,$7::integer[],$8::jsonb,$9::jsonb) AS result",
+          [...args, JSON.stringify(rows), JSON.stringify(reuse), distinctProfileRows, JSON.stringify(updates), JSON.stringify(referenceCreations)],
         );
         return (result.rows[0]?.result ?? {}) as Record<string, unknown>;
       }, async (client) => {
         await client.query("SELECT eogp.assert_guest_import_batch_permission($1::uuid,$2::uuid,$3::uuid,$4::uuid)", args);
+        if (newReferenceRows.length) {
+          await client.query("SELECT eogp.assert_guest_reference_permission($1::uuid,$2::uuid,true)",
+            [principal.organizationId, principal.membershipId]);
+        }
       }, 200);
   });
 

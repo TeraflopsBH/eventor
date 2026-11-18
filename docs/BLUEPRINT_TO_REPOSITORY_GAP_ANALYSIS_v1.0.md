@@ -34,7 +34,7 @@ A usable slice connects the role-scoped API and staff or guest interface. The ma
 | Event administration and sessions | The bilingual Events workspace supports list/create/edit/archive, approval and publication, and event start and close. Sessions support list/create/edit, scheduling, start and completion. The guest list can be activated per event. | **Implemented slice** | Broader event settings, session-specific disruption handling and venue assignment. |
 | Persistent Guest Registry | Organization-scoped search, profile creation/edit/archive and history. Encrypted contact values and source references have separate access grants. Staff can record or revoke contact confirmation. Mutual and directed relationships are available with dedicated grants. Supervised merge preserves original closed-event references and can restore the source. | **Implemented slice** | Controlled merge resolution for linked contacts, identifiers, active relationships and open or overlapping event history, configurable profile fields, anonymization and retention. |
 | Event participation and guest list | Permissioned Registry linking with pinned event identity. Staff can filter/search the roster, save personal views, manage categories, internal and restricted tags, group hierarchy and roles, event relationships and encrypted custom fields. Bulk status, category and internal tag actions use revision checks and transactions. | **Implemented slice** | Broader field search and sorting/grouping, allocation preferences and group-to-group relationships, controlled bulk archival and event identity overrides. |
-| Guest imports and exports | Staff can map CSV/XLSX name columns, select a worksheet/header row, preview conflicts, and explicitly reuse or update a Registry match or create a separate profile during name review. Exact source-reference matching uses protected Registry identifiers. Filtered exports and row reports are available. | **Implemented slice** | Create profiles with unmatched source references, support more import fields and matching strategies, and verify a full controlled import-to-export journey. |
+| Guest imports and exports | Staff can map CSV/XLSX name columns, select a worksheet/header row, preview conflicts, and explicitly reuse or update a Registry match or create a separate profile during name review. Exact source-reference matching and reviewed creation use protected Registry identifiers. Filtered exports and row reports are available. | **Implemented slice** | Support more import fields and matching strategies, and verify a full controlled import-to-export journey. |
 | Invitations and RSVP | Guest capability resolution, invitation view, RSVP submission/history, issue/reissue/revoke, staff-recorded RSVP/correction, delivery-attempt history, staff invitation workspace and guest invitation page | **Implemented slice** | Batch issuance, reminders, broader guest self-service, provider reconciliation for ambiguous delivery and full journey acceptance. |
 | Guest Portal and wayfinding | Public guest invitation page and RSVP flow | **Partial** | Authenticated/personal portal home, event information, personal allocation, guest-safe interactive maps, directions, accessibility-aware wayfinding and branded guest materials. |
 | Venue, building, room and space registry | Venue/resource schema foundation and booking resource APIs | **Foundation / partial** | Reusable venue hierarchy and template management UI/API, versioned rooms/spaces, capacities and event-owned snapshots. Booking resource availability is not a venue editor. |
@@ -124,7 +124,7 @@ The following order prioritizes a coherent, usable product and avoids building a
 ### Track B — Build the event organizer foundation
 
 6. Complete organization/user/membership and role administration, event settings and session disruption handling.
-7. Extend the delivered Guest Registry and import workflows to new source references and reviewed resolution of linked records.
+7. Extend the delivered Guest Registry and import workflows with reviewed resolution of linked records and more import fields.
 8. Extend roster configuration, group allocation preferences, bulk controls and permission-scoped acceptance.
 9. Extend invitations/RSVP to batches, reminders and the full guest portal journey.
 
@@ -199,7 +199,7 @@ Native deployment has systemd unit templates, role bootstrap, migration and back
 
 ## 6. Immediate engineering priorities
 
-1. Finish the organizer workflows in issue #104, starting with reviewed import creation for new source references and supervised merge cases involving active records.
+1. Finish the organizer workflows in issue #104, starting with supervised merge cases involving active records and event controls.
 2. Use issues #105–#107 for venue geometry, guest allocation and admission/check-in, in that dependency order.
 3. Complete the booking lifecycle edges and disruption coordination tracked in issue #112.
 4. Prepare the two production installation paths under issue #108 with controlled migrations, health verification, secure configuration and recovery.

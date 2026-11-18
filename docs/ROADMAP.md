@@ -57,7 +57,8 @@ The product remains an API-first modular monolith:
 - [x] Ship supervised and reversible merges for unlinked profiles and non-overlapping closed-event history.
 - [x] Ship personal roster views and atomic bulk category, status and internal tag edits.
 - [ ] Finish organization, user, membership and role administration, event settings and session disruption workflows.
-- [ ] Extend reference imports to create profiles and add reviewed merge resolution for contacts, identifiers, active relationships and open or overlapping events.
+- [x] Extend reference imports to create profiles for authorized staff reviewing unmatched references.
+- [ ] Add reviewed merge resolution for contacts, identifiers, active relationships and open or overlapping events.
 - [ ] Extend roster filtering and bulk management and add group allocation preferences and group-to-group relationships.
 - [ ] Run organizer acceptance with separate organizer and venue roles and verify the explicit access grants throughout the workflow.
 
