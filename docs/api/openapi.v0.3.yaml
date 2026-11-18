@@ -4205,6 +4205,163 @@ paths:
         '404': { $ref: '#/components/responses/NotFound' }
         '409': { $ref: '#/components/responses/Conflict' }
         '412': { $ref: '#/components/responses/PreconditionFailed' }
+  "/events/{eventId}/guest-custom-fields":
+    get:
+      tags: ["Event Participation"]
+      operationId: listGuestFieldDefinitions
+      summary: "List internal custom field definitions for an event"
+      security: [{ StaffSession: [] }]
+      parameters:
+        - $ref: '#/components/parameters/PEventId'
+      responses:
+        '200':
+          description: "The active and retired internal field definitions."
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [data]
+                properties:
+                  data:
+                    type: array
+                    items: { $ref: '#/components/schemas/GuestFieldDefinition' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '404': { $ref: '#/components/responses/NotFound' }
+    post:
+      tags: ["Event Participation"]
+      operationId: createGuestFieldDefinition
+      summary: "Define an internal custom guest field"
+      security: [{ StaffSession: [], StaffCsrf: [] }]
+      parameters:
+        - $ref: '#/components/parameters/PEventId'
+        - $ref: '#/components/parameters/IdempotencyKey'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              additionalProperties: false
+              required: [code, label, valueType]
+              properties:
+                code: { type: string, pattern: '^[A-Z0-9][A-Z0-9_-]{0,39}$' }
+                label: { type: string, minLength: 1, maxLength: 120 }
+                valueType: { $ref: '#/components/schemas/GuestFieldType' }
+      responses:
+        '201':
+          description: "The field definition was created."
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/GuestFieldDefinitionEnvelope' }
+        '400': { $ref: '#/components/responses/BadRequest' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '404': { $ref: '#/components/responses/NotFound' }
+        '409': { $ref: '#/components/responses/Conflict' }
+        '422': { $ref: '#/components/responses/UnprocessableEntity' }
+  "/events/{eventId}/guest-custom-fields/{fieldId}/retire":
+    post:
+      tags: ["Event Participation"]
+      operationId: retireGuestFieldDefinition
+      summary: "Retire an internal custom guest field"
+      security: [{ StaffSession: [], StaffCsrf: [] }]
+      parameters:
+        - $ref: '#/components/parameters/PEventId'
+        - $ref: '#/components/parameters/PGuestFieldId'
+        - $ref: '#/components/parameters/IdempotencyKey'
+      responses:
+        '200':
+          description: "The field is retired and saved values remain readable."
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/GuestFieldDefinitionEnvelope' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '404': { $ref: '#/components/responses/NotFound' }
+        '409': { $ref: '#/components/responses/Conflict' }
+  "/events/{eventId}/participations/{participationId}/custom-fields":
+    get:
+      tags: ["Event Participation"]
+      operationId: listGuestFieldValues
+      summary: "Read custom field values for the selected event guest"
+      security: [{ StaffSession: [] }]
+      parameters:
+        - $ref: '#/components/parameters/PEventId'
+        - $ref: '#/components/parameters/PParticipationId'
+      responses:
+        '200':
+          description: "Internal custom fields and values visible to the event guest manager."
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [data]
+                properties:
+                  data:
+                    type: object
+                    required: [revision, fields]
+                    properties:
+                      revision: { type: integer, minimum: 1 }
+                      fields:
+                        type: array
+                        items:
+                          allOf:
+                            - $ref: '#/components/schemas/GuestFieldDefinition'
+                            - type: object
+                              required: [value]
+                              properties:
+                                value: { $ref: '#/components/schemas/GuestFieldValue' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '404': { $ref: '#/components/responses/NotFound' }
+        '503': { $ref: '#/components/responses/ServiceUnavailable' }
+  "/events/{eventId}/participations/{participationId}/custom-fields/{fieldId}":
+    patch:
+      tags: ["Event Participation"]
+      operationId: setGuestFieldValue
+      summary: "Set or clear an internal custom guest field value"
+      security: [{ StaffSession: [], StaffCsrf: [] }]
+      parameters:
+        - $ref: '#/components/parameters/PEventId'
+        - $ref: '#/components/parameters/PParticipationId'
+        - $ref: '#/components/parameters/PGuestFieldId'
+        - $ref: '#/components/parameters/IdempotencyKey'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              additionalProperties: false
+              required: [expectedRevision, value]
+              properties:
+                expectedRevision: { type: integer, minimum: 1, maximum: 2147483647 }
+                value: { $ref: '#/components/schemas/GuestFieldValue' }
+      responses:
+        '200':
+          description: "The participation revision after storing or clearing the value."
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [data]
+                properties:
+                  data:
+                    type: object
+                    required: [participationId, fieldId, revision]
+                    properties:
+                      participationId: { type: string, format: uuid }
+                      fieldId: { type: string, format: uuid }
+                      revision: { type: integer, minimum: 1 }
+        '400': { $ref: '#/components/responses/BadRequest' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '404': { $ref: '#/components/responses/NotFound' }
+        '409': { $ref: '#/components/responses/Conflict' }
+        '412': { $ref: '#/components/responses/PreconditionFailed' }
+        '422': { $ref: '#/components/responses/UnprocessableEntity' }
+        '503': { $ref: '#/components/responses/ServiceUnavailable' }
   "/events/{eventId}/participations/{participationId}/relationships":
     get:
       tags: ["Event Participation"]
@@ -6763,6 +6920,11 @@ components:
       in: path
       required: true
       schema: { type: string, minLength: 1 }
+    PGuestFieldId:
+      name: fieldId
+      in: path
+      required: true
+      schema: { type: string, format: uuid }
     PEventGuestCategoryFilter:
       name: category
       in: query
@@ -8140,6 +8302,30 @@ components:
       required: [data]
       properties:
         data: { $ref: '#/components/schemas/EventGuestGroup' }
+    GuestFieldType:
+      type: string
+      enum: [text, integer, boolean]
+    GuestFieldDefinition:
+      type: object
+      required: [fieldId, code, label, valueType, retired]
+      properties:
+        fieldId: { type: string, format: uuid }
+        code: { type: string }
+        label: { type: string }
+        valueType: { $ref: '#/components/schemas/GuestFieldType' }
+        retired: { type: boolean }
+    GuestFieldDefinitionEnvelope:
+      type: object
+      required: [data]
+      properties:
+        data: { $ref: '#/components/schemas/GuestFieldDefinition' }
+    GuestFieldValue:
+      description: "Must match the definition's value type. Null clears an existing value."
+      oneOf:
+        - { type: string, minLength: 1, maxLength: 500 }
+        - { type: integer, minimum: -9007199254740991, maximum: 9007199254740991 }
+        - { type: boolean }
+        - { type: 'null' }
     EventGuestRelationship:
       type: object
       required: [relationshipId, relatedParticipationId, relatedDisplayName, direction, kind, retiredAt]
@@ -8166,7 +8352,7 @@ components:
       properties:
         data:
           type: object
-          required: [people, canManage, canViewRelationships, nextOffset]
+          required: [people, canManage, canViewRelationships, canViewCustomFields, nextOffset]
           properties:
             people:
               type: array
@@ -8191,6 +8377,7 @@ components:
                     description: "Groups that include this event guest."
             canManage: { type: boolean }
             canViewRelationships: { type: boolean }
+            canViewCustomFields: { type: boolean }
             nextOffset: { type: [integer, 'null'], minimum: 0 }
     ParticipationStatusRequest:
       type: object

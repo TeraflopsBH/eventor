@@ -1297,8 +1297,20 @@ export interface EventGuestList {
   people: EventGuestRow[];
   canManage: boolean;
   canViewRelationships: boolean;
+  canViewCustomFields: boolean;
   nextOffset: number | null;
 }
+
+export type GuestFieldType = "text" | "integer" | "boolean";
+export type GuestFieldValue = string | number | boolean | null;
+export interface GuestFieldDefinition {
+  fieldId: string;
+  code: string;
+  label: string;
+  valueType: GuestFieldType;
+  retired: boolean;
+}
+export type GuestFieldEntry = GuestFieldDefinition & { value: GuestFieldValue };
 
 export interface EventGuestRelationship {
   relationshipId: string;
@@ -1468,6 +1480,23 @@ export const api = {
     request<Envelope<{ relationshipId: string; retiredAt: string }>>(
       `${guestRelationshipsPath(eventId, participationId)}/${encodeURIComponent(relationshipId)}/retire`,
       { method: "POST", idempotent: true },
+    ),
+  listGuestFieldDefinitions: (eventId: string) =>
+    request<Envelope<GuestFieldDefinition[]>>(`/events/${encodeURIComponent(eventId)}/guest-custom-fields`),
+  createGuestFieldDefinition: (eventId: string, body: { code: string; label: string; valueType: GuestFieldType }) =>
+    request<Envelope<GuestFieldDefinition>>(`/events/${encodeURIComponent(eventId)}/guest-custom-fields`, { method: "POST", body, idempotent: true }),
+  retireGuestFieldDefinition: (eventId: string, fieldId: string) =>
+    request<Envelope<GuestFieldDefinition>>(`/events/${encodeURIComponent(eventId)}/guest-custom-fields/${encodeURIComponent(fieldId)}/retire`, {
+      method: "POST", idempotent: true,
+    }),
+  listGuestFieldValues: (eventId: string, participationId: string) =>
+    request<Envelope<{ revision: number; fields: GuestFieldEntry[] }>>(
+      `/events/${encodeURIComponent(eventId)}/participations/${encodeURIComponent(participationId)}/custom-fields`,
+    ),
+  setGuestFieldValue: (eventId: string, participationId: string, fieldId: string, body: { expectedRevision: number; value: GuestFieldValue }) =>
+    request<Envelope<{ revision: number }>>(
+      `/events/${encodeURIComponent(eventId)}/participations/${encodeURIComponent(participationId)}/custom-fields/${encodeURIComponent(fieldId)}`,
+      { method: "PATCH", body, idempotent: true },
     ),
   updateGuestParticipationStatus: (eventId: string, participationId: string, status: ManagedParticipationStatus, expectedRevision: number) =>
     request<Envelope<{ participationId: string; status: ManagedParticipationStatus; revision: number }>>(

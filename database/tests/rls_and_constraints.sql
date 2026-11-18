@@ -2574,6 +2574,59 @@ BEGIN
 END;
 $test$;
 
+-- Custom-field commands keep encrypted values event-scoped and retain retired fields for existing values.
+DO $test$
+DECLARE
+  v_org CONSTANT uuid := '10000000-0000-0000-0000-00000000000a';
+  v_actor CONSTANT uuid := '30000000-0000-0000-0000-00000000000a';
+  v_cipher bytea := convert_to('ECP1' || repeat('x', 32), 'UTF8');
+  v_event uuid;
+  v_guest uuid;
+  v_revision integer;
+  v_field uuid;
+  v_result jsonb;
+BEGIN
+  SELECT id INTO STRICT v_event FROM eogp.events WHERE organization_id=v_org AND event_code='CI-LINK-A';
+  SELECT id,revision INTO STRICT v_guest,v_revision FROM eogp.event_participations WHERE organization_id=v_org AND event_id=v_event
+    AND person_identity_snapshot->>'lastName'='Workbook Fixture';
+  INSERT INTO eogp.guest_custom_field_definitions(organization_id,event_id,field_code,label,value_schema,sensitivity)
+  VALUES (v_org,v_event,'RESTRICTED-TEST','Restricted fixture','{"format":"eventor-scalar-v1","type":"text"}','restricted');
+  v_result := eogp.write_event_guest_field_definition(v_org,v_event,v_actor,NULL,'FIXTURE-NUMBER','Fixture number','integer');
+  v_field := (v_result->>'fieldId')::uuid;
+  IF eogp.list_event_guest_field_definitions(v_org,v_event,v_actor) IS DISTINCT FROM jsonb_build_array(v_result)
+    OR has_table_privilege('eventor_runtime','eogp.guest_custom_field_values','SELECT,INSERT,UPDATE,DELETE') THEN
+    RAISE EXCEPTION 'custom field definitions or grants exposed protected data';
+  END IF;
+  BEGIN
+    PERFORM eogp.write_event_guest_field_value(v_org,v_event,v_actor,v_guest,v_field,v_revision,'text',v_cipher);
+    RAISE EXCEPTION 'custom field accepted a mismatched type';
+  EXCEPTION WHEN invalid_parameter_value THEN NULL;
+  END;
+  PERFORM eogp.write_event_guest_field_value(v_org,v_event,v_actor,v_guest,v_field,v_revision,'integer',v_cipher);
+  BEGIN
+    PERFORM eogp.write_event_guest_field_value(v_org,v_event,v_actor,v_guest,v_field,v_revision,'integer',NULL);
+    RAISE EXCEPTION 'a stale custom field write succeeded';
+  EXCEPTION WHEN serialization_failure THEN NULL;
+  END;
+  PERFORM eogp.write_event_guest_field_definition(v_org,v_event,v_actor,v_field,NULL,NULL,NULL);
+  v_result := eogp.read_event_guest_field_values(v_org,v_event,v_actor,v_guest);
+  IF v_result#>>'{fields,0,ciphertext}' IS DISTINCT FROM encode(v_cipher,'base64')
+    OR v_result#>>'{fields,0,retired}' IS DISTINCT FROM 'true'
+    OR jsonb_array_length(v_result->'fields') <> 1 THEN
+    RAISE EXCEPTION 'retired field value or encrypted projection missing';
+  END IF;
+  BEGIN
+    PERFORM eogp.write_event_guest_field_value(v_org,v_event,v_actor,v_guest,v_field,v_revision+1,'integer',v_cipher);
+    RAISE EXCEPTION 'a retired custom field accepted a replacement value';
+  EXCEPTION WHEN object_not_in_prerequisite_state THEN NULL;
+  END;
+  PERFORM eogp.write_event_guest_field_value(v_org,v_event,v_actor,v_guest,v_field,v_revision+1,'integer',NULL);
+  IF eogp.read_event_guest_field_values(v_org,v_event,v_actor,v_guest)->'fields' IS DISTINCT FROM '[]'::jsonb THEN
+    RAISE EXCEPTION 'clearing a retired field left a value';
+  END IF;
+END;
+$test$;
+
 COMMIT;
 
 \echo 'PostgreSQL migration smoke tests passed.'
