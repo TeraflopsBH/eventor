@@ -2788,6 +2788,53 @@ BEGIN
 END;
 $test$;
 
+-- Staff can explicitly create a distinct profile for a valid flagged row.
+DO $test$
+DECLARE
+  v_org CONSTANT uuid := '10000000-0000-0000-0000-00000000000a';
+  v_actor CONSTANT uuid := '30000000-0000-0000-0000-00000000000a';
+  v_cipher text := encode(convert_to('ECP1' || repeat('x', 32), 'UTF8'), 'base64');
+  v_event uuid;
+  v_batch uuid;
+  v_input jsonb;
+  v_result jsonb;
+  v_before bigint;
+BEGIN
+  SELECT id INTO STRICT v_event FROM eogp.events WHERE organization_id=v_org AND event_code='CI-LINK-A';
+  SELECT count(*) INTO v_before FROM eogp.persons WHERE organization_id=v_org AND first_name='Contact' AND last_name='Synthetic';
+  IF v_before <> 1 THEN RAISE EXCEPTION 'distinct profile fixture is missing'; END IF;
+  v_batch := (eogp.prepare_guest_import_preview(v_org,v_event,v_actor,repeat('0',64),jsonb_build_array(
+    jsonb_build_object('rowNumber',2,'firstName','Contact','lastName','Synthetic','sourceCiphertext',v_cipher,
+      'namesCiphertext',v_cipher,'errors','[]'::jsonb),
+    jsonb_build_object('rowNumber',3,'firstName','Contact','lastName','Synthetic','sourceCiphertext',v_cipher,
+      'namesCiphertext',v_cipher,'errors','["name_invalid"]'::jsonb)
+  ))->>'batchId')::uuid;
+  IF eogp.guest_import_commit_input(v_org,v_event,v_actor,v_batch) <> '[]'::jsonb
+     OR jsonb_array_length(eogp.guest_import_commit_input(v_org,v_event,v_actor,v_batch,ARRAY[2])) <> 1 THEN
+    RAISE EXCEPTION 'explicit distinct choice did not control staged value access';
+  END IF;
+
+  BEGIN
+    PERFORM eogp.commit_reviewed_guest_import(v_org,v_event,v_actor,v_batch,'[]','[]',ARRAY[3]);
+    RAISE EXCEPTION 'invalid row was accepted as a distinct profile';
+  EXCEPTION WHEN object_not_in_prerequisite_state THEN NULL;
+  END;
+  v_input := jsonb_build_array(jsonb_build_object('rowNumber',2,'namesCiphertext',v_cipher,
+    'names','{"firstName":"Contact","lastName":"Synthetic","displayName":"Distinct Fixture"}'::jsonb));
+  v_result := eogp.commit_reviewed_guest_import(v_org,v_event,v_actor,v_batch,v_input,'[]',ARRAY[2]);
+  IF (v_result->>'importedCount') IS DISTINCT FROM '1'
+    OR (SELECT count(*) FROM eogp.persons WHERE organization_id=v_org AND first_name='Contact' AND last_name='Synthetic') <> v_before + 1
+    OR eogp.commit_reviewed_guest_import(v_org,v_event,v_actor,v_batch,'[]','[]',ARRAY[2]) <> v_result THEN
+    RAISE EXCEPTION 'distinct profile did not create exactly one additional guest with a stable replay';
+  END IF;
+  BEGIN
+    PERFORM eogp.commit_reviewed_guest_import(v_org,v_event,v_actor,v_batch,'[]','[]');
+    RAISE EXCEPTION 'replay without the distinct choice was accepted';
+  EXCEPTION WHEN object_not_in_prerequisite_state THEN NULL;
+  END;
+END;
+$test$;
+
 COMMIT;
 
 \echo 'PostgreSQL migration smoke tests passed.'
