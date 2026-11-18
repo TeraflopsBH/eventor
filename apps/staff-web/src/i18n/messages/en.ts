@@ -192,6 +192,21 @@ export default {
       failed: "Could not save the guest tag.",
     },
     groups: {
+      groupKind: "Group type",
+      parentGroup: "Parent group",
+      noParentGroup: "No parent group",
+      parentGroupLabel: "Parent group {parent}",
+      edit: "Edit group",
+      editNamed: "Edit group {label}",
+      kinds: {
+        custom: "Custom",
+        family: "Family",
+        couple: "Couple",
+        delegation: "Delegation",
+        official_party: "Official party",
+        team: "Team",
+        organization: "Organization",
+      },
       roleFor: "Role in {label}",
       roles: {
         member: "Member",

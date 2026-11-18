@@ -2924,6 +2924,59 @@ BEGIN
 END;
 $test$;
 
+-- Group metadata changes are revision-checked, event-scoped and acyclic.
+DO $test$
+DECLARE
+  v_org CONSTANT uuid := '10000000-0000-0000-0000-00000000000a';
+  v_actor CONSTANT uuid := '30000000-0000-0000-0000-00000000000a';
+  v_event uuid;
+  v_other_event uuid;
+  v_root uuid;
+  v_section uuid;
+  v_leaf uuid;
+  v_foreign uuid;
+  v_result jsonb;
+BEGIN
+  SELECT id INTO STRICT v_event FROM eogp.events WHERE organization_id=v_org AND event_code='CI-LINK-A';
+  SELECT id INTO STRICT v_other_event FROM eogp.events WHERE organization_id=v_org AND event_code='CI-LINK-B';
+  v_root := (eogp.write_event_guest_group(v_org,v_event,v_actor,NULL,'GROUP-ROOT','Root','organization',NULL)->>'groupId')::uuid;
+  v_section := (eogp.write_event_guest_group(v_org,v_event,v_actor,NULL,'GROUP-SECTION','Section','delegation',v_root)->>'groupId')::uuid;
+  v_leaf := (eogp.write_event_guest_group(v_org,v_event,v_actor,NULL,'GROUP-LEAF','Leaf','team',v_section)->>'groupId')::uuid;
+  v_foreign := (eogp.write_event_guest_group(v_org,v_other_event,v_actor,NULL,'GROUP-OTHER','Other')->>'groupId')::uuid;
+  BEGIN
+    PERFORM eogp.update_event_guest_group(v_org,v_event,v_actor,v_root,1,'Root',NULL,v_leaf);
+    RAISE EXCEPTION 'group parent cycle was accepted';
+  EXCEPTION WHEN object_not_in_prerequisite_state THEN NULL;
+  END;
+  BEGIN
+    PERFORM eogp.update_event_guest_group(v_org,v_event,v_actor,v_section,1,'Section',NULL,v_foreign);
+    RAISE EXCEPTION 'foreign event parent was accepted';
+  EXCEPTION WHEN object_not_in_prerequisite_state THEN NULL;
+  END;
+  PERFORM eogp.write_event_guest_group(v_org,v_event,v_actor,v_root,NULL,NULL);
+  BEGIN
+    PERFORM eogp.update_event_guest_group(v_org,v_event,v_actor,v_leaf,1,'Leaf',NULL,v_root);
+    RAISE EXCEPTION 'a retired group was accepted as a new parent';
+  EXCEPTION WHEN object_not_in_prerequisite_state THEN NULL;
+  END;
+  v_result := eogp.update_event_guest_group(v_org,v_event,v_actor,v_section,1,'Section renamed',NULL,v_root);
+  IF NOT v_result @> jsonb_build_object('parentGroupId',v_root,'kind','delegation','revision',2,'code','GROUP-SECTION') THEN
+    RAISE EXCEPTION 'group metadata was not preserved through the retained parent';
+  END IF;
+  BEGIN
+    PERFORM eogp.update_event_guest_group(v_org,v_event,v_actor,v_section,1,'Stale',NULL,NULL);
+    RAISE EXCEPTION 'stale group revision was accepted';
+  EXCEPTION WHEN serialization_failure THEN NULL;
+  END;
+  PERFORM eogp.update_event_guest_group(v_org,v_event,v_actor,v_section,2,'Section renamed','official_party',NULL);
+  IF NOT eogp.list_event_guest_groups(v_org,v_event,v_actor) @> jsonb_build_array(
+    jsonb_build_object('groupId',v_section,'parentGroupId',NULL,'kind','official_party','revision',3),
+    jsonb_build_object('groupId',v_leaf,'parentGroupId',v_section)) THEN
+    RAISE EXCEPTION 'reparenting did not preserve the child group';
+  END IF;
+END;
+$test$;
+
 COMMIT;
 
 \echo 'PostgreSQL migration smoke tests passed.'

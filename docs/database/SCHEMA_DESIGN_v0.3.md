@@ -397,3 +397,7 @@ Staff can apply staged name changes to an active Registry match at its reviewed 
 ## Event group membership roles (000155)
 
 The roster exposes existing membership roles by group ID. Staff can edit roles and group membership together under a single participation revision. Existing roles survive requests that omit role changes, and new memberships default to member. Retired groups preserve their recorded roles until staff remove the membership.
+
+## Event group hierarchy (000156)
+
+Event guest groups have an editable label and type, with an optional parent inside the same event. The parent foreign key enforces the boundary, and commands hold the event write lock while checking for cycles, retiring groups or changing parents. Group revisions protect edits. Retirement preserves existing links and blocks new links to the retired parent.

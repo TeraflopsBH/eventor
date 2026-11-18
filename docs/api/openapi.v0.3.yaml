@@ -3922,6 +3922,8 @@ paths:
               properties:
                 code: { type: string, pattern: '^[A-Z0-9][A-Z0-9_-]{0,39}$' }
                 label: { type: string, minLength: 1, maxLength: 120 }
+                kind: { $ref: '#/components/schemas/EventGuestGroupKind' }
+                parentGroupId: { type: [string, 'null'], format: uuid }
       responses:
         '201':
           description: "Guest group created."
@@ -3934,6 +3936,44 @@ paths:
         '404': { $ref: '#/components/responses/NotFound' }
         '409': { $ref: '#/components/responses/Conflict' }
         '422': { $ref: '#/components/responses/UnprocessableEntity' }
+  "/events/{eventId}/guest-groups/{groupId}":
+    patch:
+      tags: ["Event Participation"]
+      operationId: updateEventGuestGroup
+      summary: "Edit the name, type and parent of an event guest group"
+      security: [{ StaffSession: [], StaffCsrf: [] }]
+      parameters:
+        - $ref: '#/components/parameters/PEventId'
+        - $ref: '#/components/parameters/IdempotencyKey'
+        - name: groupId
+          in: path
+          required: true
+          schema: { type: string, format: uuid }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              additionalProperties: false
+              required: [label, parentGroupId, expectedRevision]
+              properties:
+                label: { type: string, minLength: 1, maxLength: 120 }
+                kind: { $ref: '#/components/schemas/EventGuestGroupKind' }
+                parentGroupId: { type: [string, 'null'], format: uuid }
+                expectedRevision: { type: integer, minimum: 1, maximum: 2147483647 }
+      responses:
+        '200':
+          description: "Current event guest group."
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/EventGuestGroupEnvelope' }
+        '400': { $ref: '#/components/responses/BadRequest' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '404': { $ref: '#/components/responses/NotFound' }
+        '409': { $ref: '#/components/responses/Conflict' }
+        '412': { $ref: '#/components/responses/PreconditionFailed' }
   "/events/{eventId}/guest-groups/{groupId}/retire":
     post:
       tags: ["Event Participation"]
@@ -8567,14 +8607,20 @@ components:
       required: [data]
       properties:
         data: { $ref: '#/components/schemas/EventGuestTag' }
+    EventGuestGroupKind:
+      type: string
+      enum: [custom, family, couple, delegation, official_party, team, organization]
     EventGuestGroup:
       type: object
-      required: [groupId, code, label, retired]
+      required: [groupId, code, label, retired, kind, parentGroupId, revision]
       properties:
         groupId: { type: string, format: uuid }
         code: { type: string }
         label: { type: string }
         retired: { type: boolean }
+        kind: { type: string }
+        parentGroupId: { type: [string, 'null'], format: uuid }
+        revision: { type: integer, minimum: 1 }
     EventGuestGroupEnvelope:
       type: object
       required: [data]

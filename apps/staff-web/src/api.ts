@@ -1295,7 +1295,22 @@ export interface GuestListOption {
 
 export type EventGuestCategory = Omit<GuestListOption, "id"> & { categoryId: string };
 export type EventGuestTag = Omit<GuestListOption, "id"> & { tagId: string };
-export type EventGuestGroup = Omit<GuestListOption, "id"> & { groupId: string };
+export const guestGroupKinds = ["custom", "family", "couple", "delegation", "official_party", "team", "organization"] as const;
+export type GuestGroupKind = typeof guestGroupKinds[number];
+export type EventGuestGroup = Omit<GuestListOption, "id"> & {
+  groupId: string;
+  kind: string;
+  parentGroupId: string | null;
+  revision: number;
+};
+interface GuestGroupDetails {
+  label: string;
+  kind?: GuestGroupKind;
+  parentGroupId: string | null;
+}
+function eventGuestGroupPath(eventId: string, groupId: string): string {
+  return `/events/${encodeURIComponent(eventId)}/guest-groups/${encodeURIComponent(groupId)}`;
+}
 
 export interface EventGuestList {
   people: EventGuestRow[];
@@ -1524,10 +1539,12 @@ export const api = {
     ),
   listEventGuestGroups: (eventId: string) =>
     request<Envelope<EventGuestGroup[]>>(`/events/${encodeURIComponent(eventId)}/guest-groups`),
-  createEventGuestGroup: (eventId: string, body: { code: string; label: string }) =>
+  createEventGuestGroup: (eventId: string, body: { code: string; label: string } & Partial<GuestGroupDetails>) =>
     request<Envelope<EventGuestGroup>>(`/events/${encodeURIComponent(eventId)}/guest-groups`, { method: "POST", body, idempotent: true }),
+  updateEventGuestGroup: (eventId: string, groupId: string, body: GuestGroupDetails & { expectedRevision: number }) =>
+    request<Envelope<EventGuestGroup>>(eventGuestGroupPath(eventId, groupId), { method: "PATCH", body, idempotent: true }),
   retireEventGuestGroup: (eventId: string, groupId: string) =>
-    request<Envelope<EventGuestGroup>>(`/events/${encodeURIComponent(eventId)}/guest-groups/${encodeURIComponent(groupId)}/retire`, {
+    request<Envelope<EventGuestGroup>>(`${eventGuestGroupPath(eventId, groupId)}/retire`, {
       method: "POST", idempotent: true,
     }),
   setEventGuestGroups: (
