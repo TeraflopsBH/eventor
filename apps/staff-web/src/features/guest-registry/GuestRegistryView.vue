@@ -2,6 +2,7 @@
 import { onMounted, reactive, ref } from "vue";
 import { useI18n } from "vue-i18n";
 import GuestRegistryContacts from "./GuestRegistryContacts.vue";
+import GuestRegistryReferences from "./GuestRegistryReferences.vue";
 import GuestRegistryMerges from "./GuestRegistryMerges.vue";
 import { api, ApiError, type GuestRegistryDirectory, type GuestRegistryHistory, type GuestRegistryProfile, type ManagedParticipationStatus, type RegistryLinkableEvent } from "../../api";
 import { formatApiError } from "../../i18n/api-errors";
@@ -20,6 +21,7 @@ const linkableEvents = ref<RegistryLinkableEvent[] | null>(null);
 const linkEventId = ref("");
 const linkStatus = ref<"eligible" | "waitlisted" | "ineligible">("eligible");
 const showContacts = ref(false);
+const showReferences = ref(false);
 const showMergeReview = ref(false);
 const showMergeHistory = ref(false);
 const busy = ref(false);
@@ -41,6 +43,7 @@ async function run(operation: () => Promise<void>): Promise<void> {
       profile.value = null;
       history.value = null;
       showContacts.value = false;
+      showReferences.value = false;
       showMergeReview.value = false;
       showMergeHistory.value = false;
       editingParticipation.value = null;
@@ -65,6 +68,7 @@ function search(): Promise<void> {
   profile.value = null;
   history.value = null;
   showContacts.value = false;
+  showReferences.value = false;
   showMergeReview.value = false;
   editingParticipation.value = null;
   linkableEvents.value = null;
@@ -93,6 +97,7 @@ function downloadRegistry(format: "csv" | "xlsx"): Promise<void> {
 function showProfile(personId: string): Promise<void> {
   history.value = null;
   showContacts.value = false;
+  showReferences.value = false;
   showMergeReview.value = false;
   editingParticipation.value = null;
   linkableEvents.value = null;
@@ -102,9 +107,17 @@ function showProfile(personId: string): Promise<void> {
   });
 }
 
+function refreshReferenceProfile(personId: string): Promise<void> {
+  return run(async () => {
+    const { data } = await api.getGuestRegistryProfile(personId);
+    if (profile.value?.personId === personId) profile.value = data;
+  });
+}
+
 function edit(person: GuestRegistryProfile | null): void {
   history.value = null;
   showContacts.value = false;
+  showReferences.value = false;
   showMergeReview.value = false;
   editingParticipation.value = null;
   linkableEvents.value = null;
@@ -135,6 +148,7 @@ function closeProfile(): void {
   profile.value = null;
   history.value = null;
   showContacts.value = false;
+  showReferences.value = false;
   showMergeReview.value = false;
   editingParticipation.value = null;
   linkableEvents.value = null;
@@ -208,6 +222,7 @@ function archive(person: GuestRegistryProfile): void {
     profile.value = null;
     history.value = null;
     showContacts.value = false;
+    showReferences.value = false;
     editingParticipation.value = null;
     linkableEvents.value = null;
     await load(filters.offset);
@@ -267,12 +282,17 @@ onMounted(search);
         <button class="button button-secondary" :disabled="busy" :aria-expanded="showContacts" @click="showContacts = !showContacts">
           {{ t("registry.contacts.title") }}
         </button>
+        <button class="button button-secondary" :disabled="busy" :aria-expanded="showReferences" @click="showReferences = !showReferences">
+          {{ t("registry.references.title") }}
+        </button>
         <button class="button button-secondary" :disabled="busy" @click="loadHistory(profile.personId)">{{ t("registry.history") }}</button>
         <button class="button button-secondary" :disabled="busy" @click="closeProfile">{{ t("common.close") }}</button>
       </div>
-      <GuestRegistryMerges v-if="showMergeReview && directory?.canMerge" :key="profile.personId" :organization-id="organizationId" :source="profile"
+      <GuestRegistryMerges v-if="showMergeReview && directory?.canMerge" :key="`merge-${profile.personId}`" :organization-id="organizationId" :source="profile"
         @changed="refreshAfterMerge" />
-      <GuestRegistryContacts v-if="showContacts" :key="profile.personId" :person-id="profile.personId" :active="profile.status === 'active'" />
+      <GuestRegistryContacts v-if="showContacts" :key="`contacts-${profile.personId}`" :person-id="profile.personId" :active="profile.status === 'active'" />
+      <GuestRegistryReferences v-if="showReferences" :key="`references-${profile.personId}`" :person-id="profile.personId" :active="profile.status === 'active'"
+        @changed="refreshReferenceProfile(profile.personId)" />
       <form v-if="linkableEvents?.length" class="registry-form" @submit.prevent="linkToEvent(profile)">
         <div>
           <label for="registry-link-event">{{ t("registry.event") }}</label>

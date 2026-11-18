@@ -6446,6 +6446,124 @@ paths:
         '403': { $ref: '#/components/responses/Forbidden' }
         '404': { $ref: '#/components/responses/NotFound' }
         '500': { $ref: '#/components/responses/InternalServerError' }
+  "/persons/{personId}/references":
+    get:
+      tags: ["Guest Registry"]
+      operationId: listGuestRegistryReferences
+      summary: "Read source-system references with an explicit Registry grant"
+      security: [{ StaffSession: [] }]
+      parameters:
+        - name: personId
+          in: path
+          required: true
+          schema: { type: string, format: uuid }
+      responses:
+        '200':
+          description: "References from the current profile, with its revision."
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/GuestRegistryReferencesEnvelope' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '404': { $ref: '#/components/responses/NotFound' }
+        '503': { $ref: '#/components/responses/ServiceUnavailable' }
+    post:
+      tags: ["Guest Registry"]
+      operationId: createGuestRegistryReference
+      summary: "Attach a source-system reference to a profile"
+      security: [{ StaffSession: [], StaffCsrf: [] }]
+      parameters:
+        - name: personId
+          in: path
+          required: true
+          schema: { type: string, format: uuid }
+        - $ref: '#/components/parameters/IdempotencyKey'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/GuestRegistryReferenceInput' }
+      responses:
+        '201':
+          description: "Reference attached."
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/GuestRegistryReferenceChangeEnvelope' }
+        '400': { $ref: '#/components/responses/BadRequest' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '404': { $ref: '#/components/responses/NotFound' }
+        '409': { $ref: '#/components/responses/Conflict' }
+        '412': { $ref: '#/components/responses/PreconditionFailed' }
+        '503': { $ref: '#/components/responses/ServiceUnavailable' }
+  "/persons/{personId}/references/{referenceId}":
+    patch:
+      tags: ["Guest Registry"]
+      operationId: updateGuestRegistryReference
+      summary: "Replace a source-system reference on a profile"
+      security: [{ StaffSession: [], StaffCsrf: [] }]
+      parameters:
+        - name: personId
+          in: path
+          required: true
+          schema: { type: string, format: uuid }
+        - name: referenceId
+          in: path
+          required: true
+          schema: { type: string, format: uuid }
+        - $ref: '#/components/parameters/IdempotencyKey'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/GuestRegistryReferenceInput' }
+      responses:
+        '200':
+          description: "Reference replaced."
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/GuestRegistryReferenceChangeEnvelope' }
+        '400': { $ref: '#/components/responses/BadRequest' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '404': { $ref: '#/components/responses/NotFound' }
+        '409': { $ref: '#/components/responses/Conflict' }
+        '412': { $ref: '#/components/responses/PreconditionFailed' }
+        '503': { $ref: '#/components/responses/ServiceUnavailable' }
+  "/persons/{personId}/references/{referenceId}/remove":
+    post:
+      tags: ["Guest Registry"]
+      operationId: removeGuestRegistryReference
+      summary: "Remove a source-system reference from a profile"
+      security: [{ StaffSession: [], StaffCsrf: [] }]
+      parameters:
+        - name: personId
+          in: path
+          required: true
+          schema: { type: string, format: uuid }
+        - name: referenceId
+          in: path
+          required: true
+          schema: { type: string, format: uuid }
+        - $ref: '#/components/parameters/IdempotencyKey'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/GuestRegistryReferenceRemoval' }
+      responses:
+        '200':
+          description: "Reference removed."
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/GuestRegistryReferenceChangeEnvelope' }
+        '400': { $ref: '#/components/responses/BadRequest' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '404': { $ref: '#/components/responses/NotFound' }
+        '409': { $ref: '#/components/responses/Conflict' }
+        '412': { $ref: '#/components/responses/PreconditionFailed' }
+        '503': { $ref: '#/components/responses/ServiceUnavailable' }
   "/persons/{personId}/contacts":
     get:
       tags: ["Guest Registry"]
@@ -8320,6 +8438,55 @@ components:
                   consent: { $ref: '#/components/schemas/RegistryContactConsent' }
                   primary: { type: boolean }
                   verified: { type: boolean }
+    GuestRegistryReferenceInput:
+      type: object
+      additionalProperties: false
+      required: [source, value, expectedRevision]
+      properties:
+        source:
+          type: string
+          pattern: '^[A-Za-z0-9][A-Za-z0-9_-]{0,39}$'
+          description: "Source-system code. It is stored in uppercase."
+        value:
+          type: string
+          pattern: '^[A-Za-z0-9][A-Za-z0-9._:/-]{0,127}$'
+          description: "Case-sensitive source reference. Within an organization and source it can identify one person only."
+        expectedRevision: { type: integer, minimum: 1, maximum: 2147483647 }
+    GuestRegistryReferenceRemoval:
+      type: object
+      additionalProperties: false
+      required: [expectedRevision]
+      properties:
+        expectedRevision: { type: integer, minimum: 1, maximum: 2147483647 }
+    GuestRegistryReferencesEnvelope:
+      type: object
+      required: [data]
+      properties:
+        data:
+          type: object
+          required: [references, profileRevision, canManage]
+          properties:
+            references:
+              type: array
+              items:
+                type: object
+                required: [referenceId, source, value]
+                properties:
+                  referenceId: { type: string, format: uuid }
+                  source: { type: string, pattern: '^[A-Z0-9][A-Z0-9_-]{0,39}$' }
+                  value: { type: string, minLength: 1, maxLength: 128 }
+            profileRevision: { type: integer, minimum: 1 }
+            canManage: { type: boolean }
+    GuestRegistryReferenceChangeEnvelope:
+      type: object
+      required: [data]
+      properties:
+        data:
+          type: object
+          required: [referenceId, profileRevision]
+          properties:
+            referenceId: { type: string, format: uuid }
+            profileRevision: { type: integer, minimum: 1 }
     GuestRegistryHistoryEnvelope:
       type: object
       required: [data]

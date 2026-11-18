@@ -3061,6 +3061,69 @@ BEGIN
 END;
 $test$;
 
+-- Source references use a protected namespace and a profile revision, with uniqueness by organization and source.
+DO $test$
+DECLARE
+  v_org CONSTANT uuid := '10000000-0000-0000-0000-00000000000a';
+  v_actor CONSTANT uuid := '30000000-0000-0000-0000-00000000000a';
+  v_cipher bytea := convert_to('ECP1' || repeat('x',32),'UTF8');
+  v_person uuid;
+  v_other uuid;
+  v_reference uuid;
+  v_result jsonb;
+BEGIN
+  v_person := (eogp.write_guest_registry_person(v_org,v_actor,NULL,NULL,'create',
+    '{"firstName":"Synthetic","lastName":"Reference"}')->>'personId')::uuid;
+  v_other := (eogp.write_guest_registry_person(v_org,v_actor,NULL,NULL,'create',
+    '{"firstName":"Other","lastName":"Reference"}')->>'personId')::uuid;
+  BEGIN
+    PERFORM eogp.read_guest_registry_references(v_org,v_actor,v_person);
+    RAISE EXCEPTION 'registry permission exposed source references';
+  EXCEPTION WHEN insufficient_privilege THEN NULL;
+  END;
+  INSERT INTO eogp.role_permissions(organization_id,role_id,permission_code)
+    SELECT v_org,id,'guest.registry.references.read' FROM eogp.roles WHERE organization_id=v_org AND code='CI-REGISTRY';
+  IF eogp.read_guest_registry_references(v_org,v_actor,v_person)->>'canManage' IS DISTINCT FROM 'false' THEN
+    RAISE EXCEPTION 'a reference read grant implied write access';
+  END IF;
+  BEGIN
+    PERFORM eogp.write_guest_registry_reference(v_org,v_actor,v_person,NULL,1,'add','CRM',repeat('a',64),v_cipher);
+    RAISE EXCEPTION 'a read-only actor saved a reference';
+  EXCEPTION WHEN insufficient_privilege THEN NULL;
+  END;
+  INSERT INTO eogp.role_permissions(organization_id,role_id,permission_code)
+    SELECT v_org,id,'guest.registry.references.manage' FROM eogp.roles WHERE organization_id=v_org AND code='CI-REGISTRY';
+
+  v_result := eogp.write_guest_registry_reference(v_org,v_actor,v_person,NULL,1,'add','CRM',repeat('a',64),v_cipher);
+  v_reference := (v_result->>'referenceId')::uuid;
+  IF v_result->>'profileRevision' IS DISTINCT FROM '2' OR v_result ? 'ciphertext'
+    OR eogp.read_guest_registry_references(v_org,v_actor,v_person)#>>'{references,0,source}' IS DISTINCT FROM 'CRM'
+    OR has_table_privilege('eventor_runtime','eogp.person_identifiers','SELECT,INSERT,UPDATE,DELETE') THEN
+    RAISE EXCEPTION 'reference mutation exposed protected data or failed to update the profile revision';
+  END IF;
+  BEGIN
+    PERFORM eogp.write_guest_registry_reference(v_org,v_actor,v_other,NULL,1,'add','CRM',repeat('a',64),v_cipher);
+    RAISE EXCEPTION 'a reference could identify two people in the same source';
+  EXCEPTION WHEN unique_violation THEN NULL;
+  END;
+  PERFORM eogp.write_guest_registry_reference(v_org,v_actor,v_other,NULL,1,'add','ERP',repeat('a',64),v_cipher);
+  BEGIN
+    PERFORM eogp.write_guest_registry_reference(v_org,v_actor,v_person,v_reference,1,'replace','CRM',repeat('b',64),v_cipher);
+    RAISE EXCEPTION 'a stale reference edit committed';
+  EXCEPTION WHEN serialization_failure THEN NULL;
+  END;
+  PERFORM eogp.write_guest_registry_reference(v_org,v_actor,v_person,v_reference,2,'replace','CRM',repeat('b',64),v_cipher);
+  PERFORM eogp.write_guest_registry_reference(v_org,v_actor,v_person,v_reference,3,'remove',NULL,NULL,NULL);
+  IF eogp.read_guest_registry_references(v_org,v_actor,v_person)->'references' <> '[]'::jsonb
+    OR EXISTS (SELECT 1 FROM eogp.person_identifiers WHERE organization_id=v_org AND id=v_reference)
+    OR NOT EXISTS (SELECT 1 FROM eogp.audit_events WHERE organization_id=v_org AND aggregate_id=v_person
+        AND action='guest.registry.reference.remove'
+        AND safe_metadata=jsonb_build_object('referenceId',v_reference,'revision',4)) THEN
+    RAISE EXCEPTION 'removing a reference retained its value or missed the audit event';
+  END IF;
+END;
+$test$;
+
 COMMIT;
 
 \echo 'PostgreSQL migration smoke tests passed.'

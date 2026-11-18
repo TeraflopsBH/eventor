@@ -4025,6 +4025,101 @@ export function buildApi(dependencies: ApiDependencies): FastifyInstance {
     },
   }, (request, reply) => writeRegistryContact(request, reply, request.params.personId, request.params.contactId, request.body));
 
+  const sourceCodePattern = "^[A-Za-z0-9][A-Za-z0-9_-]{0,39}$";
+  const sourceReferencePattern = "^[A-Za-z0-9][A-Za-z0-9._:/-]{0,127}$";
+  const sourceReferenceWriteProperties = {
+    source: { type: "string", pattern: sourceCodePattern },
+    value: { type: "string", pattern: sourceReferencePattern },
+    expectedRevision: personRevision,
+  };
+  const sourceReferenceParams = {
+    ...registryPersonParams, required: ["personId", "referenceId"],
+    properties: { ...registryPersonParams.properties, referenceId: { type: "string", pattern: uuidPattern } },
+  };
+  type SourceReferenceWrite = { source: string; value: string; expectedRevision: number };
+  type SourceReferenceParams = { personId: string; referenceId: string };
+  function sourceReferenceRoot(): Buffer {
+    const key = dependencies.privateFieldEncryptionKey;
+    if (key?.length !== 32) {
+      throw new ApiError(503, "PRIVATE_FIELD_ENCRYPTION_UNAVAILABLE", "Registry source reference protection is not configured.");
+    }
+    return key;
+  }
+  function sourceReferenceFingerprint(organizationId: string, source: string, value: string): string {
+    return createHmac("sha256", sourceReferenceRoot())
+      .update(`eventor:registry-source-reference-lookup:v1\0${organizationId}\0${source}\0${value}`).digest("hex");
+  }
+  function sourceReferenceKey(organizationId: string, personId: string, source: string): Buffer {
+    return createHmac("sha256", sourceReferenceRoot())
+      .update(`eventor:registry-source-reference-value:v1\0${organizationId}\0${personId.toLowerCase()}\0${source}`).digest();
+  }
+
+  server.get<{ Params: { personId: string } }>("/persons/:personId/references", {
+    schema: { params: registryPersonParams },
+  }, (request, reply) => {
+    const principal = registryPrincipal(request);
+    const organizationId = principal.organizationId;
+    const { personId } = request.params;
+    return withRegistryRead(reply, principal, "SELECT eogp.read_guest_registry_references($1::uuid,$2::uuid,$3::uuid) AS result",
+      [personId], (value) => {
+        const directory = value as {
+          references: { referenceId: string; source: string; ciphertext: string }[];
+          canManage: boolean; profileRevision: number;
+        };
+        return {
+          ...directory,
+          references: directory.references.map(({ ciphertext, source, referenceId }) => ({
+            referenceId, source,
+            value: decryptContactValue(Buffer.from(ciphertext, "base64"), sourceReferenceKey(organizationId, personId, source),
+              { organizationId, contactKind: "other" }),
+          })),
+        };
+      });
+  });
+
+  function writeRegistryReference(
+    request: FastifyRequest, reply: FastifyReply, personId: string, referenceId: string | null,
+    expectedRevision: number, input?: Pick<SourceReferenceWrite, "source" | "value">,
+  ) {
+    const { organizationId, membershipId } = registryPrincipal(request);
+    const action = !referenceId ? "add" : input ? "replace" : "remove";
+    const source = input?.source.toUpperCase() ?? null;
+    const fingerprint = source && input ? sourceReferenceFingerprint(organizationId, source, input.value) : null;
+    const ciphertext = source && input
+      ? encryptContactValue(input.value, sourceReferenceKey(organizationId, personId, source), { organizationId, contactKind: "other" })
+      : null;
+    return withCommand(request, reply.header("cache-control", "no-store, private"),
+      "guest.registry.reference." + action, { personId, referenceId, expectedRevision, source, fingerprint },
+      async (client) => {
+        const { rows } = await client.query<ResultRow>(
+          "SELECT eogp.write_guest_registry_reference($1::uuid,$2::uuid,$3::uuid,$4::uuid,$5::integer,$6::text,$7::text,$8::text,$9::bytea) AS result",
+          [organizationId, membershipId, personId, referenceId, expectedRevision, action, source, fingerprint, ciphertext],
+        );
+        return (rows[0]?.result ?? {}) as Record<string, unknown>;
+      }, async (client) => {
+        await client.query("SELECT eogp.assert_guest_reference_permission($1::uuid,$2::uuid,true)", [organizationId, membershipId]);
+      }, action === "add" ? 201 : 200);
+  }
+
+  const sourceReferenceWriteSchema = {
+    type: "object", additionalProperties: false, required: ["source", "value", "expectedRevision"], properties: sourceReferenceWriteProperties,
+  };
+  server.post<{ Params: { personId: string }; Body: SourceReferenceWrite }>("/persons/:personId/references", {
+    schema: { params: registryPersonParams, headers: idempotencyHeaders, body: sourceReferenceWriteSchema },
+  }, (request, reply) => writeRegistryReference(request, reply, request.params.personId, null, request.body.expectedRevision, request.body));
+
+  server.patch<{ Params: SourceReferenceParams; Body: SourceReferenceWrite }>("/persons/:personId/references/:referenceId", {
+    schema: { params: sourceReferenceParams, headers: idempotencyHeaders, body: sourceReferenceWriteSchema },
+  }, (request, reply) => writeRegistryReference(request, reply, request.params.personId, request.params.referenceId,
+    request.body.expectedRevision, request.body));
+
+  server.post<{ Params: SourceReferenceParams; Body: { expectedRevision: number } }>("/persons/:personId/references/:referenceId/remove", {
+    schema: {
+      params: sourceReferenceParams, headers: idempotencyHeaders,
+      body: { type: "object", additionalProperties: false, required: ["expectedRevision"], properties: { expectedRevision: personRevision } },
+    },
+  }, (request, reply) => writeRegistryReference(request, reply, request.params.personId, request.params.referenceId, request.body.expectedRevision));
+
   server.get<{ Params: { organizationId: string } }>(registryPath, { schema: { params: registryOrgParams } },
     (request, reply) => readRegistry(reply, registryPrincipal(request, request.params.organizationId), null));
 

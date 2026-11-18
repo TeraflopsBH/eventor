@@ -305,6 +305,19 @@ export default {
     exportLimit: "Izvoz prelazi 20.000 gostiju. Suzite pretragu ili filtere.",
   },
   registry: {
+    references: {
+      title: "Izvorne reference",
+      source: "Izvorni sistem",
+      value: "Vrijednost reference",
+      add: "Dodaj referencu",
+      remove: "Ukloni",
+      confirmRemove: "Ukloniti referencu iz sistema {source}?",
+      empty: "Ovaj profil nema izvornih referenci.",
+      invalid: "Počnite slovom ili brojem. Naziv sistema može imati do 40 znakova te može sadržavati crtice i donje crte. Referenca može imati do 128 slova, brojeva, tačaka, dvotačaka, kosih crta, crtica ili donjih crta.",
+      failed: "Izvornu referencu nije bilo moguće učitati ili sačuvati.",
+      reload: "Ponovo učitaj reference",
+      stale: "Profil je izmijenjen. Ponovo učitajte reference prije uređivanja.",
+    },
     merge: {
       review: "Pregledaj duplikat profila",
       history: "Historija spajanja",
