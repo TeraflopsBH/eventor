@@ -1362,6 +1362,25 @@ export interface RestrictedEventGuestTags {
 function restrictedEventGuestTagsPath(eventId: string): string {
   return `/events/${encodeURIComponent(eventId)}/restricted-guest-tags`;
 }
+export interface GuestGroupPlacementRuleInput {
+  firstGroupId: string;
+  secondGroupId: string;
+  scope: "table" | "zone" | "room";
+  condition: "together" | "apart";
+  priority: "required" | "preferred";
+}
+export interface GuestGroupPlacementRule extends GuestGroupPlacementRuleInput {
+  ruleId: string;
+  applicable: boolean;
+  retiredAt: string | null;
+}
+export interface GuestGroupPlacementRules {
+  rules: GuestGroupPlacementRule[];
+  canManage: boolean;
+}
+function guestGroupPlacementRulesPath(eventId: string): string {
+  return `/events/${encodeURIComponent(eventId)}/guest-group-placement-rules`;
+}
 export const guestGroupKinds = ["custom", "family", "couple", "delegation", "official_party", "team", "organization"] as const;
 export type GuestGroupKind = typeof guestGroupKinds[number];
 export const guestGroupPlacementPreferences = ["same_table", "same_zone", "nearby", "separate"] as const;
@@ -1668,6 +1687,16 @@ export const api = {
       `/events/${encodeURIComponent(eventId)}/participations/${encodeURIComponent(participationId)}/restricted-tags`, {
         method: "PATCH", body: { tagIds, expectedRevision }, idempotent: true,
       },
+    ),
+  listGuestGroupPlacementRules: (eventId: string) =>
+    request<Envelope<GuestGroupPlacementRules>>(guestGroupPlacementRulesPath(eventId)),
+  createGuestGroupPlacementRule: (eventId: string, body: GuestGroupPlacementRuleInput) =>
+    request<Envelope<{ ruleId: string; retiredAt: null }>>(guestGroupPlacementRulesPath(eventId), {
+      method: "POST", body, idempotent: true,
+    }),
+  retireGuestGroupPlacementRule: (eventId: string, ruleId: string) =>
+    request<Envelope<{ ruleId: string; retiredAt: string }>>(
+      `${guestGroupPlacementRulesPath(eventId)}/${encodeURIComponent(ruleId)}/retire`, { method: "POST", idempotent: true },
     ),
   listEventGuestGroups: (eventId: string) =>
     request<Envelope<EventGuestGroup[]>>(`/events/${encodeURIComponent(eventId)}/guest-groups`),

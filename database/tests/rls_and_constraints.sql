@@ -3739,6 +3739,54 @@ BEGIN
 END;
 $test$;
 
+-- Placement rules preserve pair symmetry, explicit scope/priority and retirement history.
+DO $test$
+DECLARE
+  v_org CONSTANT uuid := '10000000-0000-0000-0000-00000000000a';
+  v_actor CONSTANT uuid := '30000000-0000-0000-0000-00000000000a';
+  v_event uuid;
+  v_other uuid;
+  v_first uuid;
+  v_second uuid;
+  v_foreign uuid;
+  v_rule uuid;
+BEGIN
+  SELECT id INTO STRICT v_event FROM eogp.events WHERE organization_id=v_org AND event_code='CI-LINK-A';
+  SELECT id INTO STRICT v_other FROM eogp.events WHERE organization_id=v_org AND event_code='CI-LINK-B';
+  v_first := (eogp.write_event_guest_group(v_org,v_event,v_actor,NULL,'GROUP-RULE-1','Rule group A')->>'groupId')::uuid;
+  v_second := (eogp.write_event_guest_group(v_org,v_event,v_actor,NULL,'GROUP-RULE-2','Rule group B')->>'groupId')::uuid;
+  v_foreign := (eogp.write_event_guest_group(v_org,v_other,v_actor,NULL,'GROUP-RULE-3','Rule group C')->>'groupId')::uuid;
+  BEGIN
+    PERFORM eogp.write_guest_group_placement_rule(v_org,v_event,v_actor,NULL,v_first,v_foreign,'zone','apart','required');
+    RAISE EXCEPTION 'placement accepted a group from another event';
+  EXCEPTION WHEN no_data_found THEN NULL;
+  END;
+  v_rule := (eogp.write_guest_group_placement_rule(v_org,v_event,v_actor,NULL,v_second,v_first,'zone','apart','required')->>'ruleId')::uuid;
+  BEGIN
+    PERFORM eogp.write_guest_group_placement_rule(v_org,v_event,v_actor,NULL,v_first,v_second,'zone','together','preferred');
+    RAISE EXCEPTION 'conflicting rule for the same group pair and scope was accepted';
+  EXCEPTION WHEN unique_violation THEN NULL;
+  END;
+  IF NOT (eogp.read_guest_group_placement_rules(v_org,v_event,v_actor)->'rules') @> jsonb_build_array(
+      jsonb_build_object('ruleId',v_rule,'firstGroupId',least(v_first,v_second),'secondGroupId',greatest(v_first,v_second),
+        'scope','zone','condition','apart','priority','required','applicable',true))
+    OR eogp.read_guest_group_placement_rules(v_org,v_other,v_actor)->'rules' <> '[]'::jsonb
+    OR has_table_privilege('eventor_runtime','eogp.guest_group_placement_rules','SELECT,INSERT,UPDATE,DELETE') THEN
+    RAISE EXCEPTION 'placement projection lost its scope, priority or authorization boundary';
+  END IF;
+  PERFORM eogp.write_event_guest_group(v_org,v_event,v_actor,v_second,NULL,NULL);
+  IF NOT (eogp.read_guest_group_placement_rules(v_org,v_event,v_actor)->'rules') @> jsonb_build_array(
+    jsonb_build_object('ruleId',v_rule,'applicable',false,'retiredAt',NULL)) THEN
+    RAISE EXCEPTION 'a rule for a retired group remained applicable';
+  END IF;
+  PERFORM eogp.write_guest_group_placement_rule(v_org,v_event,v_actor,v_rule,NULL,NULL,NULL,NULL,NULL);
+  IF NOT EXISTS (SELECT 1 FROM eogp.guest_group_placement_rules WHERE organization_id=v_org AND id=v_rule
+    AND retired_at IS NOT NULL AND retired_by_membership_id=v_actor) THEN
+    RAISE EXCEPTION 'placement rule retirement lost history';
+  END IF;
+END;
+$test$;
+
 COMMIT;
 
 \echo 'PostgreSQL migration smoke tests passed.'

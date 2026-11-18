@@ -4079,6 +4079,70 @@ paths:
         '403': { $ref: '#/components/responses/Forbidden' }
         '404': { $ref: '#/components/responses/NotFound' }
         '409': { $ref: '#/components/responses/Conflict' }
+  "/events/{eventId}/guest-group-placement-rules":
+    get:
+      tags: ["Event Participation"]
+      operationId: listGuestGroupPlacementRules
+      summary: "List active and retired placement rules for event guest groups"
+      security: [{ StaffSession: [] }]
+      parameters:
+        - $ref: '#/components/parameters/PEventId'
+      responses:
+        '200':
+          description: "Group placement rules for the event."
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/GuestGroupPlacementRulesEnvelope' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '404': { $ref: '#/components/responses/NotFound' }
+    post:
+      tags: ["Event Participation"]
+      operationId: createGuestGroupPlacementRule
+      summary: "Record a required or preferred placement rule between two event guest groups"
+      security: [{ StaffSession: [], StaffCsrf: [] }]
+      parameters:
+        - $ref: '#/components/parameters/PEventId'
+        - $ref: '#/components/parameters/IdempotencyKey'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/GuestGroupPlacementRuleInput' }
+      responses:
+        '201':
+          description: "Group placement rule created."
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/GuestGroupPlacementRuleChangeEnvelope' }
+        '400': { $ref: '#/components/responses/BadRequest' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '404': { $ref: '#/components/responses/NotFound' }
+        '409': { $ref: '#/components/responses/Conflict' }
+  "/events/{eventId}/guest-group-placement-rules/{ruleId}/retire":
+    post:
+      tags: ["Event Participation"]
+      operationId: retireGuestGroupPlacementRule
+      summary: "Retire a group placement rule and preserve its history"
+      security: [{ StaffSession: [], StaffCsrf: [] }]
+      parameters:
+        - $ref: '#/components/parameters/PEventId'
+        - $ref: '#/components/parameters/IdempotencyKey'
+        - name: ruleId
+          in: path
+          required: true
+          schema: { type: string, format: uuid }
+      responses:
+        '200':
+          description: "Group placement rule retired."
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/GuestGroupPlacementRuleChangeEnvelope' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '404': { $ref: '#/components/responses/NotFound' }
+        '409': { $ref: '#/components/responses/Conflict' }
   "/events/{eventId}/participations":
     get:
       tags: ["Event Participation"]
@@ -9290,6 +9354,49 @@ components:
           properties:
             tagId: { type: string, format: uuid }
             retired: { type: boolean }
+    GuestGroupPlacementRuleInput:
+      type: object
+      additionalProperties: false
+      required: [firstGroupId, secondGroupId, scope, condition, priority]
+      properties:
+        firstGroupId: { type: string, format: uuid }
+        secondGroupId: { type: string, format: uuid }
+        scope: { type: string, enum: [table, zone, room] }
+        condition: { type: string, enum: [together, apart] }
+        priority: { type: string, enum: [required, preferred] }
+    GuestGroupPlacementRulesEnvelope:
+      type: object
+      required: [data]
+      properties:
+        data:
+          type: object
+          required: [rules, canManage]
+          properties:
+            rules:
+              type: array
+              items:
+                type: object
+                required: [ruleId, firstGroupId, secondGroupId, scope, condition, priority, applicable, retiredAt]
+                properties:
+                  ruleId: { type: string, format: uuid }
+                  firstGroupId: { type: string, format: uuid }
+                  secondGroupId: { type: string, format: uuid }
+                  scope: { type: string, enum: [table, zone, room] }
+                  condition: { type: string, enum: [together, apart] }
+                  priority: { type: string, enum: [required, preferred] }
+                  applicable: { type: boolean }
+                  retiredAt: { type: [string, 'null'], format: date-time }
+            canManage: { type: boolean }
+    GuestGroupPlacementRuleChangeEnvelope:
+      type: object
+      required: [data]
+      properties:
+        data:
+          type: object
+          required: [ruleId, retiredAt]
+          properties:
+            ruleId: { type: string, format: uuid }
+            retiredAt: { type: [string, 'null'], format: date-time }
     EventGuestGroupPlacementPreference:
       type: [string, 'null']
       enum: [same_table, same_zone, nearby, separate, null]

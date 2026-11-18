@@ -449,3 +449,7 @@ An event guest may have a staff roster display name in addition to the recorded 
 ## Event group placement preferences (000168)
 
 Event groups can record a preferred placement and expected size for planning. Both fields are optional and can be cleared. Edits use the existing group revision and preserve omitted settings. Later allocation work owns the application of these preferences.
+
+## Group-to-group placement rules (000169)
+
+A same-event group pair can have a required or preferred rule to stay together or apart within a table, zone or room. The pair is symmetric and has one active rule for each scope. Rules are retained after retirement. The projection marks rules involving retired groups as inapplicable. Allocation consumes these planning inputs in a later stage.
