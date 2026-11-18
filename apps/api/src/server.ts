@@ -5221,6 +5221,49 @@ export function buildApi(dependencies: ApiDependencies): FastifyInstance {
     { groupId: request.params.groupId },
     "SELECT eogp.write_event_guest_group($1::uuid,$2::uuid,$3::uuid,$4::uuid,NULL,NULL) AS result", [request.params.groupId]));
 
+  const groupPlacementRulesPath = "/events/:eventId/guest-group-placement-rules";
+  type GroupPlacementRuleBody = JsonRequestBody<"/events/{eventId}/guest-group-placement-rules", "post">;
+  server.get<{ Params: { eventId: string } }>(groupPlacementRulesPath, {
+    schema: { params: participationEventParams },
+  }, (request, reply) => withRegistryRead(reply, registryPrincipal(request),
+    "SELECT eogp.read_guest_group_placement_rules($1::uuid,$3::uuid,$2::uuid) AS result", [request.params.eventId]));
+
+  server.post<{ Params: { eventId: string }; Body: GroupPlacementRuleBody }>(groupPlacementRulesPath, {
+    schema: {
+      params: participationEventParams, headers: idempotencyHeaders,
+      body: {
+        type: "object", additionalProperties: false, required: ["firstGroupId", "secondGroupId", "scope", "condition", "priority"],
+        properties: {
+          firstGroupId: { type: "string", pattern: uuidPattern },
+          secondGroupId: { type: "string", pattern: uuidPattern },
+          scope: { type: "string", enum: ["table", "zone", "room"] },
+          condition: { type: "string", enum: ["together", "apart"] },
+          priority: { type: "string", enum: ["required", "preferred"] },
+        },
+      },
+    },
+  }, (request, reply) => {
+    const [firstGroupId, secondGroupId] = [request.body.firstGroupId.toLowerCase(), request.body.secondGroupId.toLowerCase()].sort();
+    const { scope, condition, priority } = request.body;
+    return withGuestListCommand(request, reply, request.params.eventId, "guest.group.placement_rule.create",
+      { firstGroupId, secondGroupId, scope, condition, priority },
+      "SELECT eogp.write_guest_group_placement_rule($1::uuid,$2::uuid,$3::uuid,NULL,$4::uuid,$5::uuid,$6::text,$7::text,$8::text) AS result",
+      [firstGroupId, secondGroupId, scope, condition, priority], 201);
+  });
+
+  server.post<{ Params: { eventId: string; ruleId: string } }>(`${groupPlacementRulesPath}/:ruleId/retire`, {
+    schema: {
+      params: {
+        ...participationEventParams, required: ["eventId", "ruleId"],
+        properties: { ...participationEventParams.properties, ruleId: { type: "string", pattern: uuidPattern } },
+      },
+      headers: idempotencyHeaders,
+    },
+  }, (request, reply) => withGuestListCommand(request, reply, request.params.eventId, "guest.group.placement_rule.retire",
+    { ruleId: request.params.ruleId },
+    "SELECT eogp.write_guest_group_placement_rule($1::uuid,$2::uuid,$3::uuid,$4::uuid,NULL,NULL,NULL,NULL,NULL) AS result",
+    [request.params.ruleId]));
+
   type ParticipationGroupsBody = JsonRequestBody<"/events/{eventId}/participations/{participationId}/groups", "patch">;
   server.patch<{ Params: { eventId: string; participationId: string }; Body: ParticipationGroupsBody }>(
     "/events/:eventId/participations/:participationId/groups", {

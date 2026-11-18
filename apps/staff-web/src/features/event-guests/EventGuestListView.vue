@@ -2,6 +2,7 @@
 import { computed, onMounted, ref } from "vue";
 import { useI18n } from "vue-i18n";
 import EventGuestImportPreview from "./EventGuestImportPreview.vue";
+import EventGuestGroupPlacementRules from "./EventGuestGroupPlacementRules.vue";
 import EventGuestOptions from "./EventGuestOptions.vue";
 import EventGuestRelationships from "./EventGuestRelationships.vue";
 import EventGuestRestrictedTags from "./EventGuestRestrictedTags.vue";
@@ -38,6 +39,7 @@ const showImport = ref(false);
 const showCategories = ref(false);
 const showTags = ref(false);
 const showGroups = ref(false);
+const showGroupRules = ref(false);
 const showSavedViews = ref(false);
 const categories = ref<EventGuestCategory[]>([]);
 const tags = ref<EventGuestTag[]>([]);
@@ -99,6 +101,7 @@ async function run(operation: () => Promise<void>): Promise<void> {
       events.value = null;
       roster.value = null;
       showSavedViews.value = false;
+      showGroupRules.value = false;
       editing.value = null;
       relationshipGuest.value = null;
       fieldPanel.value = null;
@@ -157,6 +160,7 @@ function chooseEvent(): void {
   showCategories.value = false;
   showTags.value = false;
   showGroups.value = false;
+  showGroupRules.value = false;
   showSavedViews.value = false;
   categories.value = [];
   tags.value = [];
@@ -480,6 +484,11 @@ onMounted(() => run(async () => {
       </button>
       <EventGuestOptions v-if="showGroups" :key="eventId" :event-id="eventId" kind="groups" :options="membershipOptions.groups"
         @changed="run(loadGroups)" />
+    </div>
+    <div v-if="roster && groups.length">
+      <button class="button button-secondary" type="button" :disabled="busy || rowEditing" :aria-expanded="showGroupRules"
+        @click="showGroupRules = !showGroupRules">{{ t("eventGuests.groupRules.title") }}</button>
+      <EventGuestGroupPlacementRules v-if="showGroupRules" :key="eventId" :event-id="eventId" :groups="groups" />
     </div>
     <div v-if="roster?.canViewRestrictedTags">
       <button class="button button-secondary" type="button" :disabled="busy || rowEditing"
