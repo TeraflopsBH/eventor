@@ -107,6 +107,9 @@ export default {
   },
   eventGuests: {
     import: {
+      resolveDuplicate: "Razriješite moguće podudaranje u redu {row}",
+      createSeparate: "Kreiraj zaseban profil",
+      confirmDistinctCommit: "Dodati goste s {created} novih i {reused} postojećih profila? Ovo uključuje {distinct} zasebnih profila za redove čija imena već postoje u registru.",
       mapColumns: "Poveži kolone",
       chooseColumn: "Odaberite kolonu",
       blankColumn: "Ostavite prazno",
@@ -136,7 +139,6 @@ export default {
       reportFailed: "Preuzimanje izvještaja o uvozu nije uspjelo.",
       review: "Pregled",
       matches: "Moguća podudaranja u registru: {count}",
-      reuse: "Koristi profil iz registra za red {row}",
       skip: "Preskoči ovaj red",
       noLinkableMatches: "Nema podudarnih profila dostupnih za dodavanje na ovaj događaj.",
       clear: "Spremno za pregled",

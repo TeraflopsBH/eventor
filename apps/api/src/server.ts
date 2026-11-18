@@ -4337,7 +4337,7 @@ export function buildApi(dependencies: ApiDependencies): FastifyInstance {
     [request.params.eventId, request.params.batchId]));
 
   type ImportReuse = { rowNumber: number; personId: string; expectedRevision: number };
-  server.post<{ Params: GuestImportBatchParams; Body: { reuse?: ImportReuse[] } }>("/events/:eventId/guest-imports/:batchId/commit", {
+  server.post<{ Params: GuestImportBatchParams; Body: { reuse?: ImportReuse[]; distinctProfileRows?: number[] } }>("/events/:eventId/guest-imports/:batchId/commit", {
     preValidation(request, _reply, done) {
       if (request.body === undefined) request.body = {};
       done();
@@ -4348,6 +4348,10 @@ export function buildApi(dependencies: ApiDependencies): FastifyInstance {
       body: {
         type: "object", additionalProperties: false,
         properties: {
+          distinctProfileRows: {
+            type: "array", maxItems: 500, uniqueItems: true,
+            items: { type: "integer", minimum: 2, maximum: guestWorkbookMaxRow },
+          },
           reuse: {
             type: "array", maxItems: 500,
             items: {
@@ -4367,17 +4371,19 @@ export function buildApi(dependencies: ApiDependencies): FastifyInstance {
     const { eventId, batchId } = request.params;
     const reuse = (request.body.reuse ?? []).map((choice) => ({ ...choice, personId: choice.personId.toLowerCase() }))
       .sort((left, right) => left.rowNumber - right.rowNumber);
+    const distinctProfileRows = [...(request.body.distinctProfileRows ?? [])].sort((left, right) => left - right);
+    const distinct = new Set(distinctProfileRows);
     if (new Set(reuse.map((choice) => choice.rowNumber)).size !== reuse.length ||
-        new Set(reuse.map((choice) => choice.personId)).size !== reuse.length) {
+        new Set(reuse.map((choice) => choice.personId)).size !== reuse.length || reuse.some(({ rowNumber }) => distinct.has(rowNumber))) {
       throw new ApiError(400, "VALIDATION_FAILED", "Choose at most one profile per row and use each profile only once.");
     }
     const args = [principal.organizationId, eventId, principal.membershipId, batchId];
     const key = guestImportKey();
-    const commandBody = reuse.length ? { eventId, batchId, reuse } : { eventId, batchId };
+    const commandBody = { eventId, batchId, ...(reuse.length ? { reuse } : {}), ...(distinctProfileRows.length ? { distinctProfileRows } : {}) };
     return withCommand(request, reply.header("cache-control", "no-store, private"),
       "guest.import.commit", commandBody, async (client) => {
         const input = await client.query<ResultRow>(
-          "SELECT eogp.guest_import_commit_input($1::uuid,$2::uuid,$3::uuid,$4::uuid) AS result", args,
+          "SELECT eogp.guest_import_commit_input($1::uuid,$2::uuid,$3::uuid,$4::uuid,$5::integer[]) AS result", [...args, distinctProfileRows],
         );
         const encrypted = input.rows[0]?.result as { rowNumber: number; namesCiphertext: string }[];
         const rows = encrypted.map((row) => ({
@@ -4386,8 +4392,8 @@ export function buildApi(dependencies: ApiDependencies): FastifyInstance {
             { organizationId: principal.organizationId, contactKind: "other" })) as ImportNames,
         }));
         const result = await client.query<ResultRow>(
-          "SELECT eogp.commit_reviewed_guest_import($1::uuid,$2::uuid,$3::uuid,$4::uuid,$5::jsonb,$6::jsonb) AS result",
-          [...args, JSON.stringify(rows), JSON.stringify(reuse)],
+          "SELECT eogp.commit_reviewed_guest_import($1::uuid,$2::uuid,$3::uuid,$4::uuid,$5::jsonb,$6::jsonb,$7::integer[]) AS result",
+          [...args, JSON.stringify(rows), JSON.stringify(reuse), distinctProfileRows],
         );
         return (result.rows[0]?.result ?? {}) as Record<string, unknown>;
       }, async (client) => {

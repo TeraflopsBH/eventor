@@ -1423,9 +1423,9 @@ export const api = {
     request<Envelope<{ batchId: string; rowCount: number }>>(`/events/${encodeURIComponent(eventId)}/guest-imports/xlsx`, {
       method: "POST", body: { xlsx, sheetIndex, headerRow, mapping }, idempotent: true,
     }),
-  commitGuestImport: (eventId: string, batchId: string, reuse: GuestImportReuse[]) =>
+  commitGuestImport: (eventId: string, batchId: string, reuse: GuestImportReuse[], distinctProfileRows: number[] = []) =>
     request<Envelope<GuestImportCommit>>(`/events/${encodeURIComponent(eventId)}/guest-imports/${encodeURIComponent(batchId)}/commit`, {
-      method: "POST", body: { reuse }, idempotent: true,
+      method: "POST", body: { reuse, ...(distinctProfileRows.length ? { distinctProfileRows } : {}) }, idempotent: true,
     }),
   getGuestImportPreview: (eventId: string, batchId: string) =>
     request<Envelope<GuestImportPreview>>(`/events/${encodeURIComponent(eventId)}/guest-imports/${encodeURIComponent(batchId)}`),

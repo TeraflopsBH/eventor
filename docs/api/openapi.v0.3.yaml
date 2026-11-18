@@ -8374,6 +8374,12 @@ components:
       type: object
       additionalProperties: false
       properties:
+        distinctProfileRows:
+          type: array
+          maxItems: 500
+          uniqueItems: true
+          description: "Create a separate profile for each explicitly selected, valid row flagged as a possible duplicate. Each row may have only one resolution."
+          items: { type: integer, minimum: 2, maximum: 1048576 }
         reuse:
           type: array
           maxItems: 500

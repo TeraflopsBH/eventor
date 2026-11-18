@@ -107,6 +107,9 @@ export default {
   },
   eventGuests: {
     import: {
+      resolveDuplicate: "Resolve duplicate for row {row}",
+      createSeparate: "Create a separate profile",
+      confirmDistinctCommit: "Add guests using {created} new profiles and {reused} existing profiles? This includes {distinct} separate profiles for rows with a Registry name match.",
       mapColumns: "Map columns",
       chooseColumn: "Choose a column",
       blankColumn: "Leave blank",
@@ -136,7 +139,6 @@ export default {
       reportFailed: "Could not download the import report.",
       review: "Review",
       matches: "Possible Registry matches: {count}",
-      reuse: "Use a Registry profile for row {row}",
       skip: "Skip this row",
       noLinkableMatches: "No matching profiles are available to add to this event.",
       clear: "Ready for review",

@@ -385,3 +385,7 @@ Staff can save name, status and category filters under their own membership for 
 ## Guest import column mapping (000152)
 
 Staff can map separate source columns to first, last, display and preferred names before preview. The mapping uses distinct one-based column positions. Import batches record the selected positions and workbook coordinates, and encrypted staging contains the projected source values. Standard headers remain supported.
+
+## Separate profiles for reviewed import rows (000153)
+
+Staff may explicitly create a separate profile for a valid staged row with a Registry name match. Each row has one resolution, and the batch records separate-profile rows alongside reuse choices. Ordinary clean rows still check for matches discovered after preview.

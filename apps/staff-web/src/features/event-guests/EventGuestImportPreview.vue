@@ -34,7 +34,11 @@ const reuse = computed(() => (preview.value?.rows ?? []).flatMap(({ rowNumber, m
   const match = matches.find(({ personId }) => personId === selected.value[rowNumber]);
   return match ? [{ rowNumber, personId: match.personId, expectedRevision: match.revision }] : [];
 }));
-const importCount = computed(() => cleanCount.value + reuse.value.length);
+const separateProfileChoice = "separate-profile";
+const distinctProfileRows = computed(() => (preview.value?.rows ?? [])
+  .filter((row) => !row.errors.length && row.duplicateCount > 0 && selected.value[row.rowNumber] === separateProfileChoice)
+  .map((row) => row.rowNumber));
+const importCount = computed(() => cleanCount.value + reuse.value.length + distinctProfileRows.value.length);
 const busy = ref(false);
 
 function clearPreview(): void {
@@ -166,13 +170,15 @@ async function prepare(): Promise<void> {
 }
 async function commit(): Promise<void> {
   const batch = preview.value;
-  if (!batch || !importCount.value || !window.confirm(t("eventGuests.import.confirmCommit", {
-    created: cleanCount.value, reused: reuse.value.length,
+  const distinct = distinctProfileRows.value;
+  const confirmation = distinct.length ? "eventGuests.import.confirmDistinctCommit" : "eventGuests.import.confirmCommit";
+  if (!batch || !importCount.value || !window.confirm(t(confirmation, {
+    created: cleanCount.value + distinct.length, reused: reuse.value.length, distinct: distinct.length,
   }))) return;
   busy.value = true;
   error.value = "";
   try {
-    committed.value = (await api.commitGuestImport(props.eventId, batch.batchId, reuse.value)).data;
+    committed.value = (await api.commitGuestImport(props.eventId, batch.batchId, reuse.value, distinct)).data;
     emit("committed");
   } catch (failure) {
     error.value = failure instanceof ApiError
@@ -261,17 +267,18 @@ async function downloadReport(): Promise<void> {
                 <li v-for="issue in row.errors" :key="issue">{{ t(`eventGuests.import.issue.${issue}`) }}</li>
                 <li v-if="row.duplicateCount">{{ t("eventGuests.import.matches", { count: row.duplicateCount }) }}</li>
               </ul><span v-else>{{ t("eventGuests.import.clear") }}</span>
-                <label v-if="!committed && row.matches.length">
-                  {{ t("eventGuests.import.reuse", { row: row.rowNumber }) }}
-                  <select :value="selected[row.rowNumber] ?? ''" :disabled="busy"
+                <div v-if="!committed && row.duplicateCount && !row.errors.length">
+                  <label :for="`guest-import-duplicate-${row.rowNumber}`">{{ t("eventGuests.import.resolveDuplicate", { row: row.rowNumber }) }}</label>
+                  <select :id="`guest-import-duplicate-${row.rowNumber}`" :value="selected[row.rowNumber] ?? ''" :disabled="busy"
                     @change="selected[row.rowNumber] = ($event.target as HTMLSelectElement).value">
                     <option value="">{{ t("eventGuests.import.skip") }}</option>
                     <option v-for="match in row.matches" :key="match.personId" :value="match.personId">
                       {{ [...new Set([match.name, match.displayName, match.preferredName].filter(Boolean))].join(" · ") }}
                     </option>
+                    <option :value="separateProfileChoice">{{ t("eventGuests.import.createSeparate") }}</option>
                   </select>
-                </label>
-                <p v-else-if="!committed && row.duplicateCount && !row.errors.length" class="muted">
+                </div>
+                <p v-if="!committed && row.duplicateCount && !row.errors.length && !row.matches.length" class="muted">
                   {{ t("eventGuests.import.noLinkableMatches") }}
                 </p>
               </td>
