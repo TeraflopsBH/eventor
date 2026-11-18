@@ -441,3 +441,7 @@ Roster pages and exports can combine an internal tag and an event group with exi
 ## Reviewed creation from unmatched source references (000166)
 
 Reference managers can select individual unmatched rows. The commit verifies the staged fingerprint and creates the Registry profile, its protected reference and its event participation in one transaction. Inactive owners are reported separately. A reference claimed after review causes a conflict and rolls the batch back. Replays compare the selected rows without retaining plaintext reference values.
+
+## Event-specific staff roster names (000167)
+
+An event guest may have a staff roster display name in addition to the recorded identity. Authorized staff set or clear this value with the participation revision. The roster, search and roster export use the staff display name. Invitations and Registry identity use their recorded names. The audit records the operation and revision without storing the display name.

@@ -4416,6 +4416,56 @@ paths:
         '404': { $ref: '#/components/responses/NotFound' }
         '409': { $ref: '#/components/responses/Conflict' }
         '412': { $ref: '#/components/responses/PreconditionFailed' }
+  "/events/{eventId}/participations/{participationId}/roster-name":
+    patch:
+      tags: ["Event Participation"]
+      operationId: setEventGuestRosterName
+      summary: "Set or clear a staff roster display name for one event guest"
+      security: [{ StaffSession: [], StaffCsrf: [] }]
+      parameters:
+        - $ref: '#/components/parameters/PEventId'
+        - $ref: '#/components/parameters/IdempotencyKey'
+        - name: participationId
+          in: path
+          required: true
+          schema: { type: string, format: uuid }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              additionalProperties: false
+              required: [displayName, expectedRevision]
+              properties:
+                displayName:
+                  type: [string, 'null']
+                  minLength: 1
+                  maxLength: 250
+                  description: "Staff roster name. Set null to return to the recorded display name. The Registry profile and invitation data keep their recorded names."
+                expectedRevision: { type: integer, minimum: 1, maximum: 2147483647 }
+      responses:
+        '200':
+          description: "The current participation revision."
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [data]
+                properties:
+                  data:
+                    type: object
+                    required: [participationId, revision]
+                    properties:
+                      participationId: { type: string, format: uuid }
+                      revision: { type: integer, minimum: 1 }
+        '400': { $ref: '#/components/responses/BadRequest' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '404': { $ref: '#/components/responses/NotFound' }
+        '409': { $ref: '#/components/responses/Conflict' }
+        '412': { $ref: '#/components/responses/PreconditionFailed' }
+        '503': { $ref: '#/components/responses/ServiceUnavailable' }
   "/events/{eventId}/participations/{participationId}/tags":
     patch:
       tags: ["Event Participation"]
@@ -9355,10 +9405,12 @@ components:
               type: array
               items:
                 type: object
-                required: [participationId, displayName, status, revision, categoryCode, categoryId, participationCode, tagIds, groupIds, groupRoles]
+                required: [participationId, displayName, recordedDisplayName, displayNameOverride, status, revision, categoryCode, categoryId, participationCode, tagIds, groupIds, groupRoles]
                 properties:
                   participationId: { type: string, format: uuid }
                   displayName: { type: string }
+                  recordedDisplayName: { type: string }
+                  displayNameOverride: { type: [string, 'null'] }
                   status: { type: string, enum: [eligible, waitlisted, withdrawn, cancelled, ineligible] }
                   revision: { type: integer, minimum: 1 }
                   categoryCode: { type: [string, 'null'] }

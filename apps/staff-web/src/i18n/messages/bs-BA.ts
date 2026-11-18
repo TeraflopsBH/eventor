@@ -187,6 +187,12 @@ export default {
       invalid: "Za šifru koristite do 40 slova, cifara, donjih crta ili crtica. Počnite slovom ili cifrom i unesite naziv.",
       failed: "Spremanje kategorije gostiju nije uspjelo.",
     },
+    rosterName: {
+      label: "Ime na listi za osoblje",
+      recorded: "Zabilježeno ime {name}. Za korištenje tog imena ostavite polje prazno.",
+      override: "Prilagođeno ime",
+      edit: "Uredi ime na listi",
+    },
     restrictedTags: {
       title: "Oznake s ograničenim pristupom",
       forGuest: "Oznake s ograničenim pristupom za {name}",

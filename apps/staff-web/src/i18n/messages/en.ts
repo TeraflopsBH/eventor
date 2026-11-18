@@ -187,6 +187,12 @@ export default {
       invalid: "Use up to 40 letters, digits, underscores or hyphens for the code. Start with a letter or digit and enter a name.",
       failed: "Could not save the guest category.",
     },
+    rosterName: {
+      label: "Staff roster name",
+      recorded: "Recorded name {name}. Leave the staff roster name empty to use it.",
+      override: "Roster override",
+      edit: "Edit roster name",
+    },
     restrictedTags: {
       title: "Restricted tags",
       forGuest: "Restricted tags for {name}",

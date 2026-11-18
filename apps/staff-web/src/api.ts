@@ -1332,6 +1332,8 @@ export type GuestGroupRole = typeof guestGroupRoles[number];
 export interface EventGuestRow {
   participationId: string;
   displayName: string;
+  recordedDisplayName: string;
+  displayNameOverride: string | null;
   status: ManagedParticipationStatus | "cancelled";
   revision: number;
   categoryCode: string | null;
@@ -1631,6 +1633,12 @@ export const api = {
     request<Envelope<EventGuestTag>>(`/events/${encodeURIComponent(eventId)}/guest-tags/${encodeURIComponent(tagId)}/retire`, {
       method: "POST", idempotent: true,
     }),
+  setEventGuestRosterName: (eventId: string, participationId: string, displayName: string | null, expectedRevision: number) =>
+    request<Envelope<{ participationId: string; revision: number }>>(
+      `/events/${encodeURIComponent(eventId)}/participations/${encodeURIComponent(participationId)}/roster-name`, {
+        method: "PATCH", body: { displayName, expectedRevision }, idempotent: true,
+      },
+    ),
   setEventGuestTags: (eventId: string, participationId: string, tagIds: string[], expectedRevision: number) =>
     request<Envelope<{ participationId: string; tagIds: string[]; revision: number }>>(
       `/events/${encodeURIComponent(eventId)}/participations/${encodeURIComponent(participationId)}/tags`, {
