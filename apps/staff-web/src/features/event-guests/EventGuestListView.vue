@@ -4,6 +4,7 @@ import { useI18n } from "vue-i18n";
 import EventGuestImportPreview from "./EventGuestImportPreview.vue";
 import EventGuestOptions from "./EventGuestOptions.vue";
 import EventGuestRelationships from "./EventGuestRelationships.vue";
+import EventGuestCustomFields from "./EventGuestCustomFields.vue";
 import { api, ApiError, type EventGuestCategory, type EventGuestGroup, type EventGuestList, type EventGuestRow, type EventGuestTag, type EventGuestWorkspace, type ManagedParticipationStatus } from "../../api";
 import { formatApiError } from "../../i18n/api-errors";
 import { downloadGuestCsv, downloadGuestXlsx, formatGuestCsv } from "../../guest-export";
@@ -21,6 +22,7 @@ const nameFilter = ref("");
 const statuses: ManagedParticipationStatus[] = ["eligible", "waitlisted", "ineligible", "withdrawn"];
 const editing = ref<EventGuestRow | null>(null);
 const relationshipGuest = ref<EventGuestRow | null>(null);
+const fieldPanel = ref<EventGuestRow | "definitions" | null>(null);
 const nextStatus = ref<ManagedParticipationStatus>("eligible");
 const busy = ref(false);
 const showImport = ref(false);
@@ -61,6 +63,7 @@ async function run(operation: () => Promise<void>): Promise<void> {
       roster.value = null;
       editing.value = null;
       relationshipGuest.value = null;
+      fieldPanel.value = null;
       categories.value = [];
       tags.value = [];
       groups.value = [];
@@ -78,6 +81,7 @@ async function run(operation: () => Promise<void>): Promise<void> {
 async function loadPage(pageOffset: number): Promise<void> {
   editing.value = null;
   relationshipGuest.value = null;
+  fieldPanel.value = null;
   categoryEdit.value = null;
   membershipEdit.value = null;
   if (!eventId.value) return;
@@ -111,6 +115,7 @@ function chooseEvent(): void {
   nameFilter.value = "";
   roster.value = null;
   relationshipGuest.value = null;
+  fieldPanel.value = null;
   void run(async () => {
     if (!eventId.value) return;
     const [page, catalogue, tagList, groupList] = await Promise.all([
@@ -154,7 +159,19 @@ function editCategory(row: EventGuestRow): void {
 }
 
 function toggleRelationships(row: EventGuestRow): void {
+  fieldPanel.value = null;
   relationshipGuest.value = relationshipGuest.value?.participationId === row.participationId ? null : row;
+}
+
+function showFields(target: EventGuestRow | "definitions"): void {
+  relationshipGuest.value = null;
+  fieldPanel.value = fieldPanel.value === target ? null : target;
+}
+
+function updateFieldRevision(revision: number): void {
+  if (fieldPanel.value && fieldPanel.value !== "definitions") {
+    fieldPanel.value.revision = Math.max(fieldPanel.value.revision, revision);
+  }
 }
 
 function saveCategory(): Promise<void> {
@@ -291,6 +308,14 @@ onMounted(() => run(async () => {
       <EventGuestOptions v-if="showGroups" :key="eventId" :event-id="eventId" kind="groups" :options="membershipOptions.groups"
         @changed="run(loadGroups)" />
     </div>
+    <div v-if="roster?.canViewCustomFields">
+      <button class="button button-secondary" type="button" :disabled="busy || rowEditing"
+        :aria-expanded="fieldPanel === 'definitions'" @click="showFields('definitions')">{{ t("eventGuests.fields.manage") }}</button>
+    </div>
+    <EventGuestCustomFields v-if="roster?.canViewCustomFields && fieldPanel"
+      :key="fieldPanel === 'definitions' ? eventId : fieldPanel.participationId" :event-id="eventId"
+      :guest="fieldPanel === 'definitions' ? undefined : fieldPanel" :can-manage="roster.canManage"
+      @close="fieldPanel = null" @revision="updateFieldRevision" />
     <EventGuestRelationships v-if="roster?.canViewRelationships && relationshipGuest" :key="relationshipGuest.participationId"
       :event-id="eventId" :guest="relationshipGuest" :can-manage="roster.canManage" @close="relationshipGuest = null" />
     <p v-if="roster && !roster.people.length" class="muted">{{ t("eventGuests.noGuests") }}</p>
@@ -301,7 +326,7 @@ onMounted(() => run(async () => {
           <th scope="col">{{ t("registry.linkStatus") }}</th>
           <th scope="col">{{ t("eventGuests.category") }}</th>
           <th v-for="kind in membershipKinds" :key="kind" scope="col">{{ t(`eventGuests.${kind}.heading`) }}</th>
-          <th scope="col" v-if="roster.canManage || roster.canViewRelationships">{{ t("common.actions") }}</th>
+          <th scope="col" v-if="roster.canManage || roster.canViewRelationships || roster.canViewCustomFields">{{ t("common.actions") }}</th>
         </tr></thead>
         <tbody>
           <tr v-for="row in roster.people" :key="row.participationId">
@@ -347,7 +372,7 @@ onMounted(() => run(async () => {
               </ul>
               <span v-else>—</span>
             </td>
-            <td v-if="roster.canManage || roster.canViewRelationships">
+            <td v-if="roster.canManage || roster.canViewRelationships || roster.canViewCustomFields">
               <form v-if="editing?.participationId === row.participationId" @submit.prevent="save">
                 <label for="roster-next-status">{{ t("registry.linkStatus") }}</label>
                 <select id="roster-next-status" v-model="nextStatus">
@@ -376,6 +401,8 @@ onMounted(() => run(async () => {
                 :aria-expanded="relationshipGuest?.participationId === row.participationId" @click="toggleRelationships(row)">
                 {{ t("eventGuests.relationships.open") }}
               </button>
+              <button v-if="roster.canViewCustomFields" class="button button-secondary" type="button" :disabled="busy || rowEditing"
+                :aria-expanded="fieldPanel === row" @click="showFields(row)">{{ t("eventGuests.fields.open") }}</button>
             </td>
           </tr>
         </tbody>

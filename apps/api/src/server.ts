@@ -4373,7 +4373,10 @@ export function buildApi(dependencies: ApiDependencies): FastifyInstance {
   function readEventGuestPage(reply: FastifyReply, principal: StaffPrincipal, eventId: string, filter: GuestListPage) {
     return withRegistryRead(reply, principal,
       "SELECT eogp.read_event_guest_list($1::uuid,$3::uuid,$2::uuid,$4::text,$5::integer,$6::uuid,$7::boolean,$8::text) AS result",
-      [eventId, filter.status ?? null, filter.offset ?? 0, ...guestCategoryFilter(filter.category), filter.query ?? null]);
+      [eventId, filter.status ?? null, filter.offset ?? 0, ...guestCategoryFilter(filter.category), filter.query ?? null], (value) => {
+        const roster = value as { canViewRelationships: boolean };
+        return { ...roster, canViewCustomFields: roster.canViewRelationships };
+      });
   }
 
   function readEventGuestExport(reply: FastifyReply, principal: StaffPrincipal, eventId: string, filter: GuestListSearch) {
@@ -4605,12 +4608,114 @@ export function buildApi(dependencies: ApiDependencies): FastifyInstance {
     });
   });
 
-  const relationshipsPath = "/events/:eventId/participations/:participationId/relationships";
+  const participationPath = "/events/:eventId/participations/:participationId";
+  const relationshipsPath = `${participationPath}/relationships`;
   const relationshipParams = {
     ...participationEventParams, required: ["eventId", "participationId"],
     properties: { ...participationEventParams.properties, participationId: { type: "string", pattern: uuidPattern } },
   };
   type RelationshipParams = { eventId: string; participationId: string };
+
+  const fieldDefinitionsPath = "/events/:eventId/guest-custom-fields";
+  const fieldValuesPath = `${participationPath}/custom-fields`;
+  const fieldTypes = ["text", "integer", "boolean"] as const;
+  type FieldType = typeof fieldTypes[number];
+  type FieldValue = string | number | boolean | null;
+
+  function guestFieldKey(eventId: string, participationId: string, fieldId: string): Buffer {
+    const key = dependencies.privateFieldEncryptionKey;
+    if (key?.length !== 32) {
+      throw new ApiError(503, "PRIVATE_FIELD_ENCRYPTION_UNAVAILABLE", "Guest field protection is not configured.");
+    }
+    return createHmac("sha256", key)
+      .update(`eventor:guest-custom-field:v1\0${eventId.toLowerCase()}\0${participationId.toLowerCase()}\0${fieldId.toLowerCase()}`)
+      .digest();
+  }
+
+  server.get<{ Params: { eventId: string } }>(fieldDefinitionsPath, { schema: { params: participationEventParams } },
+    (request, reply) => withRegistryRead(reply, registryPrincipal(request),
+      "SELECT eogp.list_event_guest_field_definitions($1::uuid,$3::uuid,$2::uuid) AS result", [request.params.eventId]));
+
+  server.post<{ Params: { eventId: string }; Body: { code: string; label: string; valueType: FieldType } }>(fieldDefinitionsPath, {
+    schema: {
+      params: participationEventParams, headers: idempotencyHeaders,
+      body: {
+        ...guestLabelBody, required: [...guestLabelBody.required, "valueType"],
+        properties: { ...guestLabelBody.properties, valueType: { type: "string", enum: fieldTypes } },
+      },
+    },
+  }, (request, reply) => withGuestListCommand(request, reply, request.params.eventId, "guest.field.create", request.body,
+    "SELECT eogp.write_event_guest_field_definition($1::uuid,$2::uuid,$3::uuid,NULL,$4::text,$5::text,$6::text) AS result",
+    [request.body.code, request.body.label, request.body.valueType], 201));
+
+  const fieldIdParam = { type: "string", pattern: uuidPattern };
+  server.post<{ Params: { eventId: string; fieldId: string } }>(`${fieldDefinitionsPath}/:fieldId/retire`, {
+    schema: {
+      params: {
+        ...participationEventParams, required: ["eventId", "fieldId"],
+        properties: { ...participationEventParams.properties, fieldId: fieldIdParam },
+      },
+      headers: idempotencyHeaders,
+    },
+  }, (request, reply) => withGuestListCommand(request, reply, request.params.eventId, "guest.field.retire", { fieldId: request.params.fieldId },
+    "SELECT eogp.write_event_guest_field_definition($1::uuid,$2::uuid,$3::uuid,$4::uuid,NULL,NULL,NULL) AS result", [request.params.fieldId]));
+
+  server.get<{ Params: RelationshipParams }>(fieldValuesPath, { schema: { params: relationshipParams } }, (request, reply) => {
+    const principal = registryPrincipal(request);
+    const { eventId, participationId } = request.params;
+    return withRegistryRead(reply, principal,
+      "SELECT eogp.read_event_guest_field_values($1::uuid,$3::uuid,$2::uuid,$4::uuid) AS result", [eventId, participationId], (value) => {
+        const result = value as { revision: number; fields: { fieldId: string; ciphertext: string | null }[] };
+        const context = { organizationId: principal.organizationId, contactKind: "other" } as const;
+        return { revision: result.revision, fields: result.fields.map(({ ciphertext, ...field }) => ({
+          ...field,
+          value: ciphertext === null ? null : JSON.parse(decryptContactValue(
+            Buffer.from(ciphertext, "base64"), guestFieldKey(eventId, participationId, field.fieldId), context,
+          )) as FieldValue,
+        })) };
+      });
+  });
+
+  server.patch<{ Params: RelationshipParams & { fieldId: string }; Body: { expectedRevision: number; value: unknown } }>(`${fieldValuesPath}/:fieldId`, {
+    bodyLimit: 8192,
+    schema: {
+      params: {
+        ...relationshipParams, required: [...relationshipParams.required, "fieldId"],
+        properties: { ...relationshipParams.properties, fieldId: fieldIdParam },
+      },
+      headers: idempotencyHeaders,
+      body: { type: "object", additionalProperties: false, required: ["expectedRevision", "value"], properties: { expectedRevision: personRevision, value: {} } },
+    },
+  }, (request, reply) => {
+    const principal = registryPrincipal(request);
+    const { eventId, participationId, fieldId } = request.params;
+    const { expectedRevision, value } = request.body;
+    if (value !== null && typeof value !== "string" && typeof value !== "number" && typeof value !== "boolean") {
+      throw new ApiError(422, "GUEST_FIELD_VALUE_INVALID", "The value must be text, a whole number, a boolean, or null.");
+    }
+    const key = guestFieldKey(eventId, participationId, fieldId);
+    const scope = [principal.organizationId, eventId, principal.membershipId];
+    return withCommand(request, reply.header("cache-control", "no-store, private"), "guest.field.set",
+      { eventId, participationId, fieldId, expectedRevision, value }, async (client) => {
+        const definition = await client.query<{ type: FieldType }>(
+          "SELECT eogp.read_event_guest_field_type($1::uuid,$2::uuid,$3::uuid,$4::uuid) AS type", [...scope, fieldId]);
+        const type = definition.rows[0]?.type;
+        const valid = value === null || (type === "text" && typeof value === "string" && value.trim().length > 0
+          && [...value].length <= 500 && !/[\p{Cc}\p{Cs}]/u.test(value))
+          || (type === "integer" && Number.isSafeInteger(value))
+          || (type === "boolean" && typeof value === "boolean");
+        if (!valid) throw new ApiError(422, "GUEST_FIELD_VALUE_INVALID", "The value does not match the field type.");
+        const ciphertext = value === null ? null : encryptContactValue(JSON.stringify(value), key,
+          { organizationId: principal.organizationId, contactKind: "other" });
+        const result = await client.query<ResultRow>(
+          "SELECT eogp.write_event_guest_field_value($1::uuid,$2::uuid,$3::uuid,$4::uuid,$5::uuid,$6::integer,$7::text,$8::bytea) AS result",
+          [...scope, participationId, fieldId, expectedRevision, type, ciphertext]);
+        return (result.rows[0]?.result ?? {}) as Record<string, unknown>;
+      }, async (client) => {
+        await client.query("SELECT eogp.assert_event_command_permission($1::uuid,$2::uuid,$3::uuid,'guest.manage')", scope);
+      }, 200);
+  });
+
   server.get<{ Params: RelationshipParams }>(relationshipsPath, { schema: { params: relationshipParams } },
     (request, reply) => withRegistryRead(reply, registryPrincipal(request),
       "SELECT eogp.read_event_guest_relationships($1::uuid,$3::uuid,$2::uuid,$4::uuid) AS result",

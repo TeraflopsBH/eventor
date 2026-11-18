@@ -365,3 +365,7 @@ Roster search matches event display names and the name fields pinned to the part
 ## Event guest relationships (000147)
 
 Guest managers can create and end mutual and directed relationships between participations in one event. The command serializes changes under the event lock, rejects duplicate active links and keeps ended links for history. Relationship reads use the event display-name projection and require `guest.manage`. The projection omits restricted notes.
+
+## Internal event guest custom fields (000148)
+
+Definitions use the existing custom-field catalogue with stable codes and scalar text, integer or boolean types. Event guest managers can read and update values. The API encrypts values with keys bound to the event, participation and field. The write command checks the participation revision. Retirement preserves readable values and allows an explicit clear. Audit entries record the field ID, revision and clear status.
