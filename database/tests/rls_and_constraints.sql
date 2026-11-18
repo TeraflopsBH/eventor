@@ -3332,6 +3332,70 @@ BEGIN
 END;
 $test$;
 
+-- A restricted tag requires its own event grant and remains absent from ordinary rosters and tag commands.
+DO $test$
+DECLARE
+  v_org CONSTANT uuid := '10000000-0000-0000-0000-00000000000a';
+  v_actor CONSTANT uuid := '30000000-0000-0000-0000-00000000000a';
+  v_cipher bytea := convert_to('ECP1' || repeat('r',32),'UTF8');
+  v_event uuid;
+  v_other_event uuid;
+  v_person uuid;
+  v_guest uuid;
+  v_restricted uuid := gen_random_uuid();
+  v_internal uuid;
+  v_role uuid := gen_random_uuid();
+  v_view jsonb;
+BEGIN
+  SELECT id INTO STRICT v_event FROM eogp.events WHERE organization_id=v_org AND event_code='CI-LINK-A';
+  SELECT id INTO STRICT v_other_event FROM eogp.events WHERE organization_id=v_org AND event_code='CI-LINK-B';
+  v_person := (eogp.write_guest_registry_person(v_org,v_actor,NULL,NULL,'create',
+    '{"firstName":"Restricted","lastName":"Tag Fixture"}')->>'personId')::uuid;
+  v_guest := (eogp.link_registry_person_to_event(v_org,v_event,v_actor,v_person,'eligible')->>'participationId')::uuid;
+  BEGIN
+    PERFORM eogp.write_restricted_event_guest_tag(v_org,v_event,v_actor,v_restricted,'SHARED-CODE',v_cipher);
+    RAISE EXCEPTION 'ordinary roster management created a restricted tag';
+  EXCEPTION WHEN insufficient_privilege THEN NULL;
+  END;
+
+  INSERT INTO eogp.roles(id,organization_id,code,name,scope_kind) VALUES(v_role,v_org,'CI-RESTRICTED-TAGS','Restricted Tags','event');
+  INSERT INTO eogp.role_permissions(organization_id,role_id,permission_code) VALUES(v_org,v_role,'guest.tags.restricted.read');
+  INSERT INTO eogp.user_role_grants(organization_id,membership_id,role_id,scope_kind,scope_event_id,granted_by_membership_id)
+    VALUES(v_org,v_actor,v_role,'event',v_event,v_actor);
+  IF eogp.read_restricted_event_guest_tags(v_org,v_event,v_actor,NULL)->>'canManage' IS DISTINCT FROM 'false'
+    OR eogp.can_view_restricted_guest_tags(v_org,v_other_event,v_actor) THEN
+    RAISE EXCEPTION 'restricted tag access crossed a role or event boundary';
+  END IF;
+  INSERT INTO eogp.role_permissions(organization_id,role_id,permission_code) VALUES(v_org,v_role,'guest.tags.restricted.manage');
+
+  PERFORM eogp.write_restricted_event_guest_tag(v_org,v_event,v_actor,v_restricted,'SHARED-CODE',v_cipher);
+  v_internal := (eogp.write_event_guest_tag(v_org,v_event,v_actor,NULL,'SHARED-CODE','Visible label')->>'tagId')::uuid;
+  PERFORM eogp.set_event_guest_tags(v_org,v_event,v_actor,v_guest,1,ARRAY[v_restricted],'restricted');
+  PERFORM eogp.set_event_guest_tags(v_org,v_event,v_actor,v_guest,2,ARRAY[v_internal]);
+  v_view := eogp.read_restricted_event_guest_tags(v_org,v_event,v_actor,v_guest);
+  IF v_view->'assignedTagIds' IS DISTINCT FROM jsonb_build_array(v_restricted)
+    OR NOT (v_view->'tags') @> jsonb_build_array(jsonb_build_object('tagId',v_restricted,'ciphertext',encode(v_cipher,'base64'),'legacyLabel',NULL))
+    OR (eogp.list_event_guest_tags(v_org,v_event,v_actor) @> jsonb_build_array(jsonb_build_object('tagId',v_restricted)))
+    OR NOT (eogp.read_event_guest_list(v_org,v_event,v_actor,NULL,0,NULL,false,'Restricted Tag Fixture')->'people')
+      @> jsonb_build_array(jsonb_build_object('participationId',v_guest,'tagIds',ARRAY[v_internal]))
+    OR NOT EXISTS (SELECT 1 FROM eogp.event_participation_tags WHERE organization_id=v_org AND participation_id=v_guest AND tag_id=v_restricted) THEN
+    RAISE EXCEPTION 'restricted tags leaked into ordinary projections or lost their protected value';
+  END IF;
+  PERFORM eogp.write_restricted_event_guest_tag(v_org,v_event,v_actor,v_restricted,NULL,NULL);
+  PERFORM eogp.set_event_guest_tags(v_org,v_event,v_actor,v_guest,3,ARRAY[]::uuid[],'restricted');
+  IF NOT EXISTS (SELECT 1 FROM eogp.event_participation_tags WHERE organization_id=v_org AND participation_id=v_guest AND tag_id=v_internal)
+    OR eogp.read_restricted_event_guest_tags(v_org,v_event,v_actor,v_guest)->'assignedTagIds' <> '[]'::jsonb THEN
+    RAISE EXCEPTION 'restricted removal changed an ordinary tag';
+  END IF;
+  DELETE FROM eogp.role_permissions WHERE organization_id=v_org AND role_id=v_role;
+  BEGIN
+    PERFORM eogp.read_restricted_event_guest_tags(v_org,v_event,v_actor,v_guest);
+    RAISE EXCEPTION 'ordinary roster management read a restricted tag';
+  EXCEPTION WHEN insufficient_privilege THEN NULL;
+  END;
+END;
+$test$;
+
 COMMIT;
 
 \echo 'PostgreSQL migration smoke tests passed.'

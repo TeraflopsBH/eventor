@@ -184,6 +184,14 @@ export default {
       invalid: "Za šifru koristite do 40 slova, cifara, donjih crta ili crtica. Počnite slovom ili cifrom i unesite naziv.",
       failed: "Spremanje kategorije gostiju nije uspjelo.",
     },
+    restrictedTags: {
+      title: "Oznake s ograničenim pristupom",
+      forGuest: "Oznake s ograničenim pristupom za {name}",
+      code: "Šifra oznake",
+      assign: "Dodjela ograničenih oznaka",
+      empty: "Nema oznaka s ograničenim pristupom za prikaz.",
+      failed: "Ograničene oznake nije bilo moguće učitati ili sačuvati.",
+    },
     tags: {
       heading: "Oznake",
       manage: "Upravljaj oznakama gostiju",
