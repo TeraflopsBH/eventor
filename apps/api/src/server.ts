@@ -4767,6 +4767,10 @@ export function buildApi(dependencies: ApiDependencies): FastifyInstance {
           type: "object", required: ["groupIds", "expectedRevision"], additionalProperties: false,
           properties: {
             groupIds: { type: "array", uniqueItems: true, maxItems: 1000, items: { type: "string", pattern: uuidPattern } },
+            groupRoles: {
+              type: "object", maxProperties: 1000, propertyNames: { pattern: uuidPattern },
+              additionalProperties: { type: "string", enum: ["member", "lead", "assistant", "partner", "security_liaison"] },
+            },
             expectedRevision: personRevision,
           },
         },
@@ -4775,9 +4779,15 @@ export function buildApi(dependencies: ApiDependencies): FastifyInstance {
       const { eventId, participationId } = request.params;
       const { expectedRevision } = request.body;
       const groupIds = request.body.groupIds.map((id) => id.toLowerCase()).sort();
-      return withGuestListCommand(request, reply, eventId, "guest.participation.groups", { participationId, expectedRevision, groupIds },
-        "SELECT eogp.set_event_guest_groups($1::uuid,$2::uuid,$3::uuid,$4::uuid,$5::integer,$6::uuid[]) AS result",
-        [participationId, expectedRevision, groupIds]);
+      const roleEntries = Object.entries(request.body.groupRoles ?? {});
+      const groupRoles = Object.fromEntries(roleEntries.map(([id, role]) => [id.toLowerCase(), role]));
+      if (Object.keys(groupRoles).length !== roleEntries.length) {
+        throw new ApiError(400, "VALIDATION_FAILED", "Choose at most one role per group.");
+      }
+      return withGuestListCommand(request, reply, eventId, "guest.participation.groups",
+        { participationId, expectedRevision, groupIds, ...(roleEntries.length ? { groupRoles } : {}) },
+        "SELECT eogp.set_event_guest_groups($1::uuid,$2::uuid,$3::uuid,$4::uuid,$5::integer,$6::uuid[],$7::jsonb) AS result",
+        [participationId, expectedRevision, groupIds, JSON.stringify(groupRoles)]);
     });
 
   server.post<{ Params: { eventId: string }; Body: ParticipationLinkBody }>("/events/:eventId/participations", {

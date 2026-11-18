@@ -4308,6 +4308,12 @@ paths:
               required: [groupIds, expectedRevision]
               properties:
                 groupIds: { type: array, items: { type: string, format: uuid }, uniqueItems: true, maxItems: 1000 }
+                groupRoles:
+                  type: object
+                  maxProperties: 1000
+                  description: "Role changes keyed by a group ID in groupIds. Unspecified roles are preserved for retained memberships. New memberships default to member. Retired groups cannot have their roles changed."
+                  propertyNames: { format: uuid }
+                  additionalProperties: { type: string, enum: [member, lead, assistant, partner, security_liaison] }
                 expectedRevision: { type: integer, minimum: 1, maximum: 2147483647 }
       responses:
         '200':
@@ -8672,7 +8678,7 @@ components:
               type: array
               items:
                 type: object
-                required: [participationId, displayName, status, revision, categoryCode, categoryId, participationCode, tagIds, groupIds]
+                required: [participationId, displayName, status, revision, categoryCode, categoryId, participationCode, tagIds, groupIds, groupRoles]
                 properties:
                   participationId: { type: string, format: uuid }
                   displayName: { type: string }
@@ -8689,6 +8695,10 @@ components:
                     type: array
                     items: { type: string, format: uuid }
                     description: "Groups that include this event guest."
+                  groupRoles:
+                    type: object
+                    description: "Membership roles keyed by event group ID."
+                    additionalProperties: { type: string }
             canManage: { type: boolean }
             canViewRelationships: { type: boolean }
             canViewCustomFields: { type: boolean }

@@ -393,3 +393,7 @@ Staff may explicitly create a separate profile for a valid staged row with a Reg
 ## Reviewed profile updates from guest imports (000154)
 
 Staff can apply staged name changes to an active Registry match at its reviewed revision. Blank optional cells preserve the current values. New event links capture the updated names and existing links retain their pinned identity snapshots. Batch metadata records only the selected row, profile and revision. The row report distinguishes updated profiles from unchanged reuse.
+
+## Event group membership roles (000155)
+
+The roster exposes existing membership roles by group ID. Staff can edit roles and group membership together under a single participation revision. Existing roles survive requests that omit role changes, and new memberships default to member. Retired groups preserve their recorded roles until staff remove the membership.

@@ -2479,7 +2479,26 @@ BEGIN
     RAISE EXCEPTION 'group assignment did not retain membership or grants correctly';
   END IF;
 
+  BEGIN
+    PERFORM eogp.set_event_guest_groups(v_org,v_event,v_actor,v_participation,v_revision+1,ARRAY[v_first,v_second],
+      jsonb_build_object(v_foreign,'lead'));
+    RAISE EXCEPTION 'role was accepted for a group outside the selection';
+  EXCEPTION WHEN invalid_parameter_value THEN NULL;
+  END;
+  PERFORM eogp.set_event_guest_groups(v_org,v_event,v_actor,v_participation,v_revision+1,ARRAY[v_first,v_second],
+    jsonb_build_object(v_first,'security_liaison'));
+  IF NOT (eogp.read_event_guest_list(v_org,v_event,v_actor,NULL,0)->'people') @> jsonb_build_array(jsonb_build_object(
+       'participationId',v_participation,'groupRoles',jsonb_build_object(v_first,'security_liaison',v_second,'member'),
+       'revision',v_revision+2)) THEN
+    RAISE EXCEPTION 'role-only change did not persist or advance the revision';
+  END IF;
   PERFORM eogp.write_event_guest_group(v_org,v_event,v_actor,v_first,NULL,NULL);
+  BEGIN
+    PERFORM eogp.set_event_guest_groups(v_org,v_event,v_actor,v_participation,v_revision+2,ARRAY[v_first,v_second],
+      jsonb_build_object(v_first,'assistant'));
+    RAISE EXCEPTION 'retired group role was edited';
+  EXCEPTION WHEN object_not_in_prerequisite_state THEN NULL;
+  END;
   IF NOT eogp.list_event_guest_groups(v_org,v_event,v_actor)
       @> jsonb_build_array(jsonb_build_object('groupId',v_first,'retired',true)) THEN
     RAISE EXCEPTION 'group retirement was not recorded';
@@ -2489,9 +2508,9 @@ BEGIN
     RAISE EXCEPTION 'stale group selection unexpectedly committed';
   EXCEPTION WHEN serialization_failure THEN NULL;
   END;
-  PERFORM eogp.set_event_guest_groups(v_org,v_event,v_actor,v_participation,v_revision+1,ARRAY[v_second]);
+  PERFORM eogp.set_event_guest_groups(v_org,v_event,v_actor,v_participation,v_revision+2,ARRAY[v_second]);
   BEGIN
-    PERFORM eogp.set_event_guest_groups(v_org,v_event,v_actor,v_participation,v_revision+2,ARRAY[v_first,v_second]);
+    PERFORM eogp.set_event_guest_groups(v_org,v_event,v_actor,v_participation,v_revision+3,ARRAY[v_first,v_second]);
     RAISE EXCEPTION 'retired group was newly selected';
   EXCEPTION WHEN object_not_in_prerequisite_state THEN NULL;
   END;

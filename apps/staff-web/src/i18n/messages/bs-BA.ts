@@ -192,6 +192,14 @@ export default {
       failed: "Spremanje oznake gostiju nije uspjelo.",
     },
     groups: {
+      roleFor: "Uloga u grupi {label}",
+      roles: {
+        member: "Član",
+        lead: "Voditelj",
+        assistant: "Asistent",
+        partner: "Partner",
+        security_liaison: "Osoba za vezu sa službom sigurnosti",
+      },
       heading: "Grupe",
       manage: "Upravljaj grupama gostiju",
       code: "Šifra grupe",

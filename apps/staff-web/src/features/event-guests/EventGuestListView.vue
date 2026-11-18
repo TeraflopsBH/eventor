@@ -6,12 +6,12 @@ import EventGuestOptions from "./EventGuestOptions.vue";
 import EventGuestRelationships from "./EventGuestRelationships.vue";
 import EventGuestCustomFields from "./EventGuestCustomFields.vue";
 import EventGuestSavedViews from "./EventGuestSavedViews.vue";
-import { api, ApiError, type EventGuestCategory, type EventGuestGroup, type EventGuestList, type EventGuestRow, type EventGuestTag, type EventGuestViewFilters, type EventGuestWorkspace, type ManagedParticipationStatus } from "../../api";
+import { api, ApiError, guestGroupRoles, type GuestGroupRole, type EventGuestCategory, type EventGuestGroup, type EventGuestList, type EventGuestRow, type EventGuestTag, type EventGuestViewFilters, type EventGuestWorkspace, type ManagedParticipationStatus } from "../../api";
 import { formatApiError } from "../../i18n/api-errors";
 import { downloadGuestCsv, downloadGuestXlsx, formatGuestCsv } from "../../guest-export";
 
 const props = defineProps<{ organizationId: string }>();
-const { t } = useI18n();
+const { t, te } = useI18n();
 const events = ref<EventGuestWorkspace[] | null>(null);
 const eventId = ref("");
 const roster = ref<EventGuestList | null>(null);
@@ -44,12 +44,19 @@ const membershipOptions = computed(() => ({
   groups: groups.value.map(({ groupId, ...option }) => ({ id: groupId, ...option })),
 }));
 const categoryEdit = ref<{ row: EventGuestRow; original: string; selected: string } | null>(null);
-const membershipEdit = ref<{ row: EventGuestRow; kind: MembershipKind; selected: string[] } | null>(null);
+const membershipEdit = ref<{ row: EventGuestRow; kind: MembershipKind; selected: string[]; roleChoices: Record<string, GuestGroupRole> } | null>(null);
+const selectedGroupRoles = computed(() => {
+  const edit = membershipEdit.value;
+  if (edit?.kind !== "groups") return {};
+  return Object.fromEntries(Object.entries(edit.roleChoices).filter(([id, role]) => edit.selected.includes(id)
+    && role !== (edit.row.groupRoles[id] ?? "member")));
+});
 const membershipChanged = computed(() => {
   const edit = membershipEdit.value;
   if (!edit) return false;
   const original = membershipIds(edit.row, edit.kind);
-  return edit.selected.length !== original.length || edit.selected.some((id) => !original.includes(id));
+  return edit.selected.length !== original.length || edit.selected.some((id) => !original.includes(id))
+    || Object.keys(selectedGroupRoles.value).length > 0;
 });
 const rowEditing = computed(() => !!(editing.value || categoryEdit.value || membershipEdit.value));
 const selectedGuests = ref<string[]>([]);
@@ -248,16 +255,25 @@ function membershipIds(row: EventGuestRow, kind: MembershipKind): string[] {
   return kind === "tags" ? row.tagIds : row.groupIds;
 }
 
+function groupRoleLabel(role: string): string {
+  const key = `eventGuests.groups.roles.${role}`;
+  return te(key) ? t(key) : role;
+}
+
 function editMemberships(row: EventGuestRow, kind: MembershipKind): void {
-  membershipEdit.value = { row, kind, selected: [...membershipIds(row, kind)] };
+  membershipEdit.value = { row, kind, selected: [...membershipIds(row, kind)], roleChoices: {} };
 }
 
 function saveMemberships(): Promise<void> {
   const edit = membershipEdit.value;
   if (!edit || !membershipChanged.value) return Promise.resolve();
-  const command = edit.kind === "tags" ? api.setEventGuestTags : api.setEventGuestGroups;
   return run(async () => {
-    await command(eventId.value, edit.row.participationId, edit.selected, edit.row.revision);
+    const args = [eventId.value, edit.row.participationId, edit.selected, edit.row.revision] as const;
+    if (edit.kind === "tags") {
+      await api.setEventGuestTags(...args);
+    } else {
+      await api.setEventGuestGroups(...args, selectedGroupRoles.value);
+    }
     await loadPage(offset.value);
   });
 }
@@ -461,18 +477,33 @@ onMounted(() => run(async () => {
                 @submit.prevent="saveMemberships">
                 <fieldset class="roster-memberships" :disabled="busy">
                   <legend>{{ t(`eventGuests.${kind}.change`) }}</legend>
-                  <label v-for="option in membershipOptions[kind].filter((item) => !item.retired || membershipIds(row, kind).includes(item.id))"
+                  <div v-for="option in membershipOptions[kind].filter((item) => !item.retired || membershipIds(row, kind).includes(item.id))"
                     :key="option.id">
-                    <input v-model="membershipEdit.selected" type="checkbox" :value="option.id">
-                    {{ option.retired ? t(`eventGuests.${kind}.retiredOption`, { label: option.label }) : option.label }}
-                  </label>
+                    <label>
+                      <input v-model="membershipEdit.selected" type="checkbox" :value="option.id">
+                      {{ option.retired ? t(`eventGuests.${kind}.retiredOption`, { label: option.label }) : option.label }}
+                    </label>
+                    <label v-if="kind === 'groups' && membershipEdit.selected.includes(option.id)">
+                      {{ t("eventGuests.groups.roleFor", { label: option.label }) }}
+                      <select :value="membershipEdit.roleChoices[option.id] ?? row.groupRoles[option.id] ?? 'member'" :disabled="option.retired"
+                        @change="membershipEdit.roleChoices[option.id] = ($event.target as HTMLSelectElement).value as GuestGroupRole">
+                        <option v-if="row.groupRoles[option.id] && !guestGroupRoles.some((role) => role === row.groupRoles[option.id])"
+                          :value="row.groupRoles[option.id]" disabled>{{ groupRoleLabel(row.groupRoles[option.id]!) }}</option>
+                        <option v-for="role in guestGroupRoles" :key="role" :value="role">{{ groupRoleLabel(role) }}</option>
+                      </select>
+                    </label>
+                  </div>
                 </fieldset>
                 <button class="button button-primary" type="submit" :disabled="busy || !membershipChanged">{{ t("common.save") }}</button>
                 <button class="button button-secondary" type="button" :disabled="busy" @click="membershipEdit = null">{{ t("common.cancel") }}</button>
               </form>
               <ul v-else-if="membershipIds(row, kind).length" class="roster-membership-list">
                 <li v-for="option in membershipOptions[kind].filter((item) => membershipIds(row, kind).includes(item.id))"
-                  :key="option.id">{{ option.label }}</li>
+                  :key="option.id">
+                  {{ option.label }}<template v-if="kind === 'groups' && row.groupRoles[option.id] && row.groupRoles[option.id] !== 'member'">
+                    · {{ groupRoleLabel(row.groupRoles[option.id]!) }}
+                  </template>
+                </li>
               </ul>
               <span v-else>—</span>
             </td>

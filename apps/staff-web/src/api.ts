@@ -1270,6 +1270,9 @@ export interface EventGuestWorkspace extends RegistryLinkableEvent {
   status: OrganizerEvent["status"];
 }
 
+export const guestGroupRoles = ["member", "lead", "assistant", "partner", "security_liaison"] as const;
+export type GuestGroupRole = typeof guestGroupRoles[number];
+
 export interface EventGuestRow {
   participationId: string;
   displayName: string;
@@ -1279,6 +1282,7 @@ export interface EventGuestRow {
   categoryId: string | null;
   tagIds: string[];
   groupIds: string[];
+  groupRoles: Record<string, string>;
   participationCode: string | null;
 }
 
@@ -1526,10 +1530,12 @@ export const api = {
     request<Envelope<EventGuestGroup>>(`/events/${encodeURIComponent(eventId)}/guest-groups/${encodeURIComponent(groupId)}/retire`, {
       method: "POST", idempotent: true,
     }),
-  setEventGuestGroups: (eventId: string, participationId: string, groupIds: string[], expectedRevision: number) =>
+  setEventGuestGroups: (
+    eventId: string, participationId: string, groupIds: string[], expectedRevision: number, groupRoles: Record<string, GuestGroupRole>,
+  ) =>
     request<Envelope<{ participationId: string; groupIds: string[]; revision: number }>>(
       `/events/${encodeURIComponent(eventId)}/participations/${encodeURIComponent(participationId)}/groups`, {
-        method: "PATCH", body: { groupIds, expectedRevision }, idempotent: true,
+        method: "PATCH", body: { groupIds, expectedRevision, ...(Object.keys(groupRoles).length ? { groupRoles } : {}) }, idempotent: true,
       },
     ),
   listEventGuestRelationships: (eventId: string, participationId: string) =>
