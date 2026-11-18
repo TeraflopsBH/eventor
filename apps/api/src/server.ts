@@ -4794,7 +4794,8 @@ export function buildApi(dependencies: ApiDependencies): FastifyInstance {
   function readEventGuestPage(reply: FastifyReply, principal: StaffPrincipal, eventId: string, filter: GuestListPage) {
     return withRegistryRead(reply, principal,
       `SELECT eogp.read_event_guest_list($1::uuid,$3::uuid,$2::uuid,$4::text,$5::integer,$6::uuid,$7::boolean,$8::text,$9::uuid,$10::uuid)
-        || jsonb_build_object('canViewRestrictedTags',eogp.can_view_restricted_guest_tags($1::uuid,$3::uuid,$2::uuid)) AS result`,
+        || jsonb_build_object('canViewRestrictedTags',eogp.can_view_restricted_guest_tags($1::uuid,$3::uuid,$2::uuid),
+          'canViewGuestNotes',eogp.can_view_event_guest_notes($1::uuid,$3::uuid,$2::uuid)) AS result`,
       [eventId, filter.status ?? null, filter.offset ?? 0, ...guestCategoryFilter(filter.category), filter.query ?? null, filter.tagId ?? null, filter.groupId ?? null], (value) => {
         const roster = value as { canViewRelationships: boolean };
         return { ...roster, canViewCustomFields: roster.canViewRelationships };
@@ -4849,6 +4850,7 @@ export function buildApi(dependencies: ApiDependencies): FastifyInstance {
   function withGuestListCommand(
     request: FastifyRequest, reply: FastifyReply, eventId: string, operation: string,
     input: Record<string, unknown>, query: string, values: readonly unknown[], statusCode = 200,
+    additionalPermission?: string,
   ) {
     const principal = registryPrincipal(request);
     const args = [principal.organizationId, eventId, principal.membershipId];
@@ -4857,6 +4859,9 @@ export function buildApi(dependencies: ApiDependencies): FastifyInstance {
       return (result.rows[0]?.result ?? {}) as Record<string, unknown>;
     }, async (client) => {
       await client.query("SELECT eogp.assert_event_command_permission($1::uuid,$2::uuid,$3::uuid,'guest.manage')", args);
+      if (additionalPermission) {
+        await client.query("SELECT eogp.assert_event_command_permission($1::uuid,$2::uuid,$3::uuid,$4::text)", [...args, additionalPermission]);
+      }
     }, statusCode);
   }
 
@@ -4864,6 +4869,80 @@ export function buildApi(dependencies: ApiDependencies): FastifyInstance {
     type: "object", required: ["code", "label"], additionalProperties: false,
     properties: { code: { type: "string", pattern: "^[A-Z0-9][A-Z0-9_-]{0,39}$" }, label: { type: "string", minLength: 1, maxLength: 120 } },
   };
+
+  const eventGuestNotesPath = "/events/:eventId/participations/:participationId/notes";
+  const eventGuestNotesParams = {
+    ...participationEventParams, required: ["eventId", "participationId"],
+    properties: { ...participationEventParams.properties, participationId: { type: "string", pattern: uuidPattern } },
+  };
+  type EventGuestNotesParams = { eventId: string; participationId: string };
+  function eventGuestNoteKey(organizationId: string, eventId: string, participationId: string, noteId: string): Buffer {
+    const key = dependencies.privateFieldEncryptionKey;
+    if (key?.length !== 32) {
+      throw new ApiError(503, "PRIVATE_FIELD_ENCRYPTION_UNAVAILABLE", "Guest note protection is not configured.");
+    }
+    return createHmac("sha256", key)
+      .update(`eventor:guest-note:v1\0${organizationId}\0${eventId.toLowerCase()}\0${participationId.toLowerCase()}\0${noteId.toLowerCase()}`).digest();
+  }
+
+  server.get<{ Params: EventGuestNotesParams; Querystring: { offset?: number } }>(eventGuestNotesPath, {
+    schema: { params: eventGuestNotesParams, querystring: { type: "object", properties: { offset: guestListOffset } } },
+  }, (request, reply) => {
+    const principal = registryPrincipal(request);
+    const { eventId, participationId } = request.params;
+    return withRegistryRead(reply, principal, "SELECT eogp.read_event_guest_notes($1::uuid,$3::uuid,$2::uuid,$4::uuid,$5::integer) AS result",
+      [eventId, participationId, request.query.offset ?? 0], (value) => {
+        const result = value as {
+          canManage: boolean; nextOffset: number | null;
+          notes: { noteId: string; createdAt: string; withdrawnAt: string | null; ciphertext: string | null }[];
+        };
+        return {
+          ...result,
+          notes: result.notes.map(({ ciphertext, ...note }) => ({
+            ...note,
+            text: ciphertext ? decryptContactValue(Buffer.from(ciphertext, "base64"),
+              eventGuestNoteKey(principal.organizationId, eventId, participationId, note.noteId),
+              { organizationId: principal.organizationId, contactKind: "other" }) : null,
+          })),
+        };
+      });
+  });
+
+  server.post<{ Params: EventGuestNotesParams; Body: { text: string } }>(eventGuestNotesPath, {
+    schema: {
+      params: eventGuestNotesParams, headers: idempotencyHeaders,
+      body: { type: "object", additionalProperties: false, required: ["text"], properties: { text: { type: "string", minLength: 1, maxLength: 2000 } } },
+    },
+  }, (request, reply) => {
+    const { organizationId } = registryPrincipal(request);
+    const { eventId, participationId } = request.params;
+    const note = request.body.text.replace(/\r\n?/g, "\n").trim();
+    if (!note || /[\p{Cc}\p{Cs}]/u.test(note.replace(/[\t\n]/g, ""))) {
+      throw new ApiError(400, "VALIDATION_FAILED", "Enter a valid guest note.");
+    }
+    const noteId = randomUUID();
+    const ciphertext = encryptContactValue(note, eventGuestNoteKey(organizationId, eventId, participationId, noteId), {
+      organizationId, contactKind: "other",
+    });
+    return withGuestListCommand(request, reply, eventId, "guest.note.record", { participationId, note },
+      "SELECT eogp.write_event_guest_note($1::uuid,$2::uuid,$3::uuid,$4::uuid,$5::uuid,$6::bytea) AS result",
+      [participationId, noteId, ciphertext], 201, "guest.notes.manage");
+  });
+
+  server.post<{ Params: EventGuestNotesParams & { noteId: string } }>(`${eventGuestNotesPath}/:noteId/withdraw`, {
+    schema: {
+      params: {
+        ...eventGuestNotesParams, required: ["eventId", "participationId", "noteId"],
+        properties: { ...eventGuestNotesParams.properties, noteId: { type: "string", pattern: uuidPattern } },
+      },
+      headers: idempotencyHeaders,
+    },
+  }, (request, reply) => {
+    const { eventId, participationId, noteId } = request.params;
+    return withGuestListCommand(request, reply, eventId, "guest.note.withdraw", { participationId, noteId },
+      "SELECT eogp.write_event_guest_note($1::uuid,$2::uuid,$3::uuid,$4::uuid,$5::uuid,NULL) AS result",
+      [participationId, noteId], 200, "guest.notes.manage");
+  });
 
   type RosterNameBody = JsonRequestBody<"/events/{eventId}/participations/{participationId}/roster-name", "patch">;
   server.patch<{ Params: { eventId: string; participationId: string }; Body: RosterNameBody }>(

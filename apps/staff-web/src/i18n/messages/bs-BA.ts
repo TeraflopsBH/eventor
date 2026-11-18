@@ -187,6 +187,17 @@ export default {
       invalid: "Za šifru koristite do 40 slova, cifara, donjih crta ili crtica. Počnite slovom ili cifrom i unesite naziv.",
       failed: "Spremanje kategorije gostiju nije uspjelo.",
     },
+    notes: {
+      open: "Bilješke osoblja",
+      forGuest: "Bilješke osoblja za {name}",
+      text: "Ograničena bilješka",
+      add: "Dodaj bilješku",
+      empty: "Nema zabilježenih bilješki osoblja.",
+      confirmWithdraw: "Povući ovu bilješku iz prikaza bilješki gosta?",
+      withdraw: "Povuci bilješku",
+      withdrawn: "Povučena {time}",
+      failed: "Bilješke gosta nije bilo moguće učitati ili sačuvati.",
+    },
     groupRules: {
       title: "Pravila rasporeda grupa",
       firstGroup: "Prva grupa",

@@ -4484,6 +4484,92 @@ paths:
         '404': { $ref: '#/components/responses/NotFound' }
         '409': { $ref: '#/components/responses/Conflict' }
         '412': { $ref: '#/components/responses/PreconditionFailed' }
+  "/events/{eventId}/participations/{participationId}/notes":
+    get:
+      tags: ["Event Participation"]
+      operationId: listRestrictedGuestNotes
+      summary: "List restricted notes for one event guest"
+      security: [{ StaffSession: [] }]
+      parameters:
+        - $ref: '#/components/parameters/PEventId'
+        - name: participationId
+          in: path
+          required: true
+          schema: { type: string, format: uuid }
+        - name: offset
+          in: query
+          schema: { type: integer, minimum: 0, maximum: 100000 }
+      responses:
+        '200':
+          description: "A page of active notes and withdrawn note timestamps."
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/EventGuestNotesEnvelope' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '404': { $ref: '#/components/responses/NotFound' }
+        '503': { $ref: '#/components/responses/ServiceUnavailable' }
+    post:
+      tags: ["Event Participation"]
+      operationId: recordRestrictedGuestNote
+      summary: "Record an encrypted restricted note for one event guest"
+      security: [{ StaffSession: [], StaffCsrf: [] }]
+      parameters:
+        - $ref: '#/components/parameters/PEventId'
+        - $ref: '#/components/parameters/IdempotencyKey'
+        - name: participationId
+          in: path
+          required: true
+          schema: { type: string, format: uuid }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              additionalProperties: false
+              required: [text]
+              properties:
+                text: { type: string, minLength: 1, maxLength: 2000 }
+      responses:
+        '201':
+          description: "The note ID and creation timestamp."
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/EventGuestNoteChangeEnvelope' }
+        '400': { $ref: '#/components/responses/BadRequest' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '404': { $ref: '#/components/responses/NotFound' }
+        '409': { $ref: '#/components/responses/Conflict' }
+        '503': { $ref: '#/components/responses/ServiceUnavailable' }
+  "/events/{eventId}/participations/{participationId}/notes/{noteId}/withdraw":
+    post:
+      tags: ["Event Participation"]
+      operationId: withdrawRestrictedGuestNote
+      summary: "Withdraw a guest note from read projections"
+      security: [{ StaffSession: [], StaffCsrf: [] }]
+      parameters:
+        - $ref: '#/components/parameters/PEventId'
+        - $ref: '#/components/parameters/IdempotencyKey'
+        - name: participationId
+          in: path
+          required: true
+          schema: { type: string, format: uuid }
+        - name: noteId
+          in: path
+          required: true
+          schema: { type: string, format: uuid }
+      responses:
+        '200':
+          description: "The note ID and withdrawal timestamp."
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/EventGuestNoteChangeEnvelope' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '404': { $ref: '#/components/responses/NotFound' }
+        '409': { $ref: '#/components/responses/Conflict' }
   "/events/{eventId}/participations/{participationId}/roster-name":
     patch:
       tags: ["Event Participation"]
@@ -9510,13 +9596,45 @@ components:
           properties:
             relationshipId: { type: string, format: uuid }
             retiredAt: { type: [string, 'null'], format: date-time }
+    EventGuestNotesEnvelope:
+      type: object
+      required: [data]
+      properties:
+        data:
+          type: object
+          required: [notes, canManage, nextOffset]
+          properties:
+            notes:
+              type: array
+              maxItems: 50
+              items:
+                type: object
+                required: [noteId, text, createdAt, withdrawnAt]
+                properties:
+                  noteId: { type: string, format: uuid }
+                  text: { type: [string, 'null'] }
+                  createdAt: { type: string, format: date-time }
+                  withdrawnAt: { type: [string, 'null'], format: date-time }
+            canManage: { type: boolean }
+            nextOffset: { type: [integer, 'null'], minimum: 0 }
+    EventGuestNoteChangeEnvelope:
+      type: object
+      required: [data]
+      properties:
+        data:
+          type: object
+          required: [noteId, createdAt, withdrawnAt]
+          properties:
+            noteId: { type: string, format: uuid }
+            createdAt: { type: string, format: date-time }
+            withdrawnAt: { type: [string, 'null'], format: date-time }
     EventGuestListEnvelope:
       type: object
       required: [data]
       properties:
         data:
           type: object
-          required: [people, canManage, canViewRelationships, canViewCustomFields, canViewRestrictedTags, nextOffset]
+          required: [people, canManage, canViewRelationships, canViewCustomFields, canViewRestrictedTags, canViewGuestNotes, nextOffset]
           properties:
             people:
               type: array
@@ -9549,6 +9667,7 @@ components:
             canViewRelationships: { type: boolean }
             canViewCustomFields: { type: boolean }
             canViewRestrictedTags: { type: boolean }
+            canViewGuestNotes: { type: boolean }
             nextOffset: { type: [integer, 'null'], minimum: 0 }
     ParticipationStatusRequest:
       type: object
