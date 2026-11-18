@@ -4151,6 +4151,57 @@ export function buildApi(dependencies: ApiDependencies): FastifyInstance {
     },
   }, (request, reply) => writeRegistryReference(request, reply, request.params.personId, request.params.referenceId, request.body.expectedRevision));
 
+  const registryRelationshipsPath = "/persons/:personId/relationships";
+  type RegistryRelationshipInput = JsonRequestBody<"/persons/{personId}/relationships", "post">;
+  function writeRegistryRelationship(
+    request: FastifyRequest, reply: FastifyReply, personId: string,
+    relationshipId: string | null, input: RegistryRelationshipInput | null,
+  ) {
+    const { organizationId, membershipId } = registryPrincipal(request);
+    const operation = relationshipId ? "guest.registry.relationship.end" : "guest.registry.relationship.create";
+    return withCommand(request, reply.header("cache-control", "no-store, private"), operation, { personId, relationshipId, ...input },
+      async (client) => {
+        const { rows } = await client.query<ResultRow>(
+          "SELECT eogp.write_guest_registry_relationship($1::uuid,$2::uuid,$3::uuid,$4::uuid,$5::uuid,$6::text,$7::text) AS result",
+          [organizationId, membershipId, personId, relationshipId, input?.relatedPersonId ?? null,
+            input?.kind ?? null, input?.directionality ?? null],
+        );
+        return (rows[0]?.result ?? {}) as Record<string, unknown>;
+      }, async (client) => {
+        await client.query("SELECT eogp.assert_guest_registry_relationship_permission($1::uuid,$2::uuid,true)",
+          [organizationId, membershipId]);
+      }, relationshipId ? 200 : 201);
+  }
+
+  server.get<{ Params: { personId: string } }>(registryRelationshipsPath, {
+    schema: { params: registryPersonParams },
+  }, (request, reply) => withRegistryRead(reply, registryPrincipal(request),
+    "SELECT eogp.read_guest_registry_relationships($1::uuid,$2::uuid,$3::uuid) AS result", [request.params.personId]));
+
+  server.post<{ Params: { personId: string }; Body: RegistryRelationshipInput }>(registryRelationshipsPath, {
+    schema: {
+      params: registryPersonParams, headers: idempotencyHeaders,
+      body: {
+        type: "object", additionalProperties: false, required: ["relatedPersonId", "kind", "directionality"],
+        properties: {
+          relatedPersonId: { type: "string", pattern: uuidPattern },
+          kind: { type: "string", enum: ["household", "family", "assistant", "delegate", "colleague", "partner", "other"] },
+          directionality: { type: "string", enum: ["mutual", "directed"] },
+        },
+      },
+    },
+  }, (request, reply) => writeRegistryRelationship(request, reply, request.params.personId, null, request.body));
+
+  server.post<{ Params: { personId: string; relationshipId: string } }>(`${registryRelationshipsPath}/:relationshipId/end`, {
+    schema: {
+      params: {
+        ...registryPersonParams, required: ["personId", "relationshipId"],
+        properties: { ...registryPersonParams.properties, relationshipId: { type: "string", pattern: uuidPattern } },
+      },
+      headers: idempotencyHeaders,
+    },
+  }, (request, reply) => writeRegistryRelationship(request, reply, request.params.personId, request.params.relationshipId, null));
+
   server.get<{ Params: { organizationId: string } }>(registryPath, { schema: { params: registryOrgParams } },
     (request, reply) => readRegistry(reply, registryPrincipal(request, request.params.organizationId), null));
 
