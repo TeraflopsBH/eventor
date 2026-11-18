@@ -4865,6 +4865,38 @@ export function buildApi(dependencies: ApiDependencies): FastifyInstance {
     properties: { code: { type: "string", pattern: "^[A-Z0-9][A-Z0-9_-]{0,39}$" }, label: { type: "string", minLength: 1, maxLength: 120 } },
   };
 
+  type RosterNameBody = JsonRequestBody<"/events/{eventId}/participations/{participationId}/roster-name", "patch">;
+  server.patch<{ Params: { eventId: string; participationId: string }; Body: RosterNameBody }>(
+    "/events/:eventId/participations/:participationId/roster-name", {
+      schema: {
+        params: {
+          ...participationEventParams, required: ["eventId", "participationId"],
+          properties: { ...participationEventParams.properties, participationId: { type: "string", pattern: uuidPattern } },
+        },
+        headers: idempotencyHeaders,
+        body: {
+          type: "object", additionalProperties: false, required: ["displayName", "expectedRevision"],
+          properties: {
+            displayName: { type: ["string", "null"], minLength: 1, maxLength: 250 }, expectedRevision: personRevision,
+          },
+        },
+      },
+    }, (request, reply) => {
+      const { eventId, participationId } = request.params;
+      const { expectedRevision } = request.body;
+      const displayName = request.body.displayName?.trim() ?? null;
+      if (displayName !== null && (!displayName || /[\p{Cc}\p{Cs}]/u.test(displayName))) {
+        throw new ApiError(400, "VALIDATION_FAILED", "Enter a valid roster name or clear the override.");
+      }
+      if (displayName !== null && dependencies.privateFieldEncryptionKey?.length !== 32) {
+        throw new ApiError(503, "PRIVATE_FIELD_ENCRYPTION_UNAVAILABLE", "Roster name request protection is not configured.");
+      }
+      return withGuestListCommand(request, reply, eventId, "guest.participation.roster_name",
+        { participationId, expectedRevision, displayName },
+        "SELECT eogp.set_event_guest_roster_name($1::uuid,$2::uuid,$3::uuid,$4::uuid,$5::integer,$6::text) AS result",
+        [participationId, expectedRevision, displayName]);
+    });
+
   type BulkGuestSelection = { participationId: string; expectedRevision: number }[];
   type BulkCategoryBody = { categoryId: string | null; guests: BulkGuestSelection };
   const bulkGuestSelectionSchema = {

@@ -3657,6 +3657,55 @@ BEGIN
 END;
 $test$;
 
+-- A staff roster name is revision-checked and preserves the Registry and invitation identities.
+DO $test$
+DECLARE
+  v_org CONSTANT uuid := '10000000-0000-0000-0000-00000000000a';
+  v_actor CONSTANT uuid := '30000000-0000-0000-0000-00000000000a';
+  v_event uuid;
+  v_other_event uuid;
+  v_person uuid;
+  v_guest uuid;
+  v_other_guest uuid;
+  v_result jsonb;
+BEGIN
+  SELECT id INTO STRICT v_event FROM eogp.events WHERE organization_id=v_org AND event_code='CI-LINK-A';
+  SELECT id INTO STRICT v_other_event FROM eogp.events WHERE organization_id=v_org AND event_code='CI-LINK-B';
+  v_person := (eogp.write_guest_registry_person(v_org,v_actor,NULL,NULL,'create',
+    '{"firstName":"Roster","lastName":"Fixture","displayName":"Pinned Staff Fixture"}')->>'personId')::uuid;
+  v_guest := (eogp.link_registry_person_to_event(v_org,v_event,v_actor,v_person,'eligible')->>'participationId')::uuid;
+  v_other_guest := (eogp.link_registry_person_to_event(v_org,v_other_event,v_actor,v_person,'eligible')->>'participationId')::uuid;
+  PERFORM eogp.write_guest_registry_person(v_org,v_actor,v_person,1,'update','{"displayName":"Registry Current Fixture"}');
+
+  v_result := eogp.set_event_guest_roster_name(v_org,v_event,v_actor,v_guest,1,'Staff Display Override');
+  IF v_result->>'revision' IS DISTINCT FROM '2'
+    OR NOT (eogp.read_event_guest_list(v_org,v_event,v_actor,NULL,0,NULL,false,'Staff Display Override')->'people')
+      @> jsonb_build_array(jsonb_build_object('participationId',v_guest,'displayName','Staff Display Override',
+        'recordedDisplayName','Pinned Staff Fixture','displayNameOverride','Staff Display Override'))
+    OR (eogp.read_event_guest_roster_export(v_org,v_event,v_actor,NULL,NULL,false,'Staff Display Override')->'people')
+      IS DISTINCT FROM '[{"displayName":"Staff Display Override","status":"eligible","categoryCode":null}]'::jsonb
+    OR NOT eogp.list_guest_invitation_participations(v_org,v_event,v_actor) @> jsonb_build_array(
+        jsonb_build_object('participationId',v_guest,'displayName','Pinned Staff Fixture'))
+    OR NOT (eogp.read_event_guest_list(v_org,v_other_event,v_actor,NULL,0,NULL,false,'Pinned Staff Fixture')->'people')
+      @> jsonb_build_array(jsonb_build_object('participationId',v_other_guest,'displayName','Pinned Staff Fixture','displayNameOverride',NULL))
+    OR NOT EXISTS (SELECT 1 FROM eogp.persons WHERE organization_id=v_org AND id=v_person AND display_name='Registry Current Fixture') THEN
+    RAISE EXCEPTION 'staff roster override changed a recorded profile or event identity';
+  END IF;
+  BEGIN
+    PERFORM eogp.set_event_guest_roster_name(v_org,v_event,v_actor,v_guest,1,NULL);
+    RAISE EXCEPTION 'stale roster name change was accepted';
+  EXCEPTION WHEN serialization_failure THEN NULL;
+  END;
+  PERFORM eogp.set_event_guest_roster_name(v_org,v_event,v_actor,v_guest,2,NULL);
+  IF NOT (eogp.read_event_guest_list(v_org,v_event,v_actor,NULL,0,NULL,false,'Pinned Staff Fixture')->'people')
+    @> jsonb_build_array(jsonb_build_object('participationId',v_guest,'displayName','Pinned Staff Fixture','displayNameOverride',NULL))
+    OR EXISTS (SELECT 1 FROM eogp.audit_events WHERE organization_id=v_org AND aggregate_id=v_guest
+      AND action='guest.participation.roster_name_changed' AND safe_metadata::text LIKE '%Staff Display Override%') THEN
+    RAISE EXCEPTION 'clearing roster names missed the original name or leaked it into audit';
+  END IF;
+END;
+$test$;
+
 COMMIT;
 
 \echo 'PostgreSQL migration smoke tests passed.'

@@ -66,7 +66,12 @@ const membershipChanged = computed(() => {
   return edit.selected.length !== original.length || edit.selected.some((id) => !original.includes(id))
     || Object.keys(selectedGroupRoles.value).length > 0;
 });
-const rowEditing = computed(() => !!(editing.value || categoryEdit.value || membershipEdit.value));
+const rosterNameEdit = ref<{ row: EventGuestRow; value: string } | null>(null);
+const rosterNameChanged = computed(() => {
+  const edit = rosterNameEdit.value;
+  return !!edit && (edit.value.trim() || null) !== edit.row.displayNameOverride;
+});
+const rowEditing = computed(() => !!(editing.value || categoryEdit.value || membershipEdit.value || rosterNameEdit.value));
 const selectedGuests = ref<string[]>([]);
 const bulkCategory = ref<string | null>(null);
 const bulkStatus = ref<ManagedParticipationStatus | "">("");
@@ -103,6 +108,7 @@ async function run(operation: () => Promise<void>): Promise<void> {
       groups.value = [];
       categoryEdit.value = null;
       membershipEdit.value = null;
+      rosterNameEdit.value = null;
     }
     error.value = failure instanceof ApiError && failure.code === "GUEST_ROSTER_EXPORT_LIMIT"
       ? t("eventGuests.exportLimit")
@@ -123,6 +129,7 @@ async function loadPage(pageOffset: number): Promise<void> {
   restrictedTagPanel.value = null;
   categoryEdit.value = null;
   membershipEdit.value = null;
+  rosterNameEdit.value = null;
   if (!eventId.value) return;
   roster.value = (await api.getEventGuestList(eventId.value, pageOffset, status.value, categoryFilter.value, nameFilter.value, membershipFilters.value)).data;
   offset.value = pageOffset;
@@ -173,6 +180,7 @@ function chooseEvent(): void {
     editing.value = null;
     categoryEdit.value = null;
     membershipEdit.value = null;
+    rosterNameEdit.value = null;
     roster.value = page.data;
     categories.value = catalogue.data;
     tags.value = tagList.data;
@@ -256,6 +264,19 @@ function startEdit(row: EventGuestRow): void {
 
 function categoryName(row: EventGuestRow): string | null {
   return (row.categoryId && categoryNames.value.get(row.categoryId)) || row.categoryCode;
+}
+
+function editRosterName(row: EventGuestRow): void {
+  rosterNameEdit.value = { row, value: row.displayNameOverride ?? "" };
+}
+
+function saveRosterName(): void {
+  const edit = rosterNameEdit.value;
+  if (!edit || !rosterNameChanged.value) return;
+  void run(async () => {
+    await api.setEventGuestRosterName(eventId.value, edit.row.participationId, edit.value.trim() || null, edit.row.revision);
+    await loadPage(offset.value);
+  });
 }
 
 function editCategory(row: EventGuestRow): void {
@@ -544,7 +565,20 @@ onMounted(() => run(async () => {
               <input v-if="row.status !== 'cancelled'" v-model="selectedGuests" type="checkbox" :value="row.participationId"
                 :aria-label="t('eventGuests.bulk.selectGuest', { name: row.displayName })" :disabled="busy || rowEditing" @change="bulkResult = null">
             </td>
-            <td>{{ row.displayName }}</td>
+            <td>
+              <form v-if="rosterNameEdit?.row.participationId === row.participationId" @submit.prevent="saveRosterName">
+                <label for="edit-roster-name">{{ t("eventGuests.rosterName.label") }}</label>
+                <input id="edit-roster-name" v-model="rosterNameEdit.value" maxlength="250" :disabled="busy"
+                  :placeholder="row.recordedDisplayName" aria-describedby="edit-roster-name-help">
+                <p id="edit-roster-name-help">{{ t("eventGuests.rosterName.recorded", { name: row.recordedDisplayName }) }}</p>
+                <button class="button button-primary" type="submit" :disabled="busy || !rosterNameChanged">{{ t("common.save") }}</button>
+                <button class="button button-secondary" type="button" :disabled="busy" @click="rosterNameEdit = null">{{ t("common.cancel") }}</button>
+              </form>
+              <template v-else>
+                {{ row.displayName }}
+                <small v-if="row.displayNameOverride">· {{ t("eventGuests.rosterName.override") }}</small>
+              </template>
+            </td>
             <td>{{ t(`registry.participationStatus.${row.status}`) }}</td>
             <td>
               <form v-if="categoryEdit?.row.participationId === row.participationId" @submit.prevent="saveCategory">
@@ -612,6 +646,9 @@ onMounted(() => run(async () => {
                 <button class="button button-secondary" type="button" :disabled="busy" @click="editing = null">{{ t("common.cancel") }}</button>
               </form>
               <template v-else-if="roster.canManage && row.status !== 'cancelled'">
+                <button class="button button-secondary" type="button" :disabled="busy || rowEditing" @click="editRosterName(row)">
+                  {{ t("eventGuests.rosterName.edit") }}
+                </button>
                 <button class="button button-secondary" type="button" :disabled="busy || rowEditing" @click="startEdit(row)">
                   {{ t("registry.editParticipation") }}
                 </button>
