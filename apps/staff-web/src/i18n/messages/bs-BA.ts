@@ -249,6 +249,12 @@ export default {
       failed: "Učitavanje ili ažuriranje spremljenih prikaza nije uspjelo.",
     },
     bulk: {
+      tag: "Oznaka za odabrane goste",
+      chooseTag: "Odaberite oznaku",
+      addTag: "Dodaj oznaku odabranima",
+      removeTag: "Ukloni oznaku odabranima",
+      confirmTagAdd: "Dodati oznaku {label} za {count} odabranih gostiju?",
+      confirmTagRemove: "Ukloniti oznaku {label} za {count} odabranih gostiju?",
       status: "Status odabranih gostiju",
       chooseStatus: "Odaberite status",
       applyStatus: "Primijeni status",

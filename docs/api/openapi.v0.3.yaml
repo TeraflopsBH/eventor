@@ -4244,6 +4244,40 @@ paths:
         '409': { $ref: '#/components/responses/Conflict' }
         '412': { $ref: '#/components/responses/PreconditionFailed' }
         '422': { $ref: '#/components/responses/UnprocessableEntity' }
+  "/events/{eventId}/participations/bulk/tags":
+    patch:
+      tags: ["Event Participation"]
+      operationId: setEventGuestBulkTag
+      summary: "Add or remove an internal tag for up to 50 event guests in one transaction"
+      security: [{ StaffSession: [], StaffCsrf: [] }]
+      parameters:
+        - $ref: '#/components/parameters/PEventId'
+        - $ref: '#/components/parameters/IdempotencyKey'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              additionalProperties: false
+              required: [tagId, action, guests]
+              properties:
+                tagId: { type: string, format: uuid }
+                action: { type: string, enum: [add, remove] }
+                guests: { $ref: '#/components/schemas/BulkEventGuestSelection' }
+      responses:
+        '200':
+          description: "Counts of selected and updated guests."
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/BulkEventGuestChangeEnvelope' }
+        '400': { $ref: '#/components/responses/BadRequest' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '404': { $ref: '#/components/responses/NotFound' }
+        '409': { $ref: '#/components/responses/Conflict' }
+        '412': { $ref: '#/components/responses/PreconditionFailed' }
+        '422': { $ref: '#/components/responses/UnprocessableEntity' }
   "/events/{eventId}/participations/{participationId}/category":
     patch:
       tags: ["Event Participation"]
