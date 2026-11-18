@@ -1327,6 +1327,15 @@ export interface GuestListOption {
 
 export type EventGuestCategory = Omit<GuestListOption, "id"> & { categoryId: string };
 export type EventGuestTag = Omit<GuestListOption, "id"> & { tagId: string };
+export interface RestrictedEventGuestTags {
+  tags: EventGuestTag[];
+  assignedTagIds: string[];
+  revision: number | null;
+  canManage: boolean;
+}
+function restrictedEventGuestTagsPath(eventId: string): string {
+  return `/events/${encodeURIComponent(eventId)}/restricted-guest-tags`;
+}
 export const guestGroupKinds = ["custom", "family", "couple", "delegation", "official_party", "team", "organization"] as const;
 export type GuestGroupKind = typeof guestGroupKinds[number];
 export type EventGuestGroup = Omit<GuestListOption, "id"> & {
@@ -1349,6 +1358,7 @@ export interface EventGuestList {
   canManage: boolean;
   canViewRelationships: boolean;
   canViewCustomFields: boolean;
+  canViewRestrictedTags: boolean;
   nextOffset: number | null;
 }
 
@@ -1582,6 +1592,24 @@ export const api = {
   setEventGuestTags: (eventId: string, participationId: string, tagIds: string[], expectedRevision: number) =>
     request<Envelope<{ participationId: string; tagIds: string[]; revision: number }>>(
       `/events/${encodeURIComponent(eventId)}/participations/${encodeURIComponent(participationId)}/tags`, {
+        method: "PATCH", body: { tagIds, expectedRevision }, idempotent: true,
+      },
+    ),
+  listRestrictedEventGuestTags: (eventId: string, participationId?: string) =>
+    request<Envelope<RestrictedEventGuestTags>>(
+      restrictedEventGuestTagsPath(eventId) + (participationId ? `?participationId=${encodeURIComponent(participationId)}` : ""),
+    ),
+  createRestrictedEventGuestTag: (eventId: string, body: { code: string; label: string }) =>
+    request<Envelope<{ tagId: string; retired: boolean }>>(restrictedEventGuestTagsPath(eventId), {
+      method: "POST", body, idempotent: true,
+    }),
+  retireRestrictedEventGuestTag: (eventId: string, tagId: string) =>
+    request<Envelope<{ tagId: string; retired: boolean }>>(
+      `${restrictedEventGuestTagsPath(eventId)}/${encodeURIComponent(tagId)}/retire`, { method: "POST", idempotent: true },
+    ),
+  setRestrictedEventGuestTags: (eventId: string, participationId: string, tagIds: string[], expectedRevision: number) =>
+    request<Envelope<{ participationId: string; tagIds: string[]; revision: number }>>(
+      `/events/${encodeURIComponent(eventId)}/participations/${encodeURIComponent(participationId)}/restricted-tags`, {
         method: "PATCH", body: { tagIds, expectedRevision }, idempotent: true,
       },
     ),

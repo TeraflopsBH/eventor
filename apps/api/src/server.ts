@@ -4677,7 +4677,8 @@ export function buildApi(dependencies: ApiDependencies): FastifyInstance {
 
   function readEventGuestPage(reply: FastifyReply, principal: StaffPrincipal, eventId: string, filter: GuestListPage) {
     return withRegistryRead(reply, principal,
-      "SELECT eogp.read_event_guest_list($1::uuid,$3::uuid,$2::uuid,$4::text,$5::integer,$6::uuid,$7::boolean,$8::text) AS result",
+      `SELECT eogp.read_event_guest_list($1::uuid,$3::uuid,$2::uuid,$4::text,$5::integer,$6::uuid,$7::boolean,$8::text)
+        || jsonb_build_object('canViewRestrictedTags',eogp.can_view_restricted_guest_tags($1::uuid,$3::uuid,$2::uuid)) AS result`,
       [eventId, filter.status ?? null, filter.offset ?? 0, ...guestCategoryFilter(filter.category), filter.query ?? null], (value) => {
         const roster = value as { canViewRelationships: boolean };
         return { ...roster, canViewCustomFields: roster.canViewRelationships };
@@ -4910,6 +4911,116 @@ export function buildApi(dependencies: ApiDependencies): FastifyInstance {
         "SELECT eogp.set_event_guest_tags($1::uuid,$2::uuid,$3::uuid,$4::uuid,$5::integer,$6::uuid[]) AS result",
         [participationId, expectedRevision, tagIds]);
     });
+
+  const restrictedTagsPath = "/events/:eventId/restricted-guest-tags";
+  function restrictedTagKey(organizationId: string, eventId: string, tagId: string): Buffer {
+    const root = dependencies.privateFieldEncryptionKey;
+    if (root?.length !== 32) {
+      throw new ApiError(503, "PRIVATE_FIELD_ENCRYPTION_UNAVAILABLE", "Restricted tag protection is not configured.");
+    }
+    return createHmac("sha256", root)
+      .update(`eventor:restricted-guest-tag:v1\0${organizationId}\0${eventId.toLowerCase()}\0${tagId.toLowerCase()}`).digest();
+  }
+  function withRestrictedTagCommand(
+    request: FastifyRequest, reply: FastifyReply, eventId: string, operation: string,
+    input: Record<string, unknown>, query: string, values: readonly unknown[], status = 200,
+  ) {
+    const { organizationId, membershipId } = registryPrincipal(request);
+    const args = [organizationId, eventId, membershipId];
+    return withCommand(request, reply.header("cache-control", "no-store, private"), operation, { eventId, ...input }, async (client) => {
+      const result = await client.query<ResultRow>(query, [...args, ...values]);
+      return (result.rows[0]?.result ?? {}) as Record<string, unknown>;
+    }, async (client) => {
+      await client.query(`SELECT eogp.assert_event_command_permission($1::uuid,$2::uuid,$3::uuid,'guest.manage'),
+        eogp.assert_restricted_guest_tag_permission($1::uuid,$2::uuid,$3::uuid,true)`, args);
+    }, status);
+  }
+
+  server.get<{ Params: { eventId: string }; Querystring: { participationId?: string } }>(restrictedTagsPath, {
+    schema: {
+      params: participationEventParams,
+      querystring: { type: "object", properties: { participationId: { type: "string", pattern: uuidPattern } } },
+    },
+  }, (request, reply) => {
+    const principal = registryPrincipal(request);
+    const { eventId } = request.params;
+    return withRegistryRead(reply, principal,
+      "SELECT eogp.read_restricted_event_guest_tags($1::uuid,$3::uuid,$2::uuid,$4::uuid) AS result",
+      [eventId, request.query.participationId ?? null], (value) => {
+        const result = value as {
+          assignedTagIds: string[]; revision: number | null; canManage: boolean;
+          tags: { tagId: string; code: string; retired: boolean; ciphertext: string | null; legacyLabel: string | null }[];
+        };
+        return {
+          ...result,
+          tags: result.tags.map(({ ciphertext, legacyLabel, ...tag }) => ({
+            ...tag,
+            label: ciphertext ? decryptContactValue(Buffer.from(ciphertext, "base64"),
+              restrictedTagKey(principal.organizationId, eventId, tag.tagId),
+              { organizationId: principal.organizationId, contactKind: "other" }) : legacyLabel,
+          })),
+        };
+      });
+  });
+
+  server.post<{ Params: { eventId: string }; Body: { code: string; label: string } }>(restrictedTagsPath, {
+    schema: { params: participationEventParams, headers: idempotencyHeaders, body: guestLabelBody },
+  }, (request, reply) => {
+    const { eventId } = request.params;
+    const { organizationId } = registryPrincipal(request);
+    const { code } = request.body;
+    const label = request.body.label.trim();
+    if (!label || /[\p{Cc}\p{Cs}]/u.test(label)) {
+      throw new ApiError(400, "VALIDATION_FAILED", "Enter a valid restricted tag name.");
+    }
+    const tagId = randomUUID();
+    const ciphertext = encryptContactValue(label, restrictedTagKey(organizationId, eventId, tagId), {
+      organizationId, contactKind: "other",
+    });
+    return withRestrictedTagCommand(request, reply, eventId, "guest.restricted_tag.create", { code, label },
+      "SELECT eogp.write_restricted_event_guest_tag($1::uuid,$2::uuid,$3::uuid,$4::uuid,$5::text,$6::bytea) AS result",
+      [tagId, code, ciphertext], 201);
+  });
+
+  server.post<{ Params: { eventId: string; tagId: string } }>(`${restrictedTagsPath}/:tagId/retire`, {
+    schema: {
+      params: {
+        ...participationEventParams, required: ["eventId", "tagId"],
+        properties: { ...participationEventParams.properties, tagId: { type: "string", pattern: uuidPattern } },
+      },
+      headers: idempotencyHeaders,
+    },
+  }, (request, reply) => {
+    const { eventId, tagId } = request.params;
+    return withRestrictedTagCommand(request, reply, eventId, "guest.restricted_tag.retire", { tagId },
+      "SELECT eogp.write_restricted_event_guest_tag($1::uuid,$2::uuid,$3::uuid,$4::uuid,NULL,NULL) AS result", [tagId]);
+  });
+
+  server.patch<{
+    Params: { eventId: string; participationId: string }; Body: { expectedRevision: number; tagIds: string[] };
+  }>("/events/:eventId/participations/:participationId/restricted-tags", {
+    schema: {
+      params: {
+        ...participationEventParams, required: ["eventId", "participationId"],
+        properties: { ...participationEventParams.properties, participationId: { type: "string", pattern: uuidPattern } },
+      },
+      headers: idempotencyHeaders,
+      body: {
+        type: "object", additionalProperties: false, required: ["expectedRevision", "tagIds"],
+        properties: {
+          expectedRevision: personRevision,
+          tagIds: { type: "array", uniqueItems: true, maxItems: 1000, items: { type: "string", pattern: uuidPattern } },
+        },
+      },
+    },
+  }, (request, reply) => {
+    const { eventId, participationId } = request.params;
+    const { expectedRevision } = request.body;
+    const tagIds = request.body.tagIds.map((id) => id.toLowerCase()).sort();
+    return withRestrictedTagCommand(request, reply, eventId, "guest.participation.restricted_tags", { participationId, expectedRevision, tagIds },
+      "SELECT eogp.set_event_guest_tags($1::uuid,$2::uuid,$3::uuid,$4::uuid,$5::integer,$6::uuid[],'restricted') AS result",
+      [participationId, expectedRevision, tagIds]);
+  });
 
   server.get<{ Params: { eventId: string } }>("/events/:eventId/guest-groups", {
     schema: { params: participationEventParams },

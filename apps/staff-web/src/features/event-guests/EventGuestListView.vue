@@ -4,6 +4,7 @@ import { useI18n } from "vue-i18n";
 import EventGuestImportPreview from "./EventGuestImportPreview.vue";
 import EventGuestOptions from "./EventGuestOptions.vue";
 import EventGuestRelationships from "./EventGuestRelationships.vue";
+import EventGuestRestrictedTags from "./EventGuestRestrictedTags.vue";
 import EventGuestCustomFields from "./EventGuestCustomFields.vue";
 import EventGuestSavedViews from "./EventGuestSavedViews.vue";
 import { api, ApiError, guestGroupRoles, type GuestGroupRole, type EventGuestCategory, type EventGuestGroup, type EventGuestList, type EventGuestRow, type EventGuestTag, type EventGuestViewFilters, type EventGuestWorkspace, type ManagedParticipationStatus } from "../../api";
@@ -24,6 +25,7 @@ const statuses: ManagedParticipationStatus[] = ["eligible", "waitlisted", "ineli
 const editing = ref<EventGuestRow | null>(null);
 const relationshipGuest = ref<EventGuestRow | null>(null);
 const fieldPanel = ref<EventGuestRow | "definitions" | null>(null);
+const restrictedTagPanel = ref<EventGuestRow | "definitions" | null>(null);
 const nextStatus = ref<ManagedParticipationStatus>("eligible");
 const busy = ref(false);
 const showImport = ref(false);
@@ -89,6 +91,7 @@ async function run(operation: () => Promise<void>): Promise<void> {
       editing.value = null;
       relationshipGuest.value = null;
       fieldPanel.value = null;
+      restrictedTagPanel.value = null;
       categories.value = [];
       tags.value = [];
       groups.value = [];
@@ -111,6 +114,7 @@ async function loadPage(pageOffset: number): Promise<void> {
   editing.value = null;
   relationshipGuest.value = null;
   fieldPanel.value = null;
+  restrictedTagPanel.value = null;
   categoryEdit.value = null;
   membershipEdit.value = null;
   if (!eventId.value) return;
@@ -151,6 +155,7 @@ function chooseEvent(): void {
   roster.value = null;
   relationshipGuest.value = null;
   fieldPanel.value = null;
+  restrictedTagPanel.value = null;
   void run(async () => {
     if (!eventId.value) return;
     const [page, catalogue, tagList, groupList] = await Promise.all([
@@ -249,12 +254,26 @@ function editCategory(row: EventGuestRow): void {
 }
 
 function toggleRelationships(row: EventGuestRow): void {
+  restrictedTagPanel.value = null;
   fieldPanel.value = null;
   relationshipGuest.value = relationshipGuest.value?.participationId === row.participationId ? null : row;
 }
 
+function showRestrictedTags(target: EventGuestRow | "definitions"): void {
+  relationshipGuest.value = null;
+  fieldPanel.value = null;
+  restrictedTagPanel.value = restrictedTagPanel.value === target ? null : target;
+}
+
+function updateRestrictedTagRevision(revision: number): void {
+  if (restrictedTagPanel.value && restrictedTagPanel.value !== "definitions") {
+    restrictedTagPanel.value.revision = Math.max(restrictedTagPanel.value.revision, revision);
+  }
+}
+
 function showFields(target: EventGuestRow | "definitions"): void {
   relationshipGuest.value = null;
+  restrictedTagPanel.value = null;
   fieldPanel.value = fieldPanel.value === target ? null : target;
 }
 
@@ -413,6 +432,16 @@ onMounted(() => run(async () => {
       <EventGuestOptions v-if="showGroups" :key="eventId" :event-id="eventId" kind="groups" :options="membershipOptions.groups"
         @changed="run(loadGroups)" />
     </div>
+    <div v-if="roster?.canViewRestrictedTags">
+      <button class="button button-secondary" type="button" :disabled="busy || rowEditing"
+        :aria-expanded="restrictedTagPanel === 'definitions'" @click="showRestrictedTags('definitions')">
+        {{ t("eventGuests.restrictedTags.title") }}
+      </button>
+    </div>
+    <EventGuestRestrictedTags v-if="roster?.canViewRestrictedTags && restrictedTagPanel"
+      :key="restrictedTagPanel === 'definitions' ? eventId : restrictedTagPanel.participationId" :event-id="eventId"
+      :guest="restrictedTagPanel === 'definitions' ? undefined : restrictedTagPanel"
+      @close="restrictedTagPanel = null" @revision="updateRestrictedTagRevision" />
     <div v-if="roster?.canViewCustomFields">
       <button class="button button-secondary" type="button" :disabled="busy || rowEditing"
         :aria-expanded="fieldPanel === 'definitions'" @click="showFields('definitions')">{{ t("eventGuests.fields.manage") }}</button>
@@ -479,7 +508,7 @@ onMounted(() => run(async () => {
           <th scope="col">{{ t("registry.linkStatus") }}</th>
           <th scope="col">{{ t("eventGuests.category") }}</th>
           <th v-for="kind in membershipKinds" :key="kind" scope="col">{{ t(`eventGuests.${kind}.heading`) }}</th>
-          <th scope="col" v-if="roster.canManage || roster.canViewRelationships || roster.canViewCustomFields">{{ t("common.actions") }}</th>
+          <th scope="col" v-if="roster.canManage || roster.canViewRelationships || roster.canViewCustomFields || roster.canViewRestrictedTags">{{ t("common.actions") }}</th>
         </tr></thead>
         <tbody>
           <tr v-for="row in roster.people" :key="row.participationId">
@@ -544,7 +573,7 @@ onMounted(() => run(async () => {
               </ul>
               <span v-else>—</span>
             </td>
-            <td v-if="roster.canManage || roster.canViewRelationships || roster.canViewCustomFields">
+            <td v-if="roster.canManage || roster.canViewRelationships || roster.canViewCustomFields || roster.canViewRestrictedTags">
               <form v-if="editing?.participationId === row.participationId" @submit.prevent="save">
                 <label for="roster-next-status">{{ t("registry.linkStatus") }}</label>
                 <select id="roster-next-status" v-model="nextStatus">
@@ -573,6 +602,8 @@ onMounted(() => run(async () => {
                 :aria-expanded="relationshipGuest?.participationId === row.participationId" @click="toggleRelationships(row)">
                 {{ t("eventGuests.relationships.open") }}
               </button>
+              <button v-if="roster.canViewRestrictedTags" class="button button-secondary" type="button" :disabled="busy || rowEditing"
+                :aria-expanded="restrictedTagPanel === row" @click="showRestrictedTags(row)">{{ t("eventGuests.restrictedTags.title") }}</button>
               <button v-if="roster.canViewCustomFields" class="button button-secondary" type="button" :disabled="busy || rowEditing"
                 :aria-expanded="fieldPanel === row" @click="showFields(row)">{{ t("eventGuests.fields.open") }}</button>
             </td>

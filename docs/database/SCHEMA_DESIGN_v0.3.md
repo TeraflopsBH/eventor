@@ -421,3 +421,7 @@ Staff with the dedicated verification grant can record in-person confirmation or
 ## Bulk event guest tags (000161)
 
 Staff can add or remove one internal tag across up to 50 selected event guests in a single transaction. The batch uses individual tag assignment checks and revision handling. Retired tags may be removed. Other assignments are preserved, including restricted assignments.
+
+## Restricted event guest tags (000162)
+
+The restricted tag catalogue and individual assignments require dedicated event-scoped grants in addition to basic roster access. New restricted names are encrypted with keys bound to the event and tag. Legacy restricted names are visible only through the permissioned catalogue. Restricted codes have their own namespace. Ordinary roster projections and bulk edits omit restricted tags, and assignment revisions preserve each classification independently.

@@ -184,6 +184,14 @@ export default {
       invalid: "Use up to 40 letters, digits, underscores or hyphens for the code. Start with a letter or digit and enter a name.",
       failed: "Could not save the guest category.",
     },
+    restrictedTags: {
+      title: "Restricted tags",
+      forGuest: "Restricted tags for {name}",
+      code: "Tag code",
+      assign: "Restricted assignments",
+      empty: "No restricted tags to display.",
+      failed: "Could not load or save restricted tags.",
+    },
     tags: {
       heading: "Tags",
       manage: "Manage guest tags",
