@@ -429,3 +429,7 @@ The restricted tag catalogue and individual assignments require dedicated event-
 ## Guest Registry relationships (000163)
 
 Organization-scoped relationships between active Registry profiles support mutual and directed links. Separate Registry grants cover read and management access. Composite foreign keys and forced tenant RLS confine each link to one organization. Ending a relationship records its end while preserving history. Supervised merges hold sources with active relationships for separate resolution.
+
+## Bulk Guest Registry archival (000164)
+
+An authorized Registry manager can archive up to 50 selected active profiles from one page. Each profile uses the existing archival checks and audit record. The batch validates revisions and rolls back all changes if any profile has outstanding participation or another conflict.
