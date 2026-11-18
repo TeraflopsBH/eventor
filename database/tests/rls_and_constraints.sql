@@ -3570,6 +3570,93 @@ BEGIN
 END;
 $test$;
 
+-- An unmatched source reference is created only by explicit review and in the same transaction as its profile and event link.
+DO $test$
+DECLARE
+  v_org CONSTANT uuid := '10000000-0000-0000-0000-00000000000a';
+  v_actor CONSTANT uuid := '30000000-0000-0000-0000-00000000000a';
+  v_cipher bytea := convert_to('ECP1' || repeat('x',32),'UTF8');
+  v_encoded text := encode(v_cipher,'base64');
+  v_event uuid;
+  v_occupied uuid;
+  v_late uuid;
+  v_fresh uuid := gen_random_uuid();
+  v_batch uuid;
+  v_preview jsonb;
+  v_rows jsonb;
+  v_input jsonb;
+  v_creates jsonb;
+  v_result jsonb;
+BEGIN
+  SELECT id INTO STRICT v_event FROM eogp.events WHERE organization_id=v_org AND event_code='CI-LINK-A';
+  v_occupied := (eogp.write_guest_registry_person(v_org,v_actor,NULL,NULL,'create',
+    '{"firstName":"Archived","lastName":"Reference Owner"}')->>'personId')::uuid;
+  PERFORM eogp.write_guest_registry_reference(v_org,v_actor,v_occupied,NULL,1,'add','NEWREF',repeat('1',64),v_cipher);
+  PERFORM eogp.write_guest_registry_person(v_org,v_actor,v_occupied,2,'archive','{}');
+  v_rows := jsonb_build_array(
+    jsonb_build_object('rowNumber',2,'firstName','New','lastName','Reference Guest','referenceFingerprint',repeat('0',64),
+      'sourceCiphertext',v_encoded,'namesCiphertext',v_encoded,'errors','[]'::jsonb),
+    jsonb_build_object('rowNumber',3,'firstName','Archived','lastName','Reference Owner','referenceFingerprint',repeat('1',64),
+      'sourceCiphertext',v_encoded,'namesCiphertext',v_encoded,'errors','[]'::jsonb),
+    jsonb_build_object('rowNumber',4,'firstName','Late','lastName','Reference Owner','referenceFingerprint',repeat('2',64),
+      'sourceCiphertext',v_encoded,'namesCiphertext',v_encoded,'errors','[]'::jsonb)
+  );
+  v_batch := (eogp.prepare_reference_guest_import_preview(v_org,v_event,v_actor,repeat('e',64),v_rows,
+    '{"firstName":1,"lastName":2}',NULL,NULL,'NEWREF',3)->>'batchId')::uuid;
+  v_preview := eogp.read_guest_import_preview(v_org,v_event,v_actor,v_batch);
+  IF v_preview->>'canCreateReferences' IS DISTINCT FROM 'true'
+    OR v_preview#>'{rows,0,errors}' IS DISTINCT FROM '["reference_unmatched"]'::jsonb
+    OR v_preview#>'{rows,1,errors}' IS DISTINCT FROM '["reference_unavailable"]'::jsonb
+    OR eogp.guest_import_commit_input(v_org,v_event,v_actor,v_batch) <> '[]'::jsonb
+    OR jsonb_array_length(eogp.guest_import_commit_input(v_org,v_event,v_actor,v_batch,ARRAY[]::integer[],ARRAY[2])) <> 1 THEN
+    RAISE EXCEPTION 'reference creation candidates did not match the preview and explicit choices';
+  END IF;
+
+  DELETE FROM eogp.role_permissions WHERE organization_id=v_org AND permission_code='guest.registry.references.manage'
+    AND role_id=(SELECT id FROM eogp.roles WHERE organization_id=v_org AND code='CI-REGISTRY');
+  IF eogp.read_guest_import_preview(v_org,v_event,v_actor,v_batch)->>'canCreateReferences' IS DISTINCT FROM 'false' THEN
+    RAISE EXCEPTION 'read-only reference access enabled profile creation';
+  END IF;
+  BEGIN
+    PERFORM eogp.guest_import_commit_input(v_org,v_event,v_actor,v_batch,ARRAY[]::integer[],ARRAY[2]);
+    RAISE EXCEPTION 'reference management was not required for creation input';
+  EXCEPTION WHEN insufficient_privilege THEN NULL;
+  END;
+  INSERT INTO eogp.role_permissions(organization_id,role_id,permission_code)
+    SELECT v_org,id,'guest.registry.references.manage' FROM eogp.roles WHERE organization_id=v_org AND code='CI-REGISTRY';
+
+  v_late := (eogp.write_guest_registry_person(v_org,v_actor,NULL,NULL,'create',
+    '{"firstName":"Another","lastName":"Contact"}')->>'personId')::uuid;
+  PERFORM eogp.write_guest_registry_reference(v_org,v_actor,v_late,NULL,1,'add','NEWREF',repeat('2',64),v_cipher);
+  v_input := jsonb_build_array(jsonb_build_object('rowNumber',2,'namesCiphertext',v_encoded,
+    'names','{"firstName":"New","lastName":"Reference Guest"}'::jsonb));
+  v_creates := jsonb_build_array(jsonb_build_object('rowNumber',2,'personId',v_fresh,'fingerprint',repeat('0',64),'ciphertext',v_encoded));
+  BEGIN
+    PERFORM eogp.commit_reviewed_guest_import(v_org,v_event,v_actor,v_batch,
+      v_input || jsonb_build_array(jsonb_build_object('rowNumber',4,'namesCiphertext',v_encoded,
+        'names','{"firstName":"Late","lastName":"Reference Owner"}'::jsonb)), '[]',ARRAY[]::integer[],'[]',
+      v_creates || jsonb_build_array(jsonb_build_object('rowNumber',4,'personId',gen_random_uuid(),
+        'fingerprint',repeat('2',64),'ciphertext',v_encoded)));
+    RAISE EXCEPTION 'commit accepted a reference assigned after preview';
+  EXCEPTION WHEN serialization_failure THEN NULL;
+  END;
+  IF EXISTS (SELECT 1 FROM eogp.persons WHERE organization_id=v_org AND id=v_fresh) THEN
+    RAISE EXCEPTION 'earlier reference creation persisted after the failed batch';
+  END IF;
+  v_result := eogp.commit_reviewed_guest_import(v_org,v_event,v_actor,v_batch,v_input,'[]',ARRAY[]::integer[],'[]',v_creates);
+  IF v_result->>'importedCount' IS DISTINCT FROM '1'
+    OR NOT EXISTS (SELECT 1 FROM eogp.person_identifiers WHERE organization_id=v_org AND person_id=v_fresh
+      AND identifier_kind='external-ref-v1:NEWREF' AND encrypted_value=v_cipher)
+    OR NOT EXISTS (SELECT 1 FROM eogp.event_participations WHERE organization_id=v_org AND event_id=v_event AND person_id=v_fresh)
+    OR NOT (eogp.read_guest_import_report(v_org,v_event,v_actor,v_batch)->'rows')
+      @> '[{"rowNumber":2,"outcome":"created","errors":[]}]'::jsonb
+    OR eogp.commit_reviewed_guest_import(v_org,v_event,v_actor,v_batch,'[]','[]',ARRAY[]::integer[],'[]',
+      '[{"rowNumber":2}]') <> v_result THEN
+    RAISE EXCEPTION 'reference creation did not persist atomically or allow a stable replay';
+  END IF;
+END;
+$test$;
+
 COMMIT;
 
 \echo 'PostgreSQL migration smoke tests passed.'

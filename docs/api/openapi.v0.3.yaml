@@ -8960,7 +8960,7 @@ components:
       type: object
       additionalProperties: false
       required: [source, column]
-      description: "Match mapped rows to an existing active profile by its exact case-sensitive source reference. Requires a distinct column, a name mapping, and Registry reference read access. Unmatched rows are reported. This mode does not create profiles."
+      description: "Match mapped rows to an existing active profile by its exact case-sensitive source reference. Requires a distinct column, a name mapping, and Registry reference read access. Unmatched rows are reported and may be selected for profile creation by authorized staff."
       properties:
         source: { type: string, pattern: '^[A-Za-z0-9][A-Za-z0-9_-]{0,39}$' }
         column: { type: integer, minimum: 1, maximum: 64 }
@@ -9027,6 +9027,12 @@ components:
           uniqueItems: true
           description: "Create a separate profile for each explicitly selected, valid row flagged as a possible duplicate. Each row may have only one resolution. Available for name matches."
           items: { type: integer, minimum: 2, maximum: 1048576 }
+        newReferenceRows:
+          type: array
+          maxItems: 500
+          uniqueItems: true
+          description: "Create profiles with their staged, unmatched references. Requires Registry reference management. Each row may have only one resolution."
+          items: { type: integer, minimum: 2, maximum: 1048576 }
         reuse:
           type: array
           maxItems: 500
@@ -9072,17 +9078,18 @@ components:
                   duplicateCount: { type: integer, minimum: 0, maximum: 20 }
                   errors:
                     type: array
-                    items: { type: string, enum: [column_count, name_required, name_invalid, duplicate_in_file, cell_not_text, reference_invalid, reference_unmatched] }
+                    items: { type: string, enum: [column_count, name_required, name_invalid, duplicate_in_file, cell_not_text, reference_invalid, reference_unmatched, reference_unavailable] }
     GuestImportPreviewEnvelope:
       type: object
       required: [data]
       properties:
         data:
           type: object
-          required: [batchId, matchingSource, rows]
+          required: [batchId, matchingSource, canCreateReferences, rows]
           properties:
             batchId: { type: string, format: uuid }
             matchingSource: { type: [string, 'null'] }
+            canCreateReferences: { type: boolean }
             rows:
               type: array
               maxItems: 500
@@ -9131,7 +9138,7 @@ components:
                               proposed: { type: string }
                   errors:
                     type: array
-                    items: { type: string, enum: [column_count, name_required, name_invalid, duplicate_in_file, cell_not_text, reference_invalid, reference_unmatched] }
+                    items: { type: string, enum: [column_count, name_required, name_invalid, duplicate_in_file, cell_not_text, reference_invalid, reference_unmatched, reference_unavailable] }
                   names:
                     type: object
                     required: [firstName, lastName, displayName, preferredName]

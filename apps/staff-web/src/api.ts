@@ -1462,7 +1462,7 @@ export interface GuestImportProfileChoice {
 
 interface GuestImportDiagnostics {
   rowNumber: number;
-  errors: ("column_count" | "name_required" | "name_invalid" | "duplicate_in_file" | "cell_not_text" | "reference_invalid" | "reference_unmatched")[];
+  errors: ("column_count" | "name_required" | "name_invalid" | "duplicate_in_file" | "cell_not_text" | "reference_invalid" | "reference_unmatched" | "reference_unavailable")[];
   duplicateCount: number;
 }
 
@@ -1483,6 +1483,7 @@ interface GuestImportMatch {
 export interface GuestImportPreview {
   batchId: string;
   matchingSource: string | null;
+  canCreateReferences: boolean;
   rows: (GuestImportDiagnostics & {
     names: GuestRegistryNames;
     sourceReference?: string;
@@ -1528,10 +1529,18 @@ export const api = {
     request<Envelope<{ batchId: string; rowCount: number }>>(`/events/${encodeURIComponent(eventId)}/guest-imports/xlsx`, {
       method: "POST", body: { xlsx, sheetIndex, headerRow, mapping, referenceMatch }, idempotent: true,
     }),
-  commitGuestImport: (eventId: string, batchId: string, reuse: GuestImportProfileChoice[], distinctProfileRows: number[] = [], updates: GuestImportProfileChoice[] = []) =>
+  commitGuestImport: (
+    eventId: string, batchId: string, reuse: GuestImportProfileChoice[], distinctProfileRows: number[] = [],
+    updates: GuestImportProfileChoice[] = [], newReferenceRows: number[] = [],
+  ) =>
     request<Envelope<GuestImportCommit>>(`/events/${encodeURIComponent(eventId)}/guest-imports/${encodeURIComponent(batchId)}/commit`, {
       method: "POST",
-      body: { reuse, ...(distinctProfileRows.length ? { distinctProfileRows } : {}), ...(updates.length ? { updates } : {}) },
+      body: {
+        reuse,
+        ...(distinctProfileRows.length ? { distinctProfileRows } : {}),
+        ...(updates.length ? { updates } : {}),
+        ...(newReferenceRows.length ? { newReferenceRows } : {}),
+      },
       idempotent: true,
     }),
   getGuestImportPreview: (eventId: string, batchId: string) =>

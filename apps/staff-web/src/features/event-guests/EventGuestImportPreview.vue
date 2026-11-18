@@ -39,6 +39,7 @@ const preview = ref<GuestImportPreview | null>(null);
 const error = ref("");
 const committed = ref<GuestImportCommit | null>(null);
 const selected = ref<Record<number, string>>({});
+const newReferenceRows = ref<number[]>([]);
 const cleanCount = computed(() => preview.value?.rows.filter((row) => !row.errors.length && !row.duplicateCount).length ?? 0);
 const reuse = computed(() => (preview.value?.rows ?? []).flatMap(({ rowNumber, matches }) => {
   const match = matches.find(({ personId }) => personId === selected.value[rowNumber]);
@@ -56,12 +57,13 @@ const separateProfileChoice = "separate-profile";
 const distinctProfileRows = computed(() => (preview.value?.rows ?? [])
   .filter((row) => !row.errors.length && row.duplicateCount > 0 && selected.value[row.rowNumber] === separateProfileChoice)
   .map((row) => row.rowNumber));
-const importCount = computed(() => cleanCount.value + reuse.value.length + distinctProfileRows.value.length + updates.value.length);
+const importCount = computed(() => cleanCount.value + reuse.value.length + distinctProfileRows.value.length + updates.value.length + newReferenceRows.value.length);
 const busy = ref(false);
 
 function clearPreview(): void {
   preview.value = null;
   selected.value = {};
+  newReferenceRows.value = [];
   committed.value = null;
   error.value = "";
 }
@@ -198,19 +200,20 @@ async function prepare(): Promise<void> {
 async function commit(): Promise<void> {
   const batch = preview.value;
   const distinct = distinctProfileRows.value;
-  const confirmation = distinct.length ? "eventGuests.import.confirmDistinctCommit" : "eventGuests.import.confirmCommit";
   const profileUpdates = updates.value;
-  const summary = t(confirmation, { created: cleanCount.value + distinct.length, reused: reuse.value.length, distinct: distinct.length });
-  const message = profileUpdates.length
-    ? t("eventGuests.import.confirmUpdateCommit", {
-      created: cleanCount.value + distinct.length, reused: reuse.value.length, updated: profileUpdates.length, distinct: distinct.length,
-    })
-    : summary;
+  const references = newReferenceRows.value;
+  const confirmation = references.length ? "eventGuests.import.confirmReferenceCommit"
+    : profileUpdates.length ? "eventGuests.import.confirmUpdateCommit"
+    : distinct.length ? "eventGuests.import.confirmDistinctCommit" : "eventGuests.import.confirmCommit";
+  const message = t(confirmation, {
+    created: cleanCount.value + distinct.length + references.length, reused: reuse.value.length,
+    updated: profileUpdates.length, distinct: distinct.length,
+  });
   if (!batch || !importCount.value || !window.confirm(message)) return;
   busy.value = true;
   error.value = "";
   try {
-    committed.value = (await api.commitGuestImport(props.eventId, batch.batchId, reuse.value, distinct, profileUpdates)).data;
+    committed.value = (await api.commitGuestImport(props.eventId, batch.batchId, reuse.value, distinct, profileUpdates, references)).data;
     emit("committed");
   } catch (failure) {
     error.value = failure instanceof ApiError
@@ -325,6 +328,11 @@ async function downloadReport(): Promise<void> {
                   ? t("eventGuests.import.referenceMatch", { source: preview.matchingSource })
                   : t("eventGuests.import.matches", { count: row.duplicateCount }) }}</li>
               </ul><span v-else>{{ t("eventGuests.import.clear") }}</span>
+                <label v-if="!committed && preview.canCreateReferences && row.errors.length === 1
+                    && row.errors[0] === 'reference_unmatched'">
+                  <input v-model="newReferenceRows" type="checkbox" :value="row.rowNumber" :disabled="busy">
+                  {{ t("eventGuests.import.createWithReference", { row: row.rowNumber }) }}
+                </label>
                 <div v-if="!committed && row.duplicateCount && !row.errors.length">
                   <label :for="`guest-import-duplicate-${row.rowNumber}`">{{ t("eventGuests.import.resolveDuplicate", { row: row.rowNumber }) }}</label>
                   <select :id="`guest-import-duplicate-${row.rowNumber}`" :value="selected[row.rowNumber] ?? ''" :disabled="busy"

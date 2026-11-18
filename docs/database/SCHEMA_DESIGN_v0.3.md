@@ -437,3 +437,7 @@ An authorized Registry manager can archive up to 50 selected active profiles fro
 ## Event roster membership filters (000165)
 
 Roster pages and exports can combine an internal tag and an event group with existing name, status and category filters. The shared membership predicate omits restricted tags. Personal views preserve the selected same-event tag and group IDs, and retired options remain usable for filtering existing assignments.
+
+## Reviewed creation from unmatched source references (000166)
+
+Reference managers can select individual unmatched rows. The commit verifies the staged fingerprint and creates the Registry profile, its protected reference and its event participation in one transaction. Inactive owners are reported separately. A reference claimed after review causes a conflict and rolls the batch back. Replays compare the selected rows without retaining plaintext reference values.
