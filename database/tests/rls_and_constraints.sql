@@ -2664,6 +2664,42 @@ BEGIN
 END;
 $test$;
 
+-- An active invitation prevents the whole bulk status change until expressly revoked.
+DO $test$
+DECLARE
+  v_org CONSTANT uuid := '10000000-0000-0000-0000-00000000000a';
+  v_actor CONSTANT uuid := '30000000-0000-0000-0000-00000000000a';
+  v_event uuid;
+  v_guests jsonb;
+  v_invitation uuid;
+  v_result jsonb;
+BEGIN
+  SELECT id INTO STRICT v_event FROM eogp.events WHERE organization_id=v_org AND event_code='CI-LINK-A';
+  SELECT jsonb_agg(jsonb_build_object('participationId',chosen.id,'expectedRevision',chosen.revision) ORDER BY chosen.id)
+  INTO v_guests FROM (SELECT id,revision FROM eogp.event_participations
+    WHERE organization_id=v_org AND event_id=v_event AND status='eligible' ORDER BY id LIMIT 2) chosen;
+  INSERT INTO eogp.invitations (organization_id,event_id,participation_id,created_by_membership_id,issued_at)
+    VALUES (v_org,v_event,(v_guests#>>'{1,participationId}')::uuid,v_actor,clock_timestamp()) RETURNING id INTO v_invitation;
+  BEGIN
+    PERFORM eogp.set_event_guest_bulk_status(v_org,v_event,v_actor,'waitlisted',v_guests);
+    RAISE EXCEPTION 'bulk status changed an invited guest';
+  EXCEPTION WHEN object_not_in_prerequisite_state THEN NULL;
+  END;
+  IF EXISTS (SELECT 1 FROM eogp.event_participations
+    WHERE organization_id=v_org AND event_id=v_event AND id IN ((v_guests#>>'{0,participationId}')::uuid,(v_guests#>>'{1,participationId}')::uuid)
+      AND status <> 'eligible') THEN
+    RAISE EXCEPTION 'failed bulk status update did not roll back';
+  END IF;
+  PERFORM eogp.revoke_guest_invitation(v_org,v_invitation,v_actor,'fixture_bulk');
+  v_result := eogp.set_event_guest_bulk_status(v_org,v_event,v_actor,'waitlisted',v_guests);
+  IF v_result <> '{"processedCount":2,"updatedCount":2}'::jsonb
+    OR (SELECT count(*) FROM eogp.event_participations WHERE organization_id=v_org AND event_id=v_event
+      AND id IN ((v_guests#>>'{0,participationId}')::uuid,(v_guests#>>'{1,participationId}')::uuid) AND status='waitlisted') <> 2 THEN
+    RAISE EXCEPTION 'bulk status did not waitlist both selected guests';
+  END IF;
+END;
+$test$;
+
 COMMIT;
 
 \echo 'PostgreSQL migration smoke tests passed.'

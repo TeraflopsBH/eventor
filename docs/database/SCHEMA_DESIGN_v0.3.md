@@ -373,3 +373,7 @@ Definitions use the existing custom-field catalogue with stable codes and scalar
 ## Bulk event guest categorization (000149)
 
 Guest managers can set or clear the category for up to 50 distinct event participations in one transaction. The command applies individual category permissions, revision checks and audit entries to each guest in stable order. A failed update rolls back the batch. The response counts processed and changed rows.
+
+## Bulk event guest status changes (000150)
+
+Bulk status updates use the shared selection validation and the individual participation status command. Changes and status history commit together. The invitation prerequisite and each selected participation revision are checked within the same transaction.
