@@ -2,18 +2,15 @@
 
 **Baseline date:** 2026-11-16  
 **Product/design baseline:** Technical Blueprint v1.2 and accepted v0.3 domain/architecture decisions.  
-**Implementation baseline:** `main` at `55d7f4c2b6ea33386cc0fc8df6b346709bf828bb` (organizer session listing and creation in PR #134).
+**Implementation baseline:** `main` at `a0a346268016079d58756bd95e7af2b87ccc4fec` (2026-11-18).
 **Detailed audit:** [Blueprint-to-repository gap analysis v1.0](BLUEPRINT_TO_REPOSITORY_GAP_ANALYSIS_v1.0.md).
 
-## Current integration note — 2026-11-17
+## Current integration note — 2026-11-18
 
-- Booking cancellation request/review, purpose-bound customer request capabilities and approved execution with atomic reservation release are integrated through PR #116 (migrations 000115–000118).
-- Staff cancellation workspace and booking-revision-aware detail projection are integrated through PR #128 (migration 000119).
-- Public customer cancellation request and reusable read-only status capability are integrated through PR #129 (migration 000120). The exact-head PostgreSQL 18.6 migration/RLS/concurrency suite, OpenAPI/API tests, staff-web tests/build, systemd verification and secret-history scan passed. Post-merge `main` contracts/PostgreSQL workflow #43934221982 and secret-history scan #43934221882 passed as well.
-- The public page's source-level security regression tests cover fragment-only tokens, history cleanup, locale continuity, cookie omission and logger redaction. A dedicated Chromium/Firefox public cancellation browser journey remains to be added; existing browser acceptance covers auth and guest invitations.
-- Organizer event list/create/edit/archive and session list/create are integrated. Migration 000125 adds revision-checked title and timing edits for planned sessions.
-- The current product implementation track is #104 (event administration and persistent Guest Registry), followed by #105–#107. The native and Docker Compose installers remain required under #108.
-- Repository inventory still has only systemd deployment templates, no production Compose topology/Dockerfile and no complete native installer. The final acceptance VM remains deferred until product and both installers are ready.
+- Event administration, session lifecycle, persistent Guest Registry and event participation are usable from the bilingual staff workspace.
+- Staff can review mapped CSV/XLSX imports, resolve matches by name or exact source reference, review proposed profile updates, and download filtered exports and import reports.
+- The current product implementation track is #104, followed by venue geometry, allocation and admission under #105–#107. Issue #112 covers the remaining disruption coordination.
+- Native and Docker production installation paths remain under #108. Current development Compose runs PostgreSQL only. Final acceptance remains scheduled for the integrated release candidate on the acceptance VM.
 
 ## Delivery principle
 
@@ -52,15 +49,17 @@ The product remains an API-first modular monolith:
 
 ## Phase 2 — Event organizer and Guest Registry foundation
 
-- [ ] Complete organization, user, membership and role administration UX.
-- [ ] Implement event create/edit/archive, lifecycle and session management.
-- [ ] Implement persistent Guest Registry CRUD, search, profile history and permissioned access.
-- [ ] Implement event participation and guest-list management independently of person records.
-- [ ] Add categories, tags, groups, relationships and configurable custom fields.
-- [ ] Add CSV/XLSX import/export with preview, validation, duplicate detection and error reporting.
-- [ ] Add supervised identity merge with audit trail and safe correction/rollback strategy.
-- [ ] Add bulk actions and saved views.
-- [ ] Preserve tenant and organization ownership boundaries; never expose the organizer's guest directory to a venue provider by default.
+- [x] Ship organizer event create/edit/archive, approval, publication, start and close, and session list/create/edit/schedule/start/complete.
+- [x] Ship persistent Registry profile search, edit/archive, history, encrypted contacts, source references and organization-level relationships with scoped grants.
+- [x] Link Registry profiles to independently managed event participations with pinned event identity.
+- [x] Ship event categories, internal and restricted tags, groups and roles, guest relationships and encrypted custom fields.
+- [x] Ship mapped CSV/XLSX name imports with review, protected exact reference matching, and downloadable diagnostics and exports.
+- [x] Ship supervised and reversible merges for unlinked profiles and non-overlapping closed-event history.
+- [x] Ship personal roster views and atomic bulk category, status and internal tag edits.
+- [ ] Finish organization, user, membership and role administration, event settings and session disruption workflows.
+- [ ] Extend reference imports to create profiles and add reviewed merge resolution for contacts, identifiers, active relationships and open or overlapping events.
+- [ ] Extend roster filtering and bulk management and add group allocation preferences and group-to-group relationships.
+- [ ] Run organizer acceptance with separate organizer and venue roles and verify the explicit access grants throughout the workflow.
 
 ## Phase 3 — Venue model and spatial editor
 
