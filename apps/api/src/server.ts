@@ -4303,6 +4303,8 @@ export function buildApi(dependencies: ApiDependencies): FastifyInstance {
     properties: { ...participationEventParams.properties, batchId: { type: "string", pattern: uuidPattern } },
   };
   type GuestImportBatchParams = { eventId: string; batchId: string };
+  type ImportMatch = Pick<ImportNames, "displayName" | "preferredName"> & { personId: string; revision: number; name: string };
+  const importNameFields = ["firstName", "lastName", "displayName", "preferredName"] as const;
   server.get<{ Params: GuestImportBatchParams }>("/events/:eventId/guest-imports/:batchId", {
     schema: { params: guestImportBatchParams },
   }, (request, reply) => {
@@ -4316,16 +4318,28 @@ export function buildApi(dependencies: ApiDependencies): FastifyInstance {
           batchId: string;
           rows: {
             rowNumber: number; namesCiphertext: string; errors: string[]; duplicateCount: number;
-            matches: { personId: string; revision: number; name: string; displayName: string | null; preferredName: string | null }[];
+            matches: ImportMatch[];
+            updateMatches: (ImportMatch & ImportNames & { onEvent: boolean })[];
           }[];
         };
         return {
           batchId: preview.batchId,
-          rows: preview.rows.map(({ namesCiphertext, ...row }) => ({
-            ...row,
-            names: JSON.parse(decryptContactValue(Buffer.from(namesCiphertext, "base64"), key,
-              { organizationId: principal.organizationId, contactKind: "other" })) as ImportNames,
-          })),
+          rows: preview.rows.map(({ namesCiphertext, updateMatches, ...row }) => {
+            const names = JSON.parse(decryptContactValue(Buffer.from(namesCiphertext, "base64"), key,
+              { organizationId: principal.organizationId, contactKind: "other" })) as ImportNames;
+            return {
+              ...row,
+              names,
+              updateMatches: updateMatches.flatMap((match) => {
+                const changes = importNameFields.flatMap((field) => {
+                  const proposed = names[field];
+                  return proposed && proposed !== match[field] ? [{ field, current: match[field], proposed }] : [];
+                });
+                const { personId, revision, name, displayName, preferredName, onEvent } = match;
+                return changes.length ? [{ personId, revision, name, displayName, preferredName, onEvent, changes }] : [];
+              }),
+            };
+          }),
         };
       });
   });
@@ -4336,8 +4350,21 @@ export function buildApi(dependencies: ApiDependencies): FastifyInstance {
     "SELECT eogp.read_guest_import_report($1::uuid,$3::uuid,$2::uuid,$4::uuid) AS result",
     [request.params.eventId, request.params.batchId]));
 
-  type ImportReuse = { rowNumber: number; personId: string; expectedRevision: number };
-  server.post<{ Params: GuestImportBatchParams; Body: { reuse?: ImportReuse[]; distinctProfileRows?: number[] } }>("/events/:eventId/guest-imports/:batchId/commit", {
+  type ImportProfileChoice = { rowNumber: number; personId: string; expectedRevision: number };
+  const importProfileChoices = {
+    type: "array", maxItems: 500,
+    items: {
+      type: "object", required: ["rowNumber", "personId", "expectedRevision"], additionalProperties: false,
+      properties: {
+        rowNumber: { type: "integer", minimum: 2, maximum: guestWorkbookMaxRow },
+        personId: { type: "string", pattern: uuidPattern },
+        expectedRevision: { type: "integer", minimum: 1, maximum: 2147483647 },
+      },
+    },
+  };
+  const normalizeImportChoices = (choices: ImportProfileChoice[] = []) => choices
+    .map((choice) => ({ ...choice, personId: choice.personId.toLowerCase() })).sort((left, right) => left.rowNumber - right.rowNumber);
+  server.post<{ Params: GuestImportBatchParams; Body: { reuse?: ImportProfileChoice[]; updates?: ImportProfileChoice[]; distinctProfileRows?: number[] } }>("/events/:eventId/guest-imports/:batchId/commit", {
     preValidation(request, _reply, done) {
       if (request.body === undefined) request.body = {};
       done();
@@ -4352,38 +4379,34 @@ export function buildApi(dependencies: ApiDependencies): FastifyInstance {
             type: "array", maxItems: 500, uniqueItems: true,
             items: { type: "integer", minimum: 2, maximum: guestWorkbookMaxRow },
           },
-          reuse: {
-            type: "array", maxItems: 500,
-            items: {
-              type: "object", required: ["rowNumber", "personId", "expectedRevision"], additionalProperties: false,
-              properties: {
-                rowNumber: { type: "integer", minimum: 2, maximum: guestWorkbookMaxRow },
-                personId: { type: "string", pattern: uuidPattern },
-                expectedRevision: { type: "integer", minimum: 1, maximum: 2147483647 },
-              },
-            },
-          },
+          reuse: importProfileChoices,
+          updates: importProfileChoices,
         },
       },
     },
   }, (request, reply) => {
     const principal = registryPrincipal(request);
     const { eventId, batchId } = request.params;
-    const reuse = (request.body.reuse ?? []).map((choice) => ({ ...choice, personId: choice.personId.toLowerCase() }))
-      .sort((left, right) => left.rowNumber - right.rowNumber);
+    const reuse = normalizeImportChoices(request.body.reuse);
+    const updates = normalizeImportChoices(request.body.updates);
     const distinctProfileRows = [...(request.body.distinctProfileRows ?? [])].sort((left, right) => left - right);
-    const distinct = new Set(distinctProfileRows);
-    if (new Set(reuse.map((choice) => choice.rowNumber)).size !== reuse.length ||
-        new Set(reuse.map((choice) => choice.personId)).size !== reuse.length || reuse.some(({ rowNumber }) => distinct.has(rowNumber))) {
-      throw new ApiError(400, "VALIDATION_FAILED", "Choose at most one profile per row and use each profile only once.");
+    const selectedProfiles = [...reuse, ...updates];
+    const selectedRows = [...distinctProfileRows, ...selectedProfiles.map(({ rowNumber }) => rowNumber)];
+    if (new Set(selectedRows).size !== selectedRows.length ||
+        new Set(selectedProfiles.map(({ personId }) => personId)).size !== selectedProfiles.length) {
+      throw new ApiError(400, "VALIDATION_FAILED", "Choose one action per row and use each profile only once.");
     }
+    const explicitRows = [...distinctProfileRows, ...updates.map(({ rowNumber }) => rowNumber)];
     const args = [principal.organizationId, eventId, principal.membershipId, batchId];
     const key = guestImportKey();
-    const commandBody = { eventId, batchId, ...(reuse.length ? { reuse } : {}), ...(distinctProfileRows.length ? { distinctProfileRows } : {}) };
+    const commandBody = {
+      eventId, batchId, ...(reuse.length ? { reuse } : {}), ...(distinctProfileRows.length ? { distinctProfileRows } : {}),
+      ...(updates.length ? { updates } : {}),
+    };
     return withCommand(request, reply.header("cache-control", "no-store, private"),
       "guest.import.commit", commandBody, async (client) => {
         const input = await client.query<ResultRow>(
-          "SELECT eogp.guest_import_commit_input($1::uuid,$2::uuid,$3::uuid,$4::uuid,$5::integer[]) AS result", [...args, distinctProfileRows],
+          "SELECT eogp.guest_import_commit_input($1::uuid,$2::uuid,$3::uuid,$4::uuid,$5::integer[]) AS result", [...args, explicitRows],
         );
         const encrypted = input.rows[0]?.result as { rowNumber: number; namesCiphertext: string }[];
         const rows = encrypted.map((row) => ({
@@ -4392,8 +4415,8 @@ export function buildApi(dependencies: ApiDependencies): FastifyInstance {
             { organizationId: principal.organizationId, contactKind: "other" })) as ImportNames,
         }));
         const result = await client.query<ResultRow>(
-          "SELECT eogp.commit_reviewed_guest_import($1::uuid,$2::uuid,$3::uuid,$4::uuid,$5::jsonb,$6::jsonb,$7::integer[]) AS result",
-          [...args, JSON.stringify(rows), JSON.stringify(reuse), distinctProfileRows],
+          "SELECT eogp.commit_reviewed_guest_import($1::uuid,$2::uuid,$3::uuid,$4::uuid,$5::jsonb,$6::jsonb,$7::integer[],$8::jsonb) AS result",
+          [...args, JSON.stringify(rows), JSON.stringify(reuse), distinctProfileRows, JSON.stringify(updates)],
         );
         return (result.rows[0]?.result ?? {}) as Record<string, unknown>;
       }, async (client) => {

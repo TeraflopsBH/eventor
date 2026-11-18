@@ -389,3 +389,7 @@ Staff can map separate source columns to first, last, display and preferred name
 ## Separate profiles for reviewed import rows (000153)
 
 Staff may explicitly create a separate profile for a valid staged row with a Registry name match. Each row has one resolution, and the batch records separate-profile rows alongside reuse choices. Ordinary clean rows still check for matches discovered after preview.
+
+## Reviewed profile updates from guest imports (000154)
+
+Staff can apply staged name changes to an active Registry match at its reviewed revision. Blank optional cells preserve the current values. New event links capture the updated names and existing links retain their pinned identity snapshots. Batch metadata records only the selected row, profile and revision. The row report distinguishes updated profiles from unchanged reuse.
