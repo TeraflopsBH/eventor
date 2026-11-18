@@ -84,6 +84,18 @@ Use `./scripts/dev/run.sh api-debug` to expose the Node inspector only on
 `127.0.0.1:9229`. The API builds before starting; restart it after TypeScript
 changes. Use `./scripts/dev/run.sh worker` for the notification worker.
 
+## Browser smoke tests on Linux
+
+The CI smoke runner uses the pinned Playwright image for Chromium, Firefox and their system libraries. The API and staff preview run on the Linux host. Install the matching Playwright client in `apps/api` and start the relevant synthetic services before running a check.
+
+```bash
+npm --prefix apps/api install --no-save --package-lock=false playwright@1.56.1
+EVENTOR_BROWSER_BASE_URL=http://localhost:8080 bash scripts/dev/run-browser-smoke.sh session
+EVENTOR_GUEST_BROWSER_BASE_URL=http://localhost:4173 bash scripts/dev/run-browser-smoke.sh guest-invitation
+```
+
+The session check expects the synthetic login fixture with the test password configured on the API database. The invitation check uses the built staff preview and browser-side test responses. The runner uses Linux host networking so the browser sees the same loopback URLs as the host. Update the client version and image pin together when upgrading Playwright.
+
 ## Database lifecycle
 
 ```bash
