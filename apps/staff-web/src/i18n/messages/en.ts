@@ -192,6 +192,14 @@ export default {
       failed: "Could not save the guest tag.",
     },
     groups: {
+      roleFor: "Role in {label}",
+      roles: {
+        member: "Member",
+        lead: "Lead",
+        assistant: "Assistant",
+        partner: "Partner",
+        security_liaison: "Security liaison",
+      },
       heading: "Groups",
       manage: "Manage guest groups",
       code: "Group code",
