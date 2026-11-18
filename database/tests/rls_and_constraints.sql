@@ -3461,6 +3461,62 @@ BEGIN
 END;
 $test$;
 
+-- A blocked or stale profile rolls back a bulk archive; successful changes retain the existing profile audit.
+DO $test$
+DECLARE
+  v_org CONSTANT uuid := '10000000-0000-0000-0000-00000000000a';
+  v_actor CONSTANT uuid := '30000000-0000-0000-0000-00000000000a';
+  v_event uuid;
+  v_first uuid;
+  v_second uuid;
+  v_third uuid;
+  v_blocked uuid;
+  v_independent uuid;
+  v_selection jsonb;
+  v_result jsonb;
+BEGIN
+  SELECT id INTO STRICT v_event FROM eogp.events WHERE organization_id=v_org AND event_code='CI-LINK-A';
+  v_first := (eogp.write_guest_registry_person(v_org,v_actor,NULL,NULL,'create',
+    '{"firstName":"Bulk Archive","lastName":"First Fixture"}')->>'personId')::uuid;
+  v_second := (eogp.write_guest_registry_person(v_org,v_actor,NULL,NULL,'create',
+    '{"firstName":"Bulk Archive","lastName":"Second Fixture"}')->>'personId')::uuid;
+  v_third := (eogp.write_guest_registry_person(v_org,v_actor,NULL,NULL,'create',
+    '{"firstName":"Bulk Archive","lastName":"Third Fixture"}')->>'personId')::uuid;
+
+  -- Place the blocked record last in lock order to exercise rollback of an earlier change.
+  v_blocked := greatest(v_first,v_second);
+  v_independent := least(v_first,v_second);
+  PERFORM eogp.link_registry_person_to_event(v_org,v_event,v_actor,v_blocked,'eligible');
+  v_selection := jsonb_build_array(jsonb_build_object('personId',v_independent,'expectedRevision',1),
+    jsonb_build_object('personId',v_blocked,'expectedRevision',1));
+  BEGIN
+    PERFORM eogp.archive_guest_registry_profiles(v_org,v_actor,v_selection);
+    RAISE EXCEPTION 'bulk archive accepted a profile with outstanding event participation';
+  EXCEPTION WHEN object_not_in_prerequisite_state THEN NULL;
+  END;
+  IF NOT EXISTS (SELECT 1 FROM eogp.persons WHERE organization_id=v_org AND id=v_independent AND status='active' AND revision=1)
+    OR EXISTS (SELECT 1 FROM eogp.audit_events WHERE organization_id=v_org AND aggregate_id=v_independent AND action='guest.registry.archive') THEN
+    RAISE EXCEPTION 'an earlier archive survived the blocked batch';
+  END IF;
+  BEGIN
+    PERFORM eogp.archive_guest_registry_profiles(v_org,v_actor,jsonb_set(v_selection,'{1,expectedRevision}','2'));
+    RAISE EXCEPTION 'bulk archive accepted a stale revision';
+  EXCEPTION WHEN serialization_failure THEN NULL;
+  END;
+
+  v_selection := jsonb_build_array(jsonb_build_object('personId',v_independent,'expectedRevision',1),
+    jsonb_build_object('personId',v_third,'expectedRevision',1));
+  v_result := eogp.archive_guest_registry_profiles(v_org,v_actor,v_selection);
+  IF v_result IS DISTINCT FROM '{"archivedCount":2}'::jsonb
+    OR (SELECT count(*) FROM eogp.persons WHERE organization_id=v_org AND id IN (v_independent,v_third)
+        AND status='archived' AND revision=2) <> 2
+    OR (SELECT count(*) FROM eogp.audit_events WHERE organization_id=v_org AND aggregate_id IN (v_independent,v_third)
+        AND action='guest.registry.archive') <> 2 THEN
+    RAISE EXCEPTION 'bulk archive missed a profile or audit record';
+  END IF;
+END;
+$test$;
+
 COMMIT;
 
 \echo 'PostgreSQL migration smoke tests passed.'

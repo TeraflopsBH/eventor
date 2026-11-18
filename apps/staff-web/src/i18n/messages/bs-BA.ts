@@ -327,6 +327,14 @@ export default {
     exportLimit: "Izvoz prelazi 20.000 gostiju. Suzite pretragu ili filtere.",
   },
   registry: {
+    bulkArchive: {
+      selectPage: "Odaberi aktivne profile na ovoj stranici",
+      selectProfile: "Odaberi {name}",
+      selected: "Odabrani profili: {count}",
+      action: "Arhiviraj odabrane profile",
+      confirm: "Arhivirati {count} odabranih profila? Svaki profil mora ispunjavati uslove za arhiviranje.",
+      result: "Arhivirani profili: {count}.",
+    },
     relationships: {
       title: "Veze",
       empty: "Nema zabilježenih veza.",

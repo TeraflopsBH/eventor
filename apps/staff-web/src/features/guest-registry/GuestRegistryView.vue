@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { onMounted, reactive, ref } from "vue";
+import { computed, onMounted, reactive, ref } from "vue";
 import { useI18n } from "vue-i18n";
 import GuestRegistryContacts from "./GuestRegistryContacts.vue";
 import GuestRegistryReferences from "./GuestRegistryReferences.vue";
@@ -34,6 +34,12 @@ const archived = ref(false);
 const filters = reactive({ query: "", archived: false, offset: 0 });
 const form = reactive({ firstName: "", lastName: "", displayName: "", preferredName: "" });
 
+const selectedProfiles = ref<string[]>([]);
+const archivedCount = ref<number | null>(null);
+const canSelectProfiles = computed(() => directory.value?.canManage && !filters.archived);
+const activeProfiles = computed(() => (directory.value?.people ?? []).filter(({ status }) => status === "active"));
+const allProfilesSelected = computed(() => activeProfiles.value.length > 0 && selectedProfiles.value.length === activeProfiles.value.length);
+
 async function run(operation: () => Promise<void>): Promise<void> {
   error.value = "";
   busy.value = true;
@@ -42,6 +48,8 @@ async function run(operation: () => Promise<void>): Promise<void> {
   } catch (failure) {
     if (failure instanceof ApiError && [401, 403].includes(failure.status)) {
       directory.value = null;
+      selectedProfiles.value = [];
+      archivedCount.value = null;
       profile.value = null;
       history.value = null;
       showContacts.value = false;
@@ -64,6 +72,8 @@ async function run(operation: () => Promise<void>): Promise<void> {
 async function load(offset: number): Promise<void> {
   const result = await api.searchGuestRegistry(props.organizationId, { ...filters, offset });
   directory.value = result.data;
+  selectedProfiles.value = [];
+  archivedCount.value = null;
   filters.offset = offset;
 }
 
@@ -237,6 +247,24 @@ function archive(person: GuestRegistryProfile): void {
   });
 }
 
+function selectProfilesOnPage(): void {
+  selectedProfiles.value = allProfilesSelected.value ? [] : activeProfiles.value.map(({ personId }) => personId);
+}
+
+function archiveSelectedProfiles(): void {
+  const selected = new Set(selectedProfiles.value);
+  const profiles = activeProfiles.value.filter(({ personId }) => selected.has(personId))
+    .map(({ personId, revision }) => ({ personId, expectedRevision: revision }));
+  if (!profiles.length || !window.confirm(t("registry.bulkArchive.confirm", { count: profiles.length }))) return;
+  void run(async () => {
+    const { data } = await api.archiveGuestRegistryProfiles(props.organizationId, profiles);
+    if (profile.value && selected.has(profile.value.personId)) closeProfile();
+    await load(filters.offset);
+    if (directory.value?.people.length === 0 && filters.offset > 0) await load(Math.max(0, filters.offset - 50));
+    archivedCount.value = data.archivedCount;
+  });
+}
+
 onMounted(search);
 </script>
 
@@ -377,11 +405,28 @@ onMounted(search);
         </div>
       </template>
     </section>
+    <div v-if="canSelectProfiles && selectedProfiles.length" class="registry-toolbar">
+      <p>{{ t("registry.bulkArchive.selected", { count: selectedProfiles.length }) }}</p>
+      <button type="button" class="button button-danger" :disabled="busy || editing" @click="archiveSelectedProfiles">
+        {{ t("registry.bulkArchive.action") }}
+      </button>
+    </div>
+    <p v-if="archivedCount" role="status">{{ t("registry.bulkArchive.result", { count: archivedCount }) }}</p>
     <p v-if="directory && !directory.people.length" class="muted">{{ t("registry.empty") }}</p>
     <div v-else-if="directory" class="table-scroll">
       <table class="data-table">
-        <thead><tr><th scope="col">{{ t("registry.lastName") }}</th><th scope="col">{{ t("registry.firstName") }}</th><th scope="col">{{ t("registry.displayName") }}</th><th scope="col">{{ t("common.actions") }}</th></tr></thead>
+        <thead><tr>
+          <th v-if="canSelectProfiles" scope="col">
+            <input type="checkbox" :aria-label="t('registry.bulkArchive.selectPage')" :checked="allProfilesSelected"
+              :disabled="busy || editing || !activeProfiles.length" @change="selectProfilesOnPage">
+          </th>
+          <th scope="col">{{ t("registry.lastName") }}</th><th scope="col">{{ t("registry.firstName") }}</th><th scope="col">{{ t("registry.displayName") }}</th><th scope="col">{{ t("common.actions") }}</th></tr></thead>
         <tbody><tr v-for="person in directory.people" :key="person.personId">
+          <td v-if="canSelectProfiles">
+            <input v-if="person.status === 'active'" v-model="selectedProfiles" type="checkbox" :value="person.personId"
+              :aria-label="t('registry.bulkArchive.selectProfile', { name: `${person.firstName} ${person.lastName}` })"
+              :disabled="busy || editing">
+          </td>
           <td>{{ person.lastName }}</td><td>{{ person.firstName }}</td><td>{{ person.displayName }}</td>
           <td><button class="button button-secondary" :disabled="busy || editing" @click="showProfile(person.personId)">{{ t("registry.view") }}</button></td>
         </tr></tbody>

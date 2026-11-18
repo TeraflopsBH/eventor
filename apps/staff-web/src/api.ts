@@ -1755,6 +1755,10 @@ export const api = {
     request<Envelope<GuestRegistryMutation>>(`/organizations/${encodeURIComponent(organizationId)}/persons`, { method: "POST", body, idempotent: true }),
   updateGuestRegistryProfile: (personId: string, body: GuestRegistryNames & { expectedRevision: number }) =>
     request<Envelope<GuestRegistryMutation>>(`/persons/${encodeURIComponent(personId)}`, { method: "PATCH", body, idempotent: true }),
+  archiveGuestRegistryProfiles: (organizationId: string, profiles: { personId: string; expectedRevision: number }[]) =>
+    request<Envelope<{ archivedCount: number }>>(`/organizations/${encodeURIComponent(organizationId)}/persons/bulk/archive`, {
+      method: "POST", body: { profiles }, idempotent: true,
+    }),
   archiveGuestRegistryProfile: (personId: string, expectedRevision: number) =>
     request<Envelope<GuestRegistryMutation>>(`/persons/${encodeURIComponent(personId)}/archive`, {
       method: "POST", body: { expectedRevision }, idempotent: true,

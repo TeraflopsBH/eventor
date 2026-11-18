@@ -4234,6 +4234,37 @@ export function buildApi(dependencies: ApiDependencies): FastifyInstance {
       return result;
     }));
 
+  type BulkArchiveProfilesBody = JsonRequestBody<"/organizations/{organizationId}/persons/bulk/archive", "post">;
+  server.post<{ Params: { organizationId: string }; Body: BulkArchiveProfilesBody }>(`${registryPath}/bulk/archive`, {
+    schema: {
+      params: registryOrgParams, headers: idempotencyHeaders,
+      body: {
+        type: "object", additionalProperties: false, required: ["profiles"],
+        properties: {
+          profiles: {
+            type: "array", minItems: 1, maxItems: 50,
+            items: {
+              type: "object", additionalProperties: false, required: ["personId", "expectedRevision"],
+              properties: { personId: { type: "string", pattern: uuidPattern }, expectedRevision: personRevision },
+            },
+          },
+        },
+      },
+    },
+  }, (request, reply) => {
+    const { organizationId, membershipId } = registryPrincipal(request, request.params.organizationId);
+    const profiles = request.body.profiles.map(({ personId, expectedRevision }) => ({ personId: personId.toLowerCase(), expectedRevision }))
+      .sort((left, right) => left.personId.localeCompare(right.personId));
+    return withCommand(request, reply.header("cache-control", "no-store, private"), "guest.registry.bulk_archive",
+      { organizationId, profiles }, async (client) => {
+        const { rows } = await client.query<ResultRow>("SELECT eogp.archive_guest_registry_profiles($1::uuid,$2::uuid,$3::jsonb) AS result",
+          [organizationId, membershipId, JSON.stringify(profiles)]);
+        return (rows[0]?.result ?? {}) as Record<string, unknown>;
+      }, async (client) => {
+        await client.query("SELECT eogp.assert_guest_registry_permission($1::uuid,$2::uuid,true)", [organizationId, membershipId]);
+      }, 200);
+  });
+
   server.get<{ Params: { organizationId: string }; Querystring: { offset?: number } }>(`${registryPath}/merges`, {
     schema: {
       params: registryOrgParams,

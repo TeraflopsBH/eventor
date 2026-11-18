@@ -327,6 +327,14 @@ export default {
     exportLimit: "This export exceeds 20,000 guests. Narrow the search or filters.",
   },
   registry: {
+    bulkArchive: {
+      selectPage: "Select active profiles on this page",
+      selectProfile: "Select {name}",
+      selected: "Selected profiles: {count}",
+      action: "Archive selected profiles",
+      confirm: "Archive {count} selected profiles? Every profile must be eligible for archival.",
+      result: "Archived {count} profiles.",
+    },
     relationships: {
       title: "Relationships",
       empty: "No relationships recorded.",

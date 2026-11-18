@@ -6291,6 +6291,58 @@ paths:
           content:
             application/problem+json:
               schema: { $ref: '#/components/schemas/Problem' }
+  "/organizations/{organizationId}/persons/bulk/archive":
+    post:
+      tags: ["Guest Registry"]
+      operationId: archiveGuestRegistryProfiles
+      summary: "Archive selected active Registry profiles in one transaction"
+      security: [{ StaffSession: [], StaffCsrf: [] }]
+      parameters:
+        - name: organizationId
+          in: path
+          required: true
+          schema: { type: string, format: uuid }
+        - $ref: '#/components/parameters/IdempotencyKey'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              additionalProperties: false
+              required: [profiles]
+              properties:
+                profiles:
+                  type: array
+                  minItems: 1
+                  maxItems: 50
+                  items:
+                    type: object
+                    additionalProperties: false
+                    required: [personId, expectedRevision]
+                    properties:
+                      personId: { type: string, format: uuid }
+                      expectedRevision: { type: integer, minimum: 1, maximum: 2147483647 }
+      responses:
+        '200':
+          description: "All selected profiles were archived."
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [data]
+                properties:
+                  data:
+                    type: object
+                    required: [archivedCount]
+                    properties:
+                      archivedCount: { type: integer, minimum: 1, maximum: 50 }
+        '400': { $ref: '#/components/responses/BadRequest' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '404': { $ref: '#/components/responses/NotFound' }
+        '409': { $ref: '#/components/responses/Conflict' }
+        '412': { $ref: '#/components/responses/PreconditionFailed' }
   "/organizations/{organizationId}/persons/merges":
     get:
       tags: ["Guest Registry"]
