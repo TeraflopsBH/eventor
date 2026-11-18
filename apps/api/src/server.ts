@@ -3878,6 +3878,27 @@ export function buildApi(dependencies: ApiDependencies): FastifyInstance {
     }
   }
 
+  const organizationAccessPath = "/organizations/:organizationId";
+  type OrganizationAccessParams = { organizationId: string };
+  server.get<{ Params: OrganizationAccessParams }>(`${organizationAccessPath}/roles`, {
+    schema: { params: organizationInquiryParams },
+  }, (request, reply) => withRegistryRead(reply, registryPrincipal(request, request.params.organizationId),
+    "SELECT eogp.list_organization_access_roles($1::uuid,$2::uuid) AS result", []));
+
+  server.get<{ Params: OrganizationAccessParams; Querystring: { offset?: number } }>(`${organizationAccessPath}/memberships`, {
+    schema: {
+      params: organizationInquiryParams,
+      querystring: { type: "object", additionalProperties: false,
+        properties: { offset: { type: "integer", minimum: 0, maximum: 100000 } } },
+    },
+  }, (request, reply) => withRegistryRead(reply, registryPrincipal(request, request.params.organizationId),
+    "SELECT eogp.list_organization_access_members($1::uuid,$2::uuid,$3::integer) AS result", [request.query.offset ?? 0]));
+
+  server.get<{ Params: OrganizationAccessParams }>(`${organizationAccessPath}/permissions`, {
+    schema: { params: organizationInquiryParams },
+  }, (request, reply) => withRegistryRead(reply, registryPrincipal(request, request.params.organizationId),
+    "SELECT eogp.list_organization_permission_catalogue($1::uuid,$2::uuid) AS result", []));
+
   function readRegistry(
     reply: FastifyReply, principal: StaffPrincipal, personId: string | null, filter: PersonSearchBody = {},
   ) {

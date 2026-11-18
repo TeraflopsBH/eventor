@@ -6342,15 +6342,19 @@ paths:
       tags: ["Authorization"]
       operationId: listOrganizationMemberships
       summary: "List organization memberships"
+      description: "List members and their current scoped grants. Requires organization.manage."
       security: [{ StaffSession: [] }]
       parameters:
         - $ref: '#/components/parameters/POrganizationId'
+        - name: offset
+          in: query
+          schema: { type: integer, minimum: 0, maximum: 100000, default: 0 }
       responses:
         '200':
           description: "Successful response."
           content:
             application/json:
-              schema: { $ref: '#/components/schemas/ListEnvelope' }
+              schema: { $ref: '#/components/schemas/OrganizationAccessMembershipEnvelope' }
         '400': { $ref: '#/components/responses/BadRequest' }
         '401': { $ref: '#/components/responses/Unauthorized' }
         '403': { $ref: '#/components/responses/Forbidden' }
@@ -6395,6 +6399,7 @@ paths:
       tags: ["Authorization"]
       operationId: listPermissionCatalogue
       summary: "List stable permission codes"
+      description: "List permission codes available to organizations. Requires organization.manage."
       security: [{ StaffSession: [] }]
       parameters:
         - $ref: '#/components/parameters/POrganizationId'
@@ -6403,7 +6408,7 @@ paths:
           description: "Successful response."
           content:
             application/json:
-              schema: { $ref: '#/components/schemas/ListEnvelope' }
+              schema: { $ref: '#/components/schemas/OrganizationAccessPermissionEnvelope' }
         '400': { $ref: '#/components/responses/BadRequest' }
         '401': { $ref: '#/components/responses/Unauthorized' }
         '403': { $ref: '#/components/responses/Forbidden' }
@@ -6618,6 +6623,7 @@ paths:
       tags: ["Authorization"]
       operationId: listOrganizationRoles
       summary: "List organization role presets"
+      description: "List the organization role presets and their permission codes. Requires organization.manage."
       security: [{ StaffSession: [] }]
       parameters:
         - $ref: '#/components/parameters/POrganizationId'
@@ -6626,7 +6632,7 @@ paths:
           description: "Successful response."
           content:
             application/json:
-              schema: { $ref: '#/components/schemas/ListEnvelope' }
+              schema: { $ref: '#/components/schemas/OrganizationAccessRoleEnvelope' }
         '400': { $ref: '#/components/responses/BadRequest' }
         '401': { $ref: '#/components/responses/Unauthorized' }
         '403': { $ref: '#/components/responses/Forbidden' }
@@ -8040,6 +8046,78 @@ components:
         meta:
           type: object
           additionalProperties: true
+    OrganizationAccessScope:
+      type: string
+      enum: [organization, venue, space, booking, event, task]
+    OrganizationAccessRole:
+      type: object
+      required: [roleId, code, name, description, scope, systemPreset, permissionCodes]
+      properties:
+        roleId: { type: string, format: uuid }
+        code: { type: string }
+        name: { type: string }
+        description: { type: [string, 'null'] }
+        scope: { $ref: '#/components/schemas/OrganizationAccessScope' }
+        systemPreset: { type: boolean }
+        permissionCodes:
+          type: array
+          items: { type: string }
+    OrganizationAccessRoleEnvelope:
+      type: object
+      required: [data]
+      properties:
+        data:
+          type: array
+          items: { $ref: '#/components/schemas/OrganizationAccessRole' }
+    OrganizationAccessGrant:
+      type: object
+      required: [grantId, roleId, roleName, scope, scopeId, scopeName, eventId, expiresAt]
+      properties:
+        grantId: { type: string, format: uuid }
+        roleId: { type: string, format: uuid }
+        roleName: { type: string }
+        scope: { $ref: '#/components/schemas/OrganizationAccessScope' }
+        scopeId: { type: [string, 'null'], format: uuid }
+        scopeName: { type: [string, 'null'] }
+        eventId: { type: [string, 'null'], format: uuid }
+        expiresAt: { type: [string, 'null'], format: date-time }
+    OrganizationAccessMember:
+      type: object
+      required: [membershipId, displayName, status, grants]
+      properties:
+        membershipId: { type: string, format: uuid }
+        displayName: { type: string }
+        status: { type: string, enum: [invited, active, suspended, revoked] }
+        grants:
+          type: array
+          items: { $ref: '#/components/schemas/OrganizationAccessGrant' }
+    OrganizationAccessMembershipEnvelope:
+      type: object
+      required: [data]
+      properties:
+        data:
+          type: object
+          required: [members, nextOffset]
+          properties:
+            members:
+              type: array
+              items: { $ref: '#/components/schemas/OrganizationAccessMember' }
+            nextOffset: { type: [integer, 'null'], minimum: 0, maximum: 100000 }
+    OrganizationAccessPermission:
+      type: object
+      required: [code, description, scope, sensitive]
+      properties:
+        code: { type: string }
+        description: { type: string }
+        scope: { $ref: '#/components/schemas/OrganizationAccessScope' }
+        sensitive: { type: boolean }
+    OrganizationAccessPermissionEnvelope:
+      type: object
+      required: [data]
+      properties:
+        data:
+          type: array
+          items: { $ref: '#/components/schemas/OrganizationAccessPermission' }
     ListEnvelope:
       type: object
       required: [data, meta]

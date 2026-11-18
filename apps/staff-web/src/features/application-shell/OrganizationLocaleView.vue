@@ -1,9 +1,11 @@
 <script setup lang="ts">
 import { onMounted, ref, type Ref } from "vue";
 import { api } from "../../api";
+import OrganizationAccessView from "../organization-access/OrganizationAccessView.vue";
 import type { SupportedLocale } from "../../i18n";
 
 const props = defineProps<{
+  organizationId: string;
   busy: Ref<boolean>;
   pageNotice: Ref<string>;
   showError: (error: unknown) => void;
@@ -14,6 +16,7 @@ const props = defineProps<{
 const defaultLocale = ref<SupportedLocale>("en");
 const canManage = ref(false);
 const loading = ref(false);
+const showAccess = ref(false);
 
 async function load(): Promise<void> {
   loading.value = true;
@@ -67,5 +70,9 @@ onMounted(() => { void load(); });
         {{ $t("localeSettings.saveOrganization") }}
       </button>
     </div>
+    <button v-if="canManage" type="button" class="button button-secondary" :aria-expanded="showAccess" @click="showAccess = !showAccess">
+      {{ $t("organizationAccess.title") }}
+    </button>
+    <OrganizationAccessView v-if="canManage && showAccess" :key="organizationId" :organization-id="organizationId" />
   </section>
 </template>

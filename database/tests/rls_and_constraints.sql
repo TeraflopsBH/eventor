@@ -3890,6 +3890,59 @@ BEGIN
 END;
 $test$;
 
+-- Organization access is available only to an organization-wide manager.
+DO $test$
+DECLARE
+  v_org CONSTANT uuid := '10000000-0000-0000-0000-00000000000a';
+  v_actor CONSTANT uuid := '30000000-0000-0000-0000-00000000000a';
+  v_other_org CONSTANT uuid := '10000000-0000-0000-0000-00000000000b';
+  v_role uuid := gen_random_uuid();
+  v_event uuid;
+  v_grant uuid := gen_random_uuid();
+  v_result jsonb;
+BEGIN
+  PERFORM set_config('app.organization_id',v_org::text,true);
+  PERFORM set_config('app.actor_membership_id',v_actor::text,true);
+  SELECT id INTO STRICT v_event FROM eogp.events WHERE organization_id=v_org AND event_code='CI-LINK-A';
+  INSERT INTO eogp.roles(id,organization_id,code,name,scope_kind) VALUES(v_role,v_org,'CI-ACCESS-ADMIN','CI Access Admin','organization');
+  INSERT INTO eogp.role_permissions(organization_id,role_id,permission_code) VALUES(v_org,v_role,'organization.manage');
+  INSERT INTO eogp.user_role_grants(organization_id,membership_id,role_id,scope_kind,scope_event_id,granted_by_membership_id)
+    VALUES(v_org,v_actor,v_role,'event',v_event,v_actor);
+  BEGIN
+    PERFORM eogp.list_organization_access_roles(v_org,v_actor);
+    RAISE EXCEPTION 'an event-level grant read the organization catalogue';
+  EXCEPTION WHEN insufficient_privilege THEN NULL;
+  END;
+  INSERT INTO eogp.user_role_grants(id,organization_id,membership_id,role_id,scope_kind,granted_by_membership_id)
+    VALUES(v_grant,v_org,v_actor,v_role,'organization',v_actor);
+  v_result := eogp.list_organization_access_members(v_org,v_actor,0);
+  IF NOT v_result->'members' @> jsonb_build_array(jsonb_build_object('membershipId',v_actor,'status','active',
+      'grants',jsonb_build_array(jsonb_build_object('grantId',v_grant,'scope','organization'),
+        jsonb_build_object('roleId',v_role,'scope','event','scopeId',v_event))))
+    OR v_result::text LIKE '%password%'
+    OR NOT eogp.list_organization_access_roles(v_org,v_actor) @> jsonb_build_array(
+      jsonb_build_object('roleId',v_role,'permissionCodes',jsonb_build_array('organization.manage')))
+    OR NOT eogp.list_organization_permission_catalogue(v_org,v_actor) @> '[{"code":"guest.notes.manage","sensitive":true}]'::jsonb
+    OR has_table_privilege('eventor_runtime','eogp.role_permissions','INSERT,UPDATE,DELETE')
+    OR has_table_privilege('eventor_runtime','eogp.user_role_grants','INSERT,UPDATE,DELETE')
+    OR has_table_privilege('eventor_runtime','eogp.roles','INSERT,UPDATE,DELETE')
+    OR has_table_privilege('eventor_runtime','eogp.organization_memberships','INSERT,UPDATE,DELETE') THEN
+    RAISE EXCEPTION 'access projection missed a scoped grant or allowed direct authorization writes';
+  END IF;
+  BEGIN
+    PERFORM eogp.list_organization_access_members(v_other_org,v_actor,0);
+    RAISE EXCEPTION 'organization manager saw a different tenant';
+  EXCEPTION WHEN insufficient_privilege THEN NULL;
+  END;
+  UPDATE eogp.user_role_grants SET revoked_at=clock_timestamp() WHERE organization_id=v_org AND id=v_grant;
+  BEGIN
+    PERFORM eogp.list_organization_permission_catalogue(v_org,v_actor);
+    RAISE EXCEPTION 'permission catalogue stayed available after revocation';
+  EXCEPTION WHEN insufficient_privilege THEN NULL;
+  END;
+END;
+$test$;
+
 COMMIT;
 
 \echo 'PostgreSQL migration smoke tests passed.'

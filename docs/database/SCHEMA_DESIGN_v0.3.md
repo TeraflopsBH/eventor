@@ -8,6 +8,8 @@
 
 This document defines the successor relational model before writing executable migrations. It does not alter the v0.2 snapshot and does not claim PostgreSQL validation. Names are proposed; exact column types, constraints and migration mechanics belong in the DDL review.
 
+Organization access lists use the existing tenant-filtered member profile projection and require the organization-wide management permission. The database runtime account has no direct write privileges on memberships, role presets, grants or permission codes.
+
 ## 1. Non-negotiable invariants
 
 1. Every tenant-owned row has one explicit owner `organization_id`.
