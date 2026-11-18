@@ -2977,6 +2977,90 @@ BEGIN
 END;
 $test$;
 
+-- Closed event records stay attached to their original participation and remain permission-filtered after a merge.
+DO $test$
+DECLARE
+  v_org CONSTANT uuid := '10000000-0000-0000-0000-00000000000a';
+  v_actor CONSTANT uuid := '30000000-0000-0000-0000-00000000000a';
+  v_event uuid;
+  v_source uuid;
+  v_destination uuid;
+  v_overlap uuid;
+  v_participation uuid;
+  v_unlinked_review uuid;
+  v_review jsonb;
+  v_merge uuid;
+  v_user uuid;
+  v_member uuid;
+  v_role uuid;
+BEGIN
+  v_event := (eogp.create_organizer_event(v_org,v_actor,'CI-HIST-MERGE','Historical merge fixture',NULL,
+    '2031-01-18 09:00:00+00','2031-01-18 12:00:00+00','Europe/Sarajevo','{}','{}')->>'eventId')::uuid;
+  PERFORM eogp.enable_event_guest_registry(v_org,v_event,v_actor);
+  v_source := (eogp.write_guest_registry_person(v_org,v_actor,NULL,NULL,'create',
+    '{"firstName":"Historical","lastName":"Source","displayName":"Original badge"}')->>'personId')::uuid;
+  v_destination := (eogp.write_guest_registry_person(v_org,v_actor,NULL,NULL,'create',
+    '{"firstName":"Historical","lastName":"Kept"}')->>'personId')::uuid;
+  v_overlap := (eogp.write_guest_registry_person(v_org,v_actor,NULL,NULL,'create',
+    '{"firstName":"Historical","lastName":"Overlap"}')->>'personId')::uuid;
+  v_unlinked_review := (eogp.preview_guest_registry_merge(v_org,v_actor,v_source,v_destination)->>'reviewId')::uuid;
+  v_participation := (eogp.link_registry_person_to_event(v_org,v_event,v_actor,v_source,'eligible')->>'participationId')::uuid;
+  PERFORM eogp.link_registry_person_to_event(v_org,v_event,v_actor,v_overlap,'eligible');
+  UPDATE eogp.events SET status='completed' WHERE organization_id=v_org AND id=v_event;
+  IF eogp.preview_guest_registry_merge(v_org,v_actor,v_source,v_overlap)->>'blocker' IS DISTINCT FROM 'event_history_overlap' THEN
+    RAISE EXCEPTION 'merge preview accepted overlapping event history';
+  END IF;
+  BEGIN
+    PERFORM eogp.commit_guest_registry_merge(v_org,v_actor,v_source,v_destination,1,1,'duplicate_profile',v_unlinked_review);
+    RAISE EXCEPTION 'review still permitted a merge after the participation set changed';
+  EXCEPTION WHEN object_not_in_prerequisite_state THEN NULL;
+  END;
+
+  INSERT INTO eogp.users (email,display_name) VALUES ('merge-reviewer@example.invalid','Merge Reviewer') RETURNING id INTO v_user;
+  INSERT INTO eogp.organization_memberships (organization_id,user_id) VALUES (v_org,v_user) RETURNING id INTO v_member;
+  INSERT INTO eogp.roles(organization_id,code,name,scope_kind) VALUES (v_org,'MERGE-REVIEWER','Merge Reviewer','organization') RETURNING id INTO v_role;
+  INSERT INTO eogp.role_permissions(organization_id,role_id,permission_code)
+    VALUES (v_org,v_role,'guest.registry.read'),(v_org,v_role,'guest.registry.manage'),(v_org,v_role,'guest.registry.merge');
+  INSERT INTO eogp.user_role_grants(organization_id,membership_id,role_id,scope_kind,granted_by_membership_id)
+    VALUES (v_org,v_member,v_role,'organization',v_actor);
+  PERFORM set_config('app.actor_membership_id',v_member::text,true);
+  v_review := eogp.preview_guest_registry_merge(v_org,v_member,v_source,v_destination);
+  IF v_review->>'blocker' IS DISTINCT FROM 'event_history_access_required'
+    OR v_review->'historicalEvents' IS DISTINCT FROM '[]'::jsonb THEN
+    RAISE EXCEPTION 'a Registry-only reviewer accessed linked event details';
+  END IF;
+  PERFORM set_config('app.actor_membership_id',v_actor::text,true);
+
+  v_review := eogp.preview_guest_registry_merge(v_org,v_actor,v_source,v_destination);
+  IF v_review->'blocker' IS DISTINCT FROM 'null'::jsonb
+    OR v_review->>'historicalCount' IS DISTINCT FROM '1'
+    OR v_review#>>'{historicalEvents,0,eventId}' IS DISTINCT FROM v_event::text THEN
+    RAISE EXCEPTION 'closed event was missing from the merge review';
+  END IF;
+  v_merge := (eogp.commit_guest_registry_merge(v_org,v_actor,v_source,v_destination,1,1,'duplicate_profile',
+    (v_review->>'reviewId')::uuid)->>'mergeId')::uuid;
+  IF NOT (eogp.read_guest_registry_history(v_org,v_actor,v_destination,0)->'participations') @> jsonb_build_array(
+      jsonb_build_object('participationId',v_participation,'fromMergedProfile',true,'canManage',false))
+    OR NOT EXISTS (SELECT 1 FROM eogp.event_participations WHERE organization_id=v_org AND id=v_participation
+      AND person_id=v_source AND person_identity_snapshot->>'displayName'='Original badge')
+    OR eogp.preview_guest_registry_merge(v_org,v_actor,v_overlap,v_destination)->>'blocker' IS DISTINCT FROM 'event_history_overlap' THEN
+    RAISE EXCEPTION 'merged history changed the original event record or allowed an overlap';
+  END IF;
+
+  PERFORM set_config('app.actor_membership_id',v_member::text,true);
+  IF eogp.read_guest_registry_history(v_org,v_member,v_destination,0)->'participations' <> '[]'::jsonb THEN
+    RAISE EXCEPTION 'merged history bypassed event permissions';
+  END IF;
+  PERFORM set_config('app.actor_membership_id',v_actor::text,true);
+  PERFORM eogp.restore_guest_registry_merge(v_org,v_actor,v_merge);
+  IF eogp.read_guest_registry_history(v_org,v_actor,v_destination,0)->'participations' <> '[]'::jsonb
+    OR NOT (eogp.read_guest_registry_history(v_org,v_actor,v_source,0)->'participations') @> jsonb_build_array(
+      jsonb_build_object('participationId',v_participation,'fromMergedProfile',false)) THEN
+    RAISE EXCEPTION 'restored source history was not independent of the destination';
+  END IF;
+END;
+$test$;
+
 COMMIT;
 
 \echo 'PostgreSQL migration smoke tests passed.'

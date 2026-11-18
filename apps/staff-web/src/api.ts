@@ -1196,7 +1196,15 @@ export interface GuestRegistryMergePreview {
   reviewId: string;
   source: GuestRegistryProfile;
   destination: GuestRegistryProfile;
-  blocker: "inactive_profile" | "source_has_linked_records" | null;
+  blocker: "inactive_profile" | "source_has_linked_records" | "event_history_access_required" | "event_history_overlap" | null;
+  historicalCount: number;
+  historicalEvents: {
+    eventId: string;
+    eventCode: string;
+    eventTitle: string;
+    eventStatus: "completed" | "cancelled" | "archived";
+    status: ManagedParticipationStatus | "cancelled";
+  }[];
 }
 
 export interface GuestRegistryMergeHistory {
@@ -1230,6 +1238,7 @@ export interface GuestRegistryHistory {
     status: ManagedParticipationStatus | "cancelled";
     canManage: boolean;
     revision: number;
+    fromMergedProfile: boolean;
     eventStartsAt: string | null;
     addedAt: string;
   }[];

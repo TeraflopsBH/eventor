@@ -401,3 +401,7 @@ The roster exposes existing membership roles by group ID. Staff can edit roles a
 ## Event group hierarchy (000156)
 
 Event guest groups have an editable label and type, with an optional parent inside the same event. The parent foreign key enforces the boundary, and commands hold the event write lock while checking for cycles, retiring groups or changing parents. Group revisions protect edits. Retirement preserves existing links and blocks new links to the retired parent.
+
+## Supervised merge of closed event history (000157)
+
+A merge reviewer needs event guest access to the source participations and can merge non-overlapping history from completed, cancelled or archived events. The review binds the exact historical participation identifiers through a digest. The destination shows the preserved participations in its permission-filtered history. Original person IDs, snapshots and dependent event records are preserved. Restoring the source removes the destination history links. Open events, overlapping histories, source contacts and identifiers still require separate resolution.

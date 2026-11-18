@@ -304,6 +304,7 @@ onMounted(search);
             <strong>{{ item.eventTitle }}</strong> ({{ item.eventCode }})
             · {{ t(`registry.participationStatus.${item.status}`) }}
             · {{ t(`events.status.${item.eventStatus}`) }}
+            <span v-if="item.fromMergedProfile"> · {{ t("registry.merge.fromMergedProfile") }}</span>
             <time v-if="item.eventStartsAt" :datetime="item.eventStartsAt"> · {{ formatTime(item.eventStartsAt) }}</time>
             <button
               v-if="item.canManage && profile.status === 'active' && !editingParticipation"
