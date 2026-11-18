@@ -1442,6 +1442,12 @@ export const api = {
         method: "PATCH", body: { categoryId, expectedRevision }, idempotent: true,
       },
     ),
+  setEventGuestBulkCategory: (eventId: string, categoryId: string | null, guests: { participationId: string; expectedRevision: number }[]) =>
+    request<Envelope<{ processedCount: number; updatedCount: number }>>(
+      `/events/${encodeURIComponent(eventId)}/participations/bulk/category`, {
+        method: "PATCH", body: { categoryId, guests }, idempotent: true,
+      },
+    ),
   listEventGuestTags: (eventId: string) =>
     request<Envelope<EventGuestTag[]>>(`/events/${encodeURIComponent(eventId)}/guest-tags`),
   createEventGuestTag: (eventId: string, body: { code: string; label: string }) =>

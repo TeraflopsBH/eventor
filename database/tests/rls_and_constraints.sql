@@ -2627,6 +2627,43 @@ BEGIN
 END;
 $test$;
 
+-- Bulk categorization uses one transaction and checks every selected participation revision.
+DO $test$
+DECLARE
+  v_org CONSTANT uuid := '10000000-0000-0000-0000-00000000000a';
+  v_actor CONSTANT uuid := '30000000-0000-0000-0000-00000000000a';
+  v_event uuid;
+  v_category uuid;
+  v_guests jsonb;
+  v_result jsonb;
+BEGIN
+  SELECT id INTO STRICT v_event FROM eogp.events WHERE organization_id=v_org AND event_code='CI-LINK-A';
+  v_category := (eogp.write_event_guest_category(v_org,v_event,v_actor,NULL,'BULK-FIXTURE','Bulk fixture')->>'categoryId')::uuid;
+  SELECT jsonb_agg(jsonb_build_object('participationId',chosen.id,'expectedRevision',chosen.revision) ORDER BY chosen.id)
+  INTO v_guests FROM (SELECT id,revision FROM eogp.event_participations
+    WHERE organization_id=v_org AND event_id=v_event AND status<>'cancelled' ORDER BY id LIMIT 2) chosen;
+  BEGIN
+    PERFORM eogp.set_event_guest_bulk_category(v_org,v_event,v_actor,v_category,
+      jsonb_set(v_guests,'{1,expectedRevision}',to_jsonb((v_guests#>>'{1,expectedRevision}')::integer+1)));
+    RAISE EXCEPTION 'a stale bulk category update committed';
+  EXCEPTION WHEN serialization_failure THEN NULL;
+  END;
+  IF EXISTS (SELECT 1 FROM eogp.event_participations WHERE organization_id=v_org AND event_id=v_event AND category_id=v_category) THEN
+    RAISE EXCEPTION 'failed bulk category update did not roll back';
+  END IF;
+  BEGIN
+    PERFORM eogp.set_event_guest_bulk_category(v_org,v_event,v_actor,v_category,jsonb_build_array(v_guests->0,v_guests->0));
+    RAISE EXCEPTION 'a duplicate guest was accepted in a bulk update';
+  EXCEPTION WHEN invalid_parameter_value THEN NULL;
+  END;
+  v_result := eogp.set_event_guest_bulk_category(v_org,v_event,v_actor,v_category,v_guests);
+  IF v_result <> '{"processedCount":2,"updatedCount":2}'::jsonb
+    OR (SELECT count(*) FROM eogp.event_participations WHERE organization_id=v_org AND event_id=v_event AND category_id=v_category) <> 2 THEN
+    RAISE EXCEPTION 'bulk category update did not update both selected guests';
+  END IF;
+END;
+$test$;
+
 COMMIT;
 
 \echo 'PostgreSQL migration smoke tests passed.'

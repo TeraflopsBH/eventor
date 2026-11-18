@@ -192,6 +192,16 @@ export default {
       invalid: "Za šifru koristite do 40 slova, cifara, donjih crta ili crtica. Počnite slovom ili cifrom i unesite naziv.",
       failed: "Spremanje grupe gostiju nije uspjelo.",
     },
+    bulk: {
+      selectPage: "Odaberi sve dostupne redove na ovoj stranici",
+      selectGuest: "Odaberi gosta {name}",
+      selected: "Odabrani gosti: {count}",
+      category: "Kategorija za odabrane goste",
+      chooseCategory: "Odaberite kategoriju",
+      apply: "Primijeni kategoriju",
+      confirmCategory: "Postaviti kategoriju {label} za odabrane goste ({count})?",
+      result: "Ažurirano gostiju: {updated} od {count} odabranih.",
+    },
     fields: {
       open: "Prilagođena polja",
       manage: "Upravljaj prilagođenim poljima",

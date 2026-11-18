@@ -192,6 +192,16 @@ export default {
       invalid: "Use up to 40 letters, digits, underscores or hyphens for the code. Start with a letter or digit and enter a name.",
       failed: "Could not save the guest group.",
     },
+    bulk: {
+      selectPage: "Select all editable guests on this page",
+      selectGuest: "Select {name}",
+      selected: "Selected guests: {count}",
+      category: "Category for selected guests",
+      chooseCategory: "Choose a category",
+      apply: "Apply category",
+      confirmCategory: "Set the category to {label} for {count} selected guests?",
+      result: "Updated {updated} of {count} selected guests.",
+    },
     fields: {
       open: "Custom fields",
       manage: "Manage custom fields",

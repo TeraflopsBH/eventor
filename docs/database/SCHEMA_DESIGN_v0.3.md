@@ -369,3 +369,7 @@ Guest managers can create and end mutual and directed relationships between part
 ## Internal event guest custom fields (000148)
 
 Definitions use the existing custom-field catalogue with stable codes and scalar text, integer or boolean types. Event guest managers can read and update values. The API encrypts values with keys bound to the event, participation and field. The write command checks the participation revision. Retirement preserves readable values and allows an explicit clear. Audit entries record the field ID, revision and clear status.
+
+## Bulk event guest categorization (000149)
+
+Guest managers can set or clear the category for up to 50 distinct event participations in one transaction. The command applies individual category permissions, revision checks and audit entries to each guest in stable order. A failed update rolls back the batch. The response counts processed and changed rows.
