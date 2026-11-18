@@ -127,6 +127,20 @@ onMounted(() => run(() => load(0)));
         <p v-if="preview.blocker" role="status">{{ t(`registry.merge.blocker.${preview.blocker}`) }}</p>
         <template v-else>
           <p>{{ t("registry.merge.resolution") }}</p>
+          <template v-if="preview.historicalCount">
+            <h4>{{ t("registry.merge.historicalEvents") }}</h4>
+            <p>{{ t("registry.merge.historicalImpact") }}</p>
+            <ul>
+              <li v-for="item in preview.historicalEvents" :key="item.eventId">
+                {{ item.eventTitle }} ({{ item.eventCode }})
+                · {{ t(`events.status.${item.eventStatus}`) }}
+                · {{ t(`registry.participationStatus.${item.status}`) }}
+              </li>
+            </ul>
+            <p v-if="preview.historicalCount > preview.historicalEvents.length">
+              {{ t("registry.merge.moreHistoricalEvents", { shown: preview.historicalEvents.length, total: preview.historicalCount }) }}
+            </p>
+          </template>
           <button class="button button-primary" type="button" :disabled="busy" @click="merge">{{ t("registry.merge.commit") }}</button>
         </template>
       </div>

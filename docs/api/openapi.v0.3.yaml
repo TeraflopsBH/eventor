@@ -6364,14 +6364,28 @@ paths:
                 properties:
                   data:
                     type: object
-                    required: [reviewId, source, destination, blocker]
+                    required: [reviewId, source, destination, blocker, historicalEvents, historicalCount]
                     properties:
                       reviewId: { type: string, format: uuid }
                       source: { $ref: '#/components/schemas/GuestRegistryProfile' }
                       destination: { $ref: '#/components/schemas/GuestRegistryProfile' }
                       blocker:
                         type: [string, 'null']
-                        enum: [inactive_profile, source_has_linked_records, null]
+                        enum: [inactive_profile, source_has_linked_records, event_history_access_required, event_history_overlap, null]
+                      historicalCount: { type: integer, minimum: 0 }
+                      historicalEvents:
+                        type: array
+                        maxItems: 50
+                        description: "Up to 50 closed events whose original source participation would be visible from the destination history. Each entry requires event guest access."
+                        items:
+                          type: object
+                          required: [eventId, eventCode, eventTitle, eventStatus, status]
+                          properties:
+                            eventId: { type: string, format: uuid }
+                            eventCode: { type: string }
+                            eventTitle: { type: string }
+                            eventStatus: { type: string, enum: [completed, cancelled, archived] }
+                            status: { type: string, enum: [eligible, waitlisted, withdrawn, cancelled, ineligible] }
         '400': { $ref: '#/components/responses/BadRequest' }
         '401': { $ref: '#/components/responses/Unauthorized' }
         '403': { $ref: '#/components/responses/Forbidden' }
@@ -8328,7 +8342,7 @@ components:
               type: array
               items:
                 type: object
-                required: [participationId, eventId, eventTitle, eventCode, eventStatus, status, eventStartsAt, addedAt, canManage, revision]
+                required: [participationId, eventId, eventTitle, eventCode, eventStatus, status, eventStartsAt, addedAt, canManage, revision, fromMergedProfile]
                 properties:
                   participationId: { type: string, format: uuid }
                   eventId: { type: string, format: uuid }
@@ -8338,6 +8352,7 @@ components:
                   status: { type: string, enum: [eligible, waitlisted, withdrawn, cancelled, ineligible] }
                   canManage: { type: boolean }
                   revision: { type: integer, minimum: 1 }
+                  fromMergedProfile: { type: boolean }
                   eventStartsAt: { type: [string, 'null'], format: date-time }
                   addedAt: { type: string, format: date-time }
             nextOffset: { type: [integer, 'null'], minimum: 0 }
