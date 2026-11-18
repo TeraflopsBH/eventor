@@ -140,6 +140,12 @@ export default {
       review: "Pregled",
       matches: "Moguća podudaranja u registru: {count}",
       skip: "Preskoči ovaj red",
+      confirmUpdateCommit: "Potvrditi uvoz? Kreirat će se {created} novih profila ({distinct} zasebnih zbog podudarnih imena), povezati {reused} postojećih bez izmjena i ažurirati {updated} podudarnih profila. Ažurirani profili bit će dodani na događaj ako već nisu na njemu.",
+      updateMatch: "Ažuriraj profil u registru — {name}",
+      updateAndLinkMatch: "Ažuriraj i dodaj na događaj — {name}",
+      profileChange: "{field} · {current} → {proposed}",
+      blankValue: "Prazno",
+      pinnedEventName: "Na događaju ostaje ime gosta zabilježeno pri dodavanju profila.",
       noLinkableMatches: "Nema podudarnih profila dostupnih za dodavanje na ovaj događaj.",
       clear: "Spremno za pregled",
       issue: {

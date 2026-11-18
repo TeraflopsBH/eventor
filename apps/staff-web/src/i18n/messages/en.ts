@@ -140,6 +140,12 @@ export default {
       review: "Review",
       matches: "Possible Registry matches: {count}",
       skip: "Skip this row",
+      confirmUpdateCommit: "Commit this import? It will create {created} profiles ({distinct} separate profiles for matching names), link {reused} unchanged profiles, and update {updated} matched profiles. Updated profiles will be added to this event if needed.",
+      updateMatch: "Update Registry profile — {name}",
+      updateAndLinkMatch: "Update and add to event — {name}",
+      profileChange: "{field} · {current} → {proposed}",
+      blankValue: "Empty",
+      pinnedEventName: "The event will keep the guest name recorded when this profile was added.",
       noLinkableMatches: "No matching profiles are available to add to this event.",
       clear: "Ready for review",
       issue: {

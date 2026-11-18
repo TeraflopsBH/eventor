@@ -2835,6 +2835,76 @@ BEGIN
 END;
 $test$;
 
+-- Profile updates use staged values, require review revisions and preserve an existing event snapshot.
+DO $test$
+DECLARE
+  v_org CONSTANT uuid := '10000000-0000-0000-0000-00000000000a';
+  v_actor CONSTANT uuid := '30000000-0000-0000-0000-00000000000a';
+  v_cipher text := encode(convert_to('ECP1' || repeat('x', 32), 'UTF8'), 'base64');
+  v_event uuid;
+  v_linked uuid;
+  v_unlinked uuid;
+  v_batch uuid;
+  v_input jsonb;
+  v_choices jsonb;
+  v_preview jsonb;
+  v_result jsonb;
+  v_snapshot jsonb;
+BEGIN
+  SELECT id INTO STRICT v_event FROM eogp.events WHERE organization_id=v_org AND event_code='CI-LINK-A';
+  v_linked := (eogp.write_guest_registry_person(v_org,v_actor,NULL,NULL,'create',
+    '{"firstName":"Review","lastName":"Linked","displayName":"Pinned Name","preferredName":"Keep This"}')->>'personId')::uuid;
+  v_unlinked := (eogp.write_guest_registry_person(v_org,v_actor,NULL,NULL,'create',
+    '{"firstName":"Review","lastName":"Unlinked","displayName":"Old Name"}')->>'personId')::uuid;
+  PERFORM eogp.link_registry_person_to_event(v_org,v_event,v_actor,v_linked,'eligible');
+  SELECT person_identity_snapshot INTO STRICT v_snapshot FROM eogp.event_participations
+    WHERE organization_id=v_org AND event_id=v_event AND person_id=v_linked;
+  v_batch := (eogp.prepare_guest_import_preview(v_org,v_event,v_actor,repeat('1',64),jsonb_build_array(
+    jsonb_build_object('rowNumber',2,'firstName','Review','lastName','Linked',
+      'sourceCiphertext',v_cipher,'namesCiphertext',v_cipher,'errors','[]'::jsonb),
+    jsonb_build_object('rowNumber',3,'firstName','Review','lastName','Unlinked',
+      'sourceCiphertext',v_cipher,'namesCiphertext',v_cipher,'errors','[]'::jsonb)
+  ))->>'batchId')::uuid;
+  v_preview := eogp.read_guest_import_preview(v_org,v_event,v_actor,v_batch);
+  IF v_preview#>'{rows,0,matches}' <> '[]'::jsonb
+    OR NOT (v_preview#>'{rows,0,updateMatches,0}' @> jsonb_build_object('personId',v_linked,'onEvent',true))
+    OR NOT (v_preview#>'{rows,1,updateMatches,0}' @> jsonb_build_object('personId',v_unlinked,'onEvent',false)) THEN
+    RAISE EXCEPTION 'update preview did not distinguish existing participation from a new link';
+  END IF;
+  v_input := jsonb_build_array(
+    jsonb_build_object('rowNumber',2,'namesCiphertext',v_cipher,
+      'names','{"firstName":"Review","lastName":"Linked","displayName":"Current Name","preferredName":null}'::jsonb),
+    jsonb_build_object('rowNumber',3,'namesCiphertext',v_cipher,
+      'names','{"firstName":"Review","lastName":"Unlinked","displayName":"New Name"}'::jsonb)
+  );
+  v_choices := jsonb_build_array(
+    jsonb_build_object('rowNumber',2,'personId',v_linked,'expectedRevision',1),
+    jsonb_build_object('rowNumber',3,'personId',v_unlinked,'expectedRevision',2)
+  );
+  BEGIN
+    PERFORM eogp.commit_reviewed_guest_import(v_org,v_event,v_actor,v_batch,v_input,'[]',ARRAY[]::integer[],v_choices);
+    RAISE EXCEPTION 'stale update revision was accepted';
+  EXCEPTION WHEN serialization_failure THEN NULL;
+  END;
+  IF NOT EXISTS (SELECT 1 FROM eogp.persons WHERE id=v_linked AND revision=1 AND display_name='Pinned Name') THEN
+    RAISE EXCEPTION 'an earlier profile change survived a stale update';
+  END IF;
+  v_choices := jsonb_set(v_choices,'{1,expectedRevision}','1');
+  v_result := eogp.commit_reviewed_guest_import(v_org,v_event,v_actor,v_batch,v_input,'[]',ARRAY[]::integer[],v_choices);
+  IF v_result->>'importedCount' IS DISTINCT FROM '2'
+    OR NOT EXISTS (SELECT 1 FROM eogp.persons WHERE id=v_linked AND revision=2 AND display_name='Current Name' AND preferred_name='Keep This')
+    OR NOT EXISTS (SELECT 1 FROM eogp.event_participations WHERE organization_id=v_org AND event_id=v_event
+      AND person_id=v_linked AND person_identity_snapshot=v_snapshot)
+    OR NOT EXISTS (SELECT 1 FROM eogp.event_participations WHERE organization_id=v_org AND event_id=v_event
+      AND person_id=v_unlinked AND person_identity_snapshot->>'displayName'='New Name')
+    OR (SELECT count(*) FROM jsonb_array_elements(eogp.read_guest_import_report(v_org,v_event,v_actor,v_batch)->'rows') row
+      WHERE row->>'outcome'='updated') <> 2
+    OR eogp.commit_reviewed_guest_import(v_org,v_event,v_actor,v_batch,'[]','[]',ARRAY[]::integer[],v_choices) <> v_result THEN
+    RAISE EXCEPTION 'reviewed profile updates or their outcome report were incorrect';
+  END IF;
+END;
+$test$;
+
 COMMIT;
 
 \echo 'PostgreSQL migration smoke tests passed.'

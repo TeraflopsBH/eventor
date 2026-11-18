@@ -1360,7 +1360,7 @@ export interface GuestImportColumnMapping {
   preferredName?: number;
 }
 
-export interface GuestImportReuse {
+export interface GuestImportProfileChoice {
   rowNumber: number;
   personId: string;
   expectedRevision: number;
@@ -1375,20 +1375,26 @@ interface GuestImportDiagnostics {
 export interface GuestImportReport {
   batchId: string;
   state: "ready" | "committed";
-  rows: (GuestImportDiagnostics & { outcome: "ready" | "needs_review" | "invalid" | "created" | "linked" | "skipped" })[];
+  rows: (GuestImportDiagnostics & { outcome: "ready" | "needs_review" | "invalid" | "created" | "linked" | "updated" | "skipped" })[];
+}
+
+interface GuestImportMatch {
+  personId: string;
+  revision: number;
+  name: string;
+  displayName: string | null;
+  preferredName: string | null;
 }
 
 export interface GuestImportPreview {
   batchId: string;
   rows: (GuestImportDiagnostics & {
     names: GuestRegistryNames;
-    matches: {
-      personId: string;
-      revision: number;
-      name: string;
-      displayName: string | null;
-      preferredName: string | null;
-    }[];
+    matches: GuestImportMatch[];
+    updateMatches: (GuestImportMatch & {
+      onEvent: boolean;
+      changes: { field: keyof GuestRegistryNames; current: string | null; proposed: string }[];
+    })[];
   })[];
 }
 
@@ -1423,9 +1429,11 @@ export const api = {
     request<Envelope<{ batchId: string; rowCount: number }>>(`/events/${encodeURIComponent(eventId)}/guest-imports/xlsx`, {
       method: "POST", body: { xlsx, sheetIndex, headerRow, mapping }, idempotent: true,
     }),
-  commitGuestImport: (eventId: string, batchId: string, reuse: GuestImportReuse[], distinctProfileRows: number[] = []) =>
+  commitGuestImport: (eventId: string, batchId: string, reuse: GuestImportProfileChoice[], distinctProfileRows: number[] = [], updates: GuestImportProfileChoice[] = []) =>
     request<Envelope<GuestImportCommit>>(`/events/${encodeURIComponent(eventId)}/guest-imports/${encodeURIComponent(batchId)}/commit`, {
-      method: "POST", body: { reuse, ...(distinctProfileRows.length ? { distinctProfileRows } : {}) }, idempotent: true,
+      method: "POST",
+      body: { reuse, ...(distinctProfileRows.length ? { distinctProfileRows } : {}), ...(updates.length ? { updates } : {}) },
+      idempotent: true,
     }),
   getGuestImportPreview: (eventId: string, batchId: string) =>
     request<Envelope<GuestImportPreview>>(`/events/${encodeURIComponent(eventId)}/guest-imports/${encodeURIComponent(batchId)}`),

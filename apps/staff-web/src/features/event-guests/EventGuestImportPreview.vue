@@ -34,11 +34,19 @@ const reuse = computed(() => (preview.value?.rows ?? []).flatMap(({ rowNumber, m
   const match = matches.find(({ personId }) => personId === selected.value[rowNumber]);
   return match ? [{ rowNumber, personId: match.personId, expectedRevision: match.revision }] : [];
 }));
+const updateChoice = (personId: string): string => `update:${personId}`;
+const selectedUpdates = computed(() => Object.fromEntries((preview.value?.rows ?? []).flatMap(({ rowNumber, updateMatches }) => {
+  const match = updateMatches.find(({ personId }) => updateChoice(personId) === selected.value[rowNumber]);
+  return match ? [[rowNumber, match] as const] : [];
+})));
+const updates = computed(() => Object.entries(selectedUpdates.value).map(([rowNumber, match]) => ({
+  rowNumber: Number(rowNumber), personId: match.personId, expectedRevision: match.revision,
+})));
 const separateProfileChoice = "separate-profile";
 const distinctProfileRows = computed(() => (preview.value?.rows ?? [])
   .filter((row) => !row.errors.length && row.duplicateCount > 0 && selected.value[row.rowNumber] === separateProfileChoice)
   .map((row) => row.rowNumber));
-const importCount = computed(() => cleanCount.value + reuse.value.length + distinctProfileRows.value.length);
+const importCount = computed(() => cleanCount.value + reuse.value.length + distinctProfileRows.value.length + updates.value.length);
 const busy = ref(false);
 
 function clearPreview(): void {
@@ -172,13 +180,18 @@ async function commit(): Promise<void> {
   const batch = preview.value;
   const distinct = distinctProfileRows.value;
   const confirmation = distinct.length ? "eventGuests.import.confirmDistinctCommit" : "eventGuests.import.confirmCommit";
-  if (!batch || !importCount.value || !window.confirm(t(confirmation, {
-    created: cleanCount.value + distinct.length, reused: reuse.value.length, distinct: distinct.length,
-  }))) return;
+  const profileUpdates = updates.value;
+  const summary = t(confirmation, { created: cleanCount.value + distinct.length, reused: reuse.value.length, distinct: distinct.length });
+  const message = profileUpdates.length
+    ? t("eventGuests.import.confirmUpdateCommit", {
+      created: cleanCount.value + distinct.length, reused: reuse.value.length, updated: profileUpdates.length, distinct: distinct.length,
+    })
+    : summary;
+  if (!batch || !importCount.value || !window.confirm(message)) return;
   busy.value = true;
   error.value = "";
   try {
-    committed.value = (await api.commitGuestImport(props.eventId, batch.batchId, reuse.value, distinct)).data;
+    committed.value = (await api.commitGuestImport(props.eventId, batch.batchId, reuse.value, distinct, profileUpdates)).data;
     emit("committed");
   } catch (failure) {
     error.value = failure instanceof ApiError
@@ -275,10 +288,26 @@ async function downloadReport(): Promise<void> {
                     <option v-for="match in row.matches" :key="match.personId" :value="match.personId">
                       {{ [...new Set([match.name, match.displayName, match.preferredName].filter(Boolean))].join(" · ") }}
                     </option>
+                    <option v-for="match in row.updateMatches" :key="updateChoice(match.personId)" :value="updateChoice(match.personId)">
+                      {{ t(match.onEvent ? "eventGuests.import.updateMatch" : "eventGuests.import.updateAndLinkMatch", {
+                        name: [...new Set([match.name, match.displayName, match.preferredName].filter(Boolean))].join(" · "),
+                      }) }}
+                    </option>
                     <option :value="separateProfileChoice">{{ t("eventGuests.import.createSeparate") }}</option>
                   </select>
+                  <template v-if="selectedUpdates[row.rowNumber]">
+                    <ul>
+                      <li v-for="change in selectedUpdates[row.rowNumber]?.changes" :key="change.field">
+                        {{ t("eventGuests.import.profileChange", {
+                          field: t(`registry.${change.field}`),
+                          current: change.current ?? t("eventGuests.import.blankValue"), proposed: change.proposed,
+                        }) }}
+                      </li>
+                    </ul>
+                    <p v-if="selectedUpdates[row.rowNumber]?.onEvent" class="muted">{{ t("eventGuests.import.pinnedEventName") }}</p>
+                  </template>
                 </div>
-                <p v-if="!committed && row.duplicateCount && !row.errors.length && !row.matches.length" class="muted">
+                <p v-if="!committed && row.duplicateCount && !row.errors.length && !row.matches.length && !row.updateMatches.length" class="muted">
                   {{ t("eventGuests.import.noLinkableMatches") }}
                 </p>
               </td>
