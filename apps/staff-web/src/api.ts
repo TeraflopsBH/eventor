@@ -1301,6 +1301,17 @@ export interface EventGuestList {
   nextOffset: number | null;
 }
 
+export interface EventGuestViewFilters {
+  status: EventGuestRow["status"] | null;
+  category: string | null;
+  query: string;
+}
+
+export interface EventGuestSavedView extends EventGuestViewFilters {
+  viewId: string;
+  label: string;
+}
+
 export type GuestFieldType = "text" | "integer" | "boolean";
 export type GuestFieldValue = string | number | boolean | null;
 export interface GuestFieldDefinition {
@@ -1428,6 +1439,17 @@ export const api = {
     const filter = query.size ? `?${query}` : "";
     return request<Envelope<{ people: ExportRow[] }>>(`${path}${filter}`);
   },
+  listEventGuestSavedViews: (eventId: string) =>
+    request<Envelope<EventGuestSavedView[]>>(`/events/${encodeURIComponent(eventId)}/guest-saved-views`),
+  createEventGuestSavedView: (eventId: string, label: string, filters: EventGuestViewFilters) =>
+    request<Envelope<{ viewId: string }>>(`/events/${encodeURIComponent(eventId)}/guest-saved-views`, {
+      method: "POST", idempotent: true,
+      body: { label, query: filters.query, status: filters.status ?? undefined, category: filters.category ?? undefined },
+    }),
+  deleteEventGuestSavedView: (eventId: string, viewId: string) =>
+    request<Envelope<{ viewId: string }>>(`/events/${encodeURIComponent(eventId)}/guest-saved-views/${encodeURIComponent(viewId)}`, {
+      method: "DELETE", idempotent: true,
+    }),
   listEventGuestCategories: (eventId: string) =>
     request<Envelope<EventGuestCategory[]>>(`/events/${encodeURIComponent(eventId)}/guest-categories`),
   createEventGuestCategory: (eventId: string, body: { code: string; label: string }) =>

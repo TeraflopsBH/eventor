@@ -192,6 +192,17 @@ export default {
       invalid: "Za šifru koristite do 40 slova, cifara, donjih crta ili crtica. Počnite slovom ili cifrom i unesite naziv.",
       failed: "Spremanje grupe gostiju nije uspjelo.",
     },
+    savedViews: {
+      title: "Spremljeni prikazi",
+      choose: "Spremljeni prikaz",
+      placeholder: "Odaberite spremljeni prikaz",
+      apply: "Primijeni prikaz",
+      remove: "Izbriši prikaz",
+      confirmDelete: "Izbrisati spremljeni prikaz {label}?",
+      name: "Naziv novog prikaza",
+      save: "Spremi trenutne filtere",
+      failed: "Učitavanje ili ažuriranje spremljenih prikaza nije uspjelo.",
+    },
     bulk: {
       status: "Status odabranih gostiju",
       chooseStatus: "Odaberite status",

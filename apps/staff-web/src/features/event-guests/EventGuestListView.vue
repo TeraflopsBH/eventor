@@ -5,7 +5,8 @@ import EventGuestImportPreview from "./EventGuestImportPreview.vue";
 import EventGuestOptions from "./EventGuestOptions.vue";
 import EventGuestRelationships from "./EventGuestRelationships.vue";
 import EventGuestCustomFields from "./EventGuestCustomFields.vue";
-import { api, ApiError, type EventGuestCategory, type EventGuestGroup, type EventGuestList, type EventGuestRow, type EventGuestTag, type EventGuestWorkspace, type ManagedParticipationStatus } from "../../api";
+import EventGuestSavedViews from "./EventGuestSavedViews.vue";
+import { api, ApiError, type EventGuestCategory, type EventGuestGroup, type EventGuestList, type EventGuestRow, type EventGuestTag, type EventGuestViewFilters, type EventGuestWorkspace, type ManagedParticipationStatus } from "../../api";
 import { formatApiError } from "../../i18n/api-errors";
 import { downloadGuestCsv, downloadGuestXlsx, formatGuestCsv } from "../../guest-export";
 
@@ -29,6 +30,7 @@ const showImport = ref(false);
 const showCategories = ref(false);
 const showTags = ref(false);
 const showGroups = ref(false);
+const showSavedViews = ref(false);
 const categories = ref<EventGuestCategory[]>([]);
 const tags = ref<EventGuestTag[]>([]);
 const groups = ref<EventGuestGroup[]>([]);
@@ -68,6 +70,7 @@ async function run(operation: () => Promise<void>): Promise<void> {
     if (failure instanceof ApiError && [401, 403].includes(failure.status)) {
       events.value = null;
       roster.value = null;
+      showSavedViews.value = false;
       editing.value = null;
       relationshipGuest.value = null;
       fieldPanel.value = null;
@@ -120,6 +123,7 @@ function chooseEvent(): void {
   showCategories.value = false;
   showTags.value = false;
   showGroups.value = false;
+  showSavedViews.value = false;
   categories.value = [];
   tags.value = [];
   groups.value = [];
@@ -191,6 +195,13 @@ function saveBulkStatus(): void {
 function applyNameSearch(): void {
   nameFilter.value = nameInput.value.trim();
   applyFilters();
+}
+
+function applySavedView(filters: EventGuestViewFilters): void {
+  status.value = filters.status ?? "";
+  categoryFilter.value = filters.category ?? "";
+  nameInput.value = filters.query;
+  applyNameSearch();
 }
 
 function startEdit(row: EventGuestRow): void {
@@ -330,6 +341,12 @@ onMounted(() => run(async () => {
       <button v-if="roster" class="button button-secondary" type="button" :disabled="busy" @click="downloadRoster('xlsx')">
         {{ t("eventGuests.exportXlsx") }}
       </button>
+    </div>
+    <div v-if="roster || showSavedViews">
+      <button class="button button-secondary" type="button" :disabled="busy || rowEditing" :aria-expanded="showSavedViews"
+        @click="showSavedViews = !showSavedViews">{{ t("eventGuests.savedViews.title") }}</button>
+      <EventGuestSavedViews v-if="showSavedViews" :key="eventId" :event-id="eventId" :disabled="busy || rowEditing"
+        :filters="{ status: status || null, category: categoryFilter || null, query: nameFilter }" @apply="applySavedView" />
     </div>
     <div v-if="roster?.canManage">
       <button class="button button-secondary" type="button" :disabled="busy" :aria-expanded="showImport" @click="showImport = !showImport">

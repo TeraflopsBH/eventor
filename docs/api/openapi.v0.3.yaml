@@ -4271,6 +4271,86 @@ paths:
         '404': { $ref: '#/components/responses/NotFound' }
         '409': { $ref: '#/components/responses/Conflict' }
         '412': { $ref: '#/components/responses/PreconditionFailed' }
+  "/events/{eventId}/guest-saved-views":
+    get:
+      tags: ["Event Participation"]
+      operationId: listEventGuestSavedViews
+      summary: "List the staff member's saved views for an event roster"
+      security: [{ StaffSession: [] }]
+      parameters:
+        - $ref: '#/components/parameters/PEventId'
+      responses:
+        '200':
+          description: "The current staff member’s saved views."
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [data]
+                properties:
+                  data:
+                    type: array
+                    items: { $ref: '#/components/schemas/EventGuestSavedView' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '404': { $ref: '#/components/responses/NotFound' }
+        '503': { $ref: '#/components/responses/ServiceUnavailable' }
+    post:
+      tags: ["Event Participation"]
+      operationId: createEventGuestSavedView
+      summary: "Save the active roster filters as a personal view"
+      security: [{ StaffSession: [], StaffCsrf: [] }]
+      parameters:
+        - $ref: '#/components/parameters/PEventId'
+        - $ref: '#/components/parameters/IdempotencyKey'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              additionalProperties: false
+              required: [label]
+              properties:
+                label: { type: string, minLength: 1, maxLength: 80 }
+                query: { type: string, maxLength: 200 }
+                status: { type: string, enum: [eligible, waitlisted, withdrawn, cancelled, ineligible] }
+                category: { $ref: '#/components/schemas/EventGuestCategoryFilter' }
+      responses:
+        '201':
+          description: "The staff member’s view was saved."
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/EventGuestSavedViewChangeEnvelope' }
+        '400': { $ref: '#/components/responses/BadRequest' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '404': { $ref: '#/components/responses/NotFound' }
+        '409': { $ref: '#/components/responses/Conflict' }
+        '422': { $ref: '#/components/responses/UnprocessableEntity' }
+        '503': { $ref: '#/components/responses/ServiceUnavailable' }
+  "/events/{eventId}/guest-saved-views/{viewId}":
+    delete:
+      tags: ["Event Participation"]
+      operationId: deleteEventGuestSavedView
+      summary: "Delete a personal roster view"
+      security: [{ StaffSession: [], StaffCsrf: [] }]
+      parameters:
+        - $ref: '#/components/parameters/PEventId'
+        - $ref: '#/components/parameters/IdempotencyKey'
+        - name: viewId
+          in: path
+          required: true
+          schema: { type: string, format: uuid }
+      responses:
+        '200':
+          description: "The staff member’s saved view was deleted."
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/EventGuestSavedViewChangeEnvelope' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '404': { $ref: '#/components/responses/NotFound' }
   "/events/{eventId}/guest-custom-fields":
     get:
       tags: ["Event Participation"]
@@ -8368,6 +8448,27 @@ components:
       required: [data]
       properties:
         data: { $ref: '#/components/schemas/EventGuestGroup' }
+    EventGuestSavedView:
+      type: object
+      required: [viewId, label, query, status, category]
+      properties:
+        viewId: { type: string, format: uuid }
+        label: { type: string }
+        query: { type: string }
+        status: { type: [string, 'null'], enum: [eligible, waitlisted, withdrawn, cancelled, ineligible, null] }
+        category:
+          oneOf:
+            - $ref: '#/components/schemas/EventGuestCategoryFilter'
+            - { type: 'null' }
+    EventGuestSavedViewChangeEnvelope:
+      type: object
+      required: [data]
+      properties:
+        data:
+          type: object
+          required: [viewId]
+          properties:
+            viewId: { type: string, format: uuid }
     GuestFieldType:
       type: string
       enum: [text, integer, boolean]

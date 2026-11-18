@@ -192,6 +192,17 @@ export default {
       invalid: "Use up to 40 letters, digits, underscores or hyphens for the code. Start with a letter or digit and enter a name.",
       failed: "Could not save the guest group.",
     },
+    savedViews: {
+      title: "Saved views",
+      choose: "Saved view",
+      placeholder: "Choose a saved view",
+      apply: "Apply view",
+      remove: "Delete view",
+      confirmDelete: "Delete saved view {label}?",
+      name: "New view name",
+      save: "Save current filters",
+      failed: "Could not load or update saved views.",
+    },
     bulk: {
       status: "Status for selected guests",
       chooseStatus: "Choose a status",

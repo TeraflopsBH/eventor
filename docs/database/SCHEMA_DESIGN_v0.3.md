@@ -377,3 +377,7 @@ Guest managers can set or clear the category for up to 50 distinct event partici
 ## Bulk event guest status changes (000150)
 
 Bulk status updates use the shared selection validation and the individual participation status command. Changes and status history commit together. The invitation prerequisite and each selected participation revision are checked within the same transaction.
+
+## Personal event roster views (000151)
+
+Staff can save name, status and category filters under their own membership for an event they can read. The API encrypts view names and searches, binds the encrypted payload to the owner and view ID, and uses a keyed label digest for per-owner uniqueness. The database checks event access and ownership on every operation. Audit entries contain view IDs without names or searches.

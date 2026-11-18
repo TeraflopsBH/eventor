@@ -4370,6 +4370,87 @@ export function buildApi(dependencies: ApiDependencies): FastifyInstance {
   const guestListOffset = { type: "integer", minimum: 0, maximum: 100000 };
   const guestListSearchFields = { ...guestListFilters, query: { type: "string", maxLength: 200 } };
 
+  const savedViewsPath = "/events/:eventId/guest-saved-views";
+  function savedViewKey(principal: StaffPrincipal, eventId: string): Buffer {
+    const root = dependencies.privateFieldEncryptionKey;
+    if (root?.length !== 32) {
+      throw new ApiError(503, "PRIVATE_FIELD_ENCRYPTION_UNAVAILABLE", "Saved view protection is not configured.");
+    }
+    return createHmac("sha256", root)
+      .update(`eventor:guest-saved-view:v1\0${principal.organizationId}\0${principal.membershipId}\0${eventId.toLowerCase()}`)
+      .digest();
+  }
+
+  const savedViewPayloadKey = (key: Buffer, viewId: string) => createHmac("sha256", key).update(`payload\0${viewId}`).digest();
+  server.get<{ Params: { eventId: string } }>(savedViewsPath, { schema: { params: participationEventParams } }, (request, reply) => {
+    const principal = registryPrincipal(request);
+    const { eventId } = request.params;
+    return withRegistryRead(reply, principal,
+      "SELECT eogp.list_event_guest_saved_views($1::uuid,$3::uuid,$2::uuid) AS result", [eventId], (value) => {
+        const rows = value as { viewId: string; ciphertext: string; status: string | null; category: string | null }[];
+        if (rows.length === 0) return [];
+        const key = savedViewKey(principal, eventId);
+        return rows.map(({ viewId, ciphertext, status, category }) => {
+          const data = JSON.parse(decryptContactValue(Buffer.from(ciphertext, "base64"), savedViewPayloadKey(key, viewId),
+            { organizationId: principal.organizationId, contactKind: "other" })) as { label: string; query: string };
+          return { viewId, status, category, label: data.label, query: data.query };
+        });
+      });
+  });
+
+  function withSavedViewCommand(
+    request: FastifyRequest, reply: FastifyReply, principal: StaffPrincipal, eventId: string, operation: string,
+    input: Record<string, unknown>, query: string, args: unknown[], responseStatus: number,
+  ) {
+    const scope = [principal.organizationId, eventId, principal.membershipId];
+    return withCommand(request, reply.header("cache-control", "no-store, private"), operation, { eventId, ...input }, async (client) => {
+      const result = await client.query<ResultRow>(query, [...scope, ...args]);
+      return result.rows[0]?.result as Record<string, unknown>;
+    }, async (client) => {
+      await client.query("SELECT eogp.assert_event_guest_saved_view_access($1::uuid,$2::uuid,$3::uuid)", scope);
+    }, responseStatus);
+  }
+
+  server.post<{ Params: { eventId: string }; Body: GuestListSearch & { label: string } }>(savedViewsPath, {
+    schema: {
+      params: participationEventParams, headers: idempotencyHeaders,
+      body: { type: "object", additionalProperties: false, required: ["label"],
+        properties: { ...guestListSearchFields, label: { type: "string", minLength: 1, maxLength: 80 } } },
+    },
+  }, (request, reply) => {
+    const principal = registryPrincipal(request);
+    const { eventId } = request.params;
+    const label = request.body.label.trim();
+    const query = request.body.query?.trim() ?? "";
+    if (!label || /[\p{Cc}\p{Cs}]/u.test(label + query)) {
+      throw new ApiError(422, "INVALID_ROSTER_VIEW", "Provide a valid name and search for the saved view.");
+    }
+    const status = request.body.status ?? null;
+    const category = request.body.category?.toLowerCase();
+    const key = savedViewKey(principal, eventId);
+    const viewId = randomUUID();
+    const hash = createHmac("sha256", key).update(`label\0${label.normalize("NFC").toLowerCase()}`).digest("hex");
+    const ciphertext = encryptContactValue(JSON.stringify({ label, query }), savedViewPayloadKey(key, viewId),
+      { organizationId: principal.organizationId, contactKind: "other" });
+    return withSavedViewCommand(request, reply, principal, eventId, "guest.roster_view.create", { label, query, status, category: category ?? null },
+      "SELECT eogp.save_event_guest_view($1::uuid,$2::uuid,$3::uuid,$4::uuid,$5::text,$6::bytea,$7::text,$8::uuid,$9::boolean) AS result",
+      [viewId, hash, ciphertext, status, ...guestCategoryFilter(category)], 201);
+  });
+
+  server.delete<{ Params: { eventId: string; viewId: string } }>(`${savedViewsPath}/:viewId`, {
+    schema: {
+      params: {
+        ...participationEventParams, required: ["eventId", "viewId"],
+        properties: { ...participationEventParams.properties, viewId: { type: "string", pattern: uuidPattern } },
+      },
+      headers: idempotencyHeaders,
+    },
+  }, (request, reply) => {
+    const { eventId, viewId } = request.params;
+    return withSavedViewCommand(request, reply, registryPrincipal(request), eventId, "guest.roster_view.delete", { viewId },
+      "SELECT eogp.delete_event_guest_saved_view($1::uuid,$2::uuid,$3::uuid,$4::uuid) AS result", [viewId], 200);
+  });
+
   function readEventGuestPage(reply: FastifyReply, principal: StaffPrincipal, eventId: string, filter: GuestListPage) {
     return withRegistryRead(reply, principal,
       "SELECT eogp.read_event_guest_list($1::uuid,$3::uuid,$2::uuid,$4::text,$5::integer,$6::uuid,$7::boolean,$8::text) AS result",

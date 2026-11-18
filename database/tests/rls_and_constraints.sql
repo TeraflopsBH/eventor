@@ -2700,6 +2700,65 @@ BEGIN
 END;
 $test$;
 
+-- Staff who share an event can save views without seeing or deleting each other's preferences.
+DO $test$
+DECLARE
+  v_org CONSTANT uuid := '10000000-0000-0000-0000-00000000000a';
+  v_actor CONSTANT uuid := '30000000-0000-0000-0000-00000000000a';
+  v_cipher bytea := convert_to('ECP1' || repeat('x', 32), 'UTF8');
+  v_event uuid;
+  v_other_event uuid;
+  v_foreign_category uuid;
+  v_user uuid;
+  v_member uuid;
+  v_role uuid;
+  v_view uuid := gen_random_uuid();
+  v_second_view uuid := gen_random_uuid();
+  v_result jsonb;
+BEGIN
+  SELECT id INTO STRICT v_event FROM eogp.events WHERE organization_id=v_org AND event_code='CI-LINK-A';
+  SELECT id INTO STRICT v_other_event FROM eogp.events WHERE organization_id=v_org AND event_code='CI-LINK-B';
+  SELECT id INTO STRICT v_foreign_category FROM eogp.event_guest_categories
+    WHERE organization_id=v_org AND event_id=v_other_event AND code='STEWARDS';
+  PERFORM eogp.save_event_guest_view(v_org,v_event,v_actor,v_view,repeat('1',64),v_cipher,'waitlisted',NULL,true);
+  BEGIN
+    PERFORM eogp.save_event_guest_view(v_org,v_event,v_actor,gen_random_uuid(),repeat('2',64),v_cipher,NULL,v_foreign_category,false);
+    RAISE EXCEPTION 'a saved view accepted a category from another event';
+  EXCEPTION WHEN foreign_key_violation THEN NULL;
+  END;
+  v_result := eogp.list_event_guest_saved_views(v_org,v_event,v_actor)->0;
+  IF v_result IS DISTINCT FROM jsonb_build_object('viewId',v_view,'ciphertext',encode(v_cipher,'base64'),'status','waitlisted','category','unassigned')
+    OR has_table_privilege('eventor_runtime','eogp.event_guest_saved_views','SELECT,INSERT,UPDATE,DELETE') THEN
+    RAISE EXCEPTION 'saved view projection or direct access boundary is incorrect';
+  END IF;
+
+  INSERT INTO eogp.users (email,display_name) VALUES ('view-reader@example.invalid','Saved View Fixture') RETURNING id INTO v_user;
+  INSERT INTO eogp.organization_memberships (organization_id,user_id) VALUES (v_org,v_user) RETURNING id INTO v_member;
+  INSERT INTO eogp.roles(organization_id,code,name,scope_kind) VALUES (v_org,'VIEW-READER','View Reader','event') RETURNING id INTO v_role;
+  INSERT INTO eogp.role_permissions(organization_id,role_id,permission_code) VALUES (v_org,v_role,'guest.read');
+  INSERT INTO eogp.user_role_grants(organization_id,membership_id,role_id,scope_kind,scope_event_id,granted_by_membership_id)
+    VALUES (v_org,v_member,v_role,'event',v_event,v_actor);
+  PERFORM set_config('app.actor_membership_id',v_member::text,true);
+  IF eogp.list_event_guest_saved_views(v_org,v_event,v_member) <> '[]'::jsonb THEN
+    RAISE EXCEPTION 'one staff member saw another member''s saved view';
+  END IF;
+  BEGIN
+    PERFORM eogp.delete_event_guest_saved_view(v_org,v_event,v_member,v_view);
+    RAISE EXCEPTION 'one staff member deleted another member''s saved view';
+  EXCEPTION WHEN no_data_found THEN NULL;
+  END;
+  PERFORM eogp.save_event_guest_view(v_org,v_event,v_member,v_second_view,repeat('1',64),v_cipher,'eligible',NULL,false);
+  IF (eogp.list_event_guest_saved_views(v_org,v_event,v_member)#>>'{0,viewId}') IS DISTINCT FROM v_second_view::text THEN
+    RAISE EXCEPTION 'guest read grant could not save a personal view';
+  END IF;
+  PERFORM set_config('app.actor_membership_id',v_actor::text,true);
+  PERFORM eogp.delete_event_guest_saved_view(v_org,v_event,v_actor,v_view);
+  IF eogp.list_event_guest_saved_views(v_org,v_event,v_actor) <> '[]'::jsonb THEN
+    RAISE EXCEPTION 'deleted personal view was still listed';
+  END IF;
+END;
+$test$;
+
 COMMIT;
 
 \echo 'PostgreSQL migration smoke tests passed.'
