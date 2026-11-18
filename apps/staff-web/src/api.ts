@@ -1296,7 +1296,27 @@ export type EventGuestGroup = Omit<GuestListOption, "id"> & { groupId: string };
 export interface EventGuestList {
   people: EventGuestRow[];
   canManage: boolean;
+  canViewRelationships: boolean;
   nextOffset: number | null;
+}
+
+export interface EventGuestRelationship {
+  relationshipId: string;
+  relatedParticipationId: string;
+  relatedDisplayName: string;
+  direction: "mutual" | "outgoing" | "incoming";
+  kind: string;
+  retiredAt: string | null;
+}
+
+interface EventGuestRelationshipInput {
+  relatedParticipationId: string;
+  kind: string;
+  directionality: "mutual" | "directed";
+}
+
+function guestRelationshipsPath(eventId: string, participationId: string): string {
+  return `/events/${encodeURIComponent(eventId)}/participations/${encodeURIComponent(participationId)}/relationships`;
 }
 
 export interface GuestImportCommit {
@@ -1437,6 +1457,17 @@ export const api = {
       `/events/${encodeURIComponent(eventId)}/participations/${encodeURIComponent(participationId)}/groups`, {
         method: "PATCH", body: { groupIds, expectedRevision }, idempotent: true,
       },
+    ),
+  listEventGuestRelationships: (eventId: string, participationId: string) =>
+    request<Envelope<EventGuestRelationship[]>>(guestRelationshipsPath(eventId, participationId)),
+  createEventGuestRelationship: (eventId: string, participationId: string, body: EventGuestRelationshipInput) =>
+    request<Envelope<{ relationshipId: string; retiredAt: null }>>(guestRelationshipsPath(eventId, participationId), {
+      method: "POST", body, idempotent: true,
+    }),
+  retireEventGuestRelationship: (eventId: string, participationId: string, relationshipId: string) =>
+    request<Envelope<{ relationshipId: string; retiredAt: string }>>(
+      `${guestRelationshipsPath(eventId, participationId)}/${encodeURIComponent(relationshipId)}/retire`,
+      { method: "POST", idempotent: true },
     ),
   updateGuestParticipationStatus: (eventId: string, participationId: string, status: ManagedParticipationStatus, expectedRevision: number) =>
     request<Envelope<{ participationId: string; status: ManagedParticipationStatus; revision: number }>>(

@@ -4205,6 +4205,89 @@ paths:
         '404': { $ref: '#/components/responses/NotFound' }
         '409': { $ref: '#/components/responses/Conflict' }
         '412': { $ref: '#/components/responses/PreconditionFailed' }
+  "/events/{eventId}/participations/{participationId}/relationships":
+    get:
+      tags: ["Event Participation"]
+      operationId: listEventGuestRelationships
+      summary: "List the selected guest's event relationships"
+      security: [{ StaffSession: [] }]
+      parameters:
+        - $ref: '#/components/parameters/PEventId'
+        - $ref: '#/components/parameters/PParticipationId'
+      responses:
+        '200':
+          description: "Active and ended relationships visible to event guest managers."
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [data]
+                properties:
+                  data:
+                    type: array
+                    items: { $ref: '#/components/schemas/EventGuestRelationship' }
+        '400': { $ref: '#/components/responses/BadRequest' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '404': { $ref: '#/components/responses/NotFound' }
+    post:
+      tags: ["Event Participation"]
+      operationId: createEventGuestRelationship
+      summary: "Create a mutual or directed relationship between event guests"
+      security: [{ StaffSession: [], StaffCsrf: [] }]
+      parameters:
+        - $ref: '#/components/parameters/PEventId'
+        - $ref: '#/components/parameters/PParticipationId'
+        - $ref: '#/components/parameters/IdempotencyKey'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              additionalProperties: false
+              required: [relatedParticipationId, kind, directionality]
+              properties:
+                relatedParticipationId: { type: string, format: uuid }
+                kind: { type: string, minLength: 1, maxLength: 80 }
+                directionality: { type: string, enum: [mutual, directed] }
+      responses:
+        '201':
+          description: "The relationship was created."
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/EventGuestRelationshipChangeEnvelope' }
+        '400': { $ref: '#/components/responses/BadRequest' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '404': { $ref: '#/components/responses/NotFound' }
+        '409': { $ref: '#/components/responses/Conflict' }
+        '422': { $ref: '#/components/responses/UnprocessableEntity' }
+  "/events/{eventId}/participations/{participationId}/relationships/{relationshipId}/retire":
+    post:
+      tags: ["Event Participation"]
+      operationId: retireEventGuestRelationship
+      summary: "End a guest relationship and retain its history"
+      security: [{ StaffSession: [], StaffCsrf: [] }]
+      parameters:
+        - $ref: '#/components/parameters/PEventId'
+        - $ref: '#/components/parameters/PParticipationId'
+        - $ref: '#/components/parameters/IdempotencyKey'
+        - name: relationshipId
+          in: path
+          required: true
+          schema: { type: string, format: uuid }
+      responses:
+        '200':
+          description: "The relationship is ended."
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/EventGuestRelationshipChangeEnvelope' }
+        '400': { $ref: '#/components/responses/BadRequest' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '404': { $ref: '#/components/responses/NotFound' }
+        '409': { $ref: '#/components/responses/Conflict' }
   "/events/{eventId}/participations/{participationId}/rsvp-history":
     get:
       tags: ["Invitations and RSVP"]
@@ -8057,13 +8140,33 @@ components:
       required: [data]
       properties:
         data: { $ref: '#/components/schemas/EventGuestGroup' }
+    EventGuestRelationship:
+      type: object
+      required: [relationshipId, relatedParticipationId, relatedDisplayName, direction, kind, retiredAt]
+      properties:
+        relationshipId: { type: string, format: uuid }
+        relatedParticipationId: { type: string, format: uuid }
+        relatedDisplayName: { type: string }
+        direction: { type: string, enum: [mutual, outgoing, incoming] }
+        kind: { type: string }
+        retiredAt: { type: [string, 'null'], format: date-time }
+    EventGuestRelationshipChangeEnvelope:
+      type: object
+      required: [data]
+      properties:
+        data:
+          type: object
+          required: [relationshipId, retiredAt]
+          properties:
+            relationshipId: { type: string, format: uuid }
+            retiredAt: { type: [string, 'null'], format: date-time }
     EventGuestListEnvelope:
       type: object
       required: [data]
       properties:
         data:
           type: object
-          required: [people, canManage, nextOffset]
+          required: [people, canManage, canViewRelationships, nextOffset]
           properties:
             people:
               type: array
@@ -8087,6 +8190,7 @@ components:
                     items: { type: string, format: uuid }
                     description: "Groups that include this event guest."
             canManage: { type: boolean }
+            canViewRelationships: { type: boolean }
             nextOffset: { type: [integer, 'null'], minimum: 0 }
     ParticipationStatusRequest:
       type: object

@@ -4605,6 +4605,53 @@ export function buildApi(dependencies: ApiDependencies): FastifyInstance {
     });
   });
 
+  const relationshipsPath = "/events/:eventId/participations/:participationId/relationships";
+  const relationshipParams = {
+    ...participationEventParams, required: ["eventId", "participationId"],
+    properties: { ...participationEventParams.properties, participationId: { type: "string", pattern: uuidPattern } },
+  };
+  type RelationshipParams = { eventId: string; participationId: string };
+  server.get<{ Params: RelationshipParams }>(relationshipsPath, { schema: { params: relationshipParams } },
+    (request, reply) => withRegistryRead(reply, registryPrincipal(request),
+      "SELECT eogp.read_event_guest_relationships($1::uuid,$3::uuid,$2::uuid,$4::uuid) AS result",
+      [request.params.eventId, request.params.participationId]));
+
+  type RelationshipBody = JsonRequestBody<"/events/{eventId}/participations/{participationId}/relationships", "post">;
+  server.post<{ Params: RelationshipParams; Body: RelationshipBody }>(relationshipsPath, {
+    schema: {
+      params: relationshipParams, headers: idempotencyHeaders,
+      body: {
+        type: "object", additionalProperties: false, required: ["relatedParticipationId", "kind", "directionality"],
+        properties: {
+          relatedParticipationId: { type: "string", pattern: uuidPattern },
+          kind: { type: "string", minLength: 1, maxLength: 80 },
+          directionality: { type: "string", enum: ["mutual", "directed"] },
+        },
+      },
+    },
+  }, (request, reply) => {
+    const { eventId, participationId } = request.params;
+    const { relatedParticipationId, kind, directionality } = request.body;
+    return withGuestListCommand(request, reply, eventId, "guest.relationship.create", { participationId, ...request.body },
+      "SELECT eogp.write_event_guest_relationship($1::uuid,$2::uuid,$3::uuid,$4::uuid,NULL,$5::uuid,$6::text,$7::text) AS result",
+      [participationId, relatedParticipationId, kind, directionality], 201);
+  });
+
+  server.post<{ Params: RelationshipParams & { relationshipId: string } }>(`${relationshipsPath}/:relationshipId/retire`, {
+    schema: {
+      params: {
+        ...relationshipParams, required: ["eventId", "participationId", "relationshipId"],
+        properties: { ...relationshipParams.properties, relationshipId: { type: "string", pattern: uuidPattern } },
+      },
+      headers: idempotencyHeaders,
+    },
+  }, (request, reply) => {
+    const { eventId, participationId, relationshipId } = request.params;
+    return withGuestListCommand(request, reply, eventId, "guest.relationship.retire", { participationId, relationshipId },
+      "SELECT eogp.write_event_guest_relationship($1::uuid,$2::uuid,$3::uuid,$4::uuid,$5::uuid,NULL,NULL,NULL) AS result",
+      [participationId, relationshipId]);
+  });
+
   type ParticipationStatusBody = JsonRequestBody<"/events/{eventId}/participations/{participationId}", "patch">;
   server.patch<{ Params: { eventId: string; participationId: string }; Body: ParticipationStatusBody }>(
     "/events/:eventId/participations/:participationId",
