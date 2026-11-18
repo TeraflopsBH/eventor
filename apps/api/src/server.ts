@@ -4442,6 +4442,34 @@ export function buildApi(dependencies: ApiDependencies): FastifyInstance {
     type: "object", required: ["code", "label"], additionalProperties: false,
     properties: { code: { type: "string", pattern: "^[A-Z0-9][A-Z0-9_-]{0,39}$" }, label: { type: "string", minLength: 1, maxLength: 120 } },
   };
+
+  type BulkCategoryBody = { categoryId: string | null; guests: { participationId: string; expectedRevision: number }[] };
+  server.patch<{ Params: { eventId: string }; Body: BulkCategoryBody }>("/events/:eventId/participations/bulk/category", {
+    schema: {
+      params: participationEventParams, headers: idempotencyHeaders,
+      body: {
+        type: "object", additionalProperties: false, required: ["categoryId", "guests"],
+        properties: {
+          categoryId: { type: ["string", "null"], pattern: uuidPattern },
+          guests: {
+            type: "array", minItems: 1, maxItems: 50,
+            items: {
+              type: "object", additionalProperties: false, required: ["participationId", "expectedRevision"],
+              properties: { participationId: { type: "string", pattern: uuidPattern }, expectedRevision: personRevision },
+            },
+          },
+        },
+      },
+    },
+  }, (request, reply) => {
+    const categoryId = request.body.categoryId?.toLowerCase() ?? null;
+    const guests = request.body.guests.map(({ participationId, expectedRevision }) => ({ participationId: participationId.toLowerCase(), expectedRevision }))
+      .sort((left, right) => left.participationId.localeCompare(right.participationId));
+    return withGuestListCommand(request, reply, request.params.eventId, "guest.participation.bulk_category", { categoryId, guests },
+      "SELECT eogp.set_event_guest_bulk_category($1::uuid,$2::uuid,$3::uuid,$4::uuid,$5::jsonb) AS result",
+      [categoryId, JSON.stringify(guests)]);
+  });
+
   type CategoryCreateBody = JsonRequestBody<"/events/{eventId}/guest-categories", "post">;
   server.post<{ Params: { eventId: string }; Body: CategoryCreateBody }>("/events/:eventId/guest-categories", {
     schema: {

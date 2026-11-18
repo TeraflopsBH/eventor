@@ -50,6 +50,12 @@ const membershipChanged = computed(() => {
   return edit.selected.length !== original.length || edit.selected.some((id) => !original.includes(id));
 });
 const rowEditing = computed(() => !!(editing.value || categoryEdit.value || membershipEdit.value));
+const selectedGuests = ref<string[]>([]);
+const bulkCategory = ref<string | null>(null);
+const bulkResult = ref<{ processedCount: number; updatedCount: number } | null>(null);
+const selectableGuests = computed(() => (roster.value?.people ?? []).filter((row) => row.status !== "cancelled"));
+const allGuestsSelected = computed(() => selectableGuests.value.length > 0
+  && selectedGuests.value.length === selectableGuests.value.length);
 const error = ref("");
 
 async function run(operation: () => Promise<void>): Promise<void> {
@@ -79,6 +85,8 @@ async function run(operation: () => Promise<void>): Promise<void> {
 }
 
 async function loadPage(pageOffset: number): Promise<void> {
+  selectedGuests.value = [];
+  bulkCategory.value = null;
   editing.value = null;
   relationshipGuest.value = null;
   fieldPanel.value = null;
@@ -102,6 +110,9 @@ async function loadGroups(): Promise<void> {
 }
 
 function chooseEvent(): void {
+  selectedGuests.value = [];
+  bulkCategory.value = null;
+  bulkResult.value = null;
   showImport.value = false;
   showCategories.value = false;
   showTags.value = false;
@@ -134,8 +145,28 @@ function chooseEvent(): void {
 }
 
 function applyFilters(): void {
+  bulkResult.value = null;
   roster.value = null;
   void run(() => loadPage(0));
+}
+
+function togglePageSelection(): void {
+  bulkResult.value = null;
+  selectedGuests.value = allGuestsSelected.value ? [] : selectableGuests.value.map((row) => row.participationId);
+}
+
+function saveBulkCategory(): void {
+  const category = bulkCategory.value;
+  const selected = new Set(selectedGuests.value);
+  const guests = selectableGuests.value.filter((row) => selected.has(row.participationId))
+    .map((row) => ({ participationId: row.participationId, expectedRevision: row.revision }));
+  if (category === null || guests.length === 0) return;
+  const label = category ? categoryNames.value.get(category) : t("eventGuests.categories.unassigned");
+  if (!label || !window.confirm(t("eventGuests.bulk.confirmCategory", { count: guests.length, label }))) return;
+  void run(async () => {
+    bulkResult.value = (await api.setEventGuestBulkCategory(eventId.value, category || null, guests)).data;
+    await loadPage(offset.value);
+  });
 }
 
 function applyNameSearch(): void {
@@ -318,10 +349,28 @@ onMounted(() => run(async () => {
       @close="fieldPanel = null" @revision="updateFieldRevision" />
     <EventGuestRelationships v-if="roster?.canViewRelationships && relationshipGuest" :key="relationshipGuest.participationId"
       :event-id="eventId" :guest="relationshipGuest" :can-manage="roster.canManage" @close="relationshipGuest = null" />
+    <form v-if="roster?.canManage && selectedGuests.length" class="guest-list-controls" @submit.prevent="saveBulkCategory">
+      <p>{{ t("eventGuests.bulk.selected", { count: selectedGuests.length }) }}</p>
+      <div>
+        <label for="roster-bulk-category">{{ t("eventGuests.bulk.category") }}</label>
+        <select id="roster-bulk-category" v-model="bulkCategory" :disabled="busy || rowEditing">
+          <option :value="null" disabled>{{ t("eventGuests.bulk.chooseCategory") }}</option>
+          <option value="">{{ t("eventGuests.categories.unassigned") }}</option>
+          <option v-for="category in activeCategories" :key="category.categoryId" :value="category.categoryId">{{ category.label }}</option>
+        </select>
+      </div>
+      <button class="button button-primary" type="submit" :disabled="busy || rowEditing || bulkCategory === null">{{ t("eventGuests.bulk.apply") }}</button>
+    </form>
+    <p v-if="bulkResult" role="status">{{ t("eventGuests.bulk.result", { updated: bulkResult.updatedCount, count: bulkResult.processedCount }) }}</p>
     <p v-if="roster && !roster.people.length" class="muted">{{ t("eventGuests.noGuests") }}</p>
     <div v-else-if="roster" class="table-scroll">
       <table class="data-table">
         <thead><tr>
+          <th v-if="roster.canManage" scope="col">
+            <input type="checkbox" :aria-label="t('eventGuests.bulk.selectPage')" :checked="allGuestsSelected"
+              :indeterminate="selectedGuests.length > 0 && !allGuestsSelected" :disabled="busy || rowEditing || !selectableGuests.length"
+              @change="togglePageSelection">
+          </th>
           <th scope="col">{{ t("registry.displayName") }}</th>
           <th scope="col">{{ t("registry.linkStatus") }}</th>
           <th scope="col">{{ t("eventGuests.category") }}</th>
@@ -330,6 +379,10 @@ onMounted(() => run(async () => {
         </tr></thead>
         <tbody>
           <tr v-for="row in roster.people" :key="row.participationId">
+            <td v-if="roster.canManage">
+              <input v-if="row.status !== 'cancelled'" v-model="selectedGuests" type="checkbox" :value="row.participationId"
+                :aria-label="t('eventGuests.bulk.selectGuest', { name: row.displayName })" :disabled="busy || rowEditing" @change="bulkResult = null">
+            </td>
             <td>{{ row.displayName }}</td>
             <td>{{ t(`registry.participationStatus.${row.status}`) }}</td>
             <td>
