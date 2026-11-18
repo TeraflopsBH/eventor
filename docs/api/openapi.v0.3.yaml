@@ -4084,6 +4084,14 @@ paths:
       parameters:
         - $ref: '#/components/parameters/PEventId'
         - $ref: '#/components/parameters/PEventGuestCategoryFilter'
+        - name: tagId
+          in: query
+          description: "Filter by an internal tag assigned to the guest."
+          schema: { type: string, format: uuid }
+        - name: groupId
+          in: query
+          description: "Filter by membership in an event guest group."
+          schema: { type: string, format: uuid }
         - name: status
           in: query
           schema: { type: string, enum: [eligible, waitlisted, withdrawn, cancelled, ineligible] }
@@ -4154,6 +4162,8 @@ paths:
                 query: { type: string, maxLength: 200 }
                 status: { type: string, enum: [eligible, waitlisted, withdrawn, cancelled, ineligible] }
                 category: { $ref: '#/components/schemas/EventGuestCategoryFilter' }
+                tagId: { type: string, format: uuid }
+                groupId: { type: string, format: uuid }
                 offset: { type: integer, minimum: 0, maximum: 100000 }
       responses:
         '200':
@@ -4174,6 +4184,14 @@ paths:
       parameters:
         - $ref: '#/components/parameters/PEventId'
         - $ref: '#/components/parameters/PEventGuestCategoryFilter'
+        - name: tagId
+          in: query
+          description: "Filter by an internal tag assigned to the guest."
+          schema: { type: string, format: uuid }
+        - name: groupId
+          in: query
+          description: "Filter by membership in an event guest group."
+          schema: { type: string, format: uuid }
         - name: status
           in: query
           schema: { type: string, enum: [eligible, waitlisted, withdrawn, cancelled, ineligible] }
@@ -4210,6 +4228,8 @@ paths:
                 query: { type: string, maxLength: 200 }
                 status: { type: string, enum: [eligible, waitlisted, withdrawn, cancelled, ineligible] }
                 category: { $ref: '#/components/schemas/EventGuestCategoryFilter' }
+                tagId: { type: string, format: uuid }
+                groupId: { type: string, format: uuid }
       responses:
         '200':
           description: "Event display names, participation statuses and category codes."
@@ -4576,6 +4596,8 @@ paths:
                 query: { type: string, maxLength: 200 }
                 status: { type: string, enum: [eligible, waitlisted, withdrawn, cancelled, ineligible] }
                 category: { $ref: '#/components/schemas/EventGuestCategoryFilter' }
+                tagId: { type: string, format: uuid }
+                groupId: { type: string, format: uuid }
       responses:
         '201':
           description: "The staff member’s view was saved."
@@ -9238,6 +9260,8 @@ components:
           oneOf:
             - $ref: '#/components/schemas/EventGuestCategoryFilter'
             - { type: 'null' }
+        tagId: { type: string, format: uuid }
+        groupId: { type: string, format: uuid }
     EventGuestSavedViewChangeEnvelope:
       type: object
       required: [data]

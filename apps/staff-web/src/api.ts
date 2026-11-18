@@ -1386,7 +1386,11 @@ export interface EventGuestList {
   nextOffset: number | null;
 }
 
-export interface EventGuestViewFilters {
+interface EventGuestMembershipFilters {
+  tagId?: string;
+  groupId?: string;
+}
+export interface EventGuestViewFilters extends EventGuestMembershipFilters {
   status: EventGuestRow["status"] | null;
   category: string | null;
   query: string;
@@ -1536,29 +1540,33 @@ export const api = {
     request<Envelope<GuestImportReport>>(`/events/${encodeURIComponent(eventId)}/guest-imports/${encodeURIComponent(batchId)}/report`),
   listEventGuestWorkspaces: (organizationId: string) =>
     request<Envelope<EventGuestWorkspace[]>>(`/organizations/${encodeURIComponent(organizationId)}/events/guest-lists`),
-  getEventGuestList: (eventId: string, offset: number, status: EventGuestRow["status"] | "", category = "", name = "") => {
+  getEventGuestList: (eventId: string, offset: number, status: EventGuestRow["status"] | "", category = "", name = "", memberships: EventGuestMembershipFilters = {}) => {
     const path = `/events/${encodeURIComponent(eventId)}/participations`;
     if (name) {
       return request<Envelope<EventGuestList>>(`${path}/search`, {
-        method: "POST", body: { offset, status: status || undefined, category: category || undefined, query: name },
+        method: "POST", body: { offset, status: status || undefined, category: category || undefined, query: name, ...memberships },
       });
     }
     const query = new URLSearchParams({ offset: String(offset) });
     if (status) query.set("status", status);
     if (category) query.set("category", category);
+    if (memberships.tagId) query.set("tagId", memberships.tagId);
+    if (memberships.groupId) query.set("groupId", memberships.groupId);
     return request<Envelope<EventGuestList>>(`${path}?${query}`);
   },
-  getEventGuestExport: (eventId: string, status: EventGuestRow["status"] | "", category = "", name = "") => {
+  getEventGuestExport: (eventId: string, status: EventGuestRow["status"] | "", category = "", name = "", memberships: EventGuestMembershipFilters = {}) => {
     type ExportRow = Pick<EventGuestRow, "displayName" | "status" | "categoryCode">;
     const path = `/events/${encodeURIComponent(eventId)}/participations/export`;
     if (name) {
       return request<Envelope<{ people: ExportRow[] }>>(path, {
-        method: "POST", body: { status: status || undefined, category: category || undefined, query: name },
+        method: "POST", body: { status: status || undefined, category: category || undefined, query: name, ...memberships },
       });
     }
     const query = new URLSearchParams();
     if (status) query.set("status", status);
     if (category) query.set("category", category);
+    if (memberships.tagId) query.set("tagId", memberships.tagId);
+    if (memberships.groupId) query.set("groupId", memberships.groupId);
     const filter = query.size ? `?${query}` : "";
     return request<Envelope<{ people: ExportRow[] }>>(`${path}${filter}`);
   },
@@ -1567,7 +1575,8 @@ export const api = {
   createEventGuestSavedView: (eventId: string, label: string, filters: EventGuestViewFilters) =>
     request<Envelope<{ viewId: string }>>(`/events/${encodeURIComponent(eventId)}/guest-saved-views`, {
       method: "POST", idempotent: true,
-      body: { label, query: filters.query, status: filters.status ?? undefined, category: filters.category ?? undefined },
+      body: { label, query: filters.query, status: filters.status ?? undefined, category: filters.category ?? undefined,
+        tagId: filters.tagId, groupId: filters.groupId },
     }),
   deleteEventGuestSavedView: (eventId: string, viewId: string) =>
     request<Envelope<{ viewId: string }>>(`/events/${encodeURIComponent(eventId)}/guest-saved-views/${encodeURIComponent(viewId)}`, {

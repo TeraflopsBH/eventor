@@ -433,3 +433,7 @@ Organization-scoped relationships between active Registry profiles support mutua
 ## Bulk Guest Registry archival (000164)
 
 An authorized Registry manager can archive up to 50 selected active profiles from one page. Each profile uses the existing archival checks and audit record. The batch validates revisions and rolls back all changes if any profile has outstanding participation or another conflict.
+
+## Event roster membership filters (000165)
+
+Roster pages and exports can combine an internal tag and an event group with existing name, status and category filters. The shared membership predicate omits restricted tags. Personal views preserve the selected same-event tag and group IDs, and retired options remain usable for filtering existing assignments.

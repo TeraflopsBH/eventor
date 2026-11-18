@@ -4665,12 +4665,14 @@ export function buildApi(dependencies: ApiDependencies): FastifyInstance {
       }, 200);
   });
 
-  type GuestListFilter = { status?: "eligible" | "waitlisted" | "withdrawn" | "cancelled" | "ineligible"; category?: string };
+  type GuestListFilter = { status?: "eligible" | "waitlisted" | "withdrawn" | "cancelled" | "ineligible"; category?: string; tagId?: string; groupId?: string };
   type GuestListSearch = GuestListFilter & { query?: string };
   type GuestListPage = GuestListSearch & { offset?: number };
   const guestListFilters = {
     status: { type: "string", enum: ["eligible", "waitlisted", "withdrawn", "cancelled", "ineligible"] },
     category: { type: "string", anyOf: [{ const: "unassigned" }, { pattern: uuidPattern }] },
+    tagId: { type: "string", pattern: uuidPattern },
+    groupId: { type: "string", pattern: uuidPattern },
   };
   const guestCategoryFilter = (filter?: string) => [filter === "unassigned" ? null : filter ?? null, filter === "unassigned"] as const;
   const guestListOffset = { type: "integer", minimum: 0, maximum: 100000 };
@@ -4693,13 +4695,13 @@ export function buildApi(dependencies: ApiDependencies): FastifyInstance {
     const { eventId } = request.params;
     return withRegistryRead(reply, principal,
       "SELECT eogp.list_event_guest_saved_views($1::uuid,$3::uuid,$2::uuid) AS result", [eventId], (value) => {
-        const rows = value as { viewId: string; ciphertext: string; status: string | null; category: string | null }[];
+        const rows = value as { viewId: string; ciphertext: string; status: string | null; category: string | null; tagId?: string; groupId?: string }[];
         if (rows.length === 0) return [];
         const key = savedViewKey(principal, eventId);
-        return rows.map(({ viewId, ciphertext, status, category }) => {
-          const data = JSON.parse(decryptContactValue(Buffer.from(ciphertext, "base64"), savedViewPayloadKey(key, viewId),
+        return rows.map(({ ciphertext, ...view }) => {
+          const data = JSON.parse(decryptContactValue(Buffer.from(ciphertext, "base64"), savedViewPayloadKey(key, view.viewId),
             { organizationId: principal.organizationId, contactKind: "other" })) as { label: string; query: string };
-          return { viewId, status, category, label: data.label, query: data.query };
+          return { ...view, label: data.label, query: data.query };
         });
       });
   });
@@ -4733,14 +4735,17 @@ export function buildApi(dependencies: ApiDependencies): FastifyInstance {
     }
     const status = request.body.status ?? null;
     const category = request.body.category?.toLowerCase();
+    const tagId = request.body.tagId?.toLowerCase();
+    const groupId = request.body.groupId?.toLowerCase();
+    const memberships = { ...(tagId ? { tagId } : {}), ...(groupId ? { groupId } : {}) };
     const key = savedViewKey(principal, eventId);
     const viewId = randomUUID();
     const hash = createHmac("sha256", key).update(`label\0${label.normalize("NFC").toLowerCase()}`).digest("hex");
     const ciphertext = encryptContactValue(JSON.stringify({ label, query }), savedViewPayloadKey(key, viewId),
       { organizationId: principal.organizationId, contactKind: "other" });
-    return withSavedViewCommand(request, reply, principal, eventId, "guest.roster_view.create", { label, query, status, category: category ?? null },
-      "SELECT eogp.save_event_guest_view($1::uuid,$2::uuid,$3::uuid,$4::uuid,$5::text,$6::bytea,$7::text,$8::uuid,$9::boolean) AS result",
-      [viewId, hash, ciphertext, status, ...guestCategoryFilter(category)], 201);
+    return withSavedViewCommand(request, reply, principal, eventId, "guest.roster_view.create", { label, query, status, category: category ?? null, ...memberships },
+      "SELECT eogp.save_event_guest_view($1::uuid,$2::uuid,$3::uuid,$4::uuid,$5::text,$6::bytea,$7::text,$8::uuid,$9::boolean,$10::uuid,$11::uuid) AS result",
+      [viewId, hash, ciphertext, status, ...guestCategoryFilter(category), tagId ?? null, groupId ?? null], 201);
   });
 
   server.delete<{ Params: { eventId: string; viewId: string } }>(`${savedViewsPath}/:viewId`, {
@@ -4759,9 +4764,9 @@ export function buildApi(dependencies: ApiDependencies): FastifyInstance {
 
   function readEventGuestPage(reply: FastifyReply, principal: StaffPrincipal, eventId: string, filter: GuestListPage) {
     return withRegistryRead(reply, principal,
-      `SELECT eogp.read_event_guest_list($1::uuid,$3::uuid,$2::uuid,$4::text,$5::integer,$6::uuid,$7::boolean,$8::text)
+      `SELECT eogp.read_event_guest_list($1::uuid,$3::uuid,$2::uuid,$4::text,$5::integer,$6::uuid,$7::boolean,$8::text,$9::uuid,$10::uuid)
         || jsonb_build_object('canViewRestrictedTags',eogp.can_view_restricted_guest_tags($1::uuid,$3::uuid,$2::uuid)) AS result`,
-      [eventId, filter.status ?? null, filter.offset ?? 0, ...guestCategoryFilter(filter.category), filter.query ?? null], (value) => {
+      [eventId, filter.status ?? null, filter.offset ?? 0, ...guestCategoryFilter(filter.category), filter.query ?? null, filter.tagId ?? null, filter.groupId ?? null], (value) => {
         const roster = value as { canViewRelationships: boolean };
         return { ...roster, canViewCustomFields: roster.canViewRelationships };
       });
@@ -4769,8 +4774,8 @@ export function buildApi(dependencies: ApiDependencies): FastifyInstance {
 
   function readEventGuestExport(reply: FastifyReply, principal: StaffPrincipal, eventId: string, filter: GuestListSearch) {
     return withRegistryRead(reply, principal,
-      "SELECT eogp.read_event_guest_roster_export($1::uuid,$3::uuid,$2::uuid,$4::text,$5::uuid,$6::boolean,$7::text) AS result",
-      [eventId, filter.status ?? null, ...guestCategoryFilter(filter.category), filter.query ?? null], (value) => {
+      "SELECT eogp.read_event_guest_roster_export($1::uuid,$3::uuid,$2::uuid,$4::text,$5::uuid,$6::boolean,$7::text,$8::uuid,$9::uuid) AS result",
+      [eventId, filter.status ?? null, ...guestCategoryFilter(filter.category), filter.query ?? null, filter.tagId ?? null, filter.groupId ?? null], (value) => {
         const result = value as { limitExceeded?: boolean };
         if (result.limitExceeded) {
           throw new ApiError(422, "GUEST_ROSTER_EXPORT_LIMIT", "The export exceeds 20,000 guests. Narrow the filters.");
