@@ -4443,7 +4443,18 @@ export function buildApi(dependencies: ApiDependencies): FastifyInstance {
     properties: { code: { type: "string", pattern: "^[A-Z0-9][A-Z0-9_-]{0,39}$" }, label: { type: "string", minLength: 1, maxLength: 120 } },
   };
 
-  type BulkCategoryBody = { categoryId: string | null; guests: { participationId: string; expectedRevision: number }[] };
+  type BulkGuestSelection = { participationId: string; expectedRevision: number }[];
+  type BulkCategoryBody = { categoryId: string | null; guests: BulkGuestSelection };
+  const bulkGuestSelectionSchema = {
+    type: "array", minItems: 1, maxItems: 50,
+    items: {
+      type: "object", additionalProperties: false, required: ["participationId", "expectedRevision"],
+      properties: { participationId: { type: "string", pattern: uuidPattern }, expectedRevision: personRevision },
+    },
+  };
+  const normalizeBulkGuests = (selection: BulkGuestSelection) => selection
+    .map(({ participationId, expectedRevision }) => ({ participationId: participationId.toLowerCase(), expectedRevision }))
+    .sort((left, right) => left.participationId.localeCompare(right.participationId));
   server.patch<{ Params: { eventId: string }; Body: BulkCategoryBody }>("/events/:eventId/participations/bulk/category", {
     schema: {
       params: participationEventParams, headers: idempotencyHeaders,
@@ -4451,23 +4462,36 @@ export function buildApi(dependencies: ApiDependencies): FastifyInstance {
         type: "object", additionalProperties: false, required: ["categoryId", "guests"],
         properties: {
           categoryId: { type: ["string", "null"], pattern: uuidPattern },
-          guests: {
-            type: "array", minItems: 1, maxItems: 50,
-            items: {
-              type: "object", additionalProperties: false, required: ["participationId", "expectedRevision"],
-              properties: { participationId: { type: "string", pattern: uuidPattern }, expectedRevision: personRevision },
-            },
-          },
+          guests: bulkGuestSelectionSchema,
         },
       },
     },
   }, (request, reply) => {
     const categoryId = request.body.categoryId?.toLowerCase() ?? null;
-    const guests = request.body.guests.map(({ participationId, expectedRevision }) => ({ participationId: participationId.toLowerCase(), expectedRevision }))
-      .sort((left, right) => left.participationId.localeCompare(right.participationId));
+    const guests = normalizeBulkGuests(request.body.guests);
     return withGuestListCommand(request, reply, request.params.eventId, "guest.participation.bulk_category", { categoryId, guests },
       "SELECT eogp.set_event_guest_bulk_category($1::uuid,$2::uuid,$3::uuid,$4::uuid,$5::jsonb) AS result",
       [categoryId, JSON.stringify(guests)]);
+  });
+
+  type BulkStatusBody = { status: "eligible" | "waitlisted" | "ineligible" | "withdrawn"; guests: BulkGuestSelection };
+  server.patch<{ Params: { eventId: string }; Body: BulkStatusBody }>("/events/:eventId/participations/bulk/status", {
+    schema: {
+      params: participationEventParams, headers: idempotencyHeaders,
+      body: {
+        type: "object", additionalProperties: false, required: ["status", "guests"],
+        properties: {
+          status: { type: "string", enum: ["eligible", "waitlisted", "ineligible", "withdrawn"] },
+          guests: bulkGuestSelectionSchema,
+        },
+      },
+    },
+  }, (request, reply) => {
+    const { status } = request.body;
+    const guests = normalizeBulkGuests(request.body.guests);
+    return withGuestListCommand(request, reply, request.params.eventId, "guest.participation.bulk_status", { status, guests },
+      "SELECT eogp.set_event_guest_bulk_status($1::uuid,$2::uuid,$3::uuid,$4::text,$5::jsonb) AS result",
+      [status, JSON.stringify(guests)]);
   });
 
   type CategoryCreateBody = JsonRequestBody<"/events/{eventId}/guest-categories", "post">;

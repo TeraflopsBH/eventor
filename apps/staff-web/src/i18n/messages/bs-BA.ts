@@ -193,6 +193,10 @@ export default {
       failed: "Spremanje grupe gostiju nije uspjelo.",
     },
     bulk: {
+      status: "Status odabranih gostiju",
+      chooseStatus: "Odaberite status",
+      applyStatus: "Primijeni status",
+      confirmStatus: "Postaviti status {label} za odabrane goste ({count})?",
       selectPage: "Odaberi sve dostupne redove na ovoj stranici",
       selectGuest: "Odaberi gosta {name}",
       selected: "Odabrani gosti: {count}",

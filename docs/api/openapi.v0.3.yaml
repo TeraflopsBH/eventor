@@ -4095,32 +4095,46 @@ paths:
               required: [categoryId, guests]
               properties:
                 categoryId: { type: [string, 'null'], format: uuid }
-                guests:
-                  type: array
-                  minItems: 1
-                  maxItems: 50
-                  items:
-                    type: object
-                    additionalProperties: false
-                    required: [participationId, expectedRevision]
-                    properties:
-                      participationId: { type: string, format: uuid }
-                      expectedRevision: { type: integer, minimum: 1, maximum: 2147483647 }
+                guests: { $ref: '#/components/schemas/BulkEventGuestSelection' }
       responses:
         '200':
           description: "Counts of selected and updated guests."
           content:
             application/json:
-              schema:
-                type: object
-                required: [data]
-                properties:
-                  data:
-                    type: object
-                    required: [processedCount, updatedCount]
-                    properties:
-                      processedCount: { type: integer, minimum: 1, maximum: 50 }
-                      updatedCount: { type: integer, minimum: 0, maximum: 50 }
+              schema: { $ref: '#/components/schemas/BulkEventGuestChangeEnvelope' }
+        '400': { $ref: '#/components/responses/BadRequest' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '404': { $ref: '#/components/responses/NotFound' }
+        '409': { $ref: '#/components/responses/Conflict' }
+        '412': { $ref: '#/components/responses/PreconditionFailed' }
+        '422': { $ref: '#/components/responses/UnprocessableEntity' }
+  "/events/{eventId}/participations/bulk/status":
+    patch:
+      tags: ["Event Participation"]
+      operationId: setEventGuestBulkStatus
+      summary: "Change participation status for up to 50 event guests in one transaction"
+      security: [{ StaffSession: [], StaffCsrf: [] }]
+      parameters:
+        - $ref: '#/components/parameters/PEventId'
+        - $ref: '#/components/parameters/IdempotencyKey'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              additionalProperties: false
+              required: [status, guests]
+              properties:
+                status: { type: string, enum: [eligible, waitlisted, ineligible, withdrawn] }
+                guests: { $ref: '#/components/schemas/BulkEventGuestSelection' }
+      responses:
+        '200':
+          description: "Counts of selected and updated guests."
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/BulkEventGuestChangeEnvelope' }
         '400': { $ref: '#/components/responses/BadRequest' }
         '401': { $ref: '#/components/responses/Unauthorized' }
         '403': { $ref: '#/components/responses/Forbidden' }
@@ -8378,6 +8392,27 @@ components:
         - { type: integer, minimum: -9007199254740991, maximum: 9007199254740991 }
         - { type: boolean }
         - { type: 'null' }
+    BulkEventGuestSelection:
+      type: array
+      minItems: 1
+      maxItems: 50
+      items:
+        type: object
+        additionalProperties: false
+        required: [participationId, expectedRevision]
+        properties:
+          participationId: { type: string, format: uuid }
+          expectedRevision: { type: integer, minimum: 1, maximum: 2147483647 }
+    BulkEventGuestChangeEnvelope:
+      type: object
+      required: [data]
+      properties:
+        data:
+          type: object
+          required: [processedCount, updatedCount]
+          properties:
+            processedCount: { type: integer, minimum: 1, maximum: 50 }
+            updatedCount: { type: integer, minimum: 0, maximum: 50 }
     EventGuestRelationship:
       type: object
       required: [relationshipId, relatedParticipationId, relatedDisplayName, direction, kind, retiredAt]

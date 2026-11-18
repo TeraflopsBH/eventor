@@ -193,6 +193,10 @@ export default {
       failed: "Could not save the guest group.",
     },
     bulk: {
+      status: "Status for selected guests",
+      chooseStatus: "Choose a status",
+      applyStatus: "Apply status",
+      confirmStatus: "Set the status to {label} for {count} selected guests?",
       selectPage: "Select all editable guests on this page",
       selectGuest: "Select {name}",
       selected: "Selected guests: {count}",
