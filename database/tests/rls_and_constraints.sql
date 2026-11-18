@@ -3787,6 +3787,69 @@ BEGIN
 END;
 $test$;
 
+-- Event notes use distinct grants and preserve withdrawal history without projecting content.
+DO $test$
+DECLARE
+  v_org CONSTANT uuid := '10000000-0000-0000-0000-00000000000a';
+  v_actor CONSTANT uuid := '30000000-0000-0000-0000-00000000000a';
+  v_cipher CONSTANT bytea := convert_to('ECP1' || repeat('n',32),'UTF8');
+  v_event uuid;
+  v_other uuid;
+  v_person uuid;
+  v_guest uuid;
+  v_note uuid := gen_random_uuid();
+  v_role uuid := gen_random_uuid();
+  v_result jsonb;
+BEGIN
+  SELECT id INTO STRICT v_event FROM eogp.events WHERE organization_id=v_org AND event_code='CI-LINK-A';
+  SELECT id INTO STRICT v_other FROM eogp.events WHERE organization_id=v_org AND event_code='CI-LINK-B';
+  v_person := (eogp.write_guest_registry_person(v_org,v_actor,NULL,NULL,'create',
+    '{"firstName":"Staff","lastName":"Note Fixture"}')->>'personId')::uuid;
+  v_guest := (eogp.link_registry_person_to_event(v_org,v_event,v_actor,v_person,'eligible')->>'participationId')::uuid;
+  BEGIN
+    PERFORM eogp.read_event_guest_notes(v_org,v_event,v_actor,v_guest,0);
+    RAISE EXCEPTION 'ordinary roster management read staff notes';
+  EXCEPTION WHEN insufficient_privilege THEN NULL;
+  END;
+  INSERT INTO eogp.roles(id,organization_id,code,name,scope_kind) VALUES(v_role,v_org,'CI-GUEST-NOTES','Staff Notes','event');
+  INSERT INTO eogp.role_permissions(organization_id,role_id,permission_code) VALUES(v_org,v_role,'guest.notes.read');
+  INSERT INTO eogp.user_role_grants(organization_id,membership_id,role_id,scope_kind,scope_event_id,granted_by_membership_id)
+    VALUES(v_org,v_actor,v_role,'event',v_event,v_actor);
+  BEGIN
+    PERFORM eogp.write_event_guest_note(v_org,v_event,v_actor,v_guest,v_note,v_cipher);
+    RAISE EXCEPTION 'read-only staff notes grant allowed creation';
+  EXCEPTION WHEN insufficient_privilege THEN NULL;
+  END;
+  IF eogp.read_event_guest_notes(v_org,v_event,v_actor,v_guest,0)->>'canManage' IS DISTINCT FROM 'false'
+    OR eogp.can_view_event_guest_notes(v_org,v_other,v_actor)
+    OR has_table_privilege('eventor_runtime','eogp.guest_notes','SELECT,INSERT,UPDATE,DELETE') THEN
+    RAISE EXCEPTION 'staff note access crossed permission or event boundaries';
+  END IF;
+
+  INSERT INTO eogp.role_permissions(organization_id,role_id,permission_code) VALUES(v_org,v_role,'guest.notes.manage');
+  INSERT INTO eogp.guest_notes(organization_id,event_id,participation_id,note_ciphertext,created_by_membership_id)
+    VALUES(v_org,v_event,v_guest,v_cipher,v_actor);
+  v_result := eogp.write_event_guest_note(v_org,v_event,v_actor,v_guest,v_note,v_cipher);
+  IF v_result->>'noteId' IS DISTINCT FROM v_note::text OR v_result ?| array['ciphertext','text'] THEN
+    RAISE EXCEPTION 'staff note mutation omitted the ID or included note content';
+  END IF;
+  v_result := eogp.read_event_guest_notes(v_org,v_event,v_actor,v_guest,0);
+  IF jsonb_array_length(v_result->'notes') IS DISTINCT FROM 1
+    OR v_result#>>'{notes,0,ciphertext}' IS DISTINCT FROM encode(v_cipher,'base64') THEN
+    RAISE EXCEPTION 'staff note projection missed the encrypted envelope or included a legacy row';
+  END IF;
+  PERFORM eogp.write_event_guest_note(v_org,v_event,v_actor,v_guest,v_note,NULL);
+  v_result := eogp.read_event_guest_notes(v_org,v_event,v_actor,v_guest,0);
+  IF v_result#>'{notes,0,ciphertext}' IS DISTINCT FROM 'null'::jsonb OR v_result#>>'{notes,0,withdrawnAt}' IS NULL
+    OR NOT EXISTS (SELECT 1 FROM eogp.guest_notes WHERE id=v_note AND withdrawn_by_membership_id=v_actor AND note_ciphertext=v_cipher)
+    OR (SELECT count(*) FROM eogp.audit_events WHERE organization_id=v_org AND aggregate_id=v_note
+      AND action IN ('guest.note.recorded','guest.note.withdrawn')
+      AND safe_metadata=jsonb_build_object('eventId',v_event,'participationId',v_guest)) <> 2 THEN
+    RAISE EXCEPTION 'staff note withdrawal lost history or projected withdrawn content';
+  END IF;
+END;
+$test$;
+
 COMMIT;
 
 \echo 'PostgreSQL migration smoke tests passed.'

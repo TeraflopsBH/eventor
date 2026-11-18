@@ -1404,12 +1404,28 @@ function eventGuestGroupPath(eventId: string, groupId: string): string {
   return `/events/${encodeURIComponent(eventId)}/guest-groups/${encodeURIComponent(groupId)}`;
 }
 
+export interface EventGuestNote {
+  noteId: string;
+  text: string | null;
+  createdAt: string;
+  withdrawnAt: string | null;
+}
+export interface EventGuestNotes {
+  notes: EventGuestNote[];
+  canManage: boolean;
+  nextOffset: number | null;
+}
+function eventGuestNotesPath(eventId: string, participationId: string): string {
+  return `/events/${encodeURIComponent(eventId)}/participations/${encodeURIComponent(participationId)}/notes`;
+}
+
 export interface EventGuestList {
   people: EventGuestRow[];
   canManage: boolean;
   canViewRelationships: boolean;
   canViewCustomFields: boolean;
   canViewRestrictedTags: boolean;
+  canViewGuestNotes: boolean;
   nextOffset: number | null;
 }
 
@@ -1658,6 +1674,16 @@ export const api = {
     request<Envelope<EventGuestTag>>(`/events/${encodeURIComponent(eventId)}/guest-tags/${encodeURIComponent(tagId)}/retire`, {
       method: "POST", idempotent: true,
     }),
+  listEventGuestNotes: (eventId: string, participationId: string, offset: number) =>
+    request<Envelope<EventGuestNotes>>(`${eventGuestNotesPath(eventId, participationId)}?offset=${offset}`),
+  createEventGuestNote: (eventId: string, participationId: string, text: string) =>
+    request<Envelope<Omit<EventGuestNote, "text">>>(eventGuestNotesPath(eventId, participationId), {
+      method: "POST", body: { text }, idempotent: true,
+    }),
+  withdrawEventGuestNote: (eventId: string, participationId: string, noteId: string) =>
+    request<Envelope<Omit<EventGuestNote, "text">>>(
+      `${eventGuestNotesPath(eventId, participationId)}/${encodeURIComponent(noteId)}/withdraw`, { method: "POST", idempotent: true },
+    ),
   setEventGuestRosterName: (eventId: string, participationId: string, displayName: string | null, expectedRevision: number) =>
     request<Envelope<{ participationId: string; revision: number }>>(
       `/events/${encodeURIComponent(eventId)}/participations/${encodeURIComponent(participationId)}/roster-name`, {

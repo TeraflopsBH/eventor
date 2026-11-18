@@ -187,6 +187,17 @@ export default {
       invalid: "Use up to 40 letters, digits, underscores or hyphens for the code. Start with a letter or digit and enter a name.",
       failed: "Could not save the guest category.",
     },
+    notes: {
+      open: "Staff notes",
+      forGuest: "Staff notes for {name}",
+      text: "Restricted note",
+      add: "Add note",
+      empty: "No staff notes recorded.",
+      confirmWithdraw: "Withdraw this note from the guest notes view?",
+      withdraw: "Withdraw note",
+      withdrawn: "Withdrawn {time}",
+      failed: "Could not load or save guest notes.",
+    },
     groupRules: {
       title: "Group placement rules",
       firstGroup: "First group",
