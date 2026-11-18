@@ -327,11 +327,9 @@ jobs:
           ADMIN_URL: ${{ env.ADMIN_URL }}
         run: node --test dist/test/session-auth-postgres.integration.test.js
 
-      - name: Install pinned Playwright and browser engines
+      - name: Install the pinned Playwright client
         working-directory: apps/api
-        run: |
-          npm install --no-save --package-lock=false playwright@1.56.1
-          npx playwright install --with-deps chromium firefox
+        run: npm install --no-save --package-lock=false playwright@1.56.1
 
       - name: Seed a synthetic staff password for browser authentication
         working-directory: apps/api
@@ -369,7 +367,7 @@ jobs:
       - name: Verify login, Secure cookies, session restoration, CSRF and logout in Chromium and Firefox
         env:
           EVENTOR_BROWSER_BASE_URL: http://localhost:8080
-        run: node apps/api/scripts/session-browser-smoke.mjs
+        run: bash scripts/dev/run-browser-smoke.sh session
 
       - name: Install and build staff web for guest browser acceptance
         working-directory: apps/staff-web
@@ -392,10 +390,9 @@ jobs:
           exit 1
 
       - name: Verify guest invitation browser flow in Chromium and Firefox
-        working-directory: apps/api
         env:
           EVENTOR_GUEST_BROWSER_BASE_URL: http://localhost:4173
-        run: node scripts/guest-invitation-browser-smoke.mjs
+        run: bash scripts/dev/run-browser-smoke.sh guest-invitation
 
       - name: Stop the staff web preview
         if: always()
