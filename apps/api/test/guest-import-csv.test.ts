@@ -24,3 +24,13 @@ test("guest CSV rejects unknown or duplicate headers, broken quoting, and oversi
     `first_name,last_name\n${"x".repeat(64 * 1024)}`,
   ]) assert.throws(() => parseGuestImportCsv(invalid), GuestImportCsvError);
 });
+
+test("guest CSV mapping selects only the requested source columns", () => {
+  const csv = "Surname,Private notes,Given,Nickname\nExample,Ignore this,Ada,Addie\nMissing,Here\n";
+  const mapping = { firstName: 3, lastName: 1, preferredName: 4 };
+  const rows = parseGuestImportCsv(csv, mapping);
+  assert.deepEqual(rows[0]?.names, { firstName: "Ada", lastName: "Example", displayName: null, preferredName: "Addie" });
+  assert.deepEqual(rows[0]?.source, ["Ada", "Example", "Addie"]);
+  assert.deepEqual(rows[1]?.errors, ["column_count", "name_required"]);
+  assert.throws(() => parseGuestImportCsv(csv, { firstName: 1, lastName: 1 }), /distinct available columns/);
+});

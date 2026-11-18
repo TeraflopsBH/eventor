@@ -107,6 +107,12 @@ export default {
   },
   eventGuests: {
     import: {
+      mapColumns: "Map columns",
+      chooseColumn: "Choose a column",
+      blankColumn: "Leave blank",
+      unnamedColumn: "Unnamed column",
+      standardHeaders: "Use standard headers",
+      invalidMapping: "Choose different columns for first name and last name. Each selected column can be used once.",
       title: "Import guests",
       instructions: "Use up to 500 guest rows with first_name and last_name headers. Optional columns are display_name and preferred_name. UTF-8 CSV files can be up to 64 KiB and XLSX files up to 256 KiB.",
       file: "Guest import file",

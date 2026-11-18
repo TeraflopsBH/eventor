@@ -1,4 +1,5 @@
 import { parse } from "csv-parse/sync";
+import { guestImportMaxColumns, mappedNameColumns, previewColumnLabel, type GuestImportColumn, type GuestImportColumnMapping } from "./guest-import-column-map.js";
 
 const supportedHeaders = ["first_name", "last_name", "display_name", "preferred_name"] as const;
 const maxBytes = 64 * 1024;
@@ -22,20 +23,43 @@ export type GuestImportRecord = Pick<GuestImportRow, "rowNumber" | "source" | "e
 
 export class GuestImportCsvError extends Error {}
 
-export function parseGuestImportCsv(csv: string): GuestImportRow[] {
+function readGuestCsvRecords(csv: string): string[][] {
   if (Buffer.byteLength(csv, "utf8") > maxBytes || csv.includes("\0")) {
     throw new GuestImportCsvError("Use a UTF-8 CSV file of up to 64 KiB.");
   }
-  let records: string[][];
   try {
-    records = parse(csv, {
+    return parse(csv, {
       bom: true, trim: true, skip_empty_lines: true, relax_column_count: true,
       max_record_size: 4096, to: maxRows + 2,
     }) as string[][];
   } catch {
     throw new GuestImportCsvError("CSV quoting or record size is invalid.");
   }
+}
+
+function describeGuestCsvColumns(header?: string[]): GuestImportColumn[] {
+  if (!header?.length || header.length > guestImportMaxColumns) {
+    throw new GuestImportCsvError(`Include a header with up to ${guestImportMaxColumns} columns.`);
+  }
+  return header.map((label, index) => ({ index: index + 1, label: previewColumnLabel(label) }));
+}
+
+export function inspectGuestCsvColumns(csv: string): GuestImportColumn[] {
+  return describeGuestCsvColumns(readGuestCsvRecords(csv)[0]);
+}
+
+export function parseGuestImportCsv(csv: string, mapping?: GuestImportColumnMapping): GuestImportRow[] {
+  const records = readGuestCsvRecords(csv);
   const [header, ...body] = records;
+  if (mapping) {
+    const available = describeGuestCsvColumns(header);
+    const { headers, indices } = mappedNameColumns(mapping, available);
+    return validateGuestImportRecords(headers, body.map((source, index) => ({
+      rowNumber: index + 2,
+      source: indices.map((column) => source[column - 1] ?? ""),
+      errors: source.length === available.length ? [] : ["column_count"],
+    })));
+  }
   return validateGuestImportRecords(header, body.map((source, index) => ({ rowNumber: index + 2, source, errors: [] })));
 }
 

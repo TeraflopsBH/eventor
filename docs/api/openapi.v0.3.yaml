@@ -3476,6 +3476,7 @@ paths:
               required: [csv]
               properties:
                 csv: { type: string, minLength: 1, maxLength: 65536 }
+                mapping: { $ref: '#/components/schemas/GuestImportColumnMapping' }
       responses:
         '201':
           description: "Preview created with no changes to Registry profiles or event guests."
@@ -3489,6 +3490,64 @@ paths:
         '409': { $ref: '#/components/responses/Conflict' }
         '422': { $ref: '#/components/responses/UnprocessableEntity' }
         '503': { $ref: '#/components/responses/ServiceUnavailable' }
+  "/events/{eventId}/guest-imports/columns":
+    post:
+      tags: ["Event Participation"]
+      operationId: inspectGuestImportCsvColumns
+      summary: "Inspect column headings in an uploaded guest CSV"
+      security: [{ StaffSession: [], StaffCsrf: [] }]
+      parameters:
+        - $ref: '#/components/parameters/PEventId'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              additionalProperties: false
+              required: [csv]
+              properties:
+                csv: { type: string, minLength: 1, maxLength: 65536 }
+      responses:
+        '200':
+          description: "Available header labels and one-based column positions."
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/GuestImportColumnsEnvelope' }
+        '400': { $ref: '#/components/responses/BadRequest' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '422': { $ref: '#/components/responses/UnprocessableEntity' }
+  "/events/{eventId}/guest-imports/xlsx/columns":
+    post:
+      tags: ["Event Participation"]
+      operationId: inspectGuestImportWorkbookColumns
+      summary: "Inspect columns in the selected worksheet header"
+      security: [{ StaffSession: [], StaffCsrf: [] }]
+      parameters:
+        - $ref: '#/components/parameters/PEventId'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              additionalProperties: false
+              required: [xlsx, sheetIndex, headerRow]
+              properties:
+                xlsx: { $ref: '#/components/schemas/GuestImportWorkbookBytes' }
+                sheetIndex: { type: integer, minimum: 1, maximum: 32 }
+                headerRow: { type: integer, minimum: 1, maximum: 1048575 }
+      responses:
+        '200':
+          description: "Available header labels and one-based column positions."
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/GuestImportColumnsEnvelope' }
+        '400': { $ref: '#/components/responses/BadRequest' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '422': { $ref: '#/components/responses/UnprocessableEntity' }
   "/events/{eventId}/guest-imports/xlsx/sheets":
     post:
       tags: ["Event Participation"]
@@ -3555,6 +3614,7 @@ paths:
                 xlsx: { $ref: '#/components/schemas/GuestImportWorkbookBytes' }
                 sheetIndex: { type: integer, minimum: 1, maximum: 32 }
                 headerRow: { type: integer, minimum: 1, maximum: 1048575 }
+                mapping: { $ref: '#/components/schemas/GuestImportColumnMapping' }
       responses:
         '201':
           description: "Preview created with original worksheet row numbers."
@@ -8265,6 +8325,34 @@ components:
       properties:
         personId: { type: string, format: uuid }
         status: { type: string, enum: [eligible, waitlisted, ineligible], default: eligible }
+    GuestImportColumnMapping:
+      type: object
+      additionalProperties: false
+      required: [firstName, lastName]
+      description: "Map each name field to a distinct one-based source column."
+      properties:
+        firstName: { type: integer, minimum: 1, maximum: 64 }
+        lastName: { type: integer, minimum: 1, maximum: 64 }
+        displayName: { type: integer, minimum: 1, maximum: 64 }
+        preferredName: { type: integer, minimum: 1, maximum: 64 }
+    GuestImportColumnsEnvelope:
+      type: object
+      required: [data]
+      properties:
+        data:
+          type: object
+          required: [columns]
+          properties:
+            columns:
+              type: array
+              minItems: 1
+              maxItems: 64
+              items:
+                type: object
+                required: [index, label]
+                properties:
+                  index: { type: integer, minimum: 1, maximum: 64 }
+                  label: { type: string, maxLength: 200 }
     GuestImportWorkbookBytes:
       type: string
       contentEncoding: base64

@@ -381,3 +381,7 @@ Bulk status updates use the shared selection validation and the individual parti
 ## Personal event roster views (000151)
 
 Staff can save name, status and category filters under their own membership for an event they can read. The API encrypts view names and searches, binds the encrypted payload to the owner and view ID, and uses a keyed label digest for per-owner uniqueness. The database checks event access and ownership on every operation. Audit entries contain view IDs without names or searches.
+
+## Guest import column mapping (000152)
+
+Staff can map separate source columns to first, last, display and preferred names before preview. The mapping uses distinct one-based column positions. Import batches record the selected positions and workbook coordinates, and encrypted staging contains the projected source values. Standard headers remain supported.

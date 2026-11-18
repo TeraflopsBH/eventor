@@ -8,8 +8,9 @@ import { verifyResendWebhookSignature } from "./resend-webhook.js";
 import { createGuestInvitationCapability, hashGuestInvitationToken } from "./guest-invitation-capability.js";
 import { guestInvitationIssuanceIdempotencyDigest } from "./guest-invitation-idempotency.js";
 import { classifySmtpFailure, sendSmtpTestMessage, type SmtpSettings, type SmtpTransportFactory } from "./smtp-transport.js";
-import { GuestImportCsvError, parseGuestImportCsv, type GuestImportRow, type ImportNames } from "./guest-import-csv.js";
-import { GuestImportWorkbookError, guestWorkbookMaxBytes, guestWorkbookMaxRow, inspectGuestWorkbook, parseGuestWorkbook } from "./guest-import-xlsx.js";
+import { GuestImportCsvError, inspectGuestCsvColumns, parseGuestImportCsv, type GuestImportRow, type ImportNames } from "./guest-import-csv.js";
+import { GuestImportColumnError, guestImportMaxColumns, type GuestImportColumnMapping } from "./guest-import-column-map.js";
+import { GuestImportWorkbookError, guestWorkbookMaxBytes, guestWorkbookMaxRow, inspectGuestWorkbook, inspectGuestWorkbookColumns, parseGuestWorkbook } from "./guest-import-xlsx.js";
 import type { paths } from "./generated/openapi.js";
 import {
   clearStaffSessionCookies,
@@ -4162,9 +4163,27 @@ export function buildApi(dependencies: ApiDependencies): FastifyInstance {
     return createHmac("sha256", registryContactKey()).update("eventor:guest-import-csv:v1").digest();
   }
 
+  const guestImportColumn = { type: "integer", minimum: 1, maximum: guestImportMaxColumns };
+  const guestImportMapping = {
+    type: "object", additionalProperties: false, required: ["firstName", "lastName"],
+    properties: { firstName: guestImportColumn, lastName: guestImportColumn, displayName: guestImportColumn, preferredName: guestImportColumn },
+  };
+
+  async function readGuestImportSource<T>(read: () => T | Promise<T>): Promise<T> {
+    try {
+      return await read();
+    } catch (error) {
+      if (error instanceof GuestImportCsvError) throw new ApiError(422, "GUEST_IMPORT_CSV_INVALID", error.message);
+      if (error instanceof GuestImportWorkbookError) throw new ApiError(422, "GUEST_IMPORT_XLSX_INVALID", error.message);
+      if (error instanceof GuestImportColumnError) throw new ApiError(422, "GUEST_IMPORT_MAPPING_INVALID", error.message);
+      throw error;
+    }
+  }
+
   function prepareGuestImport(
     request: FastifyRequest, reply: FastifyReply, eventId: string, source: Buffer | string,
     parseRows: () => GuestImportRow[] | Promise<GuestImportRow[]>, worksheet?: { sheetIndex: number; headerRow: number },
+    mapping?: GuestImportColumnMapping,
   ) {
     const principal = registryPrincipal(request);
     const key = guestImportKey();
@@ -4176,43 +4195,54 @@ export function buildApi(dependencies: ApiDependencies): FastifyInstance {
     const args = [principal.organizationId, eventId, principal.membershipId];
     const authorize = (client: PoolClient) => client.query("SELECT eogp.assert_guest_import_permission($1::uuid,$2::uuid,$3::uuid)", args);
     return withCommand(request, reply.header("cache-control", "no-store, private"),
-      "guest.import.preview", { eventId, sourceHash, ...worksheet }, async (client) => {
-        if (worksheet) await authorize(client);
-        let rows: GuestImportRow[];
-        try {
-          rows = await parseRows();
-        } catch (error) {
-          if (error instanceof GuestImportCsvError) throw new ApiError(422, "GUEST_IMPORT_CSV_INVALID", error.message);
-          if (error instanceof GuestImportWorkbookError) throw new ApiError(422, "GUEST_IMPORT_XLSX_INVALID", error.message);
-          throw error;
-        }
+      "guest.import.preview", { eventId, sourceHash, ...worksheet, ...(mapping ? { mapping } : {}) }, async (client) => {
+        if (worksheet || mapping) await authorize(client);
+        const rows = await readGuestImportSource(parseRows);
         const encryptedRows = rows.map(({ rowNumber, source, names, errors }) => ({
           rowNumber, errors, firstName: names.firstName, lastName: names.lastName,
           sourceCiphertext: encryptContactValue(JSON.stringify(source), key, context).toString("base64"),
           namesCiphertext: encryptContactValue(JSON.stringify(names), key, context).toString("base64"),
         }));
         const input = [...args, sourceHash, JSON.stringify(encryptedRows)];
-        const result = worksheet
-          ? await client.query<ResultRow>(
+        let result;
+        if (mapping) {
+          result = await client.query<ResultRow>(
+            "SELECT eogp.prepare_mapped_guest_import_preview($1::uuid,$2::uuid,$3::uuid,$4::text,$5::jsonb,$6::jsonb,$7::integer,$8::integer) AS result",
+            [...input, JSON.stringify(mapping), worksheet?.sheetIndex ?? null, worksheet?.headerRow ?? null]);
+        } else if (worksheet) {
+          result = await client.query<ResultRow>(
             "SELECT eogp.prepare_guest_import_workbook_preview($1::uuid,$2::uuid,$3::uuid,$4::text,$5::jsonb,$6::integer,$7::integer) AS result",
-            [...input, worksheet.sheetIndex, worksheet.headerRow])
-          : await client.query<ResultRow>(
+            [...input, worksheet.sheetIndex, worksheet.headerRow]);
+        } else {
+          result = await client.query<ResultRow>(
             "SELECT eogp.prepare_guest_import_preview($1::uuid,$2::uuid,$3::uuid,$4::text,$5::jsonb) AS result", input);
+        }
         return (result.rows[0]?.result ?? {}) as Record<string, unknown>;
       }, async (client) => { await authorize(client); });
   }
 
-  server.post<{ Params: { eventId: string }; Body: { csv: string } }>("/events/:eventId/guest-imports", {
+  const guestImportCsvField = { type: "string", minLength: 1, maxLength: 65536 };
+  server.post<{ Params: { eventId: string }; Body: { csv: string; mapping?: GuestImportColumnMapping } }>("/events/:eventId/guest-imports", {
     bodyLimit: 256 * 1024,
     schema: {
       params: participationEventParams, headers: idempotencyHeaders,
       body: {
         type: "object", additionalProperties: false, required: ["csv"],
-        properties: { csv: { type: "string", minLength: 1, maxLength: 65536 } },
+        properties: { csv: guestImportCsvField, mapping: guestImportMapping },
       },
     },
   }, (request, reply) => prepareGuestImport(request, reply, request.params.eventId, request.body.csv,
-    () => parseGuestImportCsv(request.body.csv)));
+    () => parseGuestImportCsv(request.body.csv, request.body.mapping), undefined, request.body.mapping));
+
+  server.post<{ Params: { eventId: string }; Body: { csv: string } }>("/events/:eventId/guest-imports/columns", {
+    bodyLimit: 256 * 1024,
+    schema: {
+      params: participationEventParams,
+      body: { type: "object", additionalProperties: false, required: ["csv"], properties: { csv: guestImportCsvField } },
+    },
+  }, (request, reply) => withRegistryRead(reply, registryPrincipal(request),
+    "SELECT eogp.assert_guest_import_permission($1::uuid,$3::uuid,$2::uuid)", [request.params.eventId],
+    () => readGuestImportSource(() => ({ columns: inspectGuestCsvColumns(request.body.csv) }))));
 
   const xlsxField = { type: "string", minLength: 4, maxLength: Math.ceil(guestWorkbookMaxBytes / 3) * 4 };
   const workbookBodyLimit = xlsxField.maxLength + 1024;
@@ -4231,34 +4261,41 @@ export function buildApi(dependencies: ApiDependencies): FastifyInstance {
       body: { type: "object", additionalProperties: false, required: ["xlsx"], properties: { xlsx: xlsxField } },
     },
   }, (request, reply) => withRegistryRead(reply, registryPrincipal(request),
-    "SELECT eogp.assert_guest_import_permission($1::uuid,$3::uuid,$2::uuid)", [request.params.eventId], async () => {
-      try {
-        return { sheets: await inspectGuestWorkbook(guestWorkbookBytes(request.body.xlsx)) };
-      } catch (error) {
-        if (error instanceof GuestImportWorkbookError) throw new ApiError(422, "GUEST_IMPORT_XLSX_INVALID", error.message);
-        throw error;
-      }
-    }));
+    "SELECT eogp.assert_guest_import_permission($1::uuid,$3::uuid,$2::uuid)", [request.params.eventId],
+    () => readGuestImportSource(async () => ({ sheets: await inspectGuestWorkbook(guestWorkbookBytes(request.body.xlsx)) }))));
 
   type WorkbookPreview = { xlsx: string; sheetIndex: number; headerRow: number };
-  server.post<{ Params: { eventId: string }; Body: WorkbookPreview }>("/events/:eventId/guest-imports/xlsx", {
+  const guestWorkbookSourceFields = {
+    xlsx: xlsxField,
+    sheetIndex: { type: "integer", minimum: 1, maximum: 32 },
+    headerRow: { type: "integer", minimum: 1, maximum: guestWorkbookMaxRow - 1 },
+  };
+  server.post<{ Params: { eventId: string }; Body: WorkbookPreview }>("/events/:eventId/guest-imports/xlsx/columns", {
+    bodyLimit: workbookBodyLimit,
+    schema: {
+      params: participationEventParams,
+      body: { type: "object", additionalProperties: false, required: ["xlsx", "sheetIndex", "headerRow"], properties: guestWorkbookSourceFields },
+    },
+  }, (request, reply) => withRegistryRead(reply, registryPrincipal(request),
+    "SELECT eogp.assert_guest_import_permission($1::uuid,$3::uuid,$2::uuid)", [request.params.eventId],
+    () => readGuestImportSource(async () => ({ columns: await inspectGuestWorkbookColumns(
+      guestWorkbookBytes(request.body.xlsx), request.body.sheetIndex, request.body.headerRow,
+    ) }))));
+
+  server.post<{ Params: { eventId: string }; Body: WorkbookPreview & { mapping?: GuestImportColumnMapping } }>("/events/:eventId/guest-imports/xlsx", {
     bodyLimit: workbookBodyLimit,
     schema: {
       params: participationEventParams, headers: idempotencyHeaders,
       body: {
         type: "object", additionalProperties: false, required: ["xlsx", "sheetIndex", "headerRow"],
-        properties: {
-          xlsx: xlsxField,
-          sheetIndex: { type: "integer", minimum: 1, maximum: 32 },
-          headerRow: { type: "integer", minimum: 1, maximum: guestWorkbookMaxRow - 1 },
-        },
+        properties: { ...guestWorkbookSourceFields, mapping: guestImportMapping },
       },
     },
   }, (request, reply) => {
-    const { xlsx, sheetIndex, headerRow } = request.body;
+    const { xlsx, sheetIndex, headerRow, mapping } = request.body;
     const bytes = guestWorkbookBytes(xlsx);
     return prepareGuestImport(request, reply, request.params.eventId, bytes,
-      () => parseGuestWorkbook(bytes, sheetIndex, headerRow), { sheetIndex, headerRow });
+      () => parseGuestWorkbook(bytes, sheetIndex, headerRow, mapping), { sheetIndex, headerRow }, mapping);
   });
 
   const guestImportBatchParams = {

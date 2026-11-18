@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import { computed, ref } from "vue";
 import { useI18n } from "vue-i18n";
-import { api, ApiError, type GuestImportCommit, type GuestImportPreview } from "../../api";
+import { api, ApiError, type GuestImportColumn, type GuestImportColumnMapping, type GuestImportCommit, type GuestImportPreview } from "../../api";
 import { formatApiError } from "../../i18n/api-errors";
 import { downloadGuestCsv, formatGuestCsv } from "../../guest-export";
 
@@ -13,6 +13,18 @@ const isWorkbook = computed(() => file.value?.name.toLowerCase().endsWith(".xlsx
 const workbook = ref<{ xlsx: string; sheets: { index: number; name: string }[] } | null>(null);
 const sheetIndex = ref(1);
 const headerRow = ref(1);
+const columnFields = [
+  { field: "firstName", header: "first_name", required: true }, { field: "lastName", header: "last_name", required: true },
+  { field: "displayName", header: "display_name", required: false }, { field: "preferredName", header: "preferred_name", required: false },
+] as const;
+const sourceColumns = ref<GuestImportColumn[]>([]);
+const choices = ref<Record<keyof GuestImportColumnMapping, number | null>>({ firstName: null, lastName: null, displayName: null, preferredName: null });
+const columnMapping = computed<GuestImportColumnMapping | undefined>(() => {
+  const { firstName, lastName, displayName, preferredName } = choices.value;
+  const selected = Object.values(choices.value).filter((index) => index !== null);
+  if (!firstName || !lastName || new Set(selected).size !== selected.length) return undefined;
+  return { firstName, lastName, ...(displayName ? { displayName } : {}), ...(preferredName ? { preferredName } : {}) };
+});
 const preview = ref<GuestImportPreview | null>(null);
 const error = ref("");
 const committed = ref<GuestImportCommit | null>(null);
@@ -32,12 +44,18 @@ function clearPreview(): void {
   error.value = "";
 }
 
+function clearMapping(): void {
+  sourceColumns.value = [];
+  choices.value = { firstName: null, lastName: null, displayName: null, preferredName: null };
+  clearPreview();
+}
+
 function selectFile(event: Event): void {
   file.value = (event.target as HTMLInputElement).files?.[0] ?? null;
   workbook.value = null;
   sheetIndex.value = 1;
   headerRow.value = 1;
-  clearPreview();
+  clearMapping();
 }
 
 async function encodeWorkbook(input: File): Promise<string> {
@@ -49,13 +67,73 @@ async function encodeWorkbook(input: File): Promise<string> {
   return btoa(binary);
 }
 
-async function prepare(): Promise<void> {
+function importFile(): File | null {
   const input = file.value;
-  if (!input) return;
+  if (!input) return null;
   const xlsxFile = isWorkbook.value;
   const sizeLimit = xlsxFile ? 256 * 1024 : 64 * 1024;
   if (input.size > sizeLimit || input.size === 0 || (!xlsxFile && !input.name.toLowerCase().endsWith(".csv"))) {
     error.value = t("eventGuests.import.invalidFile");
+    return null;
+  }
+  return input;
+}
+
+async function decodeCsv(input: File): Promise<string | null> {
+  try {
+    return new TextDecoder("utf-8", { fatal: true }).decode(await input.arrayBuffer());
+  } catch {
+    error.value = t("eventGuests.import.invalidFile");
+    return null;
+  }
+}
+
+function reportPreviewError(failure: unknown): void {
+  if (failure instanceof ApiError && failure.code === "GUEST_IMPORT_XLSX_INVALID") {
+    error.value = t("eventGuests.import.invalidWorkbook");
+  } else if (failure instanceof ApiError && failure.code === "GUEST_IMPORT_CSV_INVALID") {
+    error.value = t("eventGuests.import.invalidCsv");
+  } else if (failure instanceof ApiError && failure.code === "GUEST_IMPORT_MAPPING_INVALID") {
+    error.value = t("eventGuests.import.invalidMapping");
+  } else {
+    error.value = failure instanceof ApiError ? formatApiError(failure, t) : t("eventGuests.import.failed");
+  }
+}
+
+async function inspectColumns(): Promise<void> {
+  const input = importFile();
+  if (!input || (isWorkbook.value && !workbook.value)) return;
+  if (workbook.value && (!Number.isInteger(headerRow.value) || headerRow.value < 1 || headerRow.value > 1048575)) {
+    error.value = t("eventGuests.import.invalidWorkbook");
+    return;
+  }
+  clearMapping();
+  busy.value = true;
+  try {
+    const source = workbook.value;
+    if (source) {
+      sourceColumns.value = (await api.inspectGuestWorkbookColumns(props.eventId, source.xlsx, sheetIndex.value, headerRow.value)).data.columns;
+    } else {
+      const csv = await decodeCsv(input);
+      if (csv === null) return;
+      sourceColumns.value = (await api.inspectGuestCsvColumns(props.eventId, csv)).data.columns;
+    }
+    for (const { field, header } of columnFields) {
+      choices.value[field] = sourceColumns.value.find(({ label }) => label.toLowerCase().replace(/[\s-]+/g, "_") === header)?.index ?? null;
+    }
+  } catch (failure) {
+    reportPreviewError(failure);
+  } finally {
+    busy.value = false;
+  }
+}
+
+async function prepare(): Promise<void> {
+  const input = importFile();
+  if (!input) return;
+  const mapping = columnMapping.value;
+  if (sourceColumns.value.length && !mapping) {
+    error.value = t("eventGuests.import.invalidMapping");
     return;
   }
 
@@ -63,7 +141,7 @@ async function prepare(): Promise<void> {
   busy.value = true;
   try {
     let batchId: string;
-    if (xlsxFile) {
+    if (isWorkbook.value) {
       if (!workbook.value) {
         const xlsx = await encodeWorkbook(input);
         const { data } = await api.inspectGuestWorkbook(props.eventId, xlsx);
@@ -71,28 +149,17 @@ async function prepare(): Promise<void> {
         sheetIndex.value = data.sheets[0]!.index;
         return;
       }
-      const { data } = await api.prepareGuestWorkbookPreview(props.eventId, workbook.value.xlsx, sheetIndex.value, headerRow.value);
+      const { data } = await api.prepareGuestWorkbookPreview(props.eventId, workbook.value.xlsx, sheetIndex.value, headerRow.value, mapping);
       batchId = data.batchId;
     } else {
-      let csv: string;
-      try {
-        csv = new TextDecoder("utf-8", { fatal: true }).decode(await input.arrayBuffer());
-      } catch {
-        error.value = t("eventGuests.import.invalidFile");
-        return;
-      }
-      const { data } = await api.prepareGuestImportPreview(props.eventId, csv);
+      const csv = await decodeCsv(input);
+      if (csv === null) return;
+      const { data } = await api.prepareGuestImportPreview(props.eventId, csv, mapping);
       batchId = data.batchId;
     }
     preview.value = (await api.getGuestImportPreview(props.eventId, batchId)).data;
   } catch (failure) {
-    if (failure instanceof ApiError && failure.code === "GUEST_IMPORT_XLSX_INVALID") {
-      error.value = t("eventGuests.import.invalidWorkbook");
-    } else if (failure instanceof ApiError && failure.code === "GUEST_IMPORT_CSV_INVALID") {
-      error.value = t("eventGuests.import.invalidCsv");
-    } else {
-      error.value = failure instanceof ApiError ? formatApiError(failure, t) : t("eventGuests.import.failed");
-    }
+    reportPreviewError(failure);
   } finally {
     busy.value = false;
   }
@@ -145,13 +212,28 @@ async function downloadReport(): Promise<void> {
         :disabled="busy" @change="selectFile">
       <template v-if="workbook">
         <label for="guest-import-sheet">{{ t("eventGuests.import.worksheet") }}</label>
-        <select id="guest-import-sheet" v-model.number="sheetIndex" :disabled="busy" @change="clearPreview">
+        <select id="guest-import-sheet" v-model.number="sheetIndex" :disabled="busy" @change="clearMapping">
           <option v-for="sheet in workbook.sheets" :key="sheet.index" :value="sheet.index">{{ sheet.name }}</option>
         </select>
         <label for="guest-import-header">{{ t("eventGuests.import.headerRow") }}</label>
         <input id="guest-import-header" v-model.number="headerRow" type="number" min="1" max="1048575" required
-          :disabled="busy" @input="clearPreview">
+          :disabled="busy" @input="clearMapping">
       </template>
+      <button v-if="file && (!isWorkbook || workbook) && !sourceColumns.length" class="button button-secondary"
+        type="button" :disabled="busy" @click="inspectColumns">{{ t("eventGuests.import.mapColumns") }}</button>
+      <fieldset v-if="sourceColumns.length" :disabled="busy">
+        <legend>{{ t("eventGuests.import.mapColumns") }}</legend>
+        <div v-for="{ field, required } in columnFields" :key="field">
+          <label :for="`guest-import-column-${field}`">{{ t(`registry.${field}`) }}</label>
+          <select :id="`guest-import-column-${field}`" v-model="choices[field]" @change="clearPreview">
+            <option :value="null" :disabled="required">{{ t(required ? "eventGuests.import.chooseColumn" : "eventGuests.import.blankColumn") }}</option>
+            <option v-for="column in sourceColumns" :key="column.index" :value="column.index">
+              {{ column.index }} · {{ column.label || t("eventGuests.import.unnamedColumn") }}
+            </option>
+          </select>
+        </div>
+        <button class="button button-secondary" type="button" @click="clearMapping">{{ t("eventGuests.import.standardHeaders") }}</button>
+      </fieldset>
       <button class="button button-primary" type="submit" :disabled="busy || !file">
         {{ t(isWorkbook && !workbook ? "eventGuests.import.chooseWorksheet" : "eventGuests.import.preview") }}
       </button>
