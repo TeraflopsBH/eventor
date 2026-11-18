@@ -4736,20 +4736,45 @@ export function buildApi(dependencies: ApiDependencies): FastifyInstance {
   }, (request, reply) => withRegistryRead(reply, registryPrincipal(request),
     "SELECT eogp.list_event_guest_groups($1::uuid,$3::uuid,$2::uuid) AS result", [request.params.eventId]));
 
-  server.post<{ Params: { eventId: string }; Body: CategoryCreateBody }>("/events/:eventId/guest-groups", {
-    schema: { params: participationEventParams, headers: idempotencyHeaders, body: guestLabelBody },
-  }, (request, reply) => withGuestListCommand(request, reply, request.params.eventId, "guest.group.create", request.body,
-    "SELECT eogp.write_event_guest_group($1::uuid,$2::uuid,$3::uuid,NULL,$4::text,$5::text) AS result",
-    [request.body.code, request.body.label], 201));
-
-  server.post<{ Params: { eventId: string; groupId: string } }>("/events/:eventId/guest-groups/:groupId/retire", {
+  const groupMetadataProperties = {
+    label: guestLabelBody.properties.label,
+    kind: { type: "string", enum: ["custom", "family", "couple", "delegation", "official_party", "team", "organization"] },
+    parentGroupId: { anyOf: [{ type: "string", pattern: uuidPattern }, { type: "null" }] },
+  };
+  type GroupCreateBody = JsonRequestBody<"/events/{eventId}/guest-groups", "post">;
+  server.post<{ Params: { eventId: string }; Body: GroupCreateBody }>("/events/:eventId/guest-groups", {
     schema: {
-      params: {
-        ...participationEventParams, required: ["eventId", "groupId"],
-        properties: { ...participationEventParams.properties, groupId: { type: "string", pattern: uuidPattern } },
-      },
-      headers: idempotencyHeaders,
+      params: participationEventParams, headers: idempotencyHeaders,
+      body: { ...guestLabelBody, properties: { ...guestLabelBody.properties, ...groupMetadataProperties } },
     },
+  }, (request, reply) => withGuestListCommand(request, reply, request.params.eventId, "guest.group.create", request.body,
+    "SELECT eogp.write_event_guest_group($1::uuid,$2::uuid,$3::uuid,NULL,$4::text,$5::text,$6::text,$7::uuid) AS result",
+    [request.body.code, request.body.label, request.body.kind ?? "custom", request.body.parentGroupId ?? null], 201));
+
+  const guestGroupParams = {
+    ...participationEventParams, required: ["eventId", "groupId"],
+    properties: { ...participationEventParams.properties, groupId: { type: "string", pattern: uuidPattern } },
+  };
+  type GuestGroupParams = { eventId: string; groupId: string };
+  type GroupUpdateBody = JsonRequestBody<"/events/{eventId}/guest-groups/{groupId}", "patch">;
+  server.patch<{ Params: GuestGroupParams; Body: GroupUpdateBody }>("/events/:eventId/guest-groups/:groupId", {
+    schema: {
+      params: guestGroupParams, headers: idempotencyHeaders,
+      body: {
+        type: "object", required: ["label", "parentGroupId", "expectedRevision"], additionalProperties: false,
+        properties: { ...groupMetadataProperties, expectedRevision: personRevision },
+      },
+    },
+  }, (request, reply) => {
+    const { eventId, groupId } = request.params;
+    const { label, kind, parentGroupId, expectedRevision } = request.body;
+    return withGuestListCommand(request, reply, eventId, "guest.group.update", { groupId, ...request.body },
+      "SELECT eogp.update_event_guest_group($1::uuid,$2::uuid,$3::uuid,$4::uuid,$5::integer,$6::text,$7::text,$8::uuid) AS result",
+      [groupId, expectedRevision, label, kind ?? null, parentGroupId]);
+  });
+
+  server.post<{ Params: GuestGroupParams }>("/events/:eventId/guest-groups/:groupId/retire", {
+    schema: { params: guestGroupParams, headers: idempotencyHeaders },
   }, (request, reply) => withGuestListCommand(request, reply, request.params.eventId, "guest.group.retire",
     { groupId: request.params.groupId },
     "SELECT eogp.write_event_guest_group($1::uuid,$2::uuid,$3::uuid,$4::uuid,NULL,NULL) AS result", [request.params.groupId]));

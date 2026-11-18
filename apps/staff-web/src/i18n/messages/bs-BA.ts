@@ -192,6 +192,21 @@ export default {
       failed: "Spremanje oznake gostiju nije uspjelo.",
     },
     groups: {
+      groupKind: "Vrsta grupe",
+      parentGroup: "Nadređena grupa",
+      noParentGroup: "Bez nadređene grupe",
+      parentGroupLabel: "Nadređena grupa {parent}",
+      edit: "Uredi grupu",
+      editNamed: "Uredi grupu {label}",
+      kinds: {
+        custom: "Prilagođena",
+        family: "Porodica",
+        couple: "Par",
+        delegation: "Delegacija",
+        official_party: "Službena pratnja",
+        team: "Tim",
+        organization: "Organizacija",
+      },
       roleFor: "Uloga u grupi {label}",
       roles: {
         member: "Član",
