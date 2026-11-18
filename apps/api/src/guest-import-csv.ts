@@ -1,9 +1,10 @@
 import { parse } from "csv-parse/sync";
-import { guestImportMaxColumns, mappedNameColumns, previewColumnLabel, type GuestImportColumn, type GuestImportColumnMapping } from "./guest-import-column-map.js";
+import { guestImportMaxColumns, mappedGuestColumns, previewColumnLabel, sourceReferencePattern, type GuestImportColumn, type GuestImportColumnMapping } from "./guest-import-column-map.js";
 
-const supportedHeaders = ["first_name", "last_name", "display_name", "preferred_name"] as const;
+const supportedHeaders = ["first_name", "last_name", "display_name", "preferred_name", "source_reference"] as const;
 const maxBytes = 64 * 1024;
 const maxRows = 500;
+const validSourceReference = new RegExp(sourceReferencePattern);
 
 export interface ImportNames {
   firstName: string;
@@ -16,6 +17,7 @@ export interface GuestImportRow {
   rowNumber: number;
   source: string[];
   names: ImportNames;
+  sourceReference?: string;
   errors: string[];
 }
 
@@ -48,24 +50,29 @@ export function inspectGuestCsvColumns(csv: string): GuestImportColumn[] {
   return describeGuestCsvColumns(readGuestCsvRecords(csv)[0]);
 }
 
-export function parseGuestImportCsv(csv: string, mapping?: GuestImportColumnMapping): GuestImportRow[] {
+export function parseGuestImportCsv(
+  csv: string, mapping?: GuestImportColumnMapping, referenceColumn?: number,
+): GuestImportRow[] {
   const records = readGuestCsvRecords(csv);
   const [header, ...body] = records;
   if (mapping) {
     const available = describeGuestCsvColumns(header);
-    const { headers, indices } = mappedNameColumns(mapping, available);
+    const { headers, indices } = mappedGuestColumns(mapping, available, referenceColumn);
     return validateGuestImportRecords(headers, body.map((source, index) => ({
       rowNumber: index + 2,
       source: indices.map((column) => source[column - 1] ?? ""),
       errors: source.length === available.length ? [] : ["column_count"],
-    })));
+    })), referenceColumn !== undefined);
   }
   return validateGuestImportRecords(header, body.map((source, index) => ({ rowNumber: index + 2, source, errors: [] })));
 }
 
-export function validateGuestImportRecords(header: string[] | undefined, body: GuestImportRecord[]): GuestImportRow[] {
+export function validateGuestImportRecords(
+  header: string[] | undefined, body: GuestImportRecord[], referenceMode = false,
+): GuestImportRow[] {
   if (!header || new Set(header).size !== header.length ||
       !["first_name", "last_name"].every((name) => header.includes(name)) ||
+      header.includes("source_reference") !== referenceMode ||
       header.some((name) => !supportedHeaders.some((supported) => supported === name))) {
     throw new GuestImportCsvError("Use first_name and last_name headers, with optional display_name and preferred_name.");
   }
@@ -73,7 +80,7 @@ export function validateGuestImportRecords(header: string[] | undefined, body: G
     throw new GuestImportCsvError("Include between 1 and 500 guest rows.");
   }
   const index = new Map(header.map((name, field) => [name, field]));
-  const byName = new Map<string, GuestImportRow[]>();
+  const byMatchKey = new Map<string, GuestImportRow[]>();
   const rows = body.map(({ source, rowNumber, errors: sourceErrors }): GuestImportRow => {
     const field = (name: typeof supportedHeaders[number]) => source[index.get(name) ?? -1]?.trim() ?? "";
     const names: ImportNames = {
@@ -88,16 +95,18 @@ export function validateGuestImportRecords(header: string[] | undefined, body: G
         Object.values(names).some((value) => value !== null && /[\p{Cc}\p{Cs}]/u.test(value))) {
       errors.push("name_invalid");
     }
-    const row = { rowNumber, source, names, errors };
+    const sourceReference = referenceMode ? field("source_reference") : undefined;
+    if (sourceReference !== undefined && !validSourceReference.test(sourceReference)) errors.push("reference_invalid");
+    const row = { rowNumber, source, names, ...(sourceReference !== undefined ? { sourceReference } : {}), errors };
     if (errors.length === 0) {
-      const key = JSON.stringify([names.firstName.toLowerCase(), names.lastName.toLowerCase()]);
-      const matches = byName.get(key) ?? [];
+      const key = sourceReference ?? JSON.stringify([names.firstName.toLowerCase(), names.lastName.toLowerCase()]);
+      const matches = byMatchKey.get(key) ?? [];
       matches.push(row);
-      byName.set(key, matches);
+      byMatchKey.set(key, matches);
     }
     return row;
   });
-  for (const matches of byName.values()) {
+  for (const matches of byMatchKey.values()) {
     if (matches.length > 1) {
       for (const row of matches) row.errors.push("duplicate_in_file");
     }

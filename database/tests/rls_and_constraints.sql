@@ -3124,6 +3124,84 @@ BEGIN
 END;
 $test$;
 
+-- Reference matching uses the selected namespace, rechecks reference ownership and never creates an unmatched profile.
+DO $test$
+DECLARE
+  v_org CONSTANT uuid := '10000000-0000-0000-0000-00000000000a';
+  v_actor CONSTANT uuid := '30000000-0000-0000-0000-00000000000a';
+  v_cipher bytea := convert_to('ECP1' || repeat('x',32),'UTF8');
+  v_event uuid;
+  v_person uuid;
+  v_reference uuid;
+  v_batch uuid;
+  v_rows jsonb;
+  v_preview jsonb;
+  v_choices jsonb;
+  v_result jsonb;
+BEGIN
+  SELECT id INTO STRICT v_event FROM eogp.events WHERE organization_id=v_org AND event_code='CI-LINK-A';
+  v_person := (eogp.write_guest_registry_person(v_org,v_actor,NULL,NULL,'create',
+    '{"firstName":"Registry","lastName":"Reference Match"}')->>'personId')::uuid;
+  v_reference := (eogp.write_guest_registry_reference(v_org,v_actor,v_person,NULL,1,'add','CRM',repeat('0',64),v_cipher)
+    ->>'referenceId')::uuid;
+  v_rows := jsonb_build_array(
+    jsonb_build_object('rowNumber',2,'firstName','Different','lastName','Source Name','referenceFingerprint',repeat('0',64),
+      'sourceCiphertext',encode(v_cipher,'base64'),'namesCiphertext',encode(v_cipher,'base64'),'errors','[]'::jsonb),
+    jsonb_build_object('rowNumber',3,'firstName','Unmatched','lastName','Source Name','referenceFingerprint',repeat('1',64),
+      'sourceCiphertext',encode(v_cipher,'base64'),'namesCiphertext',encode(v_cipher,'base64'),'errors','[]'::jsonb)
+  );
+  v_batch := (eogp.prepare_reference_guest_import_preview(v_org,v_event,v_actor,repeat('c',64),v_rows,
+    '{"firstName":1,"lastName":2}',NULL,NULL,'CRM',3)->>'batchId')::uuid;
+  v_preview := eogp.read_guest_import_preview(v_org,v_event,v_actor,v_batch);
+  IF v_preview->>'matchingSource' IS DISTINCT FROM 'CRM'
+    OR v_preview#>>'{rows,0,matches,0,personId}' IS DISTINCT FROM v_person::text
+    OR v_preview#>'{rows,1,errors}' IS DISTINCT FROM '["reference_unmatched"]'::jsonb
+    OR eogp.guest_import_commit_input(v_org,v_event,v_actor,v_batch) <> '[]'::jsonb THEN
+    RAISE EXCEPTION 'reference strategy did not select an exact match or mark an unmatched row';
+  END IF;
+  BEGIN
+    PERFORM eogp.commit_reviewed_guest_import(v_org,v_event,v_actor,v_batch,'[]','[]',ARRAY[2]);
+    RAISE EXCEPTION 'creating a separate profile from a reference match unexpectedly succeeded';
+  EXCEPTION WHEN object_not_in_prerequisite_state THEN NULL;
+  END;
+
+  DELETE FROM eogp.role_permissions
+  WHERE organization_id=v_org AND role_id=(SELECT id FROM eogp.roles WHERE organization_id=v_org AND code='CI-REGISTRY')
+    AND permission_code IN ('guest.registry.references.read','guest.registry.references.manage');
+  BEGIN
+    PERFORM eogp.read_guest_import_report(v_org,v_event,v_actor,v_batch);
+    RAISE EXCEPTION 'report remained available after reference grant was revoked';
+  EXCEPTION WHEN insufficient_privilege THEN NULL;
+  END;
+  INSERT INTO eogp.role_permissions(organization_id,role_id,permission_code)
+    SELECT v_org,id,permission FROM eogp.roles CROSS JOIN
+      (VALUES ('guest.registry.references.read'),('guest.registry.references.manage')) AS grant_codes(permission)
+    WHERE organization_id=v_org AND code='CI-REGISTRY';
+
+  v_choices := jsonb_build_array(jsonb_build_object('rowNumber',2,'personId',v_person,'expectedRevision',2));
+  v_result := eogp.commit_reviewed_guest_import(v_org,v_event,v_actor,v_batch,'[]',v_choices);
+  IF v_result->>'importedCount' IS DISTINCT FROM '1' OR v_result->>'skippedCount' IS DISTINCT FROM '1'
+    OR NOT EXISTS (SELECT 1 FROM eogp.event_participations
+      WHERE organization_id=v_org AND event_id=v_event AND person_id=v_person
+        AND person_identity_snapshot->>'firstName'='Registry') THEN
+    RAISE EXCEPTION 'reference reuse did not preserve the existing person and names';
+  END IF;
+
+  SELECT id INTO STRICT v_event FROM eogp.events WHERE organization_id=v_org AND event_code='CI-LINK-B';
+  v_batch := (eogp.prepare_reference_guest_import_preview(v_org,v_event,v_actor,repeat('d',64),v_rows,
+    '{"firstName":1,"lastName":2}',1,1,'CRM',3)->>'batchId')::uuid;
+  PERFORM eogp.write_guest_registry_reference(v_org,v_actor,v_person,v_reference,2,'replace','CRM',repeat('2',64),v_cipher);
+  IF eogp.read_guest_import_preview(v_org,v_event,v_actor,v_batch)#>'{rows,0,matches}' IS DISTINCT FROM '[]'::jsonb THEN
+    RAISE EXCEPTION 'preview still offers a destination after its matching reference changed';
+  END IF;
+  BEGIN
+    PERFORM eogp.commit_reviewed_guest_import(v_org,v_event,v_actor,v_batch,'[]',v_choices);
+    RAISE EXCEPTION 'commit accepted a reference no longer assigned to the reviewed person';
+  EXCEPTION WHEN object_not_in_prerequisite_state THEN NULL;
+  END;
+END;
+$test$;
+
 COMMIT;
 
 \echo 'PostgreSQL migration smoke tests passed.'
