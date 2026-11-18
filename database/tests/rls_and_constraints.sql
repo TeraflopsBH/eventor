@@ -3706,6 +3706,39 @@ BEGIN
 END;
 $test$;
 
+-- Placement preferences are optional, revision-checked and retained by older group updates.
+DO $test$
+DECLARE
+  v_org CONSTANT uuid := '10000000-0000-0000-0000-00000000000a';
+  v_actor CONSTANT uuid := '30000000-0000-0000-0000-00000000000a';
+  v_event uuid;
+  v_group uuid;
+  v_result jsonb;
+BEGIN
+  SELECT id INTO STRICT v_event FROM eogp.events WHERE organization_id=v_org AND event_code='CI-LINK-A';
+  v_result := eogp.write_event_guest_group(v_org,v_event,v_actor,NULL,'PLACEMENT','Placement group','team',NULL,'same_table',12);
+  v_group := (v_result->>'groupId')::uuid;
+  IF v_result->>'placementPreference' IS DISTINCT FROM 'same_table' OR v_result->>'expectedSize' IS DISTINCT FROM '12' THEN
+    RAISE EXCEPTION 'group creation omitted placement preferences';
+  END IF;
+  v_result := eogp.update_event_guest_group(v_org,v_event,v_actor,v_group,1,'Renamed group',NULL,NULL);
+  IF v_result->>'placementPreference' IS DISTINCT FROM 'same_table' OR v_result->>'expectedSize' IS DISTINCT FROM '12' THEN
+    RAISE EXCEPTION 'legacy group update cleared placement preferences';
+  END IF;
+  BEGIN
+    PERFORM eogp.update_event_guest_group(v_org,v_event,v_actor,v_group,1,'Stale group',NULL,NULL,'{"expectedSize":14}');
+    RAISE EXCEPTION 'stale group placement update was accepted';
+  EXCEPTION WHEN serialization_failure THEN NULL;
+  END;
+  PERFORM eogp.update_event_guest_group(v_org,v_event,v_actor,v_group,2,'Renamed group',NULL,NULL,
+    '{"placementPreference":"nearby","expectedSize":null}');
+  IF NOT eogp.list_event_guest_groups(v_org,v_event,v_actor) @> jsonb_build_array(
+    jsonb_build_object('groupId',v_group,'placementPreference','nearby','expectedSize',NULL,'revision',3)) THEN
+    RAISE EXCEPTION 'group placement edit or expected size clear did not persist';
+  END IF;
+END;
+$test$;
+
 COMMIT;
 
 \echo 'PostgreSQL migration smoke tests passed.'

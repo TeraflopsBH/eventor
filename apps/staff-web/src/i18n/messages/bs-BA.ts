@@ -219,6 +219,11 @@ export default {
       failed: "Spremanje oznake gostiju nije uspjelo.",
     },
     groups: {
+      placementPreference: "Željeni raspored",
+      noPlacementPreference: "Bez željenog rasporeda",
+      expectedSize: "Očekivani broj članova",
+      plannedSize: "Očekivani broj članova {count}",
+      placement: { same_table: "Isti sto", same_zone: "Ista zona", nearby: "Blizu jedni drugih", separate: "Odvojeni prostori" },
       filter: "Filter grupa",
       all: "Sve grupe",
       groupKind: "Vrsta grupe",

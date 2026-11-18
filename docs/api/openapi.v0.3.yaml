@@ -4001,6 +4001,8 @@ paths:
                 label: { type: string, minLength: 1, maxLength: 120 }
                 kind: { $ref: '#/components/schemas/EventGuestGroupKind' }
                 parentGroupId: { type: [string, 'null'], format: uuid }
+                placementPreference: { $ref: '#/components/schemas/EventGuestGroupPlacementPreference' }
+                expectedSize: { type: [integer, 'null'], minimum: 1, maximum: 2147483647 }
       responses:
         '201':
           description: "Guest group created."
@@ -4038,6 +4040,8 @@ paths:
                 label: { type: string, minLength: 1, maxLength: 120 }
                 kind: { $ref: '#/components/schemas/EventGuestGroupKind' }
                 parentGroupId: { type: [string, 'null'], format: uuid }
+                placementPreference: { $ref: '#/components/schemas/EventGuestGroupPlacementPreference' }
+                expectedSize: { type: [integer, 'null'], minimum: 1, maximum: 2147483647 }
                 expectedRevision: { type: integer, minimum: 1, maximum: 2147483647 }
       responses:
         '200':
@@ -9286,12 +9290,16 @@ components:
           properties:
             tagId: { type: string, format: uuid }
             retired: { type: boolean }
+    EventGuestGroupPlacementPreference:
+      type: [string, 'null']
+      enum: [same_table, same_zone, nearby, separate, null]
+      description: "Planning preference for the group's members. Null clears the preference."
     EventGuestGroupKind:
       type: string
       enum: [custom, family, couple, delegation, official_party, team, organization]
     EventGuestGroup:
       type: object
-      required: [groupId, code, label, retired, kind, parentGroupId, revision]
+      required: [groupId, code, label, retired, kind, parentGroupId, placementPreference, expectedSize, revision]
       properties:
         groupId: { type: string, format: uuid }
         code: { type: string }
@@ -9300,6 +9308,8 @@ components:
         kind: { type: string }
         parentGroupId: { type: [string, 'null'], format: uuid }
         revision: { type: integer, minimum: 1 }
+        placementPreference: { $ref: '#/components/schemas/EventGuestGroupPlacementPreference' }
+        expectedSize: { type: [integer, 'null'], minimum: 1 }
     EventGuestGroupEnvelope:
       type: object
       required: [data]
