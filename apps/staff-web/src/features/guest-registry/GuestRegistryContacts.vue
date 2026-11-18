@@ -1,16 +1,18 @@
 <script setup lang="ts">
 import { onMounted, reactive, ref } from "vue";
 import { useI18n } from "vue-i18n";
-import { api, ApiError, type RegistryContact, type RegistryContactConsent, type RegistryContactDirectory } from "../../api";
+import { api, ApiError, type RegistryContact, type RegistryContactConsent, type RegistryContactDirectory, type RegistryContactVerification } from "../../api";
 import { formatApiError } from "../../i18n/api-errors";
 
 const props = defineProps<{ personId: string; active: boolean }>();
-const { t } = useI18n();
+const { t, locale } = useI18n();
 const directory = ref<RegistryContactDirectory | null>(null);
 const busy = ref(false);
 const error = ref("");
 const editorOpen = ref(false);
 const editing = ref<RegistryContact | null>(null);
+const verifying = ref<RegistryContact | null>(null);
+const verificationMethod = ref<RegistryContactVerification>("in_person");
 const consents: RegistryContactConsent[] = ["unknown", "permitted", "restricted", "withdrawn"];
 const form = reactive<{ kind: RegistryContact["kind"]; value: string; consent: RegistryContactConsent; primary: boolean }>({
   kind: "email", value: "", consent: "unknown", primary: false,
@@ -29,6 +31,7 @@ async function run(operation: () => Promise<void>): Promise<void> {
     if (failure instanceof ApiError && [401, 403].includes(failure.status)) {
       directory.value = null;
       closeEditor();
+      verifying.value = null;
     }
     error.value = failure instanceof ApiError ? formatApiError(failure, t) : t("registry.contacts.failed");
   } finally {
@@ -66,6 +69,33 @@ function save(): Promise<void> {
   });
 }
 
+function openVerification(contact: RegistryContact): void {
+  verifying.value = contact;
+  verificationMethod.value = "in_person";
+}
+
+function recordVerification(): Promise<void> {
+  const contact = verifying.value;
+  if (!contact) return Promise.resolve();
+  return run(async () => {
+    await api.setGuestRegistryContactVerification(props.personId, contact.contactId, contact.revision, verificationMethod.value);
+    verifying.value = null;
+    await load();
+  });
+}
+
+function revokeVerification(contact: RegistryContact): void {
+  if (!window.confirm(t("registry.contacts.confirmRevokeVerification"))) return;
+  void run(async () => {
+    await api.setGuestRegistryContactVerification(props.personId, contact.contactId, contact.revision, null);
+    await load();
+  });
+}
+
+function verificationTime(value: string): string {
+  return new Intl.DateTimeFormat(locale.value, { dateStyle: "medium", timeStyle: "short" }).format(new Date(value));
+}
+
 onMounted(() => run(load));
 </script>
 
@@ -88,14 +118,48 @@ onMounted(() => run(load));
             <td>{{ contact.value }}
               <small v-if="contact.primary">{{ t("registry.contacts.primary") }}</small>
               <small v-if="!contact.verified">{{ t("registry.contacts.unverified") }}</small>
+              <small v-else-if="contact.verification">
+                {{ t("registry.contacts.confirmedWith", {
+                  method: t(`registry.contacts.method.${contact.verification.method}`),
+                  time: verificationTime(contact.verification.at),
+                }) }}
+              </small>
+              <small v-else>{{ t("registry.contacts.verified") }}</small>
             </td>
             <td>{{ t(`registry.contacts.consentValue.${contact.consent}`) }}</td>
-            <td><button v-if="active && directory.canManage" type="button" class="button button-secondary" :disabled="busy || editorOpen" @click="openEditor(contact)">{{ t("common.edit") }}</button></td>
+            <td><div class="contact-actions">
+              <button v-if="active && directory.canManage" type="button" class="button button-secondary"
+                :disabled="busy || editorOpen || !!verifying" @click="openEditor(contact)">{{ t("common.edit") }}</button>
+              <template v-if="active && directory.canVerify">
+                <button v-if="contact.verified" type="button" class="button button-secondary"
+                  :disabled="busy || editorOpen || !!verifying" @click="revokeVerification(contact)">
+                  {{ t("registry.contacts.revokeVerification") }}
+                </button>
+                <button v-else-if="contact.consent !== 'withdrawn' && !verifying" type="button" class="button button-secondary"
+                  :disabled="busy || editorOpen" @click="openVerification(contact)">
+                  {{ t("registry.contacts.verify") }}
+                </button>
+              </template>
+            </div></td>
           </tr>
         </tbody>
       </table>
     </div>
-    <button v-if="active && directory?.canManage && !editorOpen" class="button button-primary" type="button" :disabled="busy" @click="openEditor(null)">{{ t("registry.contacts.add") }}</button>
+    <button v-if="active && directory?.canManage && !editorOpen && !verifying" class="button button-primary" type="button" :disabled="busy" @click="openEditor(null)">{{ t("registry.contacts.add") }}</button>
+    <form v-if="verifying" class="registry-contacts" @submit.prevent="recordVerification">
+      <p>{{ t("registry.contacts.verificationPrompt", { value: verifying.value }) }}</p>
+      <div>
+        <label for="contact-verification-method">{{ t("registry.contacts.verificationMethod") }}</label>
+        <select id="contact-verification-method" v-model="verificationMethod" :disabled="busy">
+          <option value="in_person">{{ t("registry.contacts.method.in_person") }}</option>
+          <option v-if="verifying.kind === 'phone'" value="callback">{{ t("registry.contacts.method.callback") }}</option>
+        </select>
+      </div>
+      <div class="contact-actions">
+        <button class="button button-primary" type="submit" :disabled="busy">{{ t("registry.contacts.recordVerification") }}</button>
+        <button class="button button-secondary" type="button" :disabled="busy" @click="verifying = null">{{ t("common.cancel") }}</button>
+      </div>
+    </form>
     <form v-if="editorOpen" class="registry-contacts" @submit.prevent="save">
       <div v-if="!editing">
         <label for="contact-kind">{{ t("registry.contacts.kind") }}</label>
@@ -123,5 +187,5 @@ onMounted(() => run(load));
 
 <style scoped>
 .registry-contacts { display: grid; gap: 0.75rem; }
-.contact-actions { display: flex; gap: 0.5rem; }
+.contact-actions { display: flex; flex-wrap: wrap; gap: 0.5rem; }
 </style>

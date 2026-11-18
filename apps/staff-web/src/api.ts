@@ -1258,17 +1258,21 @@ export interface RegistryContactPreferences {
   primary: boolean;
 }
 
+export type RegistryContactVerification = "in_person" | "callback";
+
 export interface RegistryContact extends RegistryContactPreferences {
   contactId: string;
   revision: number;
   kind: "email" | "phone";
   value: string;
   verified: boolean;
+  verification: { method: RegistryContactVerification; at: string } | null;
 }
 
 export interface RegistryContactDirectory {
   contacts: RegistryContact[];
   canManage: boolean;
+  canVerify: boolean;
 }
 
 function registryContactPath(personId: string): string {
@@ -1650,6 +1654,12 @@ export const api = {
   restoreGuestRegistryMerge: (organizationId: string, mergeId: string) =>
     request<Envelope<GuestRegistryMergeChange>>(`/organizations/${encodeURIComponent(organizationId)}/persons/merges/${encodeURIComponent(mergeId)}/restore`, {
       method: "POST", idempotent: true,
+    }),
+  setGuestRegistryContactVerification: (
+    personId: string, contactId: string, expectedRevision: number, method: RegistryContactVerification | null,
+  ) => request<Envelope<{ contactId: string; revision: number; verified: boolean }>>(
+    `${registryContactPath(personId)}/${encodeURIComponent(contactId)}/verification`, {
+      method: "PATCH", body: { expectedRevision, method }, idempotent: true,
     }),
   getGuestRegistryReferences: (personId: string) =>
     request<Envelope<GuestRegistryReferences>>(registryReferencesPath(personId)),

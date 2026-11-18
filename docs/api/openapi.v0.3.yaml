@@ -6643,6 +6643,58 @@ paths:
         '412': { $ref: '#/components/responses/PreconditionFailed' }
         '422': { $ref: '#/components/responses/UnprocessableEntity' }
         '503': { $ref: '#/components/responses/ServiceUnavailable' }
+  "/persons/{personId}/contacts/{contactId}/verification":
+    patch:
+      tags: ["Guest Registry"]
+      operationId: setPersonContactVerification
+      summary: "Record or revoke staff-confirmed evidence of contact ownership"
+      security: [{ StaffSession: [], StaffCsrf: [] }]
+      parameters:
+        - name: personId
+          in: path
+          required: true
+          schema: { type: string, format: uuid }
+        - name: contactId
+          in: path
+          required: true
+          schema: { type: string, format: uuid }
+        - $ref: '#/components/parameters/IdempotencyKey'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              additionalProperties: false
+              required: [expectedRevision, method]
+              properties:
+                expectedRevision: { type: integer, minimum: 1, maximum: 2147483647 }
+                method:
+                  type: [string, 'null']
+                  enum: [in_person, callback, null]
+                  description: "Set null to revoke verification. Callback applies only to phone contacts."
+      responses:
+        '200':
+          description: "The updated verification flag and contact revision."
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [data]
+                properties:
+                  data:
+                    type: object
+                    required: [contactId, revision, verified]
+                    properties:
+                      contactId: { type: string, format: uuid }
+                      revision: { type: integer, minimum: 1 }
+                      verified: { type: boolean }
+        '400': { $ref: '#/components/responses/BadRequest' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '404': { $ref: '#/components/responses/NotFound' }
+        '409': { $ref: '#/components/responses/Conflict' }
+        '412': { $ref: '#/components/responses/PreconditionFailed' }
   "/persons/{personId}/history":
     get:
       tags: ["Guest Registry"]
@@ -8424,14 +8476,15 @@ components:
       properties:
         data:
           type: object
-          required: [canManage, contacts]
+          required: [canManage, canVerify, contacts]
           properties:
             canManage: { type: boolean }
+            canVerify: { type: boolean }
             contacts:
               type: array
               items:
                 type: object
-                required: [contactId, revision, kind, value, consent, primary, verified]
+                required: [contactId, revision, kind, value, consent, primary, verified, verification]
                 properties:
                   contactId: { type: string, format: uuid }
                   revision: { type: integer, minimum: 1 }
@@ -8440,6 +8493,13 @@ components:
                   consent: { $ref: '#/components/schemas/RegistryContactConsent' }
                   primary: { type: boolean }
                   verified: { type: boolean }
+                  verification:
+                    type: [object, 'null']
+                    description: "Recorded staff evidence. Legacy verified contacts can have no recorded method."
+                    required: [method, at]
+                    properties:
+                      method: { type: string, enum: [in_person, callback] }
+                      at: { type: string, format: date-time }
     GuestRegistryReferenceInput:
       type: object
       additionalProperties: false

@@ -3202,6 +3202,68 @@ BEGIN
 END;
 $test$;
 
+-- Verification requires a distinct grant and records evidence without changing consent or storing the contact in audit metadata.
+DO $test$
+DECLARE
+  v_org CONSTANT uuid := '10000000-0000-0000-0000-00000000000a';
+  v_actor CONSTANT uuid := '30000000-0000-0000-0000-00000000000a';
+  v_cipher bytea := convert_to('ECP1' || repeat('v',32),'UTF8');
+  v_person uuid;
+  v_phone uuid;
+  v_email uuid;
+  v_result jsonb;
+BEGIN
+  v_person := (eogp.write_guest_registry_person(v_org,v_actor,NULL,NULL,'create',
+    '{"firstName":"Verification","lastName":"Fixture"}')->>'personId')::uuid;
+  v_phone := (eogp.write_guest_registry_contact(v_org,v_actor,v_person,NULL,NULL,'phone',repeat('9',64),v_cipher,
+    'permitted',true)->>'contactId')::uuid;
+  v_email := (eogp.write_guest_registry_contact(v_org,v_actor,v_person,NULL,NULL,'email',repeat('8',64),v_cipher,
+    'unknown',false)->>'contactId')::uuid;
+  IF eogp.read_guest_registry_contacts(v_org,v_actor,v_person)->>'canVerify' IS DISTINCT FROM 'false' THEN
+    RAISE EXCEPTION 'managing contact values implied verification access';
+  END IF;
+  BEGIN
+    PERFORM eogp.set_guest_registry_contact_verification(v_org,v_actor,v_person,v_phone,1,'callback');
+    RAISE EXCEPTION 'contact verification succeeded with ordinary contact management';
+  EXCEPTION WHEN insufficient_privilege THEN NULL;
+  END;
+  INSERT INTO eogp.role_permissions(organization_id,role_id,permission_code)
+    SELECT v_org,id,'guest.registry.contacts.verify' FROM eogp.roles WHERE organization_id=v_org AND code='CI-REGISTRY';
+
+  BEGIN
+    PERFORM eogp.set_guest_registry_contact_verification(v_org,v_actor,v_person,v_email,1,'callback');
+    RAISE EXCEPTION 'an email contact was verified by callback';
+  EXCEPTION WHEN invalid_parameter_value THEN NULL;
+  END;
+  v_result := eogp.set_guest_registry_contact_verification(v_org,v_actor,v_person,v_phone,1,'callback');
+  IF v_result IS DISTINCT FROM jsonb_build_object('contactId',v_phone,'revision',2,'verified',true)
+    OR NOT EXISTS (SELECT 1 FROM eogp.person_contact_points WHERE organization_id=v_org AND id=v_phone
+      AND verification_method='callback' AND verified_at IS NOT NULL AND verified_by_membership_id=v_actor
+      AND encrypted_value=v_cipher AND contact_consent='permitted' AND is_primary)
+    OR NOT EXISTS (SELECT 1 FROM eogp.audit_events WHERE organization_id=v_org AND aggregate_id=v_person
+      AND action='guest.registry.contact_verified' AND safe_metadata=jsonb_build_object('contactId',v_phone,
+        'kind','phone','method','callback','revision',2)) THEN
+    RAISE EXCEPTION 'verification failed to record evidence or changed contact preferences';
+  END IF;
+  BEGIN
+    PERFORM eogp.set_guest_registry_contact_verification(v_org,v_actor,v_person,v_phone,1,NULL);
+    RAISE EXCEPTION 'stale verification revision was accepted';
+  EXCEPTION WHEN serialization_failure THEN NULL;
+  END;
+  PERFORM eogp.write_guest_registry_contact(v_org,v_actor,v_person,v_phone,2,NULL,NULL,NULL,'withdrawn',false);
+  PERFORM eogp.set_guest_registry_contact_verification(v_org,v_actor,v_person,v_phone,3,NULL);
+  IF NOT EXISTS (SELECT 1 FROM eogp.person_contact_points WHERE organization_id=v_org AND id=v_phone
+    AND NOT is_verified AND verified_at IS NULL AND contact_consent='withdrawn' AND revision=4) THEN
+    RAISE EXCEPTION 'verification revocation did not preserve the withdrawal';
+  END IF;
+  BEGIN
+    PERFORM eogp.set_guest_registry_contact_verification(v_org,v_actor,v_person,v_phone,4,'in_person');
+    RAISE EXCEPTION 'a withdrawn contact was newly verified';
+  EXCEPTION WHEN object_not_in_prerequisite_state THEN NULL;
+  END;
+END;
+$test$;
+
 COMMIT;
 
 \echo 'PostgreSQL migration smoke tests passed.'

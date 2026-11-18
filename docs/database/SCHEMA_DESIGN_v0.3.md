@@ -413,3 +413,7 @@ Source-system references reuse `person_identifiers`. The format namespace and up
 ## Guest import matching by source reference (000159)
 
 A mapped import can select an uppercase source-system code and a distinct reference column. The preview matches against active Registry profiles by keyed fingerprint, requires reference read access and reports unmatched values at row level. Staff can review and reuse or update a match. The commit rechecks reference ownership and the reviewed profile revision. Names and source references remain encrypted in import staging, and reports contain outcomes and error codes.
+
+## Staff-confirmed contact verification (000160)
+
+Staff with the dedicated verification grant can record in-person confirmation or a successful phone callback, and can revoke verification. The contact records the verification method, time and organization membership independent of consent and primary-channel preferences. The same contact revision protects both evidence and preferences. The audit log contains the contact ID and verification method, and the workflow performs no contact delivery.
