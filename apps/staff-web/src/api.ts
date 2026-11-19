@@ -1976,6 +1976,10 @@ export const api = {
   updateUserLocale: (locale: "bs-BA" | "en" | null) => request<Envelope<{ userLocale: "bs-BA" | "en" | null }>>("/me/preferences", { method: "PATCH", body: { locale } }),
   listOrganizationAccessRoles: (organizationId: string) =>
     request<Envelope<OrganizationAccessRole[]>>(`/organizations/${encodeURIComponent(organizationId)}/roles`),
+  createOrganizationEventRole: (organizationId: string, body: {
+    code: string; name: string; description?: string; permissionCodes: string[];
+  }) => request<Envelope<{ roleId: string }>>(`/organizations/${encodeURIComponent(organizationId)}/roles`,
+    { method: "POST", idempotent: true, body }),
   listOrganizationAccessMembers: (organizationId: string, offset: number) =>
     request<Envelope<{ members: OrganizationAccessMember[]; nextOffset: number | null }>>(
       `/organizations/${encodeURIComponent(organizationId)}/memberships?offset=${offset}`),

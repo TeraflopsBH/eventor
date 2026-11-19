@@ -8,7 +8,6 @@
 
 This document defines the successor relational model before writing executable migrations. It does not alter the v0.2 snapshot and does not claim PostgreSQL validation. Names are proposed; exact column types, constraints and migration mechanics belong in the DDL review.
 
-Organization access lists use the existing tenant-filtered member profile projection and require the organization-wide management permission. The database runtime account has no direct write privileges on memberships, role presets, grants or permission codes. Scoped authorization routines recheck staff grants before replaying completed commands.
 
 ## 1. Non-negotiable invariants
 
@@ -459,3 +458,7 @@ Event groups can record a preferred placement and expected size for planning. Bo
 ## Group-to-group placement rules (000169)
 
 A same-event group pair can have a required or preferred rule to stay together or apart within a table, zone or room. The pair is symmetric and has one active rule for each scope. Rules are retained after retirement. The projection marks rules involving retired groups as inapplicable. Allocation consumes these planning inputs in a later stage.
+
+## Organization access directory and event role presets (000172–000173)
+
+Organization access lists use the existing tenant-filtered member profile projection and require the organization-wide management permission. The database runtime account has no direct write privileges on memberships, role presets, grants or permission codes. Organization managers can create event role presets from event-level permission codes. Creating a preset and granting it to a member are separate commands. Scoped authorization routines recheck staff grants before replaying completed commands.
