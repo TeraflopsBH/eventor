@@ -1271,51 +1271,10 @@ async function assertEventManagePermission(
   principal: StaffPrincipal,
   eventId?: string,
 ): Promise<void> {
-  const result = eventId
-    ? await client.query(
-        `SELECT 1
-           FROM eogp.organization_memberships m
-           JOIN eogp.user_role_grants ug
-             ON ug.organization_id = m.organization_id
-            AND ug.membership_id = m.id
-           JOIN eogp.role_permissions rp
-             ON rp.organization_id = ug.organization_id
-            AND rp.role_id = ug.role_id
-          WHERE m.organization_id = $1
-            AND m.id = $2
-            AND m.status = 'active'
-            AND ug.revoked_at IS NULL
-            AND (ug.expires_at IS NULL OR ug.expires_at > clock_timestamp())
-            AND rp.permission_code = 'event.manage'
-            AND (
-              ug.scope_kind = 'organization'
-              OR (ug.scope_kind = 'event' AND ug.scope_event_id = $3)
-            )
-          FOR SHARE OF m, ug, rp`,
-        [principal.organizationId, principal.membershipId, eventId],
-      )
-    : await client.query(
-        `SELECT 1
-           FROM eogp.organization_memberships m
-           JOIN eogp.user_role_grants ug
-             ON ug.organization_id = m.organization_id
-            AND ug.membership_id = m.id
-           JOIN eogp.role_permissions rp
-             ON rp.organization_id = ug.organization_id
-            AND rp.role_id = ug.role_id
-          WHERE m.organization_id = $1
-            AND m.id = $2
-            AND m.status = 'active'
-            AND ug.scope_kind = 'organization'
-            AND ug.revoked_at IS NULL
-            AND (ug.expires_at IS NULL OR ug.expires_at > clock_timestamp())
-            AND rp.permission_code = 'event.manage'
-          FOR SHARE OF m, ug, rp`,
-        [principal.organizationId, principal.membershipId],
-      );
-  if (!result.rowCount) {
-    throw new ApiError(403, "FORBIDDEN", "You are not permitted to manage this event.");
-  }
+  await client.query(
+    "SELECT eogp.assert_staff_event_replay_permission($1::uuid,$2::uuid,$3::uuid,'event.manage')",
+    [principal.organizationId, eventId ?? null, principal.membershipId],
+  );
 }
 
 function parseStoredBody(value: Record<string, unknown> | string): Record<string, unknown> {
@@ -1536,31 +1495,10 @@ export function buildApi(dependencies: ApiDependencies): FastifyInstance {
     principal: StaffPrincipal,
     permissionCode: "booking.approve" | "booking.manage" | "booking.confirm",
   ): Promise<void> => {
-    const membership = await client.query(
-      "SELECT 1 FROM eogp.organization_memberships WHERE organization_id=$1 AND id=$2 AND status='active' FOR SHARE",
-      [principal.organizationId, principal.membershipId],
-    );
-    if (membership.rows.length === 0) {
-      throw new ApiError(403, "FORBIDDEN", "The staff membership is no longer active.");
-    }
-    const permission = await client.query(
-      `SELECT 1
-         FROM eogp.user_role_grants user_grant
-         JOIN eogp.role_permissions role_permission
-           ON role_permission.organization_id=user_grant.organization_id
-          AND role_permission.role_id=user_grant.role_id
-        WHERE user_grant.organization_id=$1
-          AND user_grant.membership_id=$2
-          AND user_grant.scope_kind='organization'
-          AND user_grant.revoked_at IS NULL
-          AND (user_grant.expires_at IS NULL OR user_grant.expires_at>clock_timestamp())
-          AND role_permission.permission_code=$3
-        FOR SHARE OF user_grant, role_permission`,
+    await client.query(
+      "SELECT eogp.assert_staff_event_replay_permission($1::uuid,NULL::uuid,$2::uuid,$3::text)",
       [principal.organizationId, principal.membershipId, permissionCode],
     );
-    if (permission.rows.length === 0) {
-      throw new ApiError(403, "FORBIDDEN", "The required booking permission is no longer granted.");
-    }
   };
 
   const authorizeBookingCancellationReplay = async (
@@ -1569,32 +1507,10 @@ export function buildApi(dependencies: ApiDependencies): FastifyInstance {
     bookingId: string,
     permissionCode: "booking.manage" | "booking.cancellation.request" | "booking.cancellation.review" | "booking.cancellation.approve" | "booking.cancellation.execute" | "booking.cancellation.override",
   ): Promise<void> => {
-    const membership = await client.query(
-      "SELECT 1 FROM eogp.organization_memberships WHERE organization_id=$1 AND id=$2 AND status='active' FOR SHARE",
-      [principal.organizationId, principal.membershipId],
+    await client.query(
+      "SELECT eogp.assert_staff_booking_replay_permission($1::uuid,$2::uuid,$3::uuid,$4::text)",
+      [principal.organizationId, bookingId, principal.membershipId, permissionCode],
     );
-    if (membership.rows.length === 0) {
-      throw new ApiError(403, "FORBIDDEN", "The staff membership is no longer active.");
-    }
-    const permission = await client.query(
-      `SELECT 1
-         FROM eogp.user_role_grants user_grant
-         JOIN eogp.role_permissions role_permission
-           ON role_permission.organization_id=user_grant.organization_id
-          AND role_permission.role_id=user_grant.role_id
-        WHERE user_grant.organization_id=$1
-          AND user_grant.membership_id=$2
-          AND user_grant.revoked_at IS NULL
-          AND (user_grant.expires_at IS NULL OR user_grant.expires_at>clock_timestamp())
-          AND role_permission.permission_code=$3
-          AND (user_grant.scope_kind='organization'
-            OR (user_grant.scope_kind='booking' AND user_grant.scope_booking_id=$4))
-        FOR SHARE OF user_grant, role_permission`,
-      [principal.organizationId, principal.membershipId, permissionCode, bookingId],
-    );
-    if (permission.rows.length === 0) {
-      throw new ApiError(403, "FORBIDDEN", "The required booking cancellation permission is no longer granted.");
-    }
   };
 
   const authorizeNotificationCampaignSendReplay = async (
@@ -1608,32 +1524,7 @@ export function buildApi(dependencies: ApiDependencies): FastifyInstance {
     );
     const eventId = campaign.rows[0]?.event_id;
     if (!eventId) throw new ApiError(404, "NOT_FOUND", "The notification campaign was not found.");
-    const membership = await client.query(
-      "SELECT 1 FROM eogp.organization_memberships WHERE organization_id=$1 AND id=$2 AND status='active' FOR SHARE",
-      [principal.organizationId, principal.membershipId],
-    );
-    if (membership.rows.length === 0) {
-      throw new ApiError(403, "FORBIDDEN", "The staff membership is no longer active.");
-    }
-    const permission = await client.query(
-      `SELECT 1
-         FROM eogp.user_role_grants user_grant
-         JOIN eogp.role_permissions role_permission
-           ON role_permission.organization_id=user_grant.organization_id
-          AND role_permission.role_id=user_grant.role_id
-        WHERE user_grant.organization_id=$1
-          AND user_grant.membership_id=$2
-          AND user_grant.revoked_at IS NULL
-          AND (user_grant.expires_at IS NULL OR user_grant.expires_at>clock_timestamp())
-          AND role_permission.permission_code='event.notifications.send'
-          AND (user_grant.scope_kind='organization'
-               OR (user_grant.scope_kind='event' AND user_grant.scope_event_id=$3))
-        FOR SHARE OF user_grant, role_permission`,
-      [principal.organizationId, principal.membershipId, eventId],
-    );
-    if (permission.rows.length === 0) {
-      throw new ApiError(403, "FORBIDDEN", "The event notification send permission is no longer granted.");
-    }
+    await authorizeEventCommandReplay(client, principal, eventId, "event.notifications.send");
   };
 
   const authorizeEventCommandReplay = async (
@@ -1643,7 +1534,7 @@ export function buildApi(dependencies: ApiDependencies): FastifyInstance {
     permissionCode: string,
   ): Promise<void> => {
     await client.query(
-      "SELECT eogp.assert_event_command_permission($1::uuid,$2::uuid,$3::uuid,$4::text)",
+      "SELECT eogp.assert_staff_event_replay_permission($1::uuid,$2::uuid,$3::uuid,$4::text)",
       [principal.organizationId, eventId, principal.membershipId, permissionCode],
     );
   };
@@ -1702,32 +1593,7 @@ export function buildApi(dependencies: ApiDependencies): FastifyInstance {
       [principal.organizationId, bookingId],
     );
     if (booking.rows.length === 0) throw new ApiError(404, "NOT_FOUND", "The booking was not found.");
-    const membership = await client.query(
-      "SELECT 1 FROM eogp.organization_memberships WHERE organization_id=$1 AND id=$2 AND status='active' FOR SHARE",
-      [principal.organizationId, principal.membershipId],
-    );
-    if (membership.rows.length === 0) {
-      throw new ApiError(403, "FORBIDDEN", "The staff membership is no longer active.");
-    }
-    const permission = await client.query(
-      `SELECT 1
-         FROM eogp.user_role_grants user_grant
-         JOIN eogp.role_permissions role_permission
-           ON role_permission.organization_id=user_grant.organization_id
-          AND role_permission.role_id=user_grant.role_id
-        WHERE user_grant.organization_id=$1
-          AND user_grant.membership_id=$2
-          AND user_grant.revoked_at IS NULL
-          AND (user_grant.expires_at IS NULL OR user_grant.expires_at>clock_timestamp())
-          AND role_permission.permission_code='booking.cancellation.execute'
-          AND (user_grant.scope_kind='organization'
-               OR (user_grant.scope_kind='booking' AND user_grant.scope_booking_id=$3))
-        FOR SHARE OF user_grant, role_permission`,
-      [principal.organizationId, principal.membershipId, bookingId],
-    );
-    if (permission.rows.length === 0) {
-      throw new ApiError(403, "FORBIDDEN", "The booking cancellation execution permission is no longer granted.");
-    }
+    await authorizeBookingCancellationReplay(client, principal, bookingId, "booking.cancellation.execute");
   };
 
   const authorizeOrganizationDeliveryManageReplay = async (
@@ -1735,7 +1601,7 @@ export function buildApi(dependencies: ApiDependencies): FastifyInstance {
     principal: StaffPrincipal,
   ): Promise<void> => {
     await client.query(
-      "SELECT eogp.assert_event_command_permission($1::uuid,NULL::uuid,$2::uuid,'organization.delivery.manage')",
+      "SELECT eogp.assert_staff_event_replay_permission($1::uuid,NULL::uuid,$2::uuid,'organization.delivery.manage')",
       [principal.organizationId, principal.membershipId],
     );
   };
@@ -3878,6 +3744,27 @@ export function buildApi(dependencies: ApiDependencies): FastifyInstance {
     }
   }
 
+  const organizationAccessPath = "/organizations/:organizationId";
+  type OrganizationAccessParams = { organizationId: string };
+  server.get<{ Params: OrganizationAccessParams }>(`${organizationAccessPath}/roles`, {
+    schema: { params: organizationInquiryParams },
+  }, (request, reply) => withRegistryRead(reply, registryPrincipal(request, request.params.organizationId),
+    "SELECT eogp.list_organization_access_roles($1::uuid,$2::uuid) AS result", []));
+
+  server.get<{ Params: OrganizationAccessParams; Querystring: { offset?: number } }>(`${organizationAccessPath}/memberships`, {
+    schema: {
+      params: organizationInquiryParams,
+      querystring: { type: "object", additionalProperties: false,
+        properties: { offset: { type: "integer", minimum: 0, maximum: 100000 } } },
+    },
+  }, (request, reply) => withRegistryRead(reply, registryPrincipal(request, request.params.organizationId),
+    "SELECT eogp.list_organization_access_members($1::uuid,$2::uuid,$3::integer) AS result", [request.query.offset ?? 0]));
+
+  server.get<{ Params: OrganizationAccessParams }>(`${organizationAccessPath}/permissions`, {
+    schema: { params: organizationInquiryParams },
+  }, (request, reply) => withRegistryRead(reply, registryPrincipal(request, request.params.organizationId),
+    "SELECT eogp.list_organization_permission_catalogue($1::uuid,$2::uuid) AS result", []));
+
   function readRegistry(
     reply: FastifyReply, principal: StaffPrincipal, personId: string | null, filter: PersonSearchBody = {},
   ) {
@@ -4858,9 +4745,9 @@ export function buildApi(dependencies: ApiDependencies): FastifyInstance {
       const result = await client.query<ResultRow>(query, [...args, ...values]);
       return (result.rows[0]?.result ?? {}) as Record<string, unknown>;
     }, async (client) => {
-      await client.query("SELECT eogp.assert_event_command_permission($1::uuid,$2::uuid,$3::uuid,'guest.manage')", args);
+      await client.query("SELECT eogp.assert_staff_event_replay_permission($1::uuid,$2::uuid,$3::uuid,'guest.manage')", args);
       if (additionalPermission) {
-        await client.query("SELECT eogp.assert_event_command_permission($1::uuid,$2::uuid,$3::uuid,$4::text)", [...args, additionalPermission]);
+        await client.query("SELECT eogp.assert_staff_event_replay_permission($1::uuid,$2::uuid,$3::uuid,$4::text)", [...args, additionalPermission]);
       }
     }, statusCode);
   }
@@ -5158,7 +5045,7 @@ export function buildApi(dependencies: ApiDependencies): FastifyInstance {
       const result = await client.query<ResultRow>(query, [...args, ...values]);
       return (result.rows[0]?.result ?? {}) as Record<string, unknown>;
     }, async (client) => {
-      await client.query(`SELECT eogp.assert_event_command_permission($1::uuid,$2::uuid,$3::uuid,'guest.manage'),
+      await client.query(`SELECT eogp.assert_staff_event_replay_permission($1::uuid,$2::uuid,$3::uuid,'guest.manage'),
         eogp.assert_restricted_guest_tag_permission($1::uuid,$2::uuid,$3::uuid,true)`, args);
     }, status);
   }
@@ -5510,7 +5397,7 @@ export function buildApi(dependencies: ApiDependencies): FastifyInstance {
           [...scope, participationId, fieldId, expectedRevision, type, ciphertext]);
         return (result.rows[0]?.result ?? {}) as Record<string, unknown>;
       }, async (client) => {
-        await client.query("SELECT eogp.assert_event_command_permission($1::uuid,$2::uuid,$3::uuid,'guest.manage')", scope);
+        await client.query("SELECT eogp.assert_staff_event_replay_permission($1::uuid,$2::uuid,$3::uuid,'guest.manage')", scope);
       }, 200);
   });
 
@@ -6029,7 +5916,7 @@ export function buildApi(dependencies: ApiDependencies): FastifyInstance {
         },
         async (client) => {
           await client.query(
-            "SELECT eogp.assert_event_command_permission($1::uuid,$2::uuid,$3::uuid,'event.manage')",
+            "SELECT eogp.assert_staff_event_replay_permission($1::uuid,$2::uuid,$3::uuid,'event.manage')",
             [principal.organizationId, request.params.eventId, principal.membershipId],
           );
         },
@@ -6118,46 +6005,9 @@ export function buildApi(dependencies: ApiDependencies): FastifyInstance {
           return result.rows[0]?.result as Record<string, unknown>;
         },
         async (client) => {
-          const membership = await client.query(
-            "SELECT 1 FROM eogp.organization_memberships WHERE organization_id=$1 AND id=$2 AND status='active' FOR SHARE",
-            [principal.organizationId, principal.membershipId],
-          );
-          if (membership.rows.length === 0) throw new ApiError(403, "FORBIDDEN", "The staff membership is no longer active.");
-          const permission = await client.query(
-            `SELECT 1
-               FROM eogp.user_role_grants user_grant
-               JOIN eogp.role_permissions role_permission
-                 ON role_permission.organization_id=user_grant.organization_id
-                AND role_permission.role_id=user_grant.role_id
-              WHERE user_grant.organization_id=$1
-                AND user_grant.membership_id=$2
-                AND user_grant.revoked_at IS NULL
-                AND (user_grant.expires_at IS NULL OR user_grant.expires_at>clock_timestamp())
-                AND role_permission.permission_code='rsvp.record'
-                AND (user_grant.scope_kind='organization'
-                  OR (user_grant.scope_kind='event' AND user_grant.scope_event_id=$3))
-              FOR SHARE OF user_grant, role_permission`,
-            [principal.organizationId, principal.membershipId, request.params.eventId],
-          );
-          if (permission.rows.length === 0) throw new ApiError(403, "FORBIDDEN", "The event RSVP recording permission is no longer granted.");
+          await authorizeEventCommandReplay(client, principal, request.params.eventId, "rsvp.record");
           if (body.correctionOfResponseId) {
-            const correctionPermission = await client.query(
-              `SELECT 1
-                 FROM eogp.user_role_grants user_grant
-                 JOIN eogp.role_permissions role_permission
-                   ON role_permission.organization_id=user_grant.organization_id
-                  AND role_permission.role_id=user_grant.role_id
-                WHERE user_grant.organization_id=$1
-                  AND user_grant.membership_id=$2
-                  AND user_grant.revoked_at IS NULL
-                  AND (user_grant.expires_at IS NULL OR user_grant.expires_at>clock_timestamp())
-                  AND role_permission.permission_code='rsvp.correct'
-                  AND (user_grant.scope_kind='organization'
-                    OR (user_grant.scope_kind='event' AND user_grant.scope_event_id=$3))
-                FOR SHARE OF user_grant, role_permission`,
-              [principal.organizationId, principal.membershipId, request.params.eventId],
-            );
-            if (correctionPermission.rows.length === 0) throw new ApiError(403, "FORBIDDEN", "The RSVP correction permission is no longer granted.");
+            await authorizeEventCommandReplay(client, principal, request.params.eventId, "rsvp.correct");
           }
         },
       );

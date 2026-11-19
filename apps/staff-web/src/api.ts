@@ -105,6 +105,43 @@ export interface Principal {
   }>;
 }
 
+export type OrganizationAccessScope = "organization" | "venue" | "space" | "booking" | "event" | "task";
+
+export interface OrganizationAccessRole {
+  roleId: string;
+  code: string;
+  name: string;
+  description: string | null;
+  scope: OrganizationAccessScope;
+  systemPreset: boolean;
+  permissionCodes: string[];
+}
+
+export interface OrganizationAccessGrant {
+  grantId: string;
+  roleId: string;
+  roleName: string;
+  scope: OrganizationAccessScope;
+  scopeId: string | null;
+  scopeName: string | null;
+  eventId: string | null;
+  expiresAt: string | null;
+}
+
+export interface OrganizationAccessMember {
+  membershipId: string;
+  displayName: string;
+  status: "invited" | "active" | "suspended" | "revoked";
+  grants: OrganizationAccessGrant[];
+}
+
+export interface OrganizationPermission {
+  code: string;
+  description: string;
+  scope: OrganizationAccessScope;
+  sensitive: boolean;
+}
+
 export interface EmailSettings {
   host: string;
   port: number;
@@ -1937,6 +1974,13 @@ export const api = {
     request<Envelope<{ csrfToken: string; expiresAt: string }>>("/auth/session", { method: "POST", body }),
   me: () => request<Envelope<Principal>>("/me"),
   updateUserLocale: (locale: "bs-BA" | "en" | null) => request<Envelope<{ userLocale: "bs-BA" | "en" | null }>>("/me/preferences", { method: "PATCH", body: { locale } }),
+  listOrganizationAccessRoles: (organizationId: string) =>
+    request<Envelope<OrganizationAccessRole[]>>(`/organizations/${encodeURIComponent(organizationId)}/roles`),
+  listOrganizationAccessMembers: (organizationId: string, offset: number) =>
+    request<Envelope<{ members: OrganizationAccessMember[]; nextOffset: number | null }>>(
+      `/organizations/${encodeURIComponent(organizationId)}/memberships?offset=${offset}`),
+  listOrganizationPermissions: (organizationId: string) =>
+    request<Envelope<OrganizationPermission[]>>(`/organizations/${encodeURIComponent(organizationId)}/permissions`),
   getOrganizationLocale: () => request<Envelope<{ defaultLocale: "bs-BA" | "en"; canManage: boolean }>>("/organization/locale"),
   setOrganizationLocale: (defaultLocale: "bs-BA" | "en") => request<Envelope<{ defaultLocale: "bs-BA" | "en" }>>("/organization/locale", { method: "PATCH", body: { defaultLocale } }),
   logout: () => request<void>("/auth/session", { method: "DELETE" }),

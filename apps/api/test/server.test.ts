@@ -131,25 +131,15 @@ function makePool() {
       if (normalized.startsWith("SELECT set_config(")) return { rows: [], rowCount: 1 };
       // Replay authorization queries are deliberately handled separately from
       // commandCalls so route assertions continue to describe actual mutations.
-      if (normalized.startsWith("SELECT eogp.assert_event_command_permission(")) {
+      if (normalized.startsWith("SELECT eogp.assert_staff_event_replay_permission(")) {
         eventReplayAuthorizationCalls += 1;
         if (!eventPermissionAllowed) {
           throw Object.assign(new Error("event permission revoked"), { code: "42501" });
         }
         return { rows: [], rowCount: 1 };
       }
-      if (normalized.includes("rp.permission_code = 'event.manage'")) {
-        eventReplayAuthorizationCalls += 1;
-        if (!eventPermissionAllowed) {
-          throw Object.assign(new Error("event permission revoked"), { code: "42501" });
-        }
-        return { rows: [{ "?column?": 1 }], rowCount: 1 };
-      }
-      if (normalized.startsWith("SELECT 1 FROM eogp.organization_memberships")) {
-        return { rows: [{ "?column?": 1 }], rowCount: 1 };
-      }
-      if (normalized.includes("FROM eogp.user_role_grants user_grant")) {
-        return { rows: [{ "?column?": 1 }], rowCount: 1 };
+      if (normalized.startsWith("SELECT eogp.assert_staff_booking_replay_permission(")) {
+        return { rows: [], rowCount: 1 };
       }
       if (normalized.startsWith("SELECT 1 FROM eogp.booking_records")) {
         return { rows: [{ "?column?": 1 }], rowCount: 1 };
