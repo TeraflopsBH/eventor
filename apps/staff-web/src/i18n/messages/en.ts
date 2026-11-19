@@ -567,7 +567,9 @@ export default {
       start: "Start event",
       complete: "Close event",
     },
+    confirmCancelSession: "Cancel the session “{title}”?",
     sessionLifecycle: {
+      cancel: "Cancel session",
       schedule: "Schedule session",
       start: "Start session",
       complete: "Complete session",
