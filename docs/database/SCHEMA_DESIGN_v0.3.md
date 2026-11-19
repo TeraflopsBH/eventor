@@ -466,3 +466,7 @@ Organization access lists use the existing tenant-filtered member profile projec
 ## Member event role grants (000174)
 
 Organization managers can grant event role presets to active members for open events in their organization. Assignment reuses a current grant for the same member, role and event. Tenant-scoped serialization and row locks coordinate concurrent changes with permission checks. Revocation retains the original grant, including its expiry, and records the acting membership in audit. Organization and other grant scopes retain their existing access paths.
+
+## Event role preset retirement (000175)
+
+Organization managers can retire custom event role presets. The catalogue retains their names and permission codes for review. Retirement prevents new assignments while preserving existing scoped grants until explicitly revoked. Retirement and assignment use the same tenant lock so concurrent operations serialize.

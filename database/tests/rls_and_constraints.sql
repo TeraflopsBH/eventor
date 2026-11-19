@@ -4057,6 +4057,38 @@ BEGIN
 END;
 $test$;
 
+-- Retirement preserves current permission history and blocks future assignments.
+DO $test$
+DECLARE
+  v_org CONSTANT uuid := '10000000-0000-0000-0000-00000000000a';
+  v_actor CONSTANT uuid := '30000000-0000-0000-0000-00000000000a';
+  v_event uuid;
+  v_other uuid;
+  v_role uuid;
+  v_grant uuid;
+BEGIN
+  SELECT id INTO STRICT v_event FROM eogp.events WHERE organization_id=v_org AND event_code='CI-LINK-A';
+  SELECT id INTO STRICT v_other FROM eogp.events WHERE organization_id=v_org AND event_code='CI-LINK-B';
+  v_role := (eogp.create_organization_event_role(v_org,v_actor,'RETIRE-ROLE','Retirement fixture',NULL,ARRAY['guest.read'])->>'roleId')::uuid;
+  v_grant := (eogp.write_member_event_role(v_org,v_actor,v_actor,v_role,v_event,NULL)->>'grantId')::uuid;
+  PERFORM eogp.retire_organization_event_role(v_org,v_actor,v_role);
+  PERFORM eogp.retire_organization_event_role(v_org,v_actor,v_role);
+  IF NOT eogp.list_organization_access_roles(v_org,v_actor) @> jsonb_build_array(jsonb_build_object('roleId',v_role))
+    OR NOT EXISTS (SELECT 1 FROM eogp.roles WHERE organization_id=v_org AND id=v_role AND retired_at IS NOT NULL)
+    OR NOT EXISTS (SELECT 1 FROM eogp.user_role_grants WHERE organization_id=v_org AND id=v_grant AND revoked_at IS NULL)
+    OR (SELECT count(*) FROM eogp.audit_events WHERE organization_id=v_org AND aggregate_id=v_role
+      AND action='organization.role.retired')<>1 THEN
+    RAISE EXCEPTION 'role retirement changed assignments, lost history or duplicated audit';
+  END IF;
+  BEGIN
+    PERFORM eogp.write_member_event_role(v_org,v_actor,v_actor,v_role,v_other,NULL);
+    RAISE EXCEPTION 'retired role accepted a new assignment';
+  EXCEPTION WHEN no_data_found THEN NULL;
+  END;
+  PERFORM eogp.write_member_event_role(v_org,v_actor,v_actor,NULL,NULL,v_grant);
+END;
+$test$;
+
 COMMIT;
 
 \echo 'PostgreSQL migration smoke tests passed.'

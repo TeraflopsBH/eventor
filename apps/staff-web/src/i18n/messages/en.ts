@@ -672,6 +672,10 @@ export default {
     active: "Session active",
   },
   organizationAccess: {
+    confirmRetire: "Retire {role}? This stops new assignments. Current grants continue until revoked.",
+    retireRole: "Retire role preset",
+    roleRetired: "Event role preset retired.",
+    retired: "Retired",
     assignRole: "Assign event role",
     assignFor: "Assign event role to {member}",
     chooseRole: "Choose a role",
