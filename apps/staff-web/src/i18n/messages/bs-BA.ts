@@ -672,6 +672,10 @@ export default {
     active: "Sesija aktivna",
   },
   organizationAccess: {
+    confirmRetire: "Povući predložak {role}? Nove dodjele više neće biti moguće. Trenutne dodjele vrijede do opoziva.",
+    retireRole: "Povuci predložak uloge",
+    roleRetired: "Predložak uloge za događaj je povučen.",
+    retired: "Povučeno",
     assignRole: "Dodijeli ulogu za događaj",
     assignFor: "Dodijeli ulogu za događaj članu {member}",
     chooseRole: "Odaberite ulogu",

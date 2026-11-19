@@ -42,6 +42,39 @@ tags:
   - name: Jobs
   - name: Audit
 paths:
+  "/organizations/{organizationId}/roles/{roleId}/retire":
+    post:
+      tags: ["Authorization"]
+      operationId: retireOrganizationEventRole
+      summary: "Retire a custom event role preset"
+      description: "Requires organization.manage. Retirement stops new assignments and preserves current grants."
+      security: [{ StaffSession: [], StaffCsrf: [] }]
+      parameters:
+        - $ref: '#/components/parameters/POrganizationId'
+        - name: roleId
+          in: path
+          required: true
+          schema: { type: string, format: uuid }
+        - $ref: '#/components/parameters/IdempotencyKey'
+      responses:
+        '200':
+          description: "The retired event role preset."
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [data]
+                properties:
+                  data:
+                    type: object
+                    required: [roleId, retiredAt]
+                    properties:
+                      roleId: { type: string, format: uuid }
+                      retiredAt: { type: string, format: date-time }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '404': { $ref: '#/components/responses/NotFound' }
+        '409': { $ref: '#/components/responses/Conflict' }
   "/organizations/{organizationId}/access-events":
     get:
       tags: ["Authorization"]
@@ -8196,7 +8229,7 @@ components:
       enum: [organization, venue, space, booking, event, task]
     OrganizationAccessRole:
       type: object
-      required: [roleId, code, name, description, scope, systemPreset, permissionCodes]
+      required: [roleId, code, name, description, scope, systemPreset, permissionCodes, retiredAt]
       properties:
         roleId: { type: string, format: uuid }
         code: { type: string }
@@ -8204,6 +8237,7 @@ components:
         description: { type: [string, 'null'] }
         scope: { $ref: '#/components/schemas/OrganizationAccessScope' }
         systemPreset: { type: boolean }
+        retiredAt: { type: [string, 'null'], format: date-time }
         permissionCodes:
           type: array
           items: { type: string }

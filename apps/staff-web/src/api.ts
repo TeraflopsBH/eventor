@@ -114,6 +114,7 @@ export interface OrganizationAccessRole {
   description: string | null;
   scope: OrganizationAccessScope;
   systemPreset: boolean;
+  retiredAt: string | null;
   permissionCodes: string[];
 }
 
@@ -1980,6 +1981,10 @@ export const api = {
     code: string; name: string; description?: string; permissionCodes: string[];
   }) => request<Envelope<{ roleId: string }>>(`/organizations/${encodeURIComponent(organizationId)}/roles`,
     { method: "POST", idempotent: true, body }),
+  retireOrganizationEventRole: (organizationId: string, roleId: string) =>
+    request<Envelope<{ roleId: string; retiredAt: string }>>(
+      `/organizations/${encodeURIComponent(organizationId)}/roles/${encodeURIComponent(roleId)}/retire`,
+      { method: "POST", idempotent: true }),
   listOrganizationAccessMembers: (organizationId: string, offset: number) =>
     request<Envelope<{ members: OrganizationAccessMember[]; nextOffset: number | null }>>(
       `/organizations/${encodeURIComponent(organizationId)}/memberships?offset=${offset}`),

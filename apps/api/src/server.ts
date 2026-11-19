@@ -3808,6 +3808,28 @@ export function buildApi(dependencies: ApiDependencies): FastifyInstance {
   }, (request, reply) => withRegistryRead(reply, registryPrincipal(request, request.params.organizationId),
     "SELECT eogp.list_organization_access_events($1::uuid,$2::uuid) AS result", []));
 
+  type RetireEventRoleParams = OrganizationAccessParams & { roleId: string };
+  server.post<{ Params: RetireEventRoleParams }>(`${organizationAccessPath}/roles/:roleId/retire`, {
+    schema: {
+      params: {
+        type: "object", additionalProperties: false, required: ["organizationId", "roleId"],
+        properties: { organizationId: { type: "string", pattern: uuidPattern }, roleId: { type: "string", pattern: uuidPattern } },
+      },
+      headers: idempotencyHeaders,
+    },
+  }, (request, reply) => {
+    const principal = registryPrincipal(request, request.params.organizationId);
+    const scope = [principal.organizationId, principal.membershipId];
+    return withCommand(request, reply.header("cache-control", "no-store, private"), "organization.role.retire",
+      { roleId: request.params.roleId }, async (client) => {
+        const result = await client.query<ResultRow>(
+          "SELECT eogp.retire_organization_event_role($1::uuid,$2::uuid,$3::uuid) AS result", [...scope, request.params.roleId]);
+        return (result.rows[0]?.result ?? {}) as Record<string, unknown>;
+      }, async (client) => {
+        await client.query("SELECT eogp.assert_staff_event_replay_permission($1::uuid,NULL,$2::uuid,'organization.manage')", scope);
+      }, 200);
+  });
+
   type MemberEventRoleParams = { organizationId: string; membershipId: string };
   const memberEventRoleParams = {
     type: "object", additionalProperties: false, required: ["organizationId", "membershipId"],

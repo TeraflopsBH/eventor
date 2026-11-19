@@ -21,7 +21,7 @@ const showRoleForm = ref(false);
 const grantMember = ref<OrganizationAccessMember | null>(null);
 const events = ref<{ eventId: string; eventCode: string; title: string }[]>([]);
 const grantDraft = reactive({ roleId: "", eventId: "" });
-const eventRoles = computed(() => roles.value.filter((role) => role.scope === "event"));
+const eventRoles = computed(() => roles.value.filter((role) => role.scope === "event" && !role.retiredAt));
 const notice = ref("");
 const permissionFilter = ref("");
 const roleDraft = reactive({ code: "", name: "", description: "", permissionCodes: [] as string[] });
@@ -100,6 +100,22 @@ async function createRole(): Promise<void> {
     Object.assign(roleDraft, { code: "", name: "", description: "", permissionCodes: [] });
     permissionFilter.value = "";
     roles.value = (await api.listOrganizationAccessRoles(props.organizationId)).data;
+  } catch (failure) {
+    showFailure(failure);
+  } finally {
+    busy.value = false;
+  }
+}
+
+async function retireRole(role: OrganizationAccessRole): Promise<void> {
+  if (busy.value || !window.confirm(t("organizationAccess.confirmRetire", { role: role.name }))) return;
+  busy.value = true;
+  error.value = "";
+  notice.value = "";
+  try {
+    await api.retireOrganizationEventRole(props.organizationId, role.roleId);
+    roles.value = (await api.listOrganizationAccessRoles(props.organizationId)).data;
+    notice.value = t("organizationAccess.roleRetired");
   } catch (failure) {
     showFailure(failure);
   } finally {
@@ -244,7 +260,10 @@ onMounted(() => { void load(0); });
       <p v-if="!roles.length">{{ t("organizationAccess.noRoles") }}</p>
       <details v-for="role in roles" :key="role.roleId">
         <summary>{{ role.name }} · {{ t(`organizationAccess.scopes.${role.scope}`) }}</summary>
+        <p v-if="role.retiredAt">{{ t("organizationAccess.retired") }}</p>
         <p v-if="role.description">{{ role.description }}</p>
+        <button v-if="role.scope === 'event' && !role.systemPreset && !role.retiredAt" type="button"
+          class="button button-secondary" :disabled="busy" @click="retireRole(role)">{{ t("organizationAccess.retireRole") }}</button>
         <p v-if="!role.permissionCodes.length">{{ t("organizationAccess.noPermissions") }}</p>
         <ul v-else>
           <li v-for="code in role.permissionCodes" :key="code">
