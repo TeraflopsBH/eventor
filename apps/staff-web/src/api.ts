@@ -1983,6 +1983,17 @@ export const api = {
   listOrganizationAccessMembers: (organizationId: string, offset: number) =>
     request<Envelope<{ members: OrganizationAccessMember[]; nextOffset: number | null }>>(
       `/organizations/${encodeURIComponent(organizationId)}/memberships?offset=${offset}`),
+  listOrganizationAccessEvents: (organizationId: string) =>
+    request<Envelope<{ eventId: string; eventCode: string; title: string }[]>>(
+      `/organizations/${encodeURIComponent(organizationId)}/access-events`),
+  grantMemberEventRole: (organizationId: string, membershipId: string, roleId: string, eventId: string) =>
+    request<Envelope<{ grantId: string; revokedAt: null }>>(
+      `/organizations/${encodeURIComponent(organizationId)}/memberships/${encodeURIComponent(membershipId)}/event-role-grants`,
+      { method: "POST", idempotent: true, body: { roleId, eventId } }),
+  revokeMemberEventRole: (organizationId: string, membershipId: string, grantId: string) =>
+    request<Envelope<{ grantId: string; revokedAt: string }>>(
+      `/organizations/${encodeURIComponent(organizationId)}/memberships/${encodeURIComponent(membershipId)}/event-role-grants/${encodeURIComponent(grantId)}/revoke`,
+      { method: "POST", idempotent: true }),
   listOrganizationPermissions: (organizationId: string) =>
     request<Envelope<OrganizationPermission[]>>(`/organizations/${encodeURIComponent(organizationId)}/permissions`),
   getOrganizationLocale: () => request<Envelope<{ defaultLocale: "bs-BA" | "en"; canManage: boolean }>>("/organization/locale"),

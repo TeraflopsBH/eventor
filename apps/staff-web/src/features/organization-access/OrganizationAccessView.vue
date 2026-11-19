@@ -18,6 +18,10 @@ const loaded = ref(false);
 const busy = ref(false);
 const error = ref("");
 const showRoleForm = ref(false);
+const grantMember = ref<OrganizationAccessMember | null>(null);
+const events = ref<{ eventId: string; eventCode: string; title: string }[]>([]);
+const grantDraft = reactive({ roleId: "", eventId: "" });
+const eventRoles = computed(() => roles.value.filter((role) => role.scope === "event"));
 const notice = ref("");
 const permissionFilter = ref("");
 const roleDraft = reactive({ code: "", name: "", description: "", permissionCodes: [] as string[] });
@@ -47,6 +51,7 @@ function showFailure(failure: unknown): void {
     permissions.value = [];
     loaded.value = false;
     showRoleForm.value = false;
+    grantMember.value = null;
     notice.value = "";
   }
   error.value = failure instanceof ApiError ? formatApiError(failure, t) : t("organizationAccess.failed");
@@ -102,6 +107,46 @@ async function createRole(): Promise<void> {
   }
 }
 
+async function openGrant(member: OrganizationAccessMember): Promise<void> {
+  busy.value = true;
+  error.value = "";
+  notice.value = "";
+  grantMember.value = null;
+  try {
+    events.value = (await api.listOrganizationAccessEvents(props.organizationId)).data;
+    Object.assign(grantDraft, { roleId: "", eventId: "" });
+    grantMember.value = member;
+  } catch (failure) {
+    showFailure(failure);
+  } finally {
+    busy.value = false;
+  }
+}
+
+async function changeGrant(member: OrganizationAccessMember, grant?: OrganizationAccessGrant): Promise<void> {
+  if (busy.value) return;
+  if (grant && !window.confirm(t("organizationAccess.confirmRevoke", { role: grant.roleName, member: member.displayName }))) return;
+  busy.value = true;
+  error.value = "";
+  notice.value = "";
+  try {
+    if (grant) {
+      await api.revokeMemberEventRole(props.organizationId, member.membershipId, grant.grantId);
+    } else {
+      await api.grantMemberEventRole(props.organizationId, member.membershipId, grantDraft.roleId, grantDraft.eventId);
+    }
+    const { data } = await api.listOrganizationAccessMembers(props.organizationId, offset.value);
+    members.value = data.members;
+    nextOffset.value = data.nextOffset;
+    grantMember.value = null;
+    notice.value = t(grant ? "organizationAccess.grantRevoked" : "organizationAccess.grantSaved");
+  } catch (failure) {
+    showFailure(failure);
+  } finally {
+    busy.value = false;
+  }
+}
+
 onMounted(() => { void load(0); });
 </script>
 
@@ -135,8 +180,12 @@ onMounted(() => { void load(0); });
                   <li v-for="grant in member.grants" :key="grant.grantId">
                     {{ grant.roleName }} · {{ describeScope(grant) }}
                     <small v-if="grant.expiresAt"> · {{ expiry(grant.expiresAt) }}</small>
+                    <button v-if="grant.scope === 'event'" class="button button-secondary" type="button" :disabled="busy"
+                      @click="changeGrant(member, grant)">{{ t("organizationAccess.revokeGrant") }}</button>
                   </li>
                 </ul>
+                <button v-if="member.status === 'active' && eventRoles.length" class="button button-secondary" type="button"
+                  :disabled="busy" @click="openGrant(member)">{{ t("organizationAccess.assignRole") }}</button>
               </td>
             </tr>
           </tbody>
@@ -150,6 +199,23 @@ onMounted(() => { void load(0); });
           {{ t("registry.next") }}
         </button>
       </div>
+      <form v-if="grantMember" class="event-role-form" @submit.prevent="changeGrant(grantMember)">
+        <h4>{{ t("organizationAccess.assignFor", { member: grantMember.displayName }) }}</h4>
+        <label for="member-event-role">{{ t("organizationAccess.roleName") }}</label>
+          <select id="member-event-role" v-model="grantDraft.roleId" required :disabled="busy">
+            <option value="" disabled>{{ t("organizationAccess.chooseRole") }}</option>
+            <option v-for="role in eventRoles" :key="role.roleId" :value="role.roleId">{{ role.name }}</option>
+          </select>
+        <label for="member-event-scope">{{ t("organizationAccess.event") }}</label>
+          <select id="member-event-scope" v-model="grantDraft.eventId" required :disabled="busy">
+            <option value="" disabled>{{ t("organizationAccess.chooseEvent") }}</option>
+            <option v-for="event in events" :key="event.eventId" :value="event.eventId">{{ event.title }} ({{ event.eventCode }})</option>
+          </select>
+        <button class="button button-primary" type="submit" :disabled="busy || !grantDraft.roleId || !grantDraft.eventId">
+          {{ t("organizationAccess.saveGrant") }}
+        </button>
+        <button class="button button-secondary" type="button" :disabled="busy" @click="grantMember = null">{{ t("common.cancel") }}</button>
+      </form>
       <h4>{{ t("organizationAccess.roles") }}</h4>
       <button v-if="eventPermissions.length" class="button button-secondary" type="button" :aria-expanded="showRoleForm"
         :disabled="busy" @click="showRoleForm = !showRoleForm">{{ t("organizationAccess.createRole") }}</button>

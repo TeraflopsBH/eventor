@@ -42,6 +42,94 @@ tags:
   - name: Jobs
   - name: Audit
 paths:
+  "/organizations/{organizationId}/access-events":
+    get:
+      tags: ["Authorization"]
+      operationId: listOrganizationAccessEvents
+      summary: "List open events for role assignment"
+      description: "Requires organization.manage."
+      security: [{ StaffSession: [] }]
+      parameters:
+        - $ref: '#/components/parameters/POrganizationId'
+      responses:
+        '200':
+          description: "Open events in the selected organization."
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [data]
+                properties:
+                  data:
+                    type: array
+                    items:
+                      type: object
+                      required: [eventId, eventCode, title]
+                      properties:
+                        eventId: { type: string, format: uuid }
+                        eventCode: { type: string }
+                        title: { type: string }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+  "/organizations/{organizationId}/memberships/{membershipId}/event-role-grants":
+    post:
+      tags: ["Authorization"]
+      operationId: grantMemberEventRole
+      summary: "Grant an event role to an active organization member"
+      description: "Requires organization.manage. Repeated assignment preserves the current grant."
+      security: [{ StaffSession: [], StaffCsrf: [] }]
+      parameters:
+        - $ref: '#/components/parameters/POrganizationId'
+        - $ref: '#/components/parameters/PMembershipId'
+        - $ref: '#/components/parameters/IdempotencyKey'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              additionalProperties: false
+              required: [roleId, eventId]
+              properties:
+                roleId: { type: string, format: uuid }
+                eventId: { type: string, format: uuid }
+      responses:
+        '201':
+          description: "The current event role grant."
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/MemberEventRoleGrantEnvelope' }
+        '400': { $ref: '#/components/responses/BadRequest' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '404': { $ref: '#/components/responses/NotFound' }
+        '409': { $ref: '#/components/responses/Conflict' }
+        '422': { $ref: '#/components/responses/UnprocessableEntity' }
+  "/organizations/{organizationId}/memberships/{membershipId}/event-role-grants/{grantId}/revoke":
+    post:
+      tags: ["Authorization"]
+      operationId: revokeMemberEventRole
+      summary: "Revoke a member's event role grant"
+      description: "Requires organization.manage. Revocation retains the grant and its expiry."
+      security: [{ StaffSession: [], StaffCsrf: [] }]
+      parameters:
+        - $ref: '#/components/parameters/POrganizationId'
+        - $ref: '#/components/parameters/PMembershipId'
+        - name: grantId
+          in: path
+          required: true
+          schema: { type: string, format: uuid }
+        - $ref: '#/components/parameters/IdempotencyKey'
+      responses:
+        '200':
+          description: "The revoked event role grant."
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/MemberEventRoleGrantEnvelope' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '404': { $ref: '#/components/responses/NotFound' }
+        '409': { $ref: '#/components/responses/Conflict' }
   "/allocation-revisions/{allocationRevisionId}/approve":
     post:
       tags: ["Allocation"]
@@ -8093,6 +8181,16 @@ components:
         meta:
           type: object
           additionalProperties: true
+    MemberEventRoleGrantEnvelope:
+      type: object
+      required: [data]
+      properties:
+        data:
+          type: object
+          required: [grantId, revokedAt]
+          properties:
+            grantId: { type: string, format: uuid }
+            revokedAt: { type: [string, 'null'], format: date-time }
     OrganizationAccessScope:
       type: string
       enum: [organization, venue, space, booking, event, task]

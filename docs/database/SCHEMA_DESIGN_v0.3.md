@@ -462,3 +462,7 @@ A same-event group pair can have a required or preferred rule to stay together o
 ## Organization access directory and event role presets (000172–000173)
 
 Organization access lists use the existing tenant-filtered member profile projection and require the organization-wide management permission. The database runtime account has no direct write privileges on memberships, role presets, grants or permission codes. Organization managers can create event role presets from event-level permission codes. Creating a preset and granting it to a member are separate commands. Scoped authorization routines recheck staff grants before replaying completed commands.
+
+## Member event role grants (000174)
+
+Organization managers can grant event role presets to active members for open events in their organization. Assignment reuses a current grant for the same member, role and event. Tenant-scoped serialization and row locks coordinate concurrent changes with permission checks. Revocation retains the original grant, including its expiry, and records the acting membership in audit. Organization and other grant scopes retain their existing access paths.

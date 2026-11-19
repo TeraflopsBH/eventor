@@ -3994,6 +3994,69 @@ BEGIN
 END;
 $test$;
 
+-- Event role assignments are scoped, idempotent and reversible through retained revocation.
+DO $test$
+DECLARE
+  v_org CONSTANT uuid := '10000000-0000-0000-0000-00000000000a';
+  v_actor CONSTANT uuid := '30000000-0000-0000-0000-00000000000a';
+  v_event uuid;
+  v_other uuid;
+  v_role uuid;
+  v_member uuid;
+  v_user uuid;
+  v_grant uuid;
+  v_new uuid;
+  v_admin uuid;
+BEGIN
+  SELECT id INTO STRICT v_event FROM eogp.events WHERE organization_id=v_org AND event_code='CI-LINK-A';
+  SELECT id INTO STRICT v_other FROM eogp.events WHERE organization_id=v_org AND event_code='CI-LINK-B';
+  SELECT id INTO STRICT v_role FROM eogp.roles WHERE organization_id=v_org AND code='ROSTER-CREW';
+  SELECT id INTO STRICT v_admin FROM eogp.roles WHERE organization_id=v_org AND code='CI-ACCESS-ADMIN';
+  INSERT INTO eogp.users(display_name) VALUES ('Scoped role fixture') RETURNING id INTO v_user;
+  INSERT INTO eogp.organization_memberships(organization_id,user_id) VALUES(v_org,v_user) RETURNING id INTO v_member;
+  BEGIN
+    PERFORM eogp.write_member_event_role(v_org,v_actor,v_member,v_admin,v_event,NULL);
+    RAISE EXCEPTION 'organization role was assigned as an event role';
+  EXCEPTION WHEN no_data_found THEN NULL;
+  END;
+  v_grant := (eogp.write_member_event_role(v_org,v_actor,v_member,v_role,v_event,NULL)->>'grantId')::uuid;
+  IF eogp.write_member_event_role(v_org,v_actor,v_member,v_role,v_event,NULL)->>'grantId' IS DISTINCT FROM v_grant::text THEN
+    RAISE EXCEPTION 'repeated event role assignment created a duplicate grant';
+  END IF;
+  PERFORM set_config('app.actor_membership_id',v_member::text,true);
+  PERFORM eogp.assert_event_command_permission(v_org,v_event,v_member,'guest.read');
+  BEGIN
+    PERFORM eogp.assert_event_command_permission(v_org,v_other,v_member,'guest.read');
+    RAISE EXCEPTION 'event role assignment leaked to another event';
+  EXCEPTION WHEN insufficient_privilege THEN NULL;
+  END;
+  BEGIN
+    PERFORM eogp.write_member_event_role(v_org,v_member,v_member,v_role,v_other,NULL);
+    RAISE EXCEPTION 'event member granted a role without organization management';
+  EXCEPTION WHEN insufficient_privilege THEN NULL;
+  END;
+  PERFORM set_config('app.actor_membership_id',v_actor::text,true);
+  UPDATE eogp.user_role_grants SET expires_at=clock_timestamp()+interval '1 day'
+    WHERE organization_id=v_org AND id=v_grant;
+  PERFORM eogp.write_member_event_role(v_org,v_actor,v_member,NULL,NULL,v_grant);
+  PERFORM eogp.write_member_event_role(v_org,v_actor,v_member,NULL,NULL,v_grant);
+  IF NOT EXISTS (SELECT 1 FROM eogp.user_role_grants WHERE organization_id=v_org AND id=v_grant
+    AND expires_at IS NOT NULL AND revoked_at IS NOT NULL)
+    OR (SELECT count(*) FROM eogp.audit_events WHERE organization_id=v_org AND aggregate_id=v_grant
+      AND action='organization.event_role.revoked')<>1 THEN
+    RAISE EXCEPTION 'grant revocation lost expiry or duplicated its audit';
+  END IF;
+  v_new := (eogp.write_member_event_role(v_org,v_actor,v_member,v_role,v_event,NULL)->>'grantId')::uuid;
+  IF v_new=v_grant THEN RAISE EXCEPTION 'regrant overwrote revoked history'; END IF;
+  UPDATE eogp.organization_memberships SET status='suspended' WHERE organization_id=v_org AND id=v_member;
+  BEGIN
+    PERFORM eogp.write_member_event_role(v_org,v_actor,v_member,v_role,v_other,NULL);
+    RAISE EXCEPTION 'inactive member received an event role';
+  EXCEPTION WHEN object_not_in_prerequisite_state THEN NULL;
+  END;
+END;
+$test$;
+
 COMMIT;
 
 \echo 'PostgreSQL migration smoke tests passed.'
