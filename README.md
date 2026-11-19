@@ -6,7 +6,7 @@ Eventor is a self-hosted, API-first platform that can be used for venue booking/
 
 The first reference deployment is planned for **Gazi Husrev-beg's Library (GHB), Sarajevo**. The product is being designed as a reusable organization- and venue-aware platform rather than a one-off GHB application.
 
-> **Project status:** 125 PostgreSQL migrations, the Fastify API/notification worker, Vue staff workspace, public cancellation request/status flow and event administration core are integrated. The Events workspace can list, create and edit planned sessions. Session lifecycle management, the persistent Guest Registry and both production installers remain incomplete. See [Project state](docs/PROJECT_STATE.md) for the verified baseline and validation limitations.
+> **Project status:** The Fastify API, notification worker and bilingual Vue staff workspace include booking workflows, event/session management, a persistent Guest Registry and organization access administration. Venue geometry, allocation, admission, the operations cockpit and both production installers remain under development. See [Project state](docs/PROJECT_STATE.md) for verified work and remaining acceptance.
 
 ## Product goals
 

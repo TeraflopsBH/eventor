@@ -3803,6 +3803,53 @@ export function buildApi(dependencies: ApiDependencies): FastifyInstance {
   }, (request, reply) => withRegistryRead(reply, registryPrincipal(request, request.params.organizationId),
     "SELECT eogp.list_organization_permission_catalogue($1::uuid,$2::uuid) AS result", []));
 
+  server.get<{ Params: OrganizationAccessParams }>(`${organizationAccessPath}/access-events`, {
+    schema: { params: organizationInquiryParams },
+  }, (request, reply) => withRegistryRead(reply, registryPrincipal(request, request.params.organizationId),
+    "SELECT eogp.list_organization_access_events($1::uuid,$2::uuid) AS result", []));
+
+  type MemberEventRoleParams = { organizationId: string; membershipId: string };
+  const memberEventRoleParams = {
+    type: "object", additionalProperties: false, required: ["organizationId", "membershipId"],
+    properties: {
+      organizationId: { type: "string", pattern: uuidPattern }, membershipId: { type: "string", pattern: uuidPattern },
+    },
+  };
+  const memberEventRolePath = `${organizationAccessPath}/memberships/:membershipId/event-role-grants`;
+  function withMemberEventRole(
+    request: FastifyRequest, reply: FastifyReply, params: MemberEventRoleParams,
+    roleId: string | null, eventId: string | null, grantId: string | null,
+  ) {
+    const principal = registryPrincipal(request, params.organizationId);
+    const scope = [principal.organizationId, principal.membershipId];
+    return withCommand(request, reply.header("cache-control", "no-store, private"),
+      grantId ? "organization.event_role.revoke" : "organization.event_role.grant",
+      { membershipId: params.membershipId, roleId, eventId, grantId }, async (client) => {
+        const result = await client.query<ResultRow>(
+          "SELECT eogp.write_member_event_role($1::uuid,$2::uuid,$3::uuid,$4::uuid,$5::uuid,$6::uuid) AS result",
+          [...scope, params.membershipId, roleId, eventId, grantId]);
+        return (result.rows[0]?.result ?? {}) as Record<string, unknown>;
+      }, async (client) => {
+        await client.query("SELECT eogp.assert_staff_event_replay_permission($1::uuid,NULL,$2::uuid,'organization.manage')", scope);
+      }, grantId ? 200 : 201);
+  }
+  type GrantEventRoleBody = JsonRequestBody<"/organizations/{organizationId}/memberships/{membershipId}/event-role-grants", "post">;
+  server.post<{ Params: MemberEventRoleParams; Body: GrantEventRoleBody }>(memberEventRolePath, {
+    schema: {
+      params: memberEventRoleParams, headers: idempotencyHeaders,
+      body: { type: "object", additionalProperties: false, required: ["roleId", "eventId"],
+        properties: { roleId: { type: "string", pattern: uuidPattern }, eventId: { type: "string", pattern: uuidPattern } } },
+    },
+  }, (request, reply) => withMemberEventRole(request, reply, request.params, request.body.roleId, request.body.eventId, null));
+
+  server.post<{ Params: MemberEventRoleParams & { grantId: string } }>(`${memberEventRolePath}/:grantId/revoke`, {
+    schema: {
+      params: { ...memberEventRoleParams, required: ["organizationId", "membershipId", "grantId"],
+        properties: { ...memberEventRoleParams.properties, grantId: { type: "string", pattern: uuidPattern } } },
+      headers: idempotencyHeaders,
+    },
+  }, (request, reply) => withMemberEventRole(request, reply, request.params, null, null, request.params.grantId));
+
   function readRegistry(
     reply: FastifyReply, principal: StaffPrincipal, personId: string | null, filter: PersonSearchBody = {},
   ) {

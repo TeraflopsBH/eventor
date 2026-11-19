@@ -1,6 +1,6 @@
-# Current integration baseline — 2026-11-18
+# Current integration baseline — 2026-11-19
 
-The baseline is GitHub `main` at `a0a346268016079d58756bd95e7af2b87ccc4fec`, after [Registry relationships](https://github.com/TeraflopsBH/eventor/pull/174). The PR head passed [contracts and PostgreSQL](https://github.com/TeraflopsBH/eventor/actions/runs/44345442371) and [secret history](https://github.com/TeraflopsBH/eventor/actions/runs/44345442434). The preceding main commit passed both [contracts and PostgreSQL](https://github.com/TeraflopsBH/eventor/actions/runs/44344800510) and [secret history](https://github.com/TeraflopsBH/eventor/actions/runs/44344800186).
+The baseline is GitHub `main` at `4f3c23f13e4427c895274c650cebaf85c1afccd8`, after [custom event role presets](https://github.com/TeraflopsBH/eventor/pull/186). The PR head passed [contracts and PostgreSQL](https://github.com/TeraflopsBH/eventor/actions/runs/44486212425) and [secret history](https://github.com/TeraflopsBH/eventor/actions/runs/44486212431). The preceding main commit passed [contracts and PostgreSQL](https://github.com/TeraflopsBH/eventor/actions/runs/44486146562) and [secret history](https://github.com/TeraflopsBH/eventor/actions/runs/44486146559).
 
 ## Organizer and Registry
 
@@ -8,7 +8,7 @@ The baseline is GitHub `main` at `a0a346268016079d58756bd95e7af2b87ccc4fec`, aft
 - Staff can create, search, edit and archive persistent Registry profiles and review permission-filtered participation history. Bulk archival checks every selected profile and commits in one transaction. Contact values and source references are encrypted and use separate Registry grants. Staff can record or revoke contact verification and manage mutual or directed Registry relationships with dedicated grants. Supervised merges can preserve non-overlapping closed event history and restore the source.
 - Event teams activate the guest list, link Registry profiles with pinned event names and searchable guest references, optionally set staff roster names, and manage participant status, categories, internal and restricted tags, group hierarchy, roles, placement preferences and rules, event relationships, encrypted custom fields and encrypted staff notes. Name, status, category, internal tag and group filters apply to roster exports and personal saved views. Bulk category, status and internal tag edits are transactional.
 - CSV and XLSX imports support explicit column mapping, worksheet/header selection, encrypted staging, separate profiles, matched profile reuse or update, and exact source-reference matching with reviewed creation for unmatched references. Imports and exports provide row diagnostics or permission-filtered data.
-- Organization managers can inspect members, current scoped grants and role permission bundles from staff settings, and create reusable event role presets.
+- Organization managers can inspect members, current scoped grants and role permission bundles from staff settings, create reusable event role presets, and assign or revoke them for individual events.
 
 ## Open work
 
