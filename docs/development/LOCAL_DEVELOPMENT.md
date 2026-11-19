@@ -118,3 +118,5 @@ concurrency, browser acceptance, systemd validation and secret-history scans;
 it remains the exact-head integration authority. The
 `eventor-acceptance` VM remains reserved for the final integrated product and
 both installation modes.
+
+The CI browser suite checks authentication, the guest invitation view and organization access administration in Chromium and Firefox using the pinned Playwright image. The organization access workflow uses `tests/database/organization_access_browser_fixture.sql` and the synthetic staff accounts. Run it against an isolated test database and staff frontend with `EVENTOR_ACCESS_BROWSER_BASE_URL=http://localhost:4173 bash scripts/dev/run-browser-smoke.sh organization-access`. The test creates role presets, assigns and revokes event grants, retires presets and verifies command retries.

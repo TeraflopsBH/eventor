@@ -14,8 +14,12 @@ case "${1:-}" in
     script='guest-invitation-browser-smoke.mjs'
     base_url_env='EVENTOR_GUEST_BROWSER_BASE_URL'
     ;;
+  organization-access)
+    script='organization-access-browser-smoke.mjs'
+    base_url_env='EVENTOR_ACCESS_BROWSER_BASE_URL'
+    ;;
   *)
-    printf 'Usage: bash scripts/dev/run-browser-smoke.sh {session|guest-invitation}\n' >&2
+    printf 'Usage: bash scripts/dev/run-browser-smoke.sh {session|guest-invitation|organization-access}\n' >&2
     exit 2
     ;;
 esac
