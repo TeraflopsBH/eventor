@@ -3751,6 +3751,44 @@ export function buildApi(dependencies: ApiDependencies): FastifyInstance {
   }, (request, reply) => withRegistryRead(reply, registryPrincipal(request, request.params.organizationId),
     "SELECT eogp.list_organization_access_roles($1::uuid,$2::uuid) AS result", []));
 
+  type CreateOrganizationEventRoleBody = JsonRequestBody<"/organizations/{organizationId}/roles", "post">;
+  server.post<{ Params: OrganizationAccessParams; Body: CreateOrganizationEventRoleBody }>(`${organizationAccessPath}/roles`, {
+    schema: {
+      params: organizationInquiryParams, headers: idempotencyHeaders,
+      body: {
+        type: "object", additionalProperties: false, required: ["code", "name", "permissionCodes"],
+        properties: {
+          code: { type: "string", pattern: "^[A-Z0-9][A-Z0-9_-]{0,39}$" },
+          name: { type: "string", minLength: 1, maxLength: 120 },
+          description: { type: "string", maxLength: 500 },
+          permissionCodes: {
+            type: "array", minItems: 1, maxItems: 100, uniqueItems: true,
+            items: { type: "string", pattern: "^[a-z][a-z0-9_.-]{1,99}$" },
+          },
+        },
+      },
+    },
+  }, (request, reply) => {
+    const principal = registryPrincipal(request, request.params.organizationId);
+    const args = [principal.organizationId, principal.membershipId];
+    const { code, name, description, permissionCodes } = request.body;
+    const label = name.trim();
+    const detail = description?.trim() || null;
+    const permissions = [...permissionCodes].sort();
+    if (!label || /[\p{Cc}\p{Cs}]/u.test(label + (detail ?? ""))) {
+      throw new ApiError(400, "VALIDATION_FAILED", "Enter a valid role name and description.");
+    }
+    return withCommand(request, reply.header("cache-control", "no-store, private"), "organization.role.create",
+      { code, name: label, description: detail, permissionCodes: permissions }, async (client) => {
+        const result = await client.query<ResultRow>(
+          "SELECT eogp.create_organization_event_role($1::uuid,$2::uuid,$3::text,$4::text,$5::text,$6::text[]) AS result",
+          [...args, code, label, detail, permissions]);
+        return (result.rows[0]?.result ?? {}) as Record<string, unknown>;
+      }, async (client) => {
+        await client.query("SELECT eogp.assert_staff_event_replay_permission($1::uuid,NULL,$2::uuid,'organization.manage')", args);
+      });
+  });
+
   server.get<{ Params: OrganizationAccessParams; Querystring: { offset?: number } }>(`${organizationAccessPath}/memberships`, {
     schema: {
       params: organizationInquiryParams,

@@ -3949,6 +3949,51 @@ BEGIN
 END;
 $test$;
 
+-- Custom role presets describe event permissions independently of assignments.
+DO $test$
+DECLARE
+  v_org CONSTANT uuid := '10000000-0000-0000-0000-00000000000a';
+  v_actor CONSTANT uuid := '30000000-0000-0000-0000-00000000000a';
+  v_admin uuid;
+  v_role uuid;
+BEGIN
+  PERFORM set_config('app.organization_id',v_org::text,true);
+  PERFORM set_config('app.actor_membership_id',v_actor::text,true);
+  BEGIN
+    PERFORM eogp.create_organization_event_role(v_org,v_actor,'ROSTER-CREW','Roster crew',NULL,ARRAY['guest.read']);
+    RAISE EXCEPTION 'ordinary event staff created a role preset';
+  EXCEPTION WHEN insufficient_privilege THEN NULL;
+  END;
+  SELECT id INTO STRICT v_admin FROM eogp.roles WHERE organization_id=v_org AND code='CI-ACCESS-ADMIN';
+  INSERT INTO eogp.user_role_grants(organization_id,membership_id,role_id,scope_kind,granted_by_membership_id)
+    VALUES(v_org,v_actor,v_admin,'organization',v_actor);
+  BEGIN
+    PERFORM eogp.create_organization_event_role(v_org,v_actor,'ROSTER-CREW','Roster crew',NULL,ARRAY['organization.manage']);
+    RAISE EXCEPTION 'custom event role included an organization-wide permission';
+  EXCEPTION WHEN invalid_parameter_value THEN NULL;
+  END;
+  BEGIN
+    PERFORM eogp.create_organization_event_role(v_org,v_actor,'ROSTER-CREW','Roster crew',NULL,ARRAY['guest.read','guest.read']);
+    RAISE EXCEPTION 'custom event role accepted duplicate permissions';
+  EXCEPTION WHEN invalid_parameter_value THEN NULL;
+  END;
+  v_role := (eogp.create_organization_event_role(v_org,v_actor,'ROSTER-CREW','Roster crew','Event staff',
+    ARRAY['guest.read','guest.notes.read'])->>'roleId')::uuid;
+  IF NOT eogp.list_organization_access_roles(v_org,v_actor) @> jsonb_build_array(jsonb_build_object('roleId',v_role,
+      'code','ROSTER-CREW','scope','event','systemPreset',false,'permissionCodes',jsonb_build_array('guest.notes.read','guest.read')))
+    OR EXISTS (SELECT 1 FROM eogp.user_role_grants WHERE organization_id=v_org AND role_id=v_role)
+    OR NOT EXISTS (SELECT 1 FROM eogp.audit_events WHERE organization_id=v_org AND actor_membership_id=v_actor
+      AND action='organization.role.created' AND aggregate_id=v_role AND safe_metadata='{"scope":"event","permissionCount":2}'::jsonb) THEN
+    RAISE EXCEPTION 'custom event role was implicitly assigned or omitted role and audit data';
+  END IF;
+  BEGIN
+    PERFORM eogp.create_organization_event_role(v_org,v_actor,'ROSTER-CREW','Other crew',NULL,ARRAY['guest.read']);
+    RAISE EXCEPTION 'duplicate event role code was accepted';
+  EXCEPTION WHEN unique_violation THEN NULL;
+  END;
+END;
+$test$;
+
 COMMIT;
 
 \echo 'PostgreSQL migration smoke tests passed.'

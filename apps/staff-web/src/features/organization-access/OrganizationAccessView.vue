@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed, onMounted, ref } from "vue";
+import { computed, onMounted, reactive, ref } from "vue";
 import { useI18n } from "vue-i18n";
 import {
   api, ApiError, type OrganizationAccessGrant, type OrganizationAccessMember,
@@ -17,6 +17,16 @@ const nextOffset = ref<number | null>(null);
 const loaded = ref(false);
 const busy = ref(false);
 const error = ref("");
+const showRoleForm = ref(false);
+const notice = ref("");
+const permissionFilter = ref("");
+const roleDraft = reactive({ code: "", name: "", description: "", permissionCodes: [] as string[] });
+const eventPermissions = computed(() => permissions.value.filter((permission) => permission.scope === "event"));
+const filteredEventPermissions = computed(() => {
+  const query = permissionFilter.value.trim().toLowerCase();
+  return eventPermissions.value.filter((permission) =>
+    permission.code.toLowerCase().includes(query) || permission.description.toLowerCase().includes(query));
+});
 const permissionByCode = computed(() => new Map(permissions.value.map((item) => [item.code, item])));
 
 function describeScope(grant: OrganizationAccessGrant): string {
@@ -28,6 +38,18 @@ function describeScope(grant: OrganizationAccessGrant): string {
 function expiry(value: string): string {
   const date = new Intl.DateTimeFormat(locale.value, { dateStyle: "medium", timeStyle: "short" }).format(new Date(value));
   return t("organizationAccess.expires", { date });
+}
+
+function showFailure(failure: unknown): void {
+  if (failure instanceof ApiError && [401, 403].includes(failure.status)) {
+    members.value = [];
+    roles.value = [];
+    permissions.value = [];
+    loaded.value = false;
+    showRoleForm.value = false;
+    notice.value = "";
+  }
+  error.value = failure instanceof ApiError ? formatApiError(failure, t) : t("organizationAccess.failed");
 }
 
 async function load(page: number): Promise<void> {
@@ -52,13 +74,29 @@ async function load(page: number): Promise<void> {
     }
     offset.value = page;
   } catch (failure) {
-    if (failure instanceof ApiError && [401, 403].includes(failure.status)) {
-      members.value = [];
-      roles.value = [];
-      permissions.value = [];
-      loaded.value = false;
-    }
-    error.value = failure instanceof ApiError ? formatApiError(failure, t) : t("organizationAccess.failed");
+    showFailure(failure);
+  } finally {
+    busy.value = false;
+  }
+}
+
+async function createRole(): Promise<void> {
+  if (busy.value || !roleDraft.name.trim() || !roleDraft.permissionCodes.length) return;
+  busy.value = true;
+  error.value = "";
+  notice.value = "";
+  try {
+    await api.createOrganizationEventRole(props.organizationId, {
+      code: roleDraft.code.trim().toUpperCase(), name: roleDraft.name.trim(),
+      description: roleDraft.description.trim(), permissionCodes: roleDraft.permissionCodes,
+    });
+    notice.value = t("organizationAccess.roleCreated");
+    showRoleForm.value = false;
+    Object.assign(roleDraft, { code: "", name: "", description: "", permissionCodes: [] });
+    permissionFilter.value = "";
+    roles.value = (await api.listOrganizationAccessRoles(props.organizationId)).data;
+  } catch (failure) {
+    showFailure(failure);
   } finally {
     busy.value = false;
   }
@@ -71,6 +109,7 @@ onMounted(() => { void load(0); });
   <section class="panel organization-access" aria-labelledby="organization-access-heading" :aria-busy="busy">
     <h3 id="organization-access-heading">{{ t("organizationAccess.title") }}</h3>
     <p v-if="error" class="form-error" role="alert">{{ error }}</p>
+    <p v-if="notice" role="status">{{ notice }}</p>
     <button v-if="error" class="button button-secondary" type="button" :disabled="busy" @click="load(offset)">
       {{ t("organizationAccess.retry") }}
     </button>
@@ -112,6 +151,30 @@ onMounted(() => { void load(0); });
         </button>
       </div>
       <h4>{{ t("organizationAccess.roles") }}</h4>
+      <button v-if="eventPermissions.length" class="button button-secondary" type="button" :aria-expanded="showRoleForm"
+        :disabled="busy" @click="showRoleForm = !showRoleForm">{{ t("organizationAccess.createRole") }}</button>
+      <form v-if="showRoleForm" class="event-role-form" @submit.prevent="createRole">
+        <label>{{ t("organizationAccess.roleCode") }}
+          <input v-model="roleDraft.code" required maxlength="40" pattern="[A-Za-z0-9][A-Za-z0-9_\-]{0,39}">
+        </label>
+        <label>{{ t("organizationAccess.roleName") }}<input v-model="roleDraft.name" required maxlength="120"></label>
+        <label>{{ t("organizationAccess.roleDescription") }}<input v-model="roleDraft.description" maxlength="500"></label>
+        <fieldset>
+          <legend>{{ t("organizationAccess.eventPermissions") }}</legend>
+          <label>{{ t("organizationAccess.searchPermissions") }}<input v-model="permissionFilter" type="search"></label>
+          <p aria-live="polite">{{ t("organizationAccess.selectedCount", { count: roleDraft.permissionCodes.length }) }}</p>
+          <div class="event-role-permissions">
+            <label v-for="permission in filteredEventPermissions" :key="permission.code">
+              <input v-model="roleDraft.permissionCodes" type="checkbox" :value="permission.code" :disabled="busy">
+              {{ permission.description }} · <code>{{ permission.code }}</code>
+            </label>
+            <p v-if="!filteredEventPermissions.length">{{ t("organizationAccess.noMatches") }}</p>
+          </div>
+        </fieldset>
+        <button class="button button-primary" type="submit" :disabled="busy || !roleDraft.name.trim() || !roleDraft.permissionCodes.length">
+          {{ t("organizationAccess.saveRole") }}
+        </button>
+      </form>
       <p v-if="!roles.length">{{ t("organizationAccess.noRoles") }}</p>
       <details v-for="role in roles" :key="role.roleId">
         <summary>{{ role.name }} · {{ t(`organizationAccess.scopes.${role.scope}`) }}</summary>
@@ -131,4 +194,8 @@ onMounted(() => { void load(0); });
 .organization-access { margin-block-start: 1rem; }
 .access-pagination { display: flex; flex-wrap: wrap; gap: 0.75rem; }
 summary { cursor: pointer; }
+.event-role-form { display: grid; gap: 0.75rem; margin-block: 0.75rem; }
+.event-role-permissions { max-block-size: 16rem; overflow: auto; }
+.event-role-permissions label { display: block; padding-block: 0.25rem; }
+.event-role-permissions input { inline-size: auto; }
 </style>

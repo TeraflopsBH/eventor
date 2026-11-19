@@ -6643,6 +6643,53 @@ paths:
         '422': { $ref: '#/components/responses/UnprocessableEntity' }
         '429': { $ref: '#/components/responses/TooManyRequests' }
         '500': { $ref: '#/components/responses/InternalServerError' }
+    post:
+      tags: ["Authorization"]
+      operationId: createOrganizationEventRole
+      summary: "Create a reusable event role preset"
+      description: "Requires organization.manage. The preset contains event-level permissions and starts without any member grants."
+      security: [{ StaffSession: [], StaffCsrf: [] }]
+      parameters:
+        - $ref: '#/components/parameters/POrganizationId'
+        - $ref: '#/components/parameters/IdempotencyKey'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              additionalProperties: false
+              required: [code, name, permissionCodes]
+              properties:
+                code: { type: string, pattern: "^[A-Z0-9][A-Z0-9_-]{0,39}$" }
+                name: { type: string, minLength: 1, maxLength: 120 }
+                description: { type: string, maxLength: 500 }
+                permissionCodes:
+                  type: array
+                  minItems: 1
+                  maxItems: 100
+                  uniqueItems: true
+                  items: { type: string, pattern: "^[a-z][a-z0-9_.-]{1,99}$" }
+      responses:
+        '201':
+          description: "The event role preset was created."
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [data]
+                properties:
+                  data:
+                    type: object
+                    required: [roleId]
+                    properties:
+                      roleId: { type: string, format: uuid }
+        '400': { $ref: '#/components/responses/BadRequest' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '409': { $ref: '#/components/responses/Conflict' }
+        '422': { $ref: '#/components/responses/UnprocessableEntity' }
+
   "/organizations/{organizationId}/venues":
     get:
       tags: ["Venue Inventory"]
