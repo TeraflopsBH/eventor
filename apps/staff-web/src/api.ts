@@ -1174,7 +1174,7 @@ export interface OrganizerEventSessionDetails extends OrganizerEventSession {
   detailsRevision: number;
 }
 
-export type OrganizerEventSessionAction = "schedule" | "start" | "complete";
+export type OrganizerEventSessionAction = "schedule" | "start" | "complete" | "cancel";
 
 export interface OrganizerEventSessionTransitionInput {
   action: OrganizerEventSessionAction;

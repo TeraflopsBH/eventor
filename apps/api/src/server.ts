@@ -5801,7 +5801,7 @@ export function buildApi(dependencies: ApiDependencies): FastifyInstance {
           type: "object",
           required: ["action", "expectedDetailsRevision", "expectedScheduleRevision"],
           properties: {
-            action: { type: "string", enum: ["schedule", "start", "complete"] },
+            action: { type: "string", enum: ["schedule", "start", "complete", "cancel"] },
             expectedDetailsRevision: { type: "integer", minimum: 1, maximum: 2147483647 },
             expectedScheduleRevision: { type: "integer", minimum: 1, maximum: 2147483647 },
           },

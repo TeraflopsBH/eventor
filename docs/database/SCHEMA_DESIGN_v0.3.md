@@ -470,3 +470,7 @@ Organization managers can grant event role presets to active members for open ev
 ## Event role preset retirement (000175)
 
 Organization managers can retire custom event role presets. The catalogue retains their names and permission codes for review. Retirement prevents new assignments while preserving existing scoped grants until explicitly revoked. Retirement and assignment use the same tenant lock so concurrent operations serialize.
+
+## Organizer session cancellation (000176)
+
+Event managers can cancel planned, scheduled or active sessions on draft, planned, scheduled or active events. Cancellation checks the session details and parent schedule revisions, locks the parent event before the session, increments the session revision and records the transition in audit. Completed and cancelled sessions retain their final status.

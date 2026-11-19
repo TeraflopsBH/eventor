@@ -4089,6 +4089,50 @@ BEGIN
 END;
 $test$;
 
+-- Session cancellation preserves identity and rejects stale or final-state changes.
+DO $test$
+DECLARE
+  v_org CONSTANT uuid := '10000000-0000-0000-0000-00000000000a';
+  v_actor CONSTANT uuid := '30000000-0000-0000-0000-00000000000a';
+  v_event uuid;
+  v_other uuid;
+  v_session uuid;
+  v_schedule integer;
+  v_result jsonb;
+BEGIN
+  SELECT id,current_revision INTO STRICT v_event,v_schedule FROM eogp.events WHERE organization_id=v_org AND event_code='CI-LINK-A';
+  SELECT id INTO STRICT v_other FROM eogp.events WHERE organization_id=v_org AND event_code='CI-LINK-B';
+  v_session := (eogp.create_organizer_event_session(v_org,v_event,v_actor,'CANCEL-FIXTURE','Cancelled fixture',NULL,NULL)->>'sessionId')::uuid;
+  BEGIN
+    PERFORM eogp.transition_organizer_event_session(v_org,v_other,v_session,v_actor,1,v_schedule,'cancel');
+    RAISE EXCEPTION 'session cancellation crossed events';
+  EXCEPTION WHEN no_data_found THEN NULL;
+  END;
+  BEGIN
+    PERFORM eogp.transition_organizer_event_session(v_org,v_event,v_session,v_actor,1,v_schedule+1,'cancel');
+    RAISE EXCEPTION 'session cancellation accepted an obsolete parent schedule';
+  EXCEPTION WHEN serialization_failure THEN NULL;
+  END;
+  v_result := eogp.transition_organizer_event_session(v_org,v_event,v_session,v_actor,1,v_schedule,'cancel');
+  IF v_result IS DISTINCT FROM jsonb_build_object('sessionId',v_session,'status','cancelled','detailsRevision',2)
+    OR NOT EXISTS (SELECT 1 FROM eogp.audit_events WHERE organization_id=v_org AND aggregate_id=v_session
+      AND action='event.session.lifecycle.transitioned' AND reason_code='cancel'
+      AND safe_metadata->>'previousStatus'='planned') THEN
+    RAISE EXCEPTION 'session cancellation lost revision or audit history';
+  END IF;
+  BEGIN
+    PERFORM eogp.transition_organizer_event_session(v_org,v_event,v_session,v_actor,1,v_schedule,'cancel');
+    RAISE EXCEPTION 'session cancellation accepted stale details';
+  EXCEPTION WHEN serialization_failure THEN NULL;
+  END;
+  BEGIN
+    PERFORM eogp.transition_organizer_event_session(v_org,v_event,v_session,v_actor,2,v_schedule,'start');
+    RAISE EXCEPTION 'cancelled session was restarted';
+  EXCEPTION WHEN object_not_in_prerequisite_state THEN NULL;
+  END;
+END;
+$test$;
+
 COMMIT;
 
 \echo 'PostgreSQL migration smoke tests passed.'

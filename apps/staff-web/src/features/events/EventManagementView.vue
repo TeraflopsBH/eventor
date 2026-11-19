@@ -54,6 +54,17 @@ function sessionAction(session: OrganizerEventSessionDetails): OrganizerEventSes
   if (session.status === "active") return "complete";
 }
 
+function canCancelSession(session: OrganizerEventSessionDetails): boolean {
+  return ["draft", "planned", "scheduled", "active"].includes(sessionsEvent.value?.status ?? "")
+    && ["planned", "scheduled", "active"].includes(session.status);
+}
+
+function cancelSession(event: OrganizerEvent, session: OrganizerEventSessionDetails): Promise<void> | undefined {
+  if (window.confirm(t("events.confirmCancelSession", { title: session.title }))) {
+    return transitionSession(event, session, "cancel");
+  }
+}
+
 function advanceSession(event: OrganizerEvent, session: OrganizerEventSessionDetails): Promise<void> | undefined {
   const action = sessionAction(session);
   if (action) return transitionSession(event, session, action);
@@ -400,6 +411,8 @@ async function submitUpdate(): Promise<void> {
                   :disabled="busy"
                   @click="advanceSession(sessionsEvent, session)"
                 >{{ t(`events.sessionLifecycle.${sessionAction(session)}`) }}</button>
+                <button v-if="canCancelSession(session)" class="button button-secondary button-small" type="button"
+                  :disabled="busy" @click="cancelSession(sessionsEvent, session)">{{ t("events.sessionLifecycle.cancel") }}</button>
               </td>
             </tr>
           </tbody>

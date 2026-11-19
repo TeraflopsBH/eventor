@@ -567,7 +567,9 @@ export default {
       start: "Pokreni događaj",
       complete: "Zatvori događaj",
     },
+    confirmCancelSession: "Otkazati sesiju „{title}“?",
     sessionLifecycle: {
+      cancel: "Otkaži sesiju",
       schedule: "Zakaži sesiju",
       start: "Pokreni sesiju",
       complete: "Završi sesiju",
