@@ -336,8 +336,8 @@ jobs:
         run: |
           password_hash="$(node --input-type=module -e 'import argon2 from "argon2"; process.stdout.write(await argon2.hash("CI-only-password-2026", { type: argon2.argon2id }));')"
           psql "$AUTH_URL" -X -v ON_ERROR_STOP=1 \
-            -c "UPDATE eogp.users SET password_hash = '$password_hash' WHERE email IN ('ci-a@example.invalid','ci-b@example.invalid');"
-          test "$(psql "$AUTH_URL" -X -qAt -v ON_ERROR_STOP=1 -c "SELECT count(*) FROM eogp.users WHERE email IN ('ci-a@example.invalid','ci-b@example.invalid') AND password_hash IS NOT NULL;")" = "2"
+            -c "UPDATE eogp.users SET password_hash = '$password_hash' WHERE email IN ('ci-a@example.invalid','ci-b@example.invalid','ci-extended-a@example.invalid');"
+          test "$(psql "$AUTH_URL" -X -qAt -v ON_ERROR_STOP=1 -c "SELECT count(*) FROM eogp.users WHERE email IN ('ci-a@example.invalid','ci-b@example.invalid','ci-extended-a@example.invalid') AND password_hash IS NOT NULL;")" = "3"
 
       - name: Start the API with isolated CI database roles
         env:
@@ -401,6 +401,14 @@ jobs:
         env:
           EVENTOR_ACCESS_BROWSER_BASE_URL: http://localhost:4173
         run: bash scripts/dev/run-browser-smoke.sh organization-access
+
+      - name: Seed scoped provider disruption browser data
+        run: psql "$MIGRATOR_URL" -X -v ON_ERROR_STOP=1 -f tests/database/provider_disruption_browser_fixture.sql
+
+      - name: Verify provider disruption notice recording and history in Chromium and Firefox
+        env:
+          EVENTOR_DISRUPTION_BROWSER_BASE_URL: http://localhost:4173
+        run: bash scripts/dev/run-browser-smoke.sh booking-disruption
 
       - name: Stop the staff web preview
         if: always()

@@ -272,7 +272,7 @@ onMounted(() => {
 
       <BookingTaxProfilesView v-else-if="activeTab === 'taxes'" :workspace="bookingTaxProfilesWorkspace" />
 
-      <BookingCancellationPoliciesView v-else-if="activeTab === 'cancellations'" :workspace="bookingCancellationPoliciesWorkspace" />
+      <BookingCancellationPoliciesView v-else-if="activeTab === 'cancellations' && principal" :organization-id="principal.organizationId" :workspace="bookingCancellationPoliciesWorkspace" />
 
       <OrganizationLocaleView v-else-if="activeTab === 'settings' && principal" :organization-id="principal.organizationId" :busy="organizationLocaleWorkspace.busy" :page-notice="organizationLocaleWorkspace.pageNotice" :show-error="showError" :translate="translate" :on-default-locale-changed="applyOrganizationDefaultLocale" :on-profile-changed="refreshSession" />
 

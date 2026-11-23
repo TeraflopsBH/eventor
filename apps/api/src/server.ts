@@ -3952,6 +3952,60 @@ export function buildApi(dependencies: ApiDependencies): FastifyInstance {
       },200);
   });
 
+  server.post<{ Params: OrganizationAccessParams; Body: { offset?: number; query?: string } }>(
+    `${organizationAccessPath}/disruption-bookings/search`, {
+      schema: { params: organizationInquiryParams, body: {
+        type:"object",additionalProperties:false,properties:{
+          offset:{type:"integer",minimum:0,maximum:100000},query:{type:"string",maxLength:80},
+        },
+      }},
+    }, (request,reply) => withRegistryRead(reply,registryPrincipal(request,request.params.organizationId),
+      "SELECT eogp.list_booking_disruption_workspace($1::uuid,$2::uuid,$3::integer,$4::text) AS result",
+      [request.body.offset ?? 0,request.body.query ?? ""]));
+
+  const bookingNoticesPath = "/bookings/:bookingId/disruption-notices";
+  const bookingNoticeParams = {
+    type:"object",additionalProperties:false,required:["bookingId"],
+    properties:{bookingId:{type:"string",pattern:uuidPattern}},
+  };
+  server.get<{ Params:{bookingId:string}; Querystring:{offset?:number} }>(bookingNoticesPath, {
+    schema: {params:bookingNoticeParams,querystring:{
+      type:"object",additionalProperties:false,properties:{offset:{type:"integer",minimum:0,maximum:100000}},
+    }},
+  }, (request,reply) => withRegistryRead(reply,registryPrincipal(request),
+    "SELECT eogp.read_booking_disruption_notices($1::uuid,$3::uuid,$2::uuid,$4::integer) AS result",
+    [request.params.bookingId,request.query.offset ?? 0]));
+
+  type RecordDisruptionNoticeBody = JsonRequestBody<"/bookings/{bookingId}/disruption-notices","post">;
+  server.post<{ Params:{bookingId:string}; Body:RecordDisruptionNoticeBody }>(bookingNoticesPath, {
+    schema: {params:bookingNoticeParams,headers:idempotencyHeaders,body:{
+      type:"object",additionalProperties:false,required:["reasonCategory","publicSummary"],
+      properties:{
+        reasonCategory:{type:"string",pattern:"^[a-z][a-z0-9_.-]{1,79}$"},
+        publicSummary:{type:"string",minLength:1,maxLength:2000},
+        affectedFrom:{type:["string","null"],format:"date-time"},affectedUntil:{type:["string","null"],format:"date-time"},
+      },
+    }},
+  }, (request,reply) => {
+    const principal = registryPrincipal(request);
+    const {reasonCategory,publicSummary,affectedFrom,affectedUntil} = request.body;
+    if (!publicSummary.trim() || /[\p{Cc}\p{Cs}]/u.test(publicSummary.replace(/[\t\r\n]/g,""))) {
+      throw new ApiError(400,"VALIDATION_FAILED","Enter a valid disruption summary.");
+    }
+    const noticeId = randomUUID();
+    const bookingId = request.params.bookingId;
+    const scope = [principal.organizationId,bookingId,principal.membershipId];
+    return withCommand(request,reply.header("cache-control","no-store, private"),"booking.disruption_notice.record",
+      {bookingId,...request.body},async client => {
+        const result = await client.query<ResultRow>(
+          "SELECT eogp.record_booking_disruption_notice($1::uuid,$2::uuid,$3::uuid,$4::uuid,$5::text,$6::text,$7::timestamptz,$8::timestamptz) AS result",
+          [...scope,noticeId,reasonCategory,publicSummary.trim(),affectedFrom ?? null,affectedUntil ?? null]);
+        return (result.rows[0]?.result ?? {}) as Record<string,unknown>;
+      },async client => {
+        await client.query("SELECT eogp.assert_staff_booking_replay_permission($1::uuid,$2::uuid,$3::uuid,'booking.manage')",scope);
+      },201);
+  });
+
   function readRegistry(
     reply: FastifyReply, principal: StaffPrincipal, personId: string | null, filter: PersonSearchBody = {},
   ) {
