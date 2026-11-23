@@ -68,7 +68,7 @@ for (const engine of [chromium, firefox]) {
     assert.equal(searched.status(),200,await searched.text());
     const found = (await searched.json()).data.members;
     assert.deepEqual(found.map(member=>member.displayName),["CI Access Member"]);
-    assert.equal(await me.count(),0);
+    await me.waitFor({state:"detached"});
     await memberSearch.fill("");
     const resetMembers = page.waitForResponse(item=>item.request().method()==="GET" && new URL(item.url()).pathname.endsWith("/memberships"));
     await region.getByRole("button",{name:"Find members",exact:true}).click();
