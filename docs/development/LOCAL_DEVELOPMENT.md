@@ -5,10 +5,32 @@ Docker only for disposable PostgreSQL 18.6 development infrastructure. It does
 not replace the native Linux or production Docker Compose installers required
 for release.
 
+## Resume an interrupted session
+
+Start with the checkout and current handoff:
+
+```bash
+git status --short --branch
+git log -5 --oneline
+git fetch origin
+git log -3 --oneline origin/main
+```
+
+Read [current project state](../PROJECT_STATE.md), then the active issue and
+relevant design/ADR. Inspect local changes and named stashes before applying
+saved work; preserve them when reconciling a squash-merged branch. Verify the
+current PR SHA and its CI results. Historical receipts remain in the linked
+state archive and need reading only when a particular decision or evidence
+is missing. Keep new status updates in the short current handoff.
+
+Use focused checks for the changed behavior and full checks before submitting
+application changes. Logs under `.eventor-dev/logs/` retain diagnostics between
+runs. After a new login or Docker group change, the doctor verifies access from
+the current process before attempting database/browser tests.
+
 ## Safe workstation inspection
 
-The Cloud development environment cannot inspect a physical workstation. Run
-the repository doctor on the Zorin machine; it makes no privileged or
+Run the repository doctor on the development host; it makes no privileged or
 system-wide changes:
 
 ```bash

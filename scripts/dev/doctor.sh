@@ -29,7 +29,11 @@ report() {
 version_or_missing() {
   local command_name="$1"
   if command -v "$command_name" >/dev/null 2>&1; then
-    "$command_name" --version 2>&1 | head -n 1
+    if [[ "$command_name" == openssl ]]; then
+      openssl version
+    else
+      "$command_name" --version 2>&1 | head -n 1
+    fi
   else
     printf 'missing'
   fi
