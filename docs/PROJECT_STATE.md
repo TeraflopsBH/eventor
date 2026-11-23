@@ -12,6 +12,8 @@ The baseline is GitHub `main` at `81bd64bed2c114dea85df314b1b803ecca81d988`, aft
 
 - Organization settings include the name, operating profile and default time zone with revision checks. New event forms use the organization time zone.
 
+- Browser acceptance verifies that a venue-provider session cannot read organizer guests. An event-scoped member grant exposes only that event roster and does not grant Registry access. Revocation removes roster access while the member session remains active.
+
 ## Open work
 
 Issue #104 remains open for broader event settings and admin controls and reviewed resolution for linked contacts, identifiers, active relationships and open or overlapping event history. Roster extensions include broader configurable filtering and bulk controls. Venue allocation remains under #106. The [blueprint gap analysis](BLUEPRINT_TO_REPOSITORY_GAP_ANALYSIS_v1.0.md) and [roadmap](ROADMAP.md) track the remaining product areas.
