@@ -2,13 +2,14 @@
 
 **Baseline date:** 2026-11-16  
 **Product/design baseline:** Technical Blueprint v1.2 and accepted v0.3 domain/architecture decisions.  
-**Implementation baseline:** `main` at `a0a346268016079d58756bd95e7af2b87ccc4fec` (2026-11-18).
+**Implementation baseline:** `main` at `06d47b255c7107b94201c191da562ea2612e57c1` (PR #201). See [current state](PROJECT_STATE.md) for verification receipts.
 **Detailed audit:** [Blueprint-to-repository gap analysis v1.0](BLUEPRINT_TO_REPOSITORY_GAP_ANALYSIS_v1.0.md).
 
-## Current integration note — 2026-11-18
+## Current integration note — 2026-11-23
 
 - Event administration, session lifecycle, persistent Guest Registry and event participation are usable from the bilingual staff workspace.
 - Staff can review mapped CSV/XLSX imports, resolve matches by name or exact source reference, review proposed profile updates, and download filtered exports and import reports.
+- Access administration includes organization profile settings, member search, scoped event roles and suspension/restoration. Provider disruption notices can be recorded and reviewed; cross-party delivery and acknowledgement remain open.
 - The current product implementation track is #104, followed by venue geometry, allocation and admission under #105–#107. Issue #112 covers the remaining disruption coordination.
 - Native and Docker production installation paths remain under #108. Current development Compose runs PostgreSQL only. Final acceptance remains scheduled for the integrated release candidate on the acceptance VM.
 
