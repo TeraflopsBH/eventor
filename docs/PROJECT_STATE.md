@@ -1,7 +1,9 @@
 # Current integration baseline — 2026-11-23
 
-The baseline is GitHub `main` at `81bd64bed2c114dea85df314b1b803ecca81d988`, after [native PostgreSQL regression tooling](https://github.com/TeraflopsBH/eventor/pull/196). Its post-merge [contracts and PostgreSQL](https://github.com/TeraflopsBH/eventor/actions/runs/45280572085) and [secret history](https://github.com/TeraflopsBH/eventor/actions/runs/45280572100) checks passed. This baseline includes [membership suspension/restoration](https://github.com/TeraflopsBH/eventor/pull/194) and [organization profile settings](https://github.com/TeraflopsBH/eventor/pull/195).
+The baseline is GitHub `main` at `cb3ff4a6cd620e2744dfd8e5967efbbd4abb5f23`, after [guest reference exports](https://github.com/TeraflopsBH/eventor/pull/199). Its post-merge [contracts and PostgreSQL](https://github.com/TeraflopsBH/eventor/actions/runs/45286111357) and [secret history](https://github.com/TeraflopsBH/eventor/actions/runs/45286111245) checks passed. This baseline also includes member search and organizer/provider guest-access browser coverage.
 
+
+API and staff identifier validation now accepts the canonical UUID shape used by persisted PostgreSQL identifiers, including legacy version/variant bits. Authentication, organization authorization and authenticated encryption boundaries remain covered by regression tests; see [ADR 0011](decisions/0011-database-uuid-compatibility.md).
 ## Organizer and Registry
 
 - The bilingual Events workspace manages event creation, editing, archival, planning, approval, publication, start and close. Session management includes listing, creation, revision-checked title and timing edits, scheduling, start, completion and confirmed cancellation. Migrations `000121`–`000127` cover this work.

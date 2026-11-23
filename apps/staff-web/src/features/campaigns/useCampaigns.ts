@@ -32,7 +32,7 @@ export function useCampaigns({ api, busy, pageError, pageNotice, clearMessages, 
   async function loadCampaign(): Promise<void> {
     clearMessages();
     const id = campaignId.value.trim();
-    if (!/^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(id)) {
+    if (!/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(id)) {
       pageError.value = translate("campaignWorkspace.invalidCampaignId");
       return;
     }
