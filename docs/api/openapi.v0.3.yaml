@@ -42,6 +42,51 @@ tags:
   - name: Jobs
   - name: Audit
 paths:
+  "/organizations/{organizationId}/memberships/{membershipId}/access-state":
+    post:
+      tags: ["Authorization"]
+      operationId: setOrganizationMemberAccess
+      summary: "Suspend or restore organization membership access"
+      description: "Requires organization.manage and the current membership revision. Suspension revokes organization sessions and requires another active organization administrator."
+      security: [{ StaffSession: [], StaffCsrf: [] }]
+      parameters:
+        - $ref: '#/components/parameters/POrganizationId'
+        - $ref: '#/components/parameters/PMembershipId'
+        - $ref: '#/components/parameters/IdempotencyKey'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              additionalProperties: false
+              required: [status, expectedRevision]
+              properties:
+                status: { type: string, enum: [active, suspended] }
+                expectedRevision: { type: integer, minimum: 1, maximum: 2147483647 }
+      responses:
+        '200':
+          description: "The member's current access state."
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [data]
+                properties:
+                  data:
+                    type: object
+                    required: [membershipId, status, revision]
+                    properties:
+                      membershipId: { type: string, format: uuid }
+                      status: { type: string, enum: [active, suspended] }
+                      revision: { type: integer, minimum: 1 }
+        '400': { $ref: '#/components/responses/BadRequest' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '404': { $ref: '#/components/responses/NotFound' }
+        '409': { $ref: '#/components/responses/Conflict' }
+        '412': { $ref: '#/components/responses/PreconditionFailed' }
+        '422': { $ref: '#/components/responses/UnprocessableEntity' }
   "/organizations/{organizationId}/roles/{roleId}/retire":
     post:
       tags: ["Authorization"]
@@ -8262,9 +8307,10 @@ components:
         expiresAt: { type: [string, 'null'], format: date-time }
     OrganizationAccessMember:
       type: object
-      required: [membershipId, displayName, status, grants]
+      required: [membershipId, revision, displayName, status, grants]
       properties:
         membershipId: { type: string, format: uuid }
+        revision: { type: integer, minimum: 1 }
         displayName: { type: string }
         status: { type: string, enum: [invited, active, suspended, revoked] }
         grants:

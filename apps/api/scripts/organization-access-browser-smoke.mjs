@@ -25,7 +25,7 @@ for (const engine of [chromium, firefox]) {
     await page.getByRole("button", {name:"Organization access",exact:true}).click();
     const region = page.getByRole("region", { name: "Organization access", exact: true });
     const me = region.getByRole("row").filter({ hasText: "CI User B" });
-    await me.getByRole("cell", { name: "Active", exact: true }).waitFor();
+    await me.getByText("Active", { exact: true }).waitFor();
     const roles = await get(org, "roles");
     assert.equal(roles.status(), 200, await roles.text());
     assert.equal(roles.headers()["cache-control"], "no-store, private");
@@ -35,6 +35,50 @@ for (const engine of [chromium, firefox]) {
     for (const resource of ["roles", "memberships", "permissions"]) {
       assert.equal((await get(otherOrg, resource)).status(), 403);
     }
+    const memberContext = await browser.newContext();
+    const memberPage = await memberContext.newPage();
+    await memberPage.goto(baseUrl);
+    async function signInMember() {
+      return memberPage.evaluate(async () => {
+        const response = await fetch("/api/auth/session", {
+          method: "POST", headers: {"content-type": "application/json"},
+          body: JSON.stringify({
+            email: "ci-access-member@example.invalid", organizationSlug: "ci-venue-b", password: "CI-only-password-2026",
+          }),
+        });
+        return response.status;
+      });
+    }
+    assert.equal(await signInMember(), 200);
+    assert.equal((await memberContext.request.get(`${baseUrl}/api/me`)).status(), 200);
+    const memberRow = region.getByRole("row").filter({hasText:"CI Access Member"});
+    await memberRow.getByText("Active",{exact:true}).waitFor();
+    page.once("dialog",dialog=>dialog.dismiss());
+    await memberRow.getByRole("button",{name:"Suspend access",exact:true}).click();
+    await memberRow.getByText("Active",{exact:true}).waitFor();
+    page.once("dialog",dialog=>dialog.accept());
+    const suspension = page.waitForResponse(item=>item.request().method()==="POST" && new URL(item.url()).pathname.endsWith("/access-state"));
+    await memberRow.getByRole("button",{name:"Suspend access",exact:true}).click();
+    const suspended = await suspension;
+    assert.equal(suspended.status(),200,await suspended.text());
+    await memberRow.getByText("Suspended",{exact:true}).waitFor();
+    assert.equal((await memberContext.request.get(`${baseUrl}/api/me`)).status(), 401);
+    page.once("dialog",dialog=>dialog.accept());
+    const restoration = page.waitForResponse(item=>item.request().method()==="POST" && new URL(item.url()).pathname.endsWith("/access-state"));
+    await memberRow.getByRole("button",{name:"Restore access",exact:true}).click();
+    const restored = await restoration;
+    assert.equal(restored.status(),200,await restored.text());
+    assert.equal((await memberContext.request.get(`${baseUrl}/api/me`)).status(), 401);
+    assert.equal(await signInMember(), 200);
+    await memberContext.close();
+    await memberRow.getByText("Active",{exact:true}).waitFor();
+
+    page.once("dialog",dialog=>dialog.accept());
+    const protectedAdmin = page.waitForResponse(item=>item.request().method()==="POST" && new URL(item.url()).pathname.endsWith("/access-state"));
+    await me.getByRole("button",{name:"Suspend access",exact:true}).click();
+    assert.equal((await protectedAdmin).status(),409);
+    await region.getByRole("alert").filter({hasText:"Keep another active organization administrator"}).waitFor();
+    await me.getByText("Active",{exact:true}).waitFor();
     const code = `CREW-${randomUUID().slice(0, 8)}`;
     const roleName = `Event crew ${code}`;
     await region.getByRole("button", { name: "Create event role preset" }).click();
