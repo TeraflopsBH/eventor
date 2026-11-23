@@ -1,3 +1,4 @@
+import { isUuid, uuidPattern } from "./uuid.js";
 import Fastify, { type FastifyInstance, type FastifyReply, type FastifyRequest } from "fastify";
 import { createCipheriv, createDecipheriv, createHash, createHmac, randomBytes, randomUUID } from "node:crypto";
 import type { Pool, PoolClient, QueryResultRow } from "pg";
@@ -145,7 +146,6 @@ interface PublicBookingInquiryBody {
   readonly attachmentReferences?: readonly string[];
 }
 
-const uuidPattern = "^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}$";
 const idempotencyHeaders = {
   type: "object", required: ["idempotency-key"],
   properties: { "idempotency-key": { type: "string", minLength: 8, maxLength: 200 } },
@@ -1360,9 +1360,9 @@ async function runIdempotentCommand(
 
 function principalIsValid(principal: StaffPrincipal | null): principal is StaffPrincipal {
   return Boolean(principal &&
-    new RegExp(uuidPattern).test(principal.userId) &&
-    new RegExp(uuidPattern).test(principal.organizationId) &&
-    new RegExp(uuidPattern).test(principal.membershipId));
+    isUuid(principal.userId) &&
+    isUuid(principal.organizationId) &&
+    isUuid(principal.membershipId));
 }
 
 export function buildApi(dependencies: ApiDependencies): FastifyInstance {
@@ -1407,9 +1407,9 @@ export function buildApi(dependencies: ApiDependencies): FastifyInstance {
     const publicBookingInquiryWrite = request.method === "POST" &&
       /^\/public\/organizations\/[^/]+\/booking-inquiries$/.test(pathname);
     const publicOfferDecision = request.method === "POST" &&
-      /^\/booking-offers\/[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}\/(accept|reject)$/.test(pathname);
+      /^\/booking-offers\/[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}\/(accept|reject)$/.test(pathname);
     const publicOfferView = request.method === "GET" &&
-      /^\/public\/booking-offers\/[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}$/.test(pathname);
+      /^\/public\/booking-offers\/[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$/.test(pathname);
     const publicGuestInvitation = (
       request.method === "GET" &&
       (pathname === "/guest/invitation/me" || pathname === "/guest/invitation/me/rsvp-history")
@@ -1432,7 +1432,7 @@ export function buildApi(dependencies: ApiDependencies): FastifyInstance {
     }
     if (request.method === "POST" &&
         pathname.startsWith("/webhooks/resend/") &&
-        /^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89abAB][0-9a-f]{3}-[0-9a-f]{12}$/i.test(pathname.slice("/webhooks/resend/".length))) {
+        /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(pathname.slice("/webhooks/resend/".length))) {
       // Provider callbacks authenticate with a signed Svix payload, not a staff session.
       return;
     }

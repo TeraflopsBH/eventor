@@ -1,3 +1,4 @@
+import { isUuid } from "./uuid.js";
 import {
   createCipheriv,
   createDecipheriv,
@@ -24,7 +25,7 @@ function validateKey(key: Buffer): void {
 
 function contextAad(context: ContactEncryptionContext): Buffer {
   const organizationId = context.organizationId.trim().toLowerCase();
-  if (!/^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/.test(organizationId)) {
+  if (!isUuid(organizationId)) {
     throw new TypeError("A valid organization UUID is required for contact encryption.");
   }
   if (!["email", "phone", "postal", "other"].includes(context.contactKind)) {

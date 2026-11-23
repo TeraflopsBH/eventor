@@ -75,7 +75,7 @@ function bookingOfferWritePayload(): BookingOfferWriteRequest {
   const priceListRevisionId = bookingOfferCreateForm.priceListRevisionId.trim();
   const cancellationPolicyRevisionId = bookingOfferCreateForm.cancellationPolicyRevisionId.trim();
   const approvalPolicyRevisionId = bookingOfferCreateForm.approvalPolicyRevisionId.trim();
-  const uuid = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
+  const uuid = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
   if (![priceListRevisionId, cancellationPolicyRevisionId, approvalPolicyRevisionId].every((value) => uuid.test(value))) {
     throw new Error(t("commercialBooking.invalidPolicyRevisionIds"));
   }
@@ -133,7 +133,7 @@ async function refreshBookingOfferEmailData(): Promise<void> {
 
 async function loadBookingOffer(): Promise<void> {
   const value = bookingOfferIdInput.value.trim();
-  if (!/^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(value)) {
+  if (!/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(value)) {
     pageError.value = t("commercialBooking.invalidOfferUuid");
     return;
   }
