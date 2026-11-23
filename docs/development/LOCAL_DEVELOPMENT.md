@@ -120,3 +120,13 @@ it remains the exact-head integration authority. The
 both installation modes.
 
 The CI browser suite checks authentication, the guest invitation view and organization access administration in Chromium and Firefox using the pinned Playwright image. The organization access workflow uses `tests/database/organization_access_browser_fixture.sql` and the synthetic staff accounts. Run it against an isolated test database and staff frontend with `EVENTOR_ACCESS_BROWSER_BASE_URL=http://localhost:4173 bash scripts/dev/run-browser-smoke.sh organization-access`. The test creates role presets, assigns and revokes event grants, retires presets and verifies command retries.
+
+### Isolated native PostgreSQL checks
+
+With PostgreSQL 18's postgres, initdb, pg_ctl, psql and createdb binaries on PATH, run the following command. This needs a regular user account and the PostgreSQL extensions used by the migrations.
+
+    bash scripts/dev/test-native-postgres.sh
+
+The command initializes a fresh temporary cluster, accepts connections through its private Unix socket, bootstraps the application roles, rehearses populated upgrades and runs the database constraint, RLS, concurrency and authentication privilege tests. It stops and removes its temporary cluster on exit. Logs remain under .eventor-dev/logs/native-postgres.*.
+
+Use scripts/dev/check.sh full for the application checks. GitHub CI adds the broader database integration and browser suites.
