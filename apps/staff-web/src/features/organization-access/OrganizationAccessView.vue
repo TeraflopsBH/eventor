@@ -13,6 +13,8 @@ const roles = ref<OrganizationAccessRole[]>([]);
 const permissions = ref<OrganizationPermission[]>([]);
 const members = ref<OrganizationAccessMember[]>([]);
 const offset = ref(0);
+const memberQuery = ref("");
+const appliedMemberQuery = ref("");
 const nextOffset = ref<number | null>(null);
 const loaded = ref(false);
 const busy = ref(false);
@@ -62,7 +64,7 @@ async function load(page: number): Promise<void> {
   busy.value = true;
   error.value = "";
   try {
-    const membersRequest = api.listOrganizationAccessMembers(props.organizationId, page);
+    const membersRequest = api.listOrganizationAccessMembers(props.organizationId, page, appliedMemberQuery.value);
     if (loaded.value) {
       const { data } = await membersRequest;
       members.value = data.members;
@@ -83,6 +85,12 @@ async function load(page: number): Promise<void> {
   } finally {
     busy.value = false;
   }
+}
+
+function searchMembers(): void {
+  appliedMemberQuery.value = memberQuery.value.trim();
+  grantMember.value = null;
+  void load(0);
 }
 
 async function createRole(): Promise<void> {
@@ -133,7 +141,7 @@ async function changeMemberAccess(member: OrganizationAccessMember): Promise<voi
   notice.value = "";
   try {
     await api.setOrganizationMemberAccess(props.organizationId, member.membershipId, status, member.revision);
-    const { data } = await api.listOrganizationAccessMembers(props.organizationId, offset.value);
+    const { data } = await api.listOrganizationAccessMembers(props.organizationId, offset.value, appliedMemberQuery.value);
     members.value = data.members;
     nextOffset.value = data.nextOffset;
     grantMember.value = null;
@@ -174,7 +182,7 @@ async function changeGrant(member: OrganizationAccessMember, grant?: Organizatio
     } else {
       await api.grantMemberEventRole(props.organizationId, member.membershipId, grantDraft.roleId, grantDraft.eventId);
     }
-    const { data } = await api.listOrganizationAccessMembers(props.organizationId, offset.value);
+    const { data } = await api.listOrganizationAccessMembers(props.organizationId, offset.value, appliedMemberQuery.value);
     members.value = data.members;
     nextOffset.value = data.nextOffset;
     grantMember.value = null;
@@ -199,6 +207,11 @@ onMounted(() => { void load(0); });
     </button>
     <template v-if="loaded">
       <h4>{{ t("organizationAccess.members") }}</h4>
+      <form class="access-pagination" @submit.prevent="searchMembers">
+        <label for="organization-member-search">{{ t("organizationAccess.memberSearch") }}</label>
+        <input id="organization-member-search" v-model="memberQuery" type="search" maxlength="200" :disabled="busy">
+        <button class="button button-secondary" type="submit" :disabled="busy">{{ t("organizationAccess.findMembers") }}</button>
+      </form>
       <p v-if="!members.length">{{ t("organizationAccess.noMembers") }}</p>
       <div v-else class="table-scroll">
         <table class="data-table">

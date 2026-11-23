@@ -1994,9 +1994,11 @@ export const api = {
     request<Envelope<{ roleId: string; retiredAt: string }>>(
       `/organizations/${encodeURIComponent(organizationId)}/roles/${encodeURIComponent(roleId)}/retire`,
       { method: "POST", idempotent: true }),
-  listOrganizationAccessMembers: (organizationId: string, offset: number) =>
+  listOrganizationAccessMembers: (organizationId: string, offset: number, query = "") =>
     request<Envelope<{ members: OrganizationAccessMember[]; nextOffset: number | null }>>(
-      `/organizations/${encodeURIComponent(organizationId)}/memberships?offset=${offset}`),
+      query ? `/organizations/${encodeURIComponent(organizationId)}/memberships/search`
+        : `/organizations/${encodeURIComponent(organizationId)}/memberships?offset=${offset}`,
+      query ? {method:"POST",body:{query,offset}} : {}),
   listOrganizationAccessEvents: (organizationId: string) =>
     request<Envelope<{ eventId: string; eventCode: string; title: string }[]>>(
       `/organizations/${encodeURIComponent(organizationId)}/access-events`),

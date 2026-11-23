@@ -4258,6 +4258,32 @@ BEGIN
 END;
 $test$;
 
+-- Directory search retains organization permissions and treats wildcard symbols literally.
+DO $test$
+DECLARE
+  v_org CONSTANT uuid := '10000000-0000-0000-0000-00000000000a';
+  v_actor CONSTANT uuid := '30000000-0000-0000-0000-00000000000a';
+  v_result jsonb;
+  v_member uuid;
+BEGIN
+  v_result := eogp.search_organization_access_members(v_org,v_actor,0,'MEMBERSHIP ACCESS FIXTURE');
+  IF jsonb_array_length(v_result->'members')<>1
+    OR v_result#>>'{members,0,displayName}' IS DISTINCT FROM 'Membership access fixture'
+    OR eogp.search_organization_access_members(v_org,v_actor,0,'%')->'members' <> '[]'::jsonb
+    OR eogp.search_organization_access_members(v_org,v_actor,0,'') IS DISTINCT FROM eogp.list_organization_access_members(v_org,v_actor,0) THEN
+    RAISE EXCEPTION 'member search missed case-insensitive, literal or empty search behavior';
+  END IF;
+  v_member := (v_result#>>'{members,0,membershipId}')::uuid;
+  PERFORM set_config('app.actor_membership_id',v_member::text,true);
+  BEGIN
+    PERFORM eogp.search_organization_access_members(v_org,v_member,0,'');
+    RAISE EXCEPTION 'ordinary member searched organization membership';
+  EXCEPTION WHEN insufficient_privilege THEN NULL;
+  END;
+  PERFORM set_config('app.actor_membership_id',v_actor::text,true);
+END;
+$test$;
+
 COMMIT;
 
 \echo 'PostgreSQL migration smoke tests passed.'

@@ -42,6 +42,34 @@ tags:
   - name: Jobs
   - name: Audit
 paths:
+  "/organizations/{organizationId}/memberships/search":
+    post:
+      tags: ["Authorization"]
+      operationId: searchOrganizationMembers
+      summary: "Find organization members by name"
+      description: "Requires organization.manage. Search text is matched literally and case-insensitively within member display names."
+      security: [{ StaffSession: [], StaffCsrf: [] }]
+      parameters:
+        - $ref: '#/components/parameters/POrganizationId'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              additionalProperties: false
+              properties:
+                query: { type: string, maxLength: 200 }
+                offset: { type: integer, minimum: 0, maximum: 100000 }
+      responses:
+        '200':
+          description: "A page of authorized member matches with current scoped grants."
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/OrganizationAccessMembershipEnvelope' }
+        '400': { $ref: '#/components/responses/BadRequest' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/Forbidden' }
   "/organizations/{organizationId}/profile":
     get:
       tags: ["Authorization"]
