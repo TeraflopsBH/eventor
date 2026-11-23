@@ -674,6 +674,7 @@ export default {
     active: "Session active",
   },
   bookingDisruption: {
+    recordingScope: "Recording a notice saves it in booking history; it does not send a notification.",
     title: "Venue disruption notices",
     bookingSearch: "Booking reference search",
     noBookings: "No accessible bookings match this search.",

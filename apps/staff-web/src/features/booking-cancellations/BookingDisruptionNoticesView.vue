@@ -86,6 +86,7 @@ onMounted(() => run(() => loadBookings(0)));
 <template>
   <section class="panel" aria-labelledby="booking-disruption-heading" :aria-busy="busy">
     <h3 id="booking-disruption-heading">{{ t("bookingDisruption.title") }}</h3>
+    <p>{{ t("bookingDisruption.recordingScope") }}</p>
     <p v-if="error" role="alert" class="form-error">{{ error }}</p>
     <p v-if="notice" role="status">{{ notice }}</p>
     <form class="toolbar" @submit.prevent="search">

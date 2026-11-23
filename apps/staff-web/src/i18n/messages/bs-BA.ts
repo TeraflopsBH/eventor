@@ -674,6 +674,7 @@ export default {
     active: "Sesija aktivna",
   },
   bookingDisruption: {
+    recordingScope: "Evidentiranje obavijesti čuva je u historiji rezervacije; ne šalje se poruka kontaktima.",
     title: "Obavijesti o smetnjama na lokaciji",
     bookingSearch: "Pretraga oznake rezervacije",
     noBookings: "Nema dostupnih rezervacija za ovu pretragu.",
