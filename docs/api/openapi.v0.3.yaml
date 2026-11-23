@@ -42,6 +42,51 @@ tags:
   - name: Jobs
   - name: Audit
 paths:
+  "/organizations/{organizationId}/disruption-bookings/search":
+    post:
+      tags: ["Booking Cancellation"]
+      operationId: searchBookingDisruptionWorkspace
+      summary: "Find bookings the provider staff member can manage"
+      security: [{ StaffSession: [], StaffCsrf: [] }]
+      parameters:
+        - $ref: '#/components/parameters/POrganizationId'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              additionalProperties: false
+              properties:
+                query: { type: string, maxLength: 80 }
+                offset: { type: integer, minimum: 0, maximum: 100000 }
+      responses:
+        '200':
+          description: "A page of provider booking references."
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [data]
+                properties:
+                  data:
+                    type: object
+                    required: [bookings, nextOffset]
+                    properties:
+                      bookings:
+                        type: array
+                        maxItems: 50
+                        items:
+                          type: object
+                          required: [bookingId, bookingCode, status]
+                          properties:
+                            bookingId: { type: string, format: uuid }
+                            bookingCode: { type: string }
+                            status: { type: string }
+                      nextOffset: { type: [integer, 'null'], minimum: 0, maximum: 100000 }
+        '400': { $ref: '#/components/responses/BadRequest' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/Forbidden' }
   "/organizations/{organizationId}/memberships/search":
     post:
       tags: ["Authorization"]
@@ -2057,12 +2102,15 @@ paths:
       security: [{ StaffSession: [] }]
       parameters:
         - $ref: '#/components/parameters/PBookingId'
+        - name: offset
+          in: query
+          schema: { type: integer, minimum: 0, maximum: 100000, default: 0 }
       responses:
         '200':
           description: "Successful response."
           content:
             application/json:
-              schema: { $ref: '#/components/schemas/ListEnvelope' }
+              schema: { $ref: '#/components/schemas/BookingDisruptionNoticesEnvelope' }
         '400': { $ref: '#/components/responses/BadRequest' }
         '401': { $ref: '#/components/responses/Unauthorized' }
         '403': { $ref: '#/components/responses/Forbidden' }
@@ -2073,6 +2121,51 @@ paths:
         '422': { $ref: '#/components/responses/UnprocessableEntity' }
         '429': { $ref: '#/components/responses/TooManyRequests' }
         '500': { $ref: '#/components/responses/InternalServerError' }
+    post:
+      tags: ["Booking Cancellation"]
+      operationId: recordBookingDisruptionNotice
+      summary: "Record a provider booking disruption notice"
+      description: "Requires booking.manage for the booking. Records an immutable provider notice in booking history."
+      security: [{ StaffSession: [], StaffCsrf: [] }]
+      parameters:
+        - $ref: '#/components/parameters/PBookingId'
+        - $ref: '#/components/parameters/IdempotencyKey'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              additionalProperties: false
+              required: [reasonCategory, publicSummary]
+              properties:
+                reasonCategory: { type: string, pattern: "^[a-z][a-z0-9_.-]{1,79}$" }
+                publicSummary: { type: string, minLength: 1, maxLength: 2000 }
+                affectedFrom: { type: [string, 'null'], format: date-time }
+                affectedUntil: { type: [string, 'null'], format: date-time }
+      responses:
+        '201':
+          description: "The recorded notice reference."
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [data]
+                properties:
+                  data:
+                    type: object
+                    required: [noticeId, noticeCode, issuedAt]
+                    properties:
+                      noticeId: { type: string, format: uuid }
+                      noticeCode: { type: string }
+                      issuedAt: { type: string, format: date-time }
+        '400': { $ref: '#/components/responses/BadRequest' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '404': { $ref: '#/components/responses/NotFound' }
+        '409': { $ref: '#/components/responses/Conflict' }
+        '422': { $ref: '#/components/responses/UnprocessableEntity' }
+
   "/bookings/{bookingId}/external-action-capabilities":
     post:
       tags: ["Booking Cancellation"]
@@ -8360,6 +8453,29 @@ components:
             defaultTimezone: { type: string }
             revision: { type: integer, minimum: 1 }
             canManage: { type: boolean }
+    BookingDisruptionNoticesEnvelope:
+      type: object
+      required: [data]
+      properties:
+        data:
+          type: object
+          required: [notices, nextOffset]
+          properties:
+            nextOffset: { type: [integer, 'null'], minimum: 0, maximum: 100000 }
+            notices:
+              type: array
+              maxItems: 50
+              items:
+                type: object
+                required: [noticeId, noticeCode, reasonCategory, publicSummary, affectedFrom, affectedUntil, issuedAt]
+                properties:
+                  noticeId: { type: string, format: uuid }
+                  noticeCode: { type: string }
+                  reasonCategory: { type: string }
+                  publicSummary: { type: string }
+                  affectedFrom: { type: [string, 'null'], format: date-time }
+                  affectedUntil: { type: [string, 'null'], format: date-time }
+                  issuedAt: { type: string, format: date-time }
     OrganizationAccessScope:
       type: string
       enum: [organization, venue, space, booking, event, task]

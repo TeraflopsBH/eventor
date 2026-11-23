@@ -16,6 +16,8 @@ API and staff identifier validation now accepts the canonical UUID shape used by
 
 - Browser acceptance verifies that a venue-provider session cannot read organizer guests. An event-scoped member grant exposes only that event roster and does not grant Registry access. Revocation removes roster access while the member session remains active.
 
+- Provider staff can find their permitted bookings and record append-only disruption notices with public summaries and optional affected UTC times. Provider-to-organizer delivery, acknowledgements and linked-event resolution remain open under #112.
+
 ## Open work
 
 Issue #104 remains open for broader event settings and admin controls and reviewed resolution for linked contacts, identifiers, active relationships and open or overlapping event history. Roster extensions include broader configurable filtering and bulk controls. Venue allocation remains under #106. The [blueprint gap analysis](BLUEPRINT_TO_REPOSITORY_GAP_ANALYSIS_v1.0.md) and [roadmap](ROADMAP.md) track the remaining product areas.

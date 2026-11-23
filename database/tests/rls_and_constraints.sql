@@ -4314,6 +4314,90 @@ BEGIN
 END;
 $test$;
 
+-- Provider disruption notices retain scoped access, immutable history and booking state.
+DO $test$
+DECLARE
+  v_org CONSTANT uuid := '10000000-0000-0000-0000-00000000000a';
+  v_actor CONSTANT uuid := '30000000-0000-0000-0000-00000000000a';
+  v_booking CONSTANT uuid := 'f0000000-0000-0000-0000-00000000000a';
+  v_role uuid := gen_random_uuid();
+  v_notice uuid := gen_random_uuid();
+  v_other_booking uuid := gen_random_uuid();
+  v_before jsonb;
+  v_result jsonb;
+BEGIN
+  PERFORM set_config('app.organization_id',v_org::text,true);
+  PERFORM set_config('app.actor_membership_id',v_actor::text,true);
+  SELECT to_jsonb(booking) INTO STRICT v_before FROM eogp.booking_records booking WHERE organization_id=v_org AND id=v_booking;
+  BEGIN
+    PERFORM eogp.read_booking_disruption_notices(v_org,v_booking,v_actor,0);
+    RAISE EXCEPTION 'ordinary organizer management read provider notices';
+  EXCEPTION WHEN insufficient_privilege THEN NULL;
+  END;
+  INSERT INTO eogp.roles(id,organization_id,code,name,scope_kind) VALUES(v_role,v_org,'CI-DISRUPTION','Notice fixture','booking');
+  INSERT INTO eogp.role_permissions(organization_id,role_id,permission_code) VALUES(v_org,v_role,'booking.manage');
+  INSERT INTO eogp.user_role_grants(organization_id,membership_id,role_id,scope_kind,scope_booking_id,granted_by_membership_id,created_at)
+    VALUES(v_org,v_actor,v_role,'booking',v_booking,v_actor,statement_timestamp()-interval '1 day');
+  IF jsonb_array_length(eogp.list_booking_disruption_workspace(v_org,v_actor,0,'')->'bookings')<>1 THEN
+    RAISE EXCEPTION 'booking directory escaped the booking-scoped grant';
+  END IF;
+  BEGIN
+    PERFORM eogp.record_booking_disruption_notice(v_org,v_other_booking,v_actor,v_notice,'resource','Forbidden',NULL,NULL);
+    RAISE EXCEPTION 'notice recording escaped the booking scope';
+  EXCEPTION WHEN insufficient_privilege THEN NULL;
+  END;
+  BEGIN
+    PERFORM eogp.record_booking_disruption_notice(v_org,v_booking,v_actor,v_notice,'resource','Invalid interval','2030-01-02','2030-01-01');
+    RAISE EXCEPTION 'notice accepted a reversed affected interval';
+  EXCEPTION WHEN invalid_parameter_value THEN NULL;
+  END;
+  v_result := eogp.record_booking_disruption_notice(v_org,v_booking,v_actor,v_notice,'resource','Synthetic disruption','2030-01-01','2030-01-02');
+  IF v_result->>'noticeId' IS DISTINCT FROM v_notice::text OR v_result ? 'publicSummary' THEN
+    RAISE EXCEPTION 'notice command lost its reference or retained summary text in its response';
+  END IF;
+  INSERT INTO eogp.booking_disruption_notices(organization_id,booking_id,notice_code,reason_category,public_summary,operational_summary,issued_by_membership_id)
+    VALUES(v_org,v_booking,'CI-LEGACY-NOTICE','resource','Legacy public fixture','INTERNAL-CI-NOTICE',v_actor);
+  v_result := eogp.read_booking_disruption_notices(v_org,v_booking,v_actor,0);
+  IF NOT v_result->'notices' @> jsonb_build_array(jsonb_build_object('noticeId',v_notice,'publicSummary','Synthetic disruption'))
+    OR v_result::text LIKE '%INTERNAL-CI-NOTICE%'
+    OR has_table_privilege('eventor_runtime','eogp.booking_disruption_notices','SELECT,INSERT,UPDATE,DELETE')
+    OR (SELECT to_jsonb(booking) FROM eogp.booking_records booking WHERE organization_id=v_org AND id=v_booking) IS DISTINCT FROM v_before THEN
+    RAISE EXCEPTION 'notice projection leaked internal data, allowed direct DML or changed booking state';
+  END IF;
+  BEGIN
+    UPDATE eogp.booking_disruption_notices SET public_summary='Changed' WHERE organization_id=v_org AND id=v_notice;
+    RAISE EXCEPTION 'recorded notice was mutable';
+  EXCEPTION WHEN object_not_in_prerequisite_state THEN NULL;
+  END;
+  IF NOT EXISTS(SELECT 1 FROM eogp.audit_events WHERE organization_id=v_org AND aggregate_id=v_notice
+    AND action='booking.disruption_notice.recorded' AND safe_metadata=jsonb_build_object('bookingId',v_booking)) THEN
+    RAISE EXCEPTION 'notice recording lost safe actor audit metadata';
+  END IF;
+  UPDATE eogp.user_role_grants SET expires_at=statement_timestamp()-interval '1 second'
+    WHERE organization_id=v_org AND role_id=v_role AND membership_id=v_actor;
+  IF eogp.list_booking_disruption_workspace(v_org,v_actor,0,'')->'bookings' <> '[]'::jsonb THEN
+    RAISE EXCEPTION 'expired booking grant retained directory access';
+  END IF;
+  BEGIN
+    PERFORM eogp.read_booking_disruption_notices(v_org,v_booking,v_actor,0);
+    RAISE EXCEPTION 'expired booking grant retained notice history';
+  EXCEPTION WHEN insufficient_privilege THEN NULL;
+  END;
+  UPDATE eogp.user_role_grants SET expires_at=NULL,revoked_at=statement_timestamp()
+    WHERE organization_id=v_org AND role_id=v_role AND membership_id=v_actor;
+  BEGIN
+    PERFORM eogp.record_booking_disruption_notice(v_org,v_booking,v_actor,gen_random_uuid(),'resource','Revoked',NULL,NULL);
+    RAISE EXCEPTION 'revoked booking grant recorded a notice';
+  EXCEPTION WHEN insufficient_privilege THEN NULL;
+  END;
+  BEGIN
+    PERFORM eogp.assert_staff_booking_replay_permission(v_org,v_booking,v_actor,'booking.manage');
+    RAISE EXCEPTION 'revoked booking grant retained idempotent replay access';
+  EXCEPTION WHEN insufficient_privilege THEN NULL;
+  END;
+END;
+$test$;
+
 COMMIT;
 
 \echo 'PostgreSQL migration smoke tests passed.'

@@ -107,6 +107,22 @@ export interface Principal {
 
 export type OrganizationAccessScope = "organization" | "venue" | "space" | "booking" | "event" | "task";
 
+export interface DisruptionBooking {
+  bookingId: string;
+  bookingCode: string;
+  status: string;
+}
+
+export interface BookingDisruptionNotice {
+  noticeId: string;
+  noticeCode: string;
+  reasonCategory: string;
+  publicSummary: string;
+  affectedFrom: string | null;
+  affectedUntil: string | null;
+  issuedAt: string;
+}
+
 export interface OrganizationProfile {
   name: string;
   operatingProfile: "venue_provider" | "event_organizer" | "hybrid";
@@ -2218,6 +2234,17 @@ export const api = {
       { method: "POST", body: {}, idempotent: true },
     ),
 
+  searchDisruptionBookings: (organizationId: string, query: string, offset: number) =>
+    request<Envelope<{bookings: DisruptionBooking[]; nextOffset: number | null}>>(
+      `/organizations/${encodeURIComponent(organizationId)}/disruption-bookings/search`,
+      {method:"POST",body:{query,offset}}),
+  getBookingDisruptionNotices: (bookingId: string, offset: number) =>
+    request<Envelope<{notices: BookingDisruptionNotice[]; nextOffset: number | null}>>(
+      `/bookings/${encodeURIComponent(bookingId)}/disruption-notices?offset=${offset}`),
+  recordBookingDisruptionNotice: (bookingId: string, body: {
+    reasonCategory: string; publicSummary: string; affectedFrom: string | null; affectedUntil: string | null;
+  }) => request<Envelope<{noticeId: string; noticeCode: string; issuedAt: string}>>(
+      `/bookings/${encodeURIComponent(bookingId)}/disruption-notices`,{method:"POST",idempotent:true,body}),
   getBookingCancellationRequestQueue: (status?: string) => {
     const query = new URLSearchParams({ limit: "50", offset: "0" });
     if (status) query.set("status", status);

@@ -4,6 +4,7 @@ import { useI18n } from "vue-i18n";
 import { useInquiryPresentation } from "../booking-inquiries/useInquiryPresentation";
 import type { useBookingCancellationPolicies } from "./useBookingCancellationPolicies";
 import type { useBookingCancellationRequests } from "./useBookingCancellationRequests";
+import BookingDisruptionNoticesView from "./BookingDisruptionNoticesView.vue";
 import BookingCancellationRequestsView from "./BookingCancellationRequestsView.vue";
 
 type Workspace = ReturnType<typeof useBookingCancellationPolicies> & {
@@ -11,7 +12,7 @@ type Workspace = ReturnType<typeof useBookingCancellationPolicies> & {
   busy: Ref<boolean>;
 };
 
-const props = defineProps<{ workspace: Workspace }>();
+const props = defineProps<{ workspace: Workspace; organizationId: string }>();
 const { formatDate } = useInquiryPresentation();
 const { t } = useI18n();
 const statusLabel = (value: string) => { const key = `commercialConfiguration.viewValues.${value}`; const translated = t(key as never) as string; return translated === key ? value : translated; };
@@ -39,6 +40,7 @@ const {
 
 <template>
 <BookingCancellationRequestsView :workspace="props.workspace.requests" />
+<BookingDisruptionNoticesView :key="organizationId" :organization-id="organizationId" />
 <section class="panel inquiry-panel approval-policy-workspace">
         <div class="section-heading"><div><p class="eyebrow">{{ t("commercialConfiguration.cancelView.organization_commercial_controls") }}</p><h2>{{ t("commercialConfiguration.cancelView.booking_cancellation_policies") }}</h2>
           <p class="muted">{{ t("commercialConfiguration.cancelView.configure_customer_facing_terms_and_rules_offers_and_co") }}</p></div>

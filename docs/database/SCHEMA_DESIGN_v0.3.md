@@ -490,3 +490,7 @@ Organization managers can search member display names with the same tenant, acto
 ## Event roster export references (000180)
 
 Roster exports include the same immutable participation code shown in the staff list. CSV and XLSX append a guest_reference column alongside the existing display name, participation status and category fields. The export retains the same roster permissions, filters and row limit.
+
+## Provider booking disruption notices (000181)
+
+The provider notice workspace reuses booking_disruption_notices. Booking-scoped or organization-scoped booking.manage grants permit directory access and recording/reading notices. The directory and history are paginated. Runtime direct table privileges are revoked, and commands preserve append-only history and audit references. The staff projection contains public notice facts and omits provider operational summaries. Delivery across organizations and event-owned acknowledgement/resolution remain a separate workflow.
