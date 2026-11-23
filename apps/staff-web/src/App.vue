@@ -274,7 +274,7 @@ onMounted(() => {
 
       <BookingCancellationPoliciesView v-else-if="activeTab === 'cancellations'" :workspace="bookingCancellationPoliciesWorkspace" />
 
-      <OrganizationLocaleView v-else-if="activeTab === 'settings' && principal" :organization-id="principal.organizationId" :busy="organizationLocaleWorkspace.busy" :page-notice="organizationLocaleWorkspace.pageNotice" :show-error="showError" :translate="translate" :on-default-locale-changed="applyOrganizationDefaultLocale" />
+      <OrganizationLocaleView v-else-if="activeTab === 'settings' && principal" :organization-id="principal.organizationId" :busy="organizationLocaleWorkspace.busy" :page-notice="organizationLocaleWorkspace.pageNotice" :show-error="showError" :translate="translate" :on-default-locale-changed="applyOrganizationDefaultLocale" :on-profile-changed="refreshSession" />
 
       <CampaignWorkspaceView v-else :workspace="campaignWorkspace" />
     

@@ -3898,6 +3898,44 @@ export function buildApi(dependencies: ApiDependencies): FastifyInstance {
         }, 200);
     });
 
+  const organizationProfilePath = `${organizationAccessPath}/profile`;
+  server.get<{ Params: OrganizationAccessParams }>(organizationProfilePath, {
+    schema: { params: organizationInquiryParams },
+  }, (request, reply) => withRegistryRead(reply, registryPrincipal(request, request.params.organizationId),
+    "SELECT eogp.read_organization_profile($1::uuid,$2::uuid) AS result", []));
+
+  type OrganizationProfileBody = JsonRequestBody<"/organizations/{organizationId}/profile", "patch">;
+  server.patch<{ Params: OrganizationAccessParams; Body: OrganizationProfileBody }>(organizationProfilePath, {
+    schema: {
+      params: organizationInquiryParams, headers: idempotencyHeaders,
+      body: {
+        type: "object", additionalProperties: false, required: ["name","operatingProfile","defaultTimezone","expectedRevision"],
+        properties: {
+          name: {type:"string",minLength:1,maxLength:250},
+          operatingProfile: {type:"string",enum:["venue_provider","event_organizer","hybrid"]},
+          defaultTimezone: {type:"string",minLength:1,maxLength:100},
+          expectedRevision: personRevision,
+        },
+      },
+    },
+  }, (request, reply) => {
+    const principal = registryPrincipal(request,request.params.organizationId);
+    const {name,operatingProfile,defaultTimezone,expectedRevision} = request.body;
+    if (!name.trim() || /[\p{Cc}\p{Cs}]/u.test(name+defaultTimezone)) {
+      throw new ApiError(400,"VALIDATION_FAILED","Enter valid organization settings.");
+    }
+    const scope = [principal.organizationId,principal.membershipId];
+    return withCommand(request,reply.header("cache-control","no-store, private"),"organization.profile.update",request.body,
+      async client => {
+        const result = await client.query<ResultRow>(
+          "SELECT eogp.update_organization_profile($1::uuid,$2::uuid,$3::integer,$4::text,$5::text,$6::text) AS result",
+          [...scope,expectedRevision,name.trim(),operatingProfile,defaultTimezone.trim()]);
+        return (result.rows[0]?.result ?? {}) as Record<string,unknown>;
+      }, async client => {
+        await client.query("SELECT eogp.assert_staff_event_replay_permission($1::uuid,NULL,$2::uuid,'organization.manage')",scope);
+      },200);
+  });
+
   function readRegistry(
     reply: FastifyReply, principal: StaffPrincipal, personId: string | null, filter: PersonSearchBody = {},
   ) {

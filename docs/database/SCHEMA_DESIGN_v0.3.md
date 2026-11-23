@@ -478,3 +478,7 @@ Event managers can cancel planned, scheduled or active sessions on draft, planne
 ## Organization membership access (000177)
 
 Membership access has a revision separate from identity and role grants. Organization managers can suspend and restore active/suspended memberships with a matching revision. Suspension revokes sessions for that membership and organization, and reactivation requires an active global user. A tenant lock serializes administrative changes and the command preserves another active organization administrator. Audit records contain the membership ID, new status and revision. See [ADR 0010](../decisions/0010-organization-membership-access.md).
+
+## Organization profile settings (000178)
+
+Organization members can read their selected organization's name, operating profile and default time zone. Organization managers update these fields with a settings revision. The command validates the time zone against PostgreSQL's time zone catalogue and audits which fields changed. New event forms use the configured default; event schedules retain their own recorded time zones.

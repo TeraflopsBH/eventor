@@ -10,6 +10,8 @@ The baseline is GitHub `main` at `4f3c23f13e4427c895274c650cebaf85c1afccd8`, aft
 - CSV and XLSX imports support explicit column mapping, worksheet/header selection, encrypted staging, separate profiles, matched profile reuse or update, and exact source-reference matching with reviewed creation for unmatched references. Imports and exports provide row diagnostics or permission-filtered data.
 - Organization managers can inspect members, current scoped grants and role permission bundles from staff settings, create or retire reusable event role presets, assign or revoke them for individual events, and suspend or restore member access with session revocation.
 
+- Organization settings include the name, operating profile and default time zone with revision checks. New event forms use the organization time zone.
+
 ## Open work
 
 Issue #104 remains open for broader event settings and admin controls and reviewed resolution for linked contacts, identifiers, active relationships and open or overlapping event history. Roster extensions include broader configurable filtering and bulk controls. Venue allocation remains under #106. The [blueprint gap analysis](BLUEPRINT_TO_REPOSITORY_GAP_ANALYSIS_v1.0.md) and [roadmap](ROADMAP.md) track the remaining product areas.

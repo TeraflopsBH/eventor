@@ -673,6 +673,21 @@ export default {
     description: "Manage delivery readiness and review notification campaigns before authorizing sends.",
     active: "Session active",
   },
+  organizationSettings: {
+    title: "Organization settings",
+    name: "Organization name",
+    operatingProfile: "Operating profile",
+    timezone: "Default time zone",
+    timezoneHelp: "Use a time zone such as Europe/Sarajevo. New events use this default.",
+    save: "Save organization settings",
+    saved: "Organization settings saved.",
+    failed: "Could not load or save organization settings.",
+    profiles: {
+      venue_provider: "Venue provider",
+      event_organizer: "Event organizer",
+      hybrid: "Venue provider and event organizer",
+    },
+  },
   organizationAccess: {
     suspendMember: "Suspend access",
     restoreMember: "Restore access",

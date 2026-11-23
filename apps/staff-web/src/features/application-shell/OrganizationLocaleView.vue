@@ -1,11 +1,13 @@
 <script setup lang="ts">
 import { onMounted, ref, type Ref } from "vue";
 import { api } from "../../api";
+import OrganizationProfileView from "../organization-settings/OrganizationProfileView.vue";
 import OrganizationAccessView from "../organization-access/OrganizationAccessView.vue";
 import type { SupportedLocale } from "../../i18n";
 
 const props = defineProps<{
   organizationId: string;
+  onProfileChanged: () => Promise<void>;
   busy: Ref<boolean>;
   pageNotice: Ref<string>;
   showError: (error: unknown) => void;
@@ -70,6 +72,7 @@ onMounted(() => { void load(); });
         {{ $t("localeSettings.saveOrganization") }}
       </button>
     </div>
+    <OrganizationProfileView :key="organizationId" :organization-id="organizationId" @saved="onProfileChanged" />
     <button v-if="canManage" type="button" class="button button-secondary" :aria-expanded="showAccess" @click="showAccess = !showAccess">
       {{ $t("organizationAccess.title") }}
     </button>
