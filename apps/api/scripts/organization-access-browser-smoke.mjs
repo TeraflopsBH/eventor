@@ -58,6 +58,20 @@ for (const engine of [chromium, firefox]) {
     for (const resource of ["roles", "memberships", "permissions"]) {
       assert.equal((await get(otherOrg, resource)).status(), 403);
     }
+    const memberSearch = region.getByLabel("Member name", {exact:true});
+    await memberSearch.fill("ci access");
+    const searchedMembers = page.waitForResponse(item=>item.request().method()==="POST" && new URL(item.url()).pathname.endsWith("/memberships/search"));
+    await region.getByRole("button",{name:"Find members",exact:true}).click();
+    const searched = await searchedMembers;
+    assert.equal(searched.status(),200,await searched.text());
+    const found = (await searched.json()).data.members;
+    assert.deepEqual(found.map(member=>member.displayName),["CI Access Member"]);
+    assert.equal(await me.count(),0);
+    await memberSearch.fill("");
+    const resetMembers = page.waitForResponse(item=>item.request().method()==="GET" && new URL(item.url()).pathname.endsWith("/memberships"));
+    await region.getByRole("button",{name:"Find members",exact:true}).click();
+    assert.equal((await resetMembers).status(),200);
+    await me.getByText("Active",{exact:true}).waitFor();
     const memberContext = await browser.newContext();
     const memberPage = await memberContext.newPage();
     await memberPage.goto(baseUrl);

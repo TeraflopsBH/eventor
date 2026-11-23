@@ -3898,6 +3898,22 @@ export function buildApi(dependencies: ApiDependencies): FastifyInstance {
         }, 200);
     });
 
+  server.post<{ Params: OrganizationAccessParams; Body: { query?: string; offset?: number } }>(
+    `${organizationAccessPath}/memberships/search`, {
+      schema: {
+        params: organizationInquiryParams,
+        body: {type:"object",additionalProperties:false,properties:{
+          query:{type:"string",maxLength:200},offset:{type:"integer",minimum:0,maximum:100000},
+        }},
+      },
+    }, (request,reply) => {
+      const query = request.body.query?.trim() ?? "";
+      if (/[\p{Cc}\p{Cs}]/u.test(query)) throw new ApiError(400,"VALIDATION_FAILED","Enter a valid member search.");
+      return withRegistryRead(reply,registryPrincipal(request,request.params.organizationId),
+        "SELECT eogp.search_organization_access_members($1::uuid,$2::uuid,$3::integer,$4::text) AS result",
+        [request.body.offset ?? 0,query]);
+    });
+
   const organizationProfilePath = `${organizationAccessPath}/profile`;
   server.get<{ Params: OrganizationAccessParams }>(organizationProfilePath, {
     schema: { params: organizationInquiryParams },

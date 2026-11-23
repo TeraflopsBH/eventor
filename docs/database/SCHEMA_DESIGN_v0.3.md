@@ -482,3 +482,7 @@ Membership access has a revision separate from identity and role grants. Organiz
 ## Organization profile settings (000178)
 
 Organization members can read their selected organization's name, operating profile and default time zone. Organization managers update these fields with a settings revision. The command validates the time zone against PostgreSQL's time zone catalogue and audits which fields changed. New event forms use the configured default; event schedules retain their own recorded time zones.
+
+## Organization member search (000179)
+
+Organization managers can search member display names with the same tenant, actor and permission checks as the member directory. Search text is sent in the request body and matched as a literal case-insensitive substring. Results retain the directory's current scoped-grant projection and page size. Empty searches use the existing member-list API.

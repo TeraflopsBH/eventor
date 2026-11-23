@@ -1,6 +1,6 @@
-# Current integration baseline — 2026-11-19
+# Current integration baseline — 2026-11-23
 
-The baseline is GitHub `main` at `4f3c23f13e4427c895274c650cebaf85c1afccd8`, after [custom event role presets](https://github.com/TeraflopsBH/eventor/pull/186). The PR head passed [contracts and PostgreSQL](https://github.com/TeraflopsBH/eventor/actions/runs/44486212425) and [secret history](https://github.com/TeraflopsBH/eventor/actions/runs/44486212431). The preceding main commit passed [contracts and PostgreSQL](https://github.com/TeraflopsBH/eventor/actions/runs/44486146562) and [secret history](https://github.com/TeraflopsBH/eventor/actions/runs/44486146559).
+The baseline is GitHub `main` at `81bd64bed2c114dea85df314b1b803ecca81d988`, after [native PostgreSQL regression tooling](https://github.com/TeraflopsBH/eventor/pull/196). Its post-merge [contracts and PostgreSQL](https://github.com/TeraflopsBH/eventor/actions/runs/45280572085) and [secret history](https://github.com/TeraflopsBH/eventor/actions/runs/45280572100) checks passed. This baseline includes [membership suspension/restoration](https://github.com/TeraflopsBH/eventor/pull/194) and [organization profile settings](https://github.com/TeraflopsBH/eventor/pull/195).
 
 ## Organizer and Registry
 
@@ -8,7 +8,7 @@ The baseline is GitHub `main` at `4f3c23f13e4427c895274c650cebaf85c1afccd8`, aft
 - Staff can create, search, edit and archive persistent Registry profiles and review permission-filtered participation history. Bulk archival checks every selected profile and commits in one transaction. Contact values and source references are encrypted and use separate Registry grants. Staff can record or revoke contact verification and manage mutual or directed Registry relationships with dedicated grants. Supervised merges can preserve non-overlapping closed event history and restore the source.
 - Event teams activate the guest list, link Registry profiles with pinned event names and searchable guest references, optionally set staff roster names, and manage participant status, categories, internal and restricted tags, group hierarchy, roles, placement preferences and rules, event relationships, encrypted custom fields and encrypted staff notes. Name, status, category, internal tag and group filters apply to roster exports and personal saved views. Bulk category, status and internal tag edits are transactional.
 - CSV and XLSX imports support explicit column mapping, worksheet/header selection, encrypted staging, separate profiles, matched profile reuse or update, and exact source-reference matching with reviewed creation for unmatched references. Imports and exports provide row diagnostics or permission-filtered data.
-- Organization managers can inspect members, current scoped grants and role permission bundles from staff settings, create or retire reusable event role presets, assign or revoke them for individual events, and suspend or restore member access with session revocation.
+- Organization managers can search members by name and inspect current scoped grants and role permission bundles from staff settings, create or retire reusable event role presets, assign or revoke them for individual events, and suspend or restore member access with session revocation.
 
 - Organization settings include the name, operating profile and default time zone with revision checks. New event forms use the organization time zone.
 
