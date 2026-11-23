@@ -1654,7 +1654,7 @@ export const api = {
     return request<Envelope<EventGuestList>>(`${path}?${query}`);
   },
   getEventGuestExport: (eventId: string, status: EventGuestRow["status"] | "", category = "", name = "", memberships: EventGuestMembershipFilters = {}) => {
-    type ExportRow = Pick<EventGuestRow, "displayName" | "status" | "categoryCode">;
+    type ExportRow = Pick<EventGuestRow, "displayName" | "status" | "categoryCode" | "participationCode">;
     const path = `/events/${encodeURIComponent(eventId)}/participations/export`;
     if (name) {
       return request<Envelope<{ people: ExportRow[] }>>(path, {

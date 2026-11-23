@@ -1932,7 +1932,12 @@ BEGIN
     RAISE EXCEPTION 'roster must show the scoped pinned name, filter statuses, and omit Registry identifiers';
   END IF;
   v_result := eogp.read_event_guest_roster_export(v_org, v_first_event, v_actor, 'eligible');
-  IF v_result->'people' IS DISTINCT FROM '[{"displayName":"Pinned Name","status":"eligible","categoryCode":null}]'::jsonb
+  IF v_result->'people' IS DISTINCT FROM jsonb_build_array(jsonb_build_object(
+        'displayName','Pinned Name',
+        'status','eligible',
+        'categoryCode',NULL,
+        'participationCode',(SELECT participation_code FROM eogp.event_guest_roster_rows
+          WHERE organization_id=v_org AND event_id=v_first_event AND display_name='Pinned Name')))
      OR eogp.read_event_guest_roster_export(v_org, v_first_event, v_actor, 'waitlisted')->'people' IS DISTINCT FROM '[]'::jsonb
      OR has_table_privilege('eventor_runtime', 'eogp.event_guest_roster_rows', 'SELECT')
      OR NOT EXISTS (SELECT 1 FROM eogp.audit_events WHERE organization_id = v_org AND aggregate_id = v_first_event
@@ -2277,7 +2282,12 @@ BEGIN
   IF jsonb_array_length(eogp.read_event_guest_list(v_org,v_event,v_actor,'eligible',0,v_category,false)->'people') <> 1
      OR eogp.read_event_guest_list(v_org,v_event,v_actor,'withdrawn',0,v_category,false)->'people' IS DISTINCT FROM '[]'::jsonb
      OR eogp.read_event_guest_roster_export(v_org,v_event,v_actor,'eligible',v_category,false)->'people'
-       IS DISTINCT FROM '[{"displayName":"Import Workbook Fixture","status":"eligible","categoryCode":"STEWARDS"}]'::jsonb
+       IS DISTINCT FROM jsonb_build_array(jsonb_build_object(
+        'displayName','Import Workbook Fixture',
+        'status','eligible',
+        'categoryCode','STEWARDS',
+        'participationCode',(SELECT participation_code FROM eogp.event_guest_roster_rows
+          WHERE organization_id=v_org AND event_id=v_event AND display_name='Import Workbook Fixture')))
      OR (eogp.read_event_guest_roster_export(v_org,v_event,v_actor,NULL,NULL,true)->'people')
        @> '[{"categoryCode":"STEWARDS"}]'::jsonb THEN
     RAISE EXCEPTION 'category filters diverged between the roster and export';
@@ -2532,7 +2542,12 @@ BEGIN
   IF NOT (eogp.read_event_guest_list(v_org,v_first,v_actor,'withdrawn',0,NULL,false,'synthetic original')->'people')
      @> '[{"displayName":"Pinned Name"}]'::jsonb
      OR eogp.read_event_guest_list(v_org,v_first,v_actor,NULL,0,NULL,false,'current name')->'people' IS DISTINCT FROM '[]'::jsonb
-     OR v_export->'people' IS DISTINCT FROM '[{"displayName":"Current Name","status":"waitlisted","categoryCode":null}]'::jsonb THEN
+     OR v_export->'people' IS DISTINCT FROM jsonb_build_array(jsonb_build_object(
+        'displayName','Current Name',
+        'status','waitlisted',
+        'categoryCode',NULL,
+        'participationCode',(SELECT participation_code FROM eogp.event_guest_roster_rows
+          WHERE organization_id=v_org AND event_id=v_second AND display_name='Current Name'))) THEN
     RAISE EXCEPTION 'name search or export did not preserve event identity';
   END IF;
   IF NOT EXISTS (SELECT 1 FROM eogp.audit_events WHERE organization_id=v_org AND aggregate_id=v_second
@@ -3553,7 +3568,12 @@ BEGIN
   v_rows := eogp.read_event_guest_list(v_org,v_event,v_actor,NULL,0,NULL,false,'Filter',v_tag,v_group)->'people';
   IF jsonb_array_length(v_rows) <> 1 OR v_rows#>>'{0,participationId}' IS DISTINCT FROM v_first::text
     OR (eogp.read_event_guest_roster_export(v_org,v_event,v_actor,NULL,NULL,false,'Filter',v_tag,v_group)->'people')
-      IS DISTINCT FROM '[{"displayName":"Filter One","status":"eligible","categoryCode":null}]'::jsonb
+      IS DISTINCT FROM jsonb_build_array(jsonb_build_object(
+        'displayName','Filter One',
+        'status','eligible',
+        'categoryCode',NULL,
+        'participationCode',(SELECT participation_code FROM eogp.event_guest_roster_rows
+          WHERE organization_id=v_org AND event_id=v_event AND display_name='Filter One')))
     OR eogp.read_event_guest_list(v_org,v_event,v_actor,NULL,0,NULL,false,NULL,v_restricted,NULL)->'people' <> '[]'::jsonb THEN
     RAISE EXCEPTION 'tag and group filters did not preserve roster scope or export parity';
   END IF;
@@ -3683,7 +3703,12 @@ BEGIN
       @> jsonb_build_array(jsonb_build_object('participationId',v_guest,'displayName','Staff Display Override',
         'recordedDisplayName','Pinned Staff Fixture','displayNameOverride','Staff Display Override'))
     OR (eogp.read_event_guest_roster_export(v_org,v_event,v_actor,NULL,NULL,false,'Staff Display Override')->'people')
-      IS DISTINCT FROM '[{"displayName":"Staff Display Override","status":"eligible","categoryCode":null}]'::jsonb
+      IS DISTINCT FROM jsonb_build_array(jsonb_build_object(
+        'displayName','Staff Display Override',
+        'status','eligible',
+        'categoryCode',NULL,
+        'participationCode',(SELECT participation_code FROM eogp.event_guest_roster_rows
+          WHERE organization_id=v_org AND event_id=v_event AND display_name='Staff Display Override')))
     OR NOT eogp.list_guest_invitation_participations(v_org,v_event,v_actor) @> jsonb_build_array(
         jsonb_build_object('participationId',v_guest,'displayName','Pinned Staff Fixture'))
     OR NOT (eogp.read_event_guest_list(v_org,v_other_event,v_actor,NULL,0,NULL,false,'Pinned Staff Fixture')->'people')
@@ -3881,7 +3906,12 @@ BEGIN
     OR NOT (eogp.read_event_guest_list(v_org,v_event,v_actor,NULL,0,NULL,false,lower(v_reference))->'people')
        @> jsonb_build_array(jsonb_build_object('participationId',v_guest,'participationCode',v_reference))
     OR eogp.read_event_guest_roster_export(v_org,v_event,v_actor,NULL,NULL,false,lower(v_reference))->'people'
-       IS DISTINCT FROM '[{"displayName":"Reference Fixture","status":"eligible","categoryCode":null}]'::jsonb
+       IS DISTINCT FROM jsonb_build_array(jsonb_build_object(
+        'displayName','Reference Fixture',
+        'status','eligible',
+        'categoryCode',NULL,
+        'participationCode',(SELECT participation_code FROM eogp.event_guest_roster_rows
+          WHERE organization_id=v_org AND event_id=v_event AND display_name='Reference Fixture')))
     OR EXISTS (SELECT 1 FROM eogp.event_participations WHERE organization_id=v_org AND event_id=v_event
       AND id<>v_guest AND lower(btrim(participation_code))=lower(v_reference))
     OR has_table_privilege('eventor_runtime','eogp.event_guest_reference_counters','SELECT,INSERT,UPDATE,DELETE') THEN

@@ -383,8 +383,8 @@ function downloadRoster(format: "csv" | "xlsx"): Promise<void> {
     const category = categoryFilter.value;
     const { data } = await api.getEventGuestExport(eventId.value, status.value, category, nameFilter.value, membershipFilters.value);
     const rows = [
-      ["event_display_name", "participation_status", "category_code"],
-      ...data.people.map((guest) => [guest.displayName, guest.status, guest.categoryCode]),
+      ["event_display_name", "participation_status", "category_code", "guest_reference"],
+      ...data.people.map((guest) => [guest.displayName, guest.status, guest.categoryCode, guest.participationCode]),
     ];
     const categoryCode = categories.value.find((item) => item.categoryId === category)?.code ?? category;
     const suffix = categoryCode ? `-${categoryCode}` : "";
@@ -393,7 +393,7 @@ function downloadRoster(format: "csv" | "xlsx"): Promise<void> {
     if (format === "csv") {
       downloadGuestCsv(filename, `\uFEFF${formatGuestCsv(rows)}`);
     } else {
-      await downloadGuestXlsx(filename, t("navigation.eventGuests"), rows, [42, 23, 20]);
+      await downloadGuestXlsx(filename, t("navigation.eventGuests"), rows, [42, 23, 20, 22]);
     }
   });
 }

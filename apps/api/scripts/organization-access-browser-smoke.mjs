@@ -1,5 +1,7 @@
 import assert from "node:assert/strict";
 import { randomUUID } from "node:crypto";
+import { readFile } from "node:fs/promises";
+import { fromBufferPromise } from "yauzl";
 import { chromium, firefox } from "playwright";
 
 const org = "22222222-2222-4222-8222-222222222222";
@@ -66,7 +68,7 @@ for (const engine of [chromium, firefox]) {
     assert.equal(searched.status(),200,await searched.text());
     const found = (await searched.json()).data.members;
     assert.deepEqual(found.map(member=>member.displayName),["CI Access Member"]);
-    assert.equal(await me.count(),0);
+    await me.waitFor({state:"detached"});
     await memberSearch.fill("");
     const resetMembers = page.waitForResponse(item=>item.request().method()==="GET" && new URL(item.url()).pathname.endsWith("/memberships"));
     await region.getByRole("button",{name:"Find members",exact:true}).click();
@@ -189,6 +191,29 @@ for (const engine of [chromium, firefox]) {
     await memberPage.getByLabel("Event",{exact:true}).selectOption(eventId);
     await memberPage.getByRole("row").filter({hasText:"Synthetic private guest"}).waitFor();
     assert.equal(await memberPage.getByRole("button",{name:"Edit roster name",exact:true}).count(),0);
+    const exportedRoster = memberPage.waitForResponse(item=>item.request().method()==="GET" && new URL(item.url()).pathname.endsWith("/participations/export"));
+    const downloadedRoster = memberPage.waitForEvent("download");
+    await memberPage.getByRole("button",{name:"Export guest list as CSV",exact:true}).click();
+    const exportResponse = await exportedRoster;
+    assert.equal(exportResponse.status(),200,await exportResponse.text());
+    const exportedPeople = (await exportResponse.json()).data.people;
+    assert.equal(exportedPeople[0].participationCode,roster.people[0].participationCode);
+    const downloaded = await downloadedRoster;
+    const csv = await readFile(await downloaded.path(),"utf8");
+    assert.ok(csv.includes("event_display_name,participation_status,category_code,guest_reference"));
+    assert.ok(csv.includes(roster.people[0].participationCode));
+    const downloadedWorkbook = memberPage.waitForEvent("download");
+    await memberPage.getByRole("button",{name:"Export guest list as XLSX",exact:true}).click();
+    const workbookDownload = await downloadedWorkbook;
+    const workbook = await fromBufferPromise(await readFile(await workbookDownload.path()));
+    let workbookXml = "";
+    for await (const entry of workbook.eachEntry()) {
+      if (!entry.fileName.endsWith(".xml")) continue;
+      const stream = await workbook.openReadStreamPromise(entry);
+      for await (const chunk of stream) workbookXml += chunk.toString("utf8");
+    }
+    assert.ok(workbookXml.includes("guest_reference"));
+    assert.ok(workbookXml.includes(roster.people[0].participationCode));
     const memberWorkspaces = await memberContext.request.get(`${baseUrl}/api/organizations/${org}/events/guest-lists`);
     assert.equal(memberWorkspaces.status(),200,await memberWorkspaces.text());
     assert.deepEqual((await memberWorkspaces.json()).data.map(item=>item.eventId),[eventId]);
