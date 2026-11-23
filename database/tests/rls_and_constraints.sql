@@ -4133,6 +4133,80 @@ BEGIN
 END;
 $test$;
 
+-- Membership access preserves administrator recovery and invalidates only scoped sessions.
+DO $test$
+DECLARE
+  v_org CONSTANT uuid := '10000000-0000-0000-0000-00000000000a';
+  v_other CONSTANT uuid := '10000000-0000-0000-0000-00000000000b';
+  v_actor CONSTANT uuid := '30000000-0000-0000-0000-00000000000a';
+  v_user uuid;
+  v_member uuid;
+  v_other_member uuid;
+  v_session uuid := gen_random_uuid();
+  v_other_session uuid := gen_random_uuid();
+  v_actor_revision integer;
+BEGIN
+  SELECT access_revision INTO STRICT v_actor_revision FROM eogp.organization_memberships WHERE organization_id=v_org AND id=v_actor;
+  BEGIN
+    PERFORM eogp.set_organization_membership_access(v_org,v_actor,v_actor,v_actor_revision,'suspended');
+    RAISE EXCEPTION 'last organization administrator was suspended';
+  EXCEPTION WHEN SQLSTATE 'P1771' THEN NULL;
+  END;
+  INSERT INTO eogp.users(display_name) VALUES('Membership access fixture') RETURNING id INTO v_user;
+  INSERT INTO eogp.organization_memberships(organization_id,user_id) VALUES(v_org,v_user) RETURNING id INTO v_member;
+  INSERT INTO eogp.user_sessions(id,user_id,organization_id,membership_id,session_token_sha256,csrf_token_sha256,expires_at)
+  VALUES(v_session,v_user,v_org,v_member,md5(v_session::text)||md5(v_session::text),repeat('0',64),clock_timestamp()+interval '1 day');
+
+  PERFORM set_config('app.organization_id',v_other::text,true);
+  INSERT INTO eogp.organization_memberships(organization_id,user_id) VALUES(v_other,v_user) RETURNING id INTO v_other_member;
+  INSERT INTO eogp.user_sessions(id,user_id,organization_id,membership_id,session_token_sha256,csrf_token_sha256,expires_at)
+  VALUES(v_other_session,v_user,v_other,v_other_member,md5(v_other_session::text)||md5(v_other_session::text),repeat('0',64),clock_timestamp()+interval '1 day');
+  PERFORM set_config('app.organization_id',v_org::text,true);
+
+  BEGIN
+    PERFORM eogp.set_organization_membership_access(v_org,v_actor,v_other_member,1,'suspended');
+    RAISE EXCEPTION 'membership access crossed organizations';
+  EXCEPTION WHEN no_data_found THEN NULL;
+  END;
+  INSERT INTO eogp.user_role_grants(organization_id,membership_id,role_id,scope_kind,scope_event_id,granted_by_membership_id)
+  SELECT v_org,v_member,role.id,'event',event.id,v_actor
+  FROM eogp.roles role CROSS JOIN eogp.events event
+  WHERE role.organization_id=v_org AND role.code='ROSTER-CREW' AND event.organization_id=v_org AND event.event_code='CI-LINK-A';
+  PERFORM eogp.set_organization_membership_access(v_org,v_actor,v_member,1,'suspended');
+  IF NOT EXISTS(SELECT 1 FROM eogp.user_sessions WHERE organization_id=v_org AND id=v_session AND revoked_at IS NOT NULL) THEN
+    RAISE EXCEPTION 'suspension retained an active membership session';
+  END IF;
+  BEGIN
+    PERFORM eogp.set_organization_membership_access(v_org,v_actor,v_member,1,'active');
+    RAISE EXCEPTION 'membership access accepted a stale revision';
+  EXCEPTION WHEN serialization_failure THEN NULL;
+  END;
+  PERFORM eogp.set_organization_membership_access(v_org,v_actor,v_member,2,'active');
+  IF NOT EXISTS(SELECT 1 FROM eogp.user_role_grants WHERE organization_id=v_org AND membership_id=v_member AND revoked_at IS NULL) THEN
+    RAISE EXCEPTION 'membership state changes removed the role grants';
+  END IF;
+  IF NOT (eogp.list_organization_access_members(v_org,v_actor,0)->'members') @>
+       jsonb_build_array(jsonb_build_object('membershipId',v_member,'status','active','revision',3))
+    OR NOT EXISTS(SELECT 1 FROM eogp.user_sessions WHERE organization_id=v_org AND id=v_session AND revoked_at IS NOT NULL)
+    OR (SELECT count(*) FROM eogp.audit_events WHERE organization_id=v_org AND aggregate_id=v_member
+      AND action='organization.membership.access_changed')<>2 THEN
+    RAISE EXCEPTION 'restoration missed revisions, revived old sessions or lost audit history';
+  END IF;
+  PERFORM set_config('app.actor_membership_id',v_member::text,true);
+  BEGIN
+    PERFORM eogp.set_organization_membership_access(v_org,v_member,v_actor,v_actor_revision,'suspended');
+    RAISE EXCEPTION 'ordinary member changed organization access';
+  EXCEPTION WHEN insufficient_privilege THEN NULL;
+  END;
+  PERFORM set_config('app.actor_membership_id',v_actor::text,true);
+  PERFORM set_config('app.organization_id',v_other::text,true);
+  IF NOT EXISTS(SELECT 1 FROM eogp.user_sessions WHERE organization_id=v_other AND id=v_other_session AND revoked_at IS NULL) THEN
+    RAISE EXCEPTION 'suspension revoked the user session in another organization';
+  END IF;
+  PERFORM set_config('app.organization_id',v_org::text,true);
+END;
+$test$;
+
 COMMIT;
 
 \echo 'PostgreSQL migration smoke tests passed.'

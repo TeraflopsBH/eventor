@@ -123,6 +123,29 @@ async function retireRole(role: OrganizationAccessRole): Promise<void> {
   }
 }
 
+async function changeMemberAccess(member: OrganizationAccessMember): Promise<void> {
+  if (busy.value || !["active", "suspended"].includes(member.status)) return;
+  const status = member.status === "active" ? "suspended" : "active";
+  const confirmation = status === "suspended" ? "organizationAccess.confirmSuspend" : "organizationAccess.confirmRestore";
+  if (!window.confirm(t(confirmation, { member: member.displayName }))) return;
+  busy.value = true;
+  error.value = "";
+  notice.value = "";
+  try {
+    await api.setOrganizationMemberAccess(props.organizationId, member.membershipId, status, member.revision);
+    const { data } = await api.listOrganizationAccessMembers(props.organizationId, offset.value);
+    members.value = data.members;
+    nextOffset.value = data.nextOffset;
+    grantMember.value = null;
+    notice.value = t(status === "suspended" ? "organizationAccess.memberSuspended" : "organizationAccess.memberRestored");
+  } catch (failure) {
+    showFailure(failure);
+    if (failure instanceof ApiError && failure.status === 401) window.location.reload();
+  } finally {
+    busy.value = false;
+  }
+}
+
 async function openGrant(member: OrganizationAccessMember): Promise<void> {
   busy.value = true;
   error.value = "";
@@ -189,7 +212,13 @@ onMounted(() => { void load(0); });
           <tbody>
             <tr v-for="member in members" :key="member.membershipId">
               <th scope="row">{{ member.displayName }}</th>
-              <td>{{ t(`organizationAccess.statuses.${member.status}`) }}</td>
+              <td>
+                <span>{{ t(`organizationAccess.statuses.${member.status}`) }}</span>
+                <button v-if="['active','suspended'].includes(member.status)" class="button button-secondary" type="button"
+                  :disabled="busy" @click="changeMemberAccess(member)">
+                  {{ t(member.status === 'active' ? "organizationAccess.suspendMember" : "organizationAccess.restoreMember") }}
+                </button>
+              </td>
               <td>
                 <span v-if="!member.grants.length">{{ t("organizationAccess.noGrants") }}</span>
                 <ul v-else>

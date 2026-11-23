@@ -131,6 +131,7 @@ export interface OrganizationAccessGrant {
 
 export interface OrganizationAccessMember {
   membershipId: string;
+  revision: number;
   displayName: string;
   status: "invited" | "active" | "suspended" | "revoked";
   grants: OrganizationAccessGrant[];
@@ -1999,6 +2000,10 @@ export const api = {
     request<Envelope<{ grantId: string; revokedAt: string }>>(
       `/organizations/${encodeURIComponent(organizationId)}/memberships/${encodeURIComponent(membershipId)}/event-role-grants/${encodeURIComponent(grantId)}/revoke`,
       { method: "POST", idempotent: true }),
+  setOrganizationMemberAccess: (organizationId: string, membershipId: string, status: "active" | "suspended", expectedRevision: number) =>
+    request<Envelope<{ membershipId: string; status: "active" | "suspended"; revision: number }>>(
+      `/organizations/${encodeURIComponent(organizationId)}/memberships/${encodeURIComponent(membershipId)}/access-state`,
+      { method: "POST", idempotent: true, body: { status, expectedRevision } }),
   listOrganizationPermissions: (organizationId: string) =>
     request<Envelope<OrganizationPermission[]>>(`/organizations/${encodeURIComponent(organizationId)}/permissions`),
   getOrganizationLocale: () => request<Envelope<{ defaultLocale: "bs-BA" | "en"; canManage: boolean }>>("/organization/locale"),

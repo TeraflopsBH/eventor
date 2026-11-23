@@ -1251,6 +1251,7 @@ function databaseError(error: unknown): ApiError {
   const code = typeof error === "object" && error !== null && "code" in error
     ? String((error as { code?: unknown }).code ?? "") : "";
   switch (code) {
+    case "P1771": return new ApiError(409, "LAST_ORGANIZATION_ADMIN", "Keep another active organization administrator before suspending access.");
     case "42501": return new ApiError(403, "FORBIDDEN", "You are not permitted to perform this operation.");
     case "P0002": return new ApiError(404, "NOT_FOUND", "The requested resource was not found.");
     case "40001": return new ApiError(412, "STALE_REVISION", "The resource changed. Refresh it and try again.");
@@ -3871,6 +3872,31 @@ export function buildApi(dependencies: ApiDependencies): FastifyInstance {
       headers: idempotencyHeaders,
     },
   }, (request, reply) => withMemberEventRole(request, reply, request.params, null, null, request.params.grantId));
+
+  type MembershipAccessParams = { organizationId: string; membershipId: string };
+  type MembershipAccessBody = JsonRequestBody<"/organizations/{organizationId}/memberships/{membershipId}/access-state", "post">;
+  server.post<{ Params: MembershipAccessParams; Body: MembershipAccessBody }>(
+    `${organizationAccessPath}/memberships/:membershipId/access-state`, {
+      schema: {
+        params: memberEventRoleParams, headers: idempotencyHeaders,
+        body: {
+          type: "object", additionalProperties: false, required: ["status", "expectedRevision"],
+          properties: { status: { type: "string", enum: ["active", "suspended"] }, expectedRevision: personRevision },
+        },
+      },
+    }, (request, reply) => {
+      const principal = registryPrincipal(request, request.params.organizationId);
+      const scope = [principal.organizationId,principal.membershipId];
+      return withCommand(request, reply.header("cache-control", "no-store, private"), "organization.membership.access",
+        { membershipId: request.params.membershipId, ...request.body }, async (client) => {
+          const result = await client.query<ResultRow>(
+            "SELECT eogp.set_organization_membership_access($1::uuid,$2::uuid,$3::uuid,$4::integer,$5::text) AS result",
+            [...scope,request.params.membershipId,request.body.expectedRevision,request.body.status]);
+          return (result.rows[0]?.result ?? {}) as Record<string,unknown>;
+        }, async (client) => {
+          await client.query("SELECT eogp.assert_staff_event_replay_permission($1::uuid,NULL,$2::uuid,'organization.manage')",scope);
+        }, 200);
+    });
 
   function readRegistry(
     reply: FastifyReply, principal: StaffPrincipal, personId: string | null, filter: PersonSearchBody = {},

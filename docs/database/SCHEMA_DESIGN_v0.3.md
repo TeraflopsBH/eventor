@@ -474,3 +474,7 @@ Organization managers can retire custom event role presets. The catalogue retain
 ## Organizer session cancellation (000176)
 
 Event managers can cancel planned, scheduled or active sessions on draft, planned, scheduled or active events. Cancellation checks the session details and parent schedule revisions, locks the parent event before the session, increments the session revision and records the transition in audit. Completed and cancelled sessions retain their final status.
+
+## Organization membership access (000177)
+
+Membership access has a revision separate from identity and role grants. Organization managers can suspend and restore active/suspended memberships with a matching revision. Suspension revokes sessions for that membership and organization, and reactivation requires an active global user. A tenant lock serializes administrative changes and the command preserves another active organization administrator. Audit records contain the membership ID, new status and revision. See [ADR 0010](../decisions/0010-organization-membership-access.md).
