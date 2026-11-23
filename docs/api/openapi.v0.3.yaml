@@ -4509,7 +4509,7 @@ paths:
           schema: { type: string, enum: [eligible, waitlisted, withdrawn, cancelled, ineligible] }
       responses:
         '200':
-          description: "Event display names, participation statuses and category codes."
+          description: "Event display names, participation statuses, category codes and guest references."
           content:
             application/json:
               schema: { $ref: '#/components/schemas/EventGuestRosterExportEnvelope' }
@@ -4544,7 +4544,7 @@ paths:
                 groupId: { type: string, format: uuid }
       responses:
         '200':
-          description: "Event display names, participation statuses and category codes."
+          description: "Event display names, participation statuses, category codes and guest references."
           content:
             application/json:
               schema: { $ref: '#/components/schemas/EventGuestRosterExportEnvelope' }
@@ -9772,10 +9772,11 @@ components:
               maxItems: 20000
               items:
                 type: object
-                required: [displayName, status, categoryCode]
+                required: [displayName, status, categoryCode, participationCode]
                 properties:
                   displayName: { type: string }
                   status: { type: string, enum: [eligible, waitlisted, withdrawn, cancelled, ineligible] }
+                  participationCode: { type: string, description: "Immutable event guest reference." }
                   categoryCode: { type: [string, 'null'] }
     EventGuestCategoryFilter:
       oneOf:

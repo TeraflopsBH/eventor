@@ -486,3 +486,7 @@ Organization members can read their selected organization's name, operating prof
 ## Organization member search (000179)
 
 Organization managers can search member display names with the same tenant, actor and permission checks as the member directory. Search text is sent in the request body and matched as a literal case-insensitive substring. Results retain the directory's current scoped-grant projection and page size. Empty searches use the existing member-list API.
+
+## Event roster export references (000180)
+
+Roster exports include the same immutable participation code shown in the staff list. CSV and XLSX append a guest_reference column alongside the existing display name, participation status and category fields. The export retains the same roster permissions, filters and row limit.
