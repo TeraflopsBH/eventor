@@ -107,6 +107,14 @@ export interface Principal {
 
 export type OrganizationAccessScope = "organization" | "venue" | "space" | "booking" | "event" | "task";
 
+export interface OrganizationProfile {
+  name: string;
+  operatingProfile: "venue_provider" | "event_organizer" | "hybrid";
+  defaultTimezone: string;
+  revision: number;
+  canManage: boolean;
+}
+
 export interface OrganizationAccessRole {
   roleId: string;
   code: string;
@@ -2006,6 +2014,12 @@ export const api = {
       { method: "POST", idempotent: true, body: { status, expectedRevision } }),
   listOrganizationPermissions: (organizationId: string) =>
     request<Envelope<OrganizationPermission[]>>(`/organizations/${encodeURIComponent(organizationId)}/permissions`),
+  getOrganizationProfile: (organizationId: string) =>
+    request<Envelope<OrganizationProfile>>(`/organizations/${encodeURIComponent(organizationId)}/profile`),
+  updateOrganizationProfile: (organizationId: string, body: {
+    name: string; operatingProfile: OrganizationProfile["operatingProfile"]; defaultTimezone: string; expectedRevision: number;
+  }) => request<Envelope<OrganizationProfile>>(`/organizations/${encodeURIComponent(organizationId)}/profile`,
+    { method: "PATCH", idempotent: true, body }),
   getOrganizationLocale: () => request<Envelope<{ defaultLocale: "bs-BA" | "en"; canManage: boolean }>>("/organization/locale"),
   setOrganizationLocale: (defaultLocale: "bs-BA" | "en") => request<Envelope<{ defaultLocale: "bs-BA" | "en" }>>("/organization/locale", { method: "PATCH", body: { defaultLocale } }),
   logout: () => request<void>("/auth/session", { method: "DELETE" }),

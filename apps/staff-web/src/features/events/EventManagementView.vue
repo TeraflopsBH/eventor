@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed, reactive, ref, type Ref } from "vue";
+import { computed, reactive, ref, watch, type Ref } from "vue";
 import type { useOrganizerEvents } from "./useOrganizerEvents";
 import type { OrganizerEvent, OrganizerEventAction, OrganizerEventSessionAction, OrganizerEventSessionDetails } from "../../api";
 
@@ -8,7 +8,7 @@ type Workspace = ReturnType<typeof useOrganizerEvents> & { busy: Ref<boolean> };
 const props = defineProps<{ workspace: Workspace; t: (key: string, params?: Record<string, string | number>) => string }>();
 const t = props.t;
 const {
-  events, sessions, sessionsEventId, busy, canArchive, refresh, createEvent, updateEvent,
+  defaultTimezone, events, sessions, sessionsEventId, busy, canArchive, refresh, createEvent, updateEvent,
   archiveEvent, enableGuestRegistry, transitionEvent, showSessions, createSession, updateSession, transitionSession,
 } = props.workspace;
 const lifecycleActions: Partial<Record<OrganizerEvent["status"], OrganizerEventAction[]>> = {
@@ -30,7 +30,10 @@ const createForm = reactive({
   descriptionInternal: "",
   startsAt: "",
   endsAt: "",
-  timezoneName: "Europe/Sarajevo",
+  timezoneName: defaultTimezone.value,
+});
+watch(defaultTimezone, (value) => {
+  if (!createOpen.value) createForm.timezoneName = value;
 });
 const editForm = reactive({ title: "", descriptionInternal: "" });
 const sortedEvents = computed(() => [...events.value].sort((a, b) => {
@@ -185,7 +188,7 @@ function resetCreate(): void {
     descriptionInternal: "",
     startsAt: "",
     endsAt: "",
-    timezoneName: "Europe/Sarajevo",
+    timezoneName: defaultTimezone.value,
   });
   createOpen.value = false;
   formError.value = "";

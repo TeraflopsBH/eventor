@@ -4207,6 +4207,57 @@ BEGIN
 END;
 $test$;
 
+-- Organization settings are revision-checked and leave recorded event time zones intact.
+DO $test$
+DECLARE
+  v_org CONSTANT uuid := '10000000-0000-0000-0000-00000000000a';
+  v_actor CONSTANT uuid := '30000000-0000-0000-0000-00000000000a';
+  v_before jsonb;
+  v_after jsonb;
+  v_member uuid;
+  v_event_timezone text;
+BEGIN
+  v_before := eogp.read_organization_profile(v_org,v_actor);
+  SELECT timezone_name INTO STRICT v_event_timezone FROM eogp.events WHERE organization_id=v_org AND event_code='CI-LINK-A';
+  BEGIN
+    PERFORM eogp.update_organization_profile(v_org,v_actor,(v_before->>'revision')::integer,'Profile fixture','hybrid','Invalid/Timezone');
+    RAISE EXCEPTION 'invalid organization time zone was accepted';
+  EXCEPTION WHEN invalid_parameter_value THEN NULL;
+  END;
+  v_after := eogp.update_organization_profile(v_org,v_actor,(v_before->>'revision')::integer,'Profile fixture','hybrid','UTC');
+  IF v_after->>'name' IS DISTINCT FROM 'Profile fixture' OR v_after->>'defaultTimezone' IS DISTINCT FROM 'UTC'
+    OR v_after->>'operatingProfile' IS DISTINCT FROM 'hybrid'
+    OR (SELECT timezone_name FROM eogp.events WHERE organization_id=v_org AND event_code='CI-LINK-A') IS DISTINCT FROM v_event_timezone THEN
+    RAISE EXCEPTION 'profile update missed its values or changed a recorded event time zone';
+  END IF;
+  BEGIN
+    PERFORM eogp.update_organization_profile(v_org,v_actor,(v_before->>'revision')::integer,'Stale','hybrid','UTC');
+    RAISE EXCEPTION 'stale organization settings were accepted';
+  EXCEPTION WHEN serialization_failure THEN NULL;
+  END;
+  SELECT member.id INTO STRICT v_member FROM eogp.organization_memberships member
+  JOIN eogp.users identity ON identity.id=member.user_id
+  WHERE member.organization_id=v_org AND identity.display_name='Membership access fixture';
+  PERFORM set_config('app.actor_membership_id',v_member::text,true);
+  IF eogp.read_organization_profile(v_org,v_member)->>'canManage' IS DISTINCT FROM 'false' THEN
+    RAISE EXCEPTION 'ordinary membership received organization management access';
+  END IF;
+  BEGIN
+    PERFORM eogp.update_organization_profile(v_org,v_member,(v_after->>'revision')::integer,'Forbidden','hybrid','UTC');
+    RAISE EXCEPTION 'ordinary member updated organization settings';
+  EXCEPTION WHEN insufficient_privilege THEN NULL;
+  END;
+  BEGIN
+    PERFORM eogp.read_organization_profile('10000000-0000-0000-0000-00000000000b',v_member);
+    RAISE EXCEPTION 'organization profile crossed tenants';
+  EXCEPTION WHEN insufficient_privilege THEN NULL;
+  END;
+  PERFORM set_config('app.actor_membership_id',v_actor::text,true);
+  PERFORM eogp.update_organization_profile(v_org,v_actor,(v_after->>'revision')::integer,
+    v_before->>'name',v_before->>'operatingProfile',v_before->>'defaultTimezone');
+END;
+$test$;
+
 COMMIT;
 
 \echo 'PostgreSQL migration smoke tests passed.'

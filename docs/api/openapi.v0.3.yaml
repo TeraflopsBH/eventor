@@ -42,6 +42,56 @@ tags:
   - name: Jobs
   - name: Audit
 paths:
+  "/organizations/{organizationId}/profile":
+    get:
+      tags: ["Authorization"]
+      operationId: readOrganizationProfile
+      summary: "Read the selected organization's profile settings"
+      security: [{ StaffSession: [] }]
+      parameters:
+        - $ref: '#/components/parameters/POrganizationId'
+      responses:
+        '200':
+          description: "Profile settings and management permission."
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/OrganizationProfileEnvelope' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+    patch:
+      tags: ["Authorization"]
+      operationId: updateOrganizationProfile
+      summary: "Update organization name, operating profile and default time zone"
+      description: "Requires organization.manage and the current settings revision. New events use the default time zone."
+      security: [{ StaffSession: [], StaffCsrf: [] }]
+      parameters:
+        - $ref: '#/components/parameters/POrganizationId'
+        - $ref: '#/components/parameters/IdempotencyKey'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              additionalProperties: false
+              required: [name, operatingProfile, defaultTimezone, expectedRevision]
+              properties:
+                name: { type: string, minLength: 1, maxLength: 250 }
+                operatingProfile: { type: string, enum: [venue_provider, event_organizer, hybrid] }
+                defaultTimezone: { type: string, minLength: 1, maxLength: 100 }
+                expectedRevision: { type: integer, minimum: 1, maximum: 2147483647 }
+      responses:
+        '200':
+          description: "The current organization profile."
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/OrganizationProfileEnvelope' }
+        '400': { $ref: '#/components/responses/BadRequest' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '409': { $ref: '#/components/responses/Conflict' }
+        '412': { $ref: '#/components/responses/PreconditionFailed' }
+        '422': { $ref: '#/components/responses/UnprocessableEntity' }
   "/organizations/{organizationId}/memberships/{membershipId}/access-state":
     post:
       tags: ["Authorization"]
@@ -8269,6 +8319,19 @@ components:
           properties:
             grantId: { type: string, format: uuid }
             revokedAt: { type: [string, 'null'], format: date-time }
+    OrganizationProfileEnvelope:
+      type: object
+      required: [data]
+      properties:
+        data:
+          type: object
+          required: [name, operatingProfile, defaultTimezone, revision, canManage]
+          properties:
+            name: { type: string }
+            operatingProfile: { type: string, enum: [venue_provider, event_organizer, hybrid] }
+            defaultTimezone: { type: string }
+            revision: { type: integer, minimum: 1 }
+            canManage: { type: boolean }
     OrganizationAccessScope:
       type: string
       enum: [organization, venue, space, booking, event, task]

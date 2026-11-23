@@ -673,6 +673,21 @@ export default {
     description: "Upravljajte spremnošću dostave i pregledajte kampanje obavještenja prije odobravanja slanja.",
     active: "Sesija aktivna",
   },
+  organizationSettings: {
+    title: "Postavke organizacije",
+    name: "Naziv organizacije",
+    operatingProfile: "Profil poslovanja",
+    timezone: "Zadana vremenska zona",
+    timezoneHelp: "Unesite vremensku zonu poput Europe/Sarajevo. Novi događaji koriste ovu zadanu vrijednost.",
+    save: "Sačuvaj postavke organizacije",
+    saved: "Postavke organizacije su sačuvane.",
+    failed: "Postavke organizacije nije moguće učitati ili sačuvati.",
+    profiles: {
+      venue_provider: "Pružalac prostora",
+      event_organizer: "Organizator događaja",
+      hybrid: "Pružalac prostora i organizator događaja",
+    },
+  },
   organizationAccess: {
     suspendMember: "Suspenduj pristup",
     restoreMember: "Vrati pristup",

@@ -25,6 +25,7 @@ export function useOrganizerEvents({
   api, organizationId, busy, pageError, pageNotice, clearMessages, showError, translate,
 }: Dependencies) {
   const events = ref<OrganizerEvent[]>([]);
+  const defaultTimezone = ref("");
   const selectedEventId = ref("");
   const selectedEvent = computed(() => events.value.find((event) => event.eventId === selectedEventId.value) ?? null);
   const sessions = ref<OrganizerEventSessionDetails[] | null>(null);
@@ -51,7 +52,8 @@ export function useOrganizerEvents({
     clearMessages();
     busy.value = true;
     try {
-      await loadEvents();
+      const [profile] = await Promise.all([api.getOrganizationProfile(organizationId.value),loadEvents()]);
+      defaultTimezone.value = profile.data.defaultTimezone;
       if (sessionsEventId.value) await loadSessions(sessionsEventId.value);
     } catch (error) {
       showError(error);
@@ -252,6 +254,7 @@ export function useOrganizerEvents({
 
   return {
     events,
+    defaultTimezone,
     sessions,
     sessionsEventId,
     showSessions,
