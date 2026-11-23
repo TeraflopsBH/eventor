@@ -107,7 +107,6 @@ for (const engine of [chromium, firefox]) {
     assert.equal(restored.status(),200,await restored.text());
     assert.equal((await memberContext.request.get(`${baseUrl}/api/me`)).status(), 401);
     assert.equal(await signInMember(), 200);
-    await memberContext.close();
     await memberRow.getByText("Active",{exact:true}).waitFor();
 
     page.once("dialog",dialog=>dialog.accept());
@@ -116,6 +115,28 @@ for (const engine of [chromium, firefox]) {
     assert.equal((await protectedAdmin).status(),409);
     await region.getByRole("alert").filter({hasText:"Keep another active organization administrator"}).waitFor();
     await me.getByText("Active",{exact:true}).waitFor();
+    const providerContext = await browser.newContext();
+    const providerPage = await providerContext.newPage();
+    await providerPage.goto(baseUrl);
+    const providerLogin = await providerPage.evaluate(async () => {
+      const response = await fetch("/api/auth/session", {
+        method: "POST", headers: {"content-type": "application/json"},
+        body: JSON.stringify({
+          email: "ci-a@example.invalid", organizationSlug: "ci-venue-a", password: "CI-only-password-2026",
+        }),
+      });
+      return response.status;
+    });
+    assert.equal(providerLogin, 200);
+    for (const path of [
+      `/organizations/${org}/persons`,
+      "/events/79000000-0000-4000-8000-000000000090/participations",
+    ]) {
+      const denied = await providerContext.request.get(`${baseUrl}/api${path}`);
+      assert.equal(denied.status(), 403, await denied.text());
+      assert.ok(!(await denied.text()).includes("Synthetic private guest"));
+    }
+    await providerContext.close();
     const code = `CREW-${randomUUID().slice(0, 8)}`;
     const roleName = `Event crew ${code}`;
     await region.getByRole("button", { name: "Create event role preset" }).click();
@@ -127,6 +148,8 @@ for (const engine of [chromium, firefox]) {
     await region.getByText("No matching permissions.", { exact: true }).waitFor();
     await search.fill("guest.notes.read");
     await region.getByRole("checkbox", { name: /guest\.notes\.read/ }).check();
+    await search.fill("guest.read");
+    await region.getByRole("checkbox", {name:/guest\.read/}).check();
     const saved = page.waitForResponse((response) => response.request().method() === "POST" && new URL(response.url()).pathname.endsWith("/roles"));
     await region.getByRole("button", { name: "Save role preset" }).click();
     const response = await saved;
@@ -138,17 +161,17 @@ for (const engine of [chromium, firefox]) {
 
     const listed = (await (await get(org, "roles")).json()).data.find((item) => item.roleId === data.roleId);
     assert.equal(listed.code, code.toUpperCase());
-    assert.deepEqual(listed.permissionCodes, ["guest.notes.read"]);
+    assert.deepEqual(listed.permissionCodes, ["guest.notes.read","guest.read"]);
     const members = (await (await get(org, "memberships")).json()).data.members;
     assert.equal(members.flatMap((member) => member.grants).some((grant) => grant.roleId === listed.roleId), false);
 
     const eventResponse = await get(org,"access-events");
     assert.equal(eventResponse.status(),200,await eventResponse.text());
-    const [event] = (await eventResponse.json()).data;
-    assert.ok(event, "The synthetic fixture must contain an open event.");
-    const eventId = event.eventId;
-    await me.getByRole("button", { name: "Assign event role", exact: true }).click();
-    const form = region.locator("form").filter({ has: page.getByRole("heading", { name: "Assign event role to CI User B" }) });
+    const eventId = "79000000-0000-4000-8000-000000000090";
+    const selectedEvent = (await eventResponse.json()).data.find(item => item.eventId === eventId);
+    assert.ok(selectedEvent, "The synthetic guest-isolation event must be assignable.");
+    await memberRow.getByRole("button", { name: "Assign event role", exact: true }).click();
+    const form = region.locator("form").filter({ has: page.getByRole("heading", { name: "Assign event role to CI Access Member" }) });
     await form.getByLabel("Role name").selectOption(data.roleId);
     await form.getByLabel("Event", { exact: true }).selectOption(eventId);
     const assignment = page.waitForResponse((item) => item.request().method() === "POST" && new URL(item.url()).pathname.endsWith("/event-role-grants"));
@@ -156,8 +179,28 @@ for (const engine of [chromium, firefox]) {
     const grantResponse = await assignment;
     assert.equal(grantResponse.status(), 201, await grantResponse.text());
     const grant = (await grantResponse.json()).data;
-    const assigned = me.getByRole("listitem").filter({ hasText: roleName });
-    await assigned.getByText(event.title, { exact: false }).waitFor();
+    const memberRoster = await memberContext.request.get(`${baseUrl}/api/events/${eventId}/participations`);
+    assert.equal(memberRoster.status(),200,await memberRoster.text());
+    const roster = (await memberRoster.json()).data;
+    assert.equal(roster.canManage,false);
+    assert.deepEqual(roster.people.map(guest=>guest.displayName),["Synthetic private guest"]);
+    await memberPage.reload();
+    await memberPage.getByRole("button",{name:"Event guests",exact:true}).click();
+    await memberPage.getByLabel("Event",{exact:true}).selectOption(eventId);
+    await memberPage.getByRole("row").filter({hasText:"Synthetic private guest"}).waitFor();
+    assert.equal(await memberPage.getByRole("button",{name:"Edit roster name",exact:true}).count(),0);
+    const memberWorkspaces = await memberContext.request.get(`${baseUrl}/api/organizations/${org}/events/guest-lists`);
+    assert.equal(memberWorkspaces.status(),200,await memberWorkspaces.text());
+    assert.deepEqual((await memberWorkspaces.json()).data.map(item=>item.eventId),[eventId]);
+    for (const path of [
+      `/organizations/${org}/persons`,
+      "/events/79000000-0000-4000-8000-000000000096/participations",
+    ]) {
+      const denied = await memberContext.request.get(`${baseUrl}/api${path}`);
+      assert.equal(denied.status(),403,await denied.text());
+    }
+    const assigned = memberRow.getByRole("listitem").filter({ hasText: roleName });
+    await assigned.getByText(selectedEvent.title, { exact: false }).waitFor();
     const grantRequest = grantResponse.request();
     const grantHeaders = Object.fromEntries(Object.entries(await grantRequest.allHeaders()).filter(([key]) =>
       ["content-type","cookie","origin","idempotency-key","x-csrf-token"].includes(key)));
@@ -169,6 +212,12 @@ for (const engine of [chromium, firefox]) {
     await assigned.getByRole("button", { name: "Revoke grant", exact: true }).click();
     const revokeResponse = await revocation;
     assert.equal(revokeResponse.status(), 200, await revokeResponse.text());
+    assert.equal((await memberContext.request.get(`${baseUrl}/api/events/${eventId}/participations`)).status(),403);
+    assert.equal((await memberContext.request.get(`${baseUrl}/api/me`)).status(),200);
+    await memberPage.reload();
+    await memberPage.getByRole("button",{name:"Event guests",exact:true}).click();
+    assert.equal(await memberPage.getByText("Synthetic private guest",{exact:true}).count(),0);
+    await memberContext.close();
     await region.getByText("Event role grant revoked.", { exact: true }).waitFor();
     assert.equal(await assigned.count(),0);
 
@@ -179,7 +228,7 @@ for (const engine of [chromium, firefox]) {
     assert.equal(retired.status(),200,await retired.text());
     await createdRole.getByText("Retired",{exact:true}).waitFor();
     assert.equal(await createdRole.getByRole("button", {name:"Retire role preset",exact:true}).count(),0);
-    const assignAgain = me.getByRole("button", { name: "Assign event role", exact: true });
+    const assignAgain = memberRow.getByRole("button", { name: "Assign event role", exact: true });
     if (await assignAgain.count()) {
       await assignAgain.click();
       await form.getByLabel("Role name").waitFor();
@@ -199,7 +248,7 @@ for (const engine of [chromium, firefox]) {
     const duplicate = await replay();
     assert.equal(duplicate.status(), 201, await duplicate.text());
     assert.deepEqual((await duplicate.json()).data, data);
-    console.log(`PASS ${engine.name()} organization access creation, grants, retirement and retries`);
+    console.log(`PASS ${engine.name()} organization access and organizer/provider guest isolation`);
   } finally {
     await browser.close();
   }

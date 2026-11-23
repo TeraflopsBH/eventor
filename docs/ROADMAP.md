@@ -60,7 +60,8 @@ The product remains an API-first modular monolith:
 - [x] Extend reference imports to create profiles for authorized staff reviewing unmatched references.
 - [ ] Add reviewed merge resolution for contacts, identifiers, active relationships and open or overlapping events.
 - [x] Extend roster filtering and bulk management and add group allocation preferences and group-to-group relationships.
-- [ ] Run organizer acceptance with separate organizer and venue roles and verify the explicit access grants throughout the workflow.
+- [x] Verify signed-in provider isolation and event-scoped guest access, including grant revocation and Registry restrictions.
+- [ ] Complete organizer/venue collaboration acceptance across booking, disruption and operational workflows.
 
 ## Phase 3 — Venue model and spatial editor
 
