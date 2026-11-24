@@ -11,7 +11,6 @@ for (const engine of [chromium,firefox]) {
     page.setDefaultTimeout(10000);
     await page.goto(baseUrl);
     await page.getByLabel("Email address").fill("ci-extended-a@example.invalid");
-    await page.getByLabel("Organization slug").fill("ci-tenant-a");
     await page.getByLabel("Password",{exact:true}).fill("CI-only-password-2026");
     await page.getByRole("button",{name:"Sign in securely"}).click();
     await page.getByRole("button",{name:"Cancellation policies",exact:true}).click();
