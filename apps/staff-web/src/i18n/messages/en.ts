@@ -74,6 +74,10 @@ export default {
     "footerDescription": "Self-hosted · Organization-scoped · API-authoritative",
   },
   auth: {
+    chooseWorkspace: "Choose your workspace",
+    workspace: "Workspace",
+    platformAdmin: "Platform administrator",
+
     platformEyebrow: "EVENT OPERATIONS PLATFORM",
     headline: "One workspace for the work behind every event.",
     description: "Sign in to manage organization delivery settings and authorized event notification workflows.",

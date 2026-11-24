@@ -22,5 +22,7 @@ psql "$MIGRATOR_URL" -X -v ON_ERROR_STOP=1 \
   -f "$ROOT_DIR/tests/database/event_guest_bulk_groups_smoke.sql"
 psql "$MIGRATOR_URL" -X -v ON_ERROR_STOP=1 \
   -f "$ROOT_DIR/tests/database/registry_person_labels_smoke.sql"
+psql "$MIGRATOR_URL" -X -v ON_ERROR_STOP=1 \
+  -f "$ROOT_DIR/tests/database/platform_administration_smoke.sql"
 bash "$ROOT_DIR/scripts/db/test-concurrency.sh"
 bash "$ROOT_DIR/scripts/db/test_revision_publication_concurrency.sh"

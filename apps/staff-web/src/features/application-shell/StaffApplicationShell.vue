@@ -45,6 +45,12 @@ const selectedLocale = computed({
       </a>
       <label class="locale-picker">{{ $t("app.language") }} <select v-model="selectedLocale"><option v-for="option in localeOptions" :key="option.value" :value="option.value">{{ option.label }}</option></select></label>
       <button v-if="principal?.userLocale" class="button button-quiet" :disabled="busy" @click="props.workspace.useOrganizationLocalePreference">{{ $t("localeSettings.useOrganization") }}</button>
+      <label v-if="principal && (principal.memberships?.length ?? 0)>1">{{ $t("auth.workspace") }}
+        <select :value="principal.organizationId" :aria-label="$t('auth.workspace')" :disabled="busy" @change="props.workspace.switchOrganization(($event.target as HTMLSelectElement).value)">
+          <option v-for="membership in principal.memberships" :key="membership.membershipId" :value="membership.organizationId">{{membership.organizationName}}</option>
+        </select>
+      </label>
+      <span v-if="principal?.platformAdmin" class="pill">{{ $t("auth.platformAdmin") }}</span>
       <div v-if="principal" class="account">
         <div class="account-copy">
           <strong>{{ selectedOrganization }}</strong>
@@ -68,8 +74,12 @@ const selectedLocale = computed({
       <form class="panel login-panel" @submit.prevent="signIn">
         <p class="eyebrow">{{ $t("auth.staffAccess") }}</p>
         <h2>{{ $t("auth.signIn") }}</h2>
-        <label>{{ $t("auth.email") }}<input v-model="loginForm.email" type="email" autocomplete="username" required maxlength="320" /></label>
-        <label>{{ $t("auth.organization") }}<input v-model="loginForm.organizationSlug" autocomplete="organization" required minlength="2" maxlength="80" /></label>
+        <label>{{ $t("auth.email") }}<input v-model="loginForm.email" type="email" @input="props.workspace.clearLoginSelection" autocomplete="username" required maxlength="320" /></label>
+        <label v-if="props.workspace.loginOrganizations.value.length">{{ $t("auth.chooseWorkspace") }}
+          <select v-model="loginForm.organizationId" :aria-label="$t('auth.chooseWorkspace')" required><option value="" disabled>{{ $t("auth.chooseWorkspace") }}</option>
+            <option v-for="organization in props.workspace.loginOrganizations.value" :key="organization.organizationId" :value="organization.organizationId">{{organization.organizationName}}</option>
+          </select>
+        </label>
         <label>{{ $t("auth.password") }}<input v-model="loginForm.password" type="password" autocomplete="current-password" required minlength="12" maxlength="1024" /></label>
         <button class="button button-primary full-width" type="submit" :disabled="busy">
           {{ busy ? $t("auth.signingIn") : $t("auth.signInSecurely") }}

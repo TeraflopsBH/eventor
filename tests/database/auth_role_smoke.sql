@@ -233,14 +233,17 @@ BEGIN
        'guest_invitation_capability_lookup',
        'invitation_delivery_tenant_queue',
        'public_organization_routes',
-       'resend_webhook_endpoint_routes'
+       'resend_webhook_endpoint_routes',
+       'platform_admin_organizations',
+       'platform_admin_access',
+       'platform_admin_audit'
      )
      AND (NOT relation.relrowsecurity OR NOT relation.relforcerowsecurity);
   IF tenant_tables_without_forced_rls IS NOT NULL THEN
     RAISE EXCEPTION 'tenant-owned eogp tables lack ENABLE and FORCE ROW LEVEL SECURITY: %', tenant_tables_without_forced_rls;
   END IF;
 
-  -- Global routing and worker-queue indexes intentionally bypass tenant RLS,
+  -- Global routing, platform control-plane and worker-queue indexes intentionally bypass tenant RLS,
   -- so they must remain inaccessible except for the worker's tenant-key-only
   -- SELECT on the three queue directories.
   IF EXISTS (
@@ -259,7 +262,10 @@ BEGIN
          'guest_invitation_capability_lookup',
          'invitation_delivery_tenant_queue',
          'public_organization_routes',
-         'resend_webhook_endpoint_routes'
+         'resend_webhook_endpoint_routes',
+       'platform_admin_organizations',
+       'platform_admin_access',
+       'platform_admin_audit'
        )
        AND (
          privilege.grantee=0

@@ -457,6 +457,14 @@ jobs:
           EVENTOR_REGISTRY_LABELS_BROWSER_BASE_URL: http://localhost:4173
         run: bash scripts/dev/run-browser-smoke.sh registry-labels
 
+      - name: Seed explicit platform and multi-workspace demo accounts
+        run: psql "$MIGRATOR_URL" -X -v ON_ERROR_STOP=1 -f tests/database/workspace_access_browser_fixture.sql
+
+      - name: Verify email-first login and audited workspace switching
+        env:
+          EVENTOR_WORKSPACE_BROWSER_BASE_URL: http://localhost:4173
+        run: bash scripts/dev/run-browser-smoke.sh workspace-access
+
       - name: Stop the staff web preview
         if: always()
         run: |

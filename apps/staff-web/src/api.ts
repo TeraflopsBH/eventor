@@ -94,6 +94,7 @@ export interface Envelope<T> {
 
 export interface Principal {
   userId: string;
+  platformAdmin?: boolean;
   organizationId: string;
   membershipId: string;
   userLocale: "bs-BA" | "en" | null;
@@ -2035,8 +2036,9 @@ export const api = {
         extraHeaders: { "X-External-Booking-Token": token },
       },
     ),
-  login: (body: { email: string; password: string; organizationSlug: string }) =>
-    request<Envelope<{ csrfToken: string; expiresAt: string }>>("/auth/session", { method: "POST", body }),
+  login: (body: { email: string; password: string; organizationSlug?: string; organizationId?: string }) =>
+    request<Envelope<{ csrfToken: string; expiresAt: string } | {organizationSelectionRequired:true;organizations:{organizationId:string;organizationName:string}[]}>>("/auth/session", { method: "POST", body }),
+  switchStaffOrganization:(organizationId:string)=>request<Envelope<{organizationId:string}>>("/auth/session/organization",{method:"POST",body:{organizationId}}),
   me: () => request<Envelope<Principal>>("/me"),
   getStaffWorkspaces: () => request<Envelope<{ workspaces: import("./features/application-shell/useStaffSession").StaffTab[] }>>("/me/workspaces"),
   updateUserLocale: (locale: "bs-BA" | "en" | null) => request<Envelope<{ userLocale: "bs-BA" | "en" | null }>>("/me/preferences", { method: "PATCH", body: { locale }, keepalive: true }),
