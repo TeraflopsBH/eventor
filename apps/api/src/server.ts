@@ -1,3 +1,4 @@
+import { availableStaffWorkspaces, type WorkspaceGrant } from "./staff-workspaces.js";
 import { isUuid, uuidPattern } from "./uuid.js";
 import Fastify, { type FastifyInstance, type FastifyReply, type FastifyRequest } from "fastify";
 import { createCipheriv, createDecipheriv, createHash, createHmac, randomBytes, randomUUID } from "node:crypto";
@@ -1904,6 +1905,30 @@ export function buildApi(dependencies: ApiDependencies): FastifyInstance {
   });
 
 
+
+  server.get("/me/workspaces", async (request, reply) => {
+    const principal = request.staffPrincipal!;
+    const client = await dependencies.pool.connect();
+    try {
+      await client.query("BEGIN");
+      await client.query("SELECT set_config('app.organization_id',$1,true)", [principal.organizationId]);
+      await client.query("SELECT set_config('app.actor_membership_id',$1,true)", [principal.membershipId]);
+      const grants = await client.query<WorkspaceGrant>(
+        `SELECT DISTINCT permission.permission_code, assignment.scope_kind
+           FROM eogp.user_role_grants assignment
+           JOIN eogp.role_permissions permission ON permission.organization_id=assignment.organization_id AND permission.role_id=assignment.role_id
+           JOIN eogp.organization_memberships membership ON membership.organization_id=assignment.organization_id AND membership.id=assignment.membership_id
+          WHERE assignment.organization_id=$1 AND assignment.membership_id=$2 AND membership.status='active'
+            AND assignment.revoked_at IS NULL AND (assignment.expires_at IS NULL OR assignment.expires_at>clock_timestamp())`,
+        [principal.organizationId, principal.membershipId],
+      );
+      await client.query("COMMIT");
+      return reply.header("cache-control", "no-store, private").send({ data: { workspaces: availableStaffWorkspaces(grants.rows) } });
+    } catch (error) {
+      try { await client.query("ROLLBACK"); } catch { /* preserve original failure */ }
+      throw databaseError(error);
+    } finally { client.release(); }
+  });
 
   server.patch<{ Body: LocalePreferenceBody }>("/me/preferences", { schema: { body: localePreferenceBody } }, async (request, reply) => {
     const principal = request.staffPrincipal!;

@@ -525,6 +525,34 @@ paths:
         '409': { $ref: '#/components/responses/Conflict' }
         '422': { $ref: '#/components/responses/UnprocessableEntity' }
         '500': { $ref: '#/components/responses/InternalServerError' }
+  /me/workspaces:
+    get:
+      tags: ["Authentication"]
+      operationId: getStaffWorkspaces
+      summary: "List navigation sections available to the current staff membership"
+      description: "Computed from current, unexpired grants in the selected organization. These hints do not authorize any data operation. Each section retains its own server authorization. Settings remains available to active members for permitted organization/profile preferences."
+      security: [{ StaffSession: [] }]
+      responses:
+        '200':
+          description: "Available workspace identifiers; no role or other membership details."
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [data]
+                properties:
+                  data:
+                    type: object
+                    required: [workspaces]
+                    properties:
+                      workspaces:
+                        type: array
+                        uniqueItems: true
+                        items:
+                          type: string
+                          enum: [events, event-guests, guest-registry, guest-invitations, inquiries, delivery, campaign, approvals, forms, prices, cancellations, taxes, settings]
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '503': { $ref: '#/components/responses/ServiceUnavailable' }
   "/me/preferences":
     patch:
       tags: ["Authentication"]

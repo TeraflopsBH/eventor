@@ -5,7 +5,8 @@ BEGIN;
 SET LOCAL ROLE eventor_owner;
 SELECT set_config('app.organization_id','22222222-2222-4222-8222-222222222222',true);
 INSERT INTO eogp.role_permissions(organization_id,role_id,permission_code)
-VALUES ('22222222-2222-4222-8222-222222222222','78000000-0000-4000-8000-000000000001','organization.manage')
+VALUES ('22222222-2222-4222-8222-222222222222','78000000-0000-4000-8000-000000000001','organization.manage'),
+  ('22222222-2222-4222-8222-222222222222','78000000-0000-4000-8000-000000000001','event.manage')
 ON CONFLICT DO NOTHING;
 INSERT INTO eogp.events(id,organization_id,event_code,title,created_by_membership_id)
 VALUES (

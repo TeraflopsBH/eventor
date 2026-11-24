@@ -240,7 +240,8 @@ for (const engine of [chromium, firefox]) {
     assert.equal((await memberContext.request.get(`${baseUrl}/api/events/${eventId}/participations`)).status(),403);
     assert.equal((await memberContext.request.get(`${baseUrl}/api/me`)).status(),200);
     await memberPage.reload();
-    await memberPage.getByRole("button",{name:"Event guests",exact:true}).click();
+    await memberPage.locator(".tabs").waitFor();
+    assert.equal(await memberPage.getByRole("button",{name:"Event guests",exact:true}).count(),0,"revoked roster access remained in navigation");
     assert.equal(await memberPage.getByText("Synthetic private guest",{exact:true}).count(),0);
     await memberContext.close();
     await region.getByText("Event role grant revoked.", { exact: true }).waitFor();

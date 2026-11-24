@@ -4,15 +4,15 @@ Updated 2026-11-24. This page is the current development handoff. Detailed histo
 
 ## Verified integration baseline
 
-`main` was verified at `789696636d5d70bae1af083075c244b7b4af359c`, after [bulk roster group changes, PR #207](https://github.com/TeraflopsBH/eventor/pull/207). Its post-merge [contracts/PostgreSQL](https://github.com/TeraflopsBH/eventor/actions/runs/45406989186) and [secret history](https://github.com/TeraflopsBH/eventor/actions/runs/45406989335) checks passed.
+`main` was verified at `edaf1beae965c02d72e2b0561dd9c7b68282cba1`, after [competing-primary contact review, PR #208](https://github.com/TeraflopsBH/eventor/pull/208). Post-merge [contracts/PostgreSQL](https://github.com/TeraflopsBH/eventor/actions/runs/45408864860) and [secret history](https://github.com/TeraflopsBH/eventor/actions/runs/45408865143) passed.
 
 This includes reviewed current-state restoration (#206), source-reference transfers with preserved encryption identity (#205), reviewed contact transfers (#204), public cancellation isolation (#203), the concise handoff (#202), provider notices (#201) and UUID compatibility (#200). Detailed receipts are in the linked archive.
 
 ## Latest implementation slice
 
-The Registry merge comparison now displays authorized contact details when competing primary contacts block a merge. Staff can explicitly clear one primary flag using the existing audited contact editor, which preserves consent/value/verification and requests a fresh preview. Cancelling leaves the contact unchanged; stale edits cannot overwrite newer consent. Merge still requires its own transfer acknowledgement and confirmation. Duplicate values and other unsupported conflicts retain their server guards. This contact edit is independent of any later merge/restoration (ADR 0009).
+Staff language selection now survives refresh before sign-in, and unfinished saves are retried for the matching account during session restoration. The browser stores only display preferences and an account-bound pending choice; account preferences remain server-backed. Public capability pages retain their own locale handling.
 
-Full application checks and all three shared merge browser variants passed in Chromium and Firefox against the local PostgreSQL database. Exact-head CI remains required before integration. This slice changes no API contract or database schema. See [resume details](development/RESUME.md).
+`GET /me/workspaces` computes navigation hints from the selected membership's current unexpired grants. Unsupported sections are hidden; section endpoints retain their authorization. Unrelated delivery configuration is not fetched for users without that workspace, and global messages clear when leaving a tab. Full application checks and fresh isolated database plus Chromium/Firefox language/retry/navigation acceptance passed locally. No schema change. Email-first sign-in, workspace switching and explicit platform administration are the next requested slice.
 
 ## Implemented workflows
 
