@@ -37,6 +37,8 @@ These instructions apply repository-wide unless a more specific `AGENTS.md` is a
 
 ## Change workflow
 
+- Keep `docs/PROJECT_STATE.md` concise and current: verified baseline, implemented behavior, next work and validation limits. Preserve detailed historical receipts in the linked state archive instead of appending superseded status to the active handoff.
+
 - For schema changes, add a forward migration and update schema reference and relevant tests.
 - For API changes, update the OpenAPI contract and shared request/response types.
 - For configurable forms/catalogues, preserve published revisions and historical snapshots.
