@@ -418,6 +418,9 @@ export default {
       stale: "Profil je izmijenjen. Ponovo učitajte reference prije uređivanja.",
     },
     merge: {
+      references: "Pregled prenosa izvornih referenci",
+      transferReferences: "Prenesi sve reference izvornih sistema na zadržani profil, uz očuvanje oznake i vrijednosti.",
+      referenceCorrection: "Izmijenjene ili uklonjene prenesene reference zahtijevaju pregled ispravke prije vraćanja. Uklonjene vrijednosti se ne obnavljaju.",
       contacts: "Pregled prenosa kontakata",
       transferContacts: "Prenesi sve kontakte izvornog profila na zadržani profil, uz očuvanje saglasnosti, primarnog statusa i verifikacije.",
       contactCorrection: "Vraćanje profila vraća prenesene kontakte ako nisu mijenjani. Izmijenjeni kontakti zahtijevaju pregled ispravke prije vraćanja.",
@@ -439,6 +442,7 @@ export default {
       moreHistoricalEvents: "Prikazano je {shown} od {total} završenih događaja. Potpuni popis je u historiji događaja izvornog profila.",
       fromMergedProfile: "Sa spojenog profila",
       blocker: {
+        reference_access_required: "Za pregled i prenos ovih referenci potrebno je ovlaštenje za upravljanje izvornim referencama.",
         contact_access_required: "Za pregled i prenos ovih kontakata potrebno je ovlaštenje za upravljanje kontaktima.",
         contact_conflict: "Kontakti sadrže duplu vrijednost ili konkurentne primarne kontakte. Riješite konflikt kontakata prije spajanja.",
 
@@ -1779,6 +1783,7 @@ export default {
     "smtpCredentialsConflict": "E-mail pristupni podaci ne mogu se istovremeno zamijeniti i ukloniti u istom zahtjevu.",
     "smtpCredentialsNotAllowed": "E-mail pristupni podaci mogu se unijeti samo kada je odabrana autentifikacija lozinkom.",
     "staleRevision": "Podaci su izmijenjeni. Osvježite stranicu i pokušajte ponovo.",
+    "mergeReferencesChanged": "Prenesena izvorna referenca je izmijenjena ili uklonjena nakon spajanja. Pregledajte ispravku prije vraćanja izvornog profila.",
     "mergeContactsChanged": "Preneseni kontakt je izmijenjen nakon spajanja. Pregledajte ispravku kontakta prije vraćanja izvornog profila.",
     "lastOrganizationAdmin": "Prije suspenzije pristupa osigurajte drugog aktivnog administratora organizacije.",
     "stateConflict": "Ova radnja nije dozvoljena u trenutnom stanju resursa.",

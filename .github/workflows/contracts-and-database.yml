@@ -171,7 +171,7 @@ jobs:
             *) echo "Expected PostgreSQL 18.x" >&2; exit 1 ;;
           esac
 
-      - name: Rehearse populated schema upgrade from 000073 to 000074
+      - name: Rehearse populated schema upgrades and reference encryption binding
         run: |
           bash -n scripts/db/test-upgrade-000073-to-000074.sh
           bash scripts/db/test-upgrade-000073-to-000074.sh
@@ -425,6 +425,14 @@ jobs:
         env:
           EVENTOR_CONTACT_MERGE_BROWSER_BASE_URL: http://localhost:4173
         run: bash scripts/dev/run-browser-smoke.sh registry-contact-merge
+
+      - name: Seed reviewed Registry source-reference merge browser access
+        run: psql "$MIGRATOR_URL" -X -v ON_ERROR_STOP=1 -f tests/database/registry_reference_merge_browser_fixture.sql
+
+      - name: Verify reviewed Registry reference and contact transfers in Chromium and Firefox
+        env:
+          EVENTOR_REFERENCE_MERGE_BROWSER_BASE_URL: http://localhost:4173
+        run: bash scripts/dev/run-browser-smoke.sh registry-reference-merge
 
       - name: Stop the staff web preview
         if: always()

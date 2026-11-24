@@ -3,6 +3,7 @@ import { randomUUID } from "node:crypto";
 import { chromium, firefox } from "playwright";
 
 const baseUrl = process.env.EVENTOR_CONTACT_MERGE_BROWSER_BASE_URL ?? "http://localhost:4173";
+const withReferences = process.env.EVENTOR_MERGE_REFERENCES === "1";
 const org = "10000000-0000-0000-0000-00000000000a";
 for (const engine of [chromium,firefox]) {
   const browser = await engine.launch();
@@ -34,6 +35,14 @@ for (const engine of [chromium,firefox]) {
     await write(`/persons/${source.personId}/contacts/${contact.contactId}/verification`,{expectedRevision:contact.revision,method:"in_person"},"patch");
     const existing = await write(`/persons/${destination.personId}/contacts`,{kind:"email",value:destinationValue,consent:"withdrawn",primary:false});
     const original = (await get(`/persons/${source.personId}/contacts`)).contacts[0];
+    let originalReference;
+    let destinationReference;
+    if (withReferences) {
+      await write(`/persons/${source.personId}/references`,{expectedRevision:source.revision,source:"BROWSER_MERGE",value:`SRC-${randomUUID()}`});
+      await write(`/persons/${destination.personId}/references`,{expectedRevision:destination.revision,source:"BROWSER_MERGE",value:`DEST-${randomUUID()}`});
+      originalReference = (await get(`/persons/${source.personId}/references`)).references[0];
+      destinationReference = (await get(`/persons/${destination.personId}/references`)).references[0];
+    }
     const page = await context.newPage();
     page.setDefaultTimeout(10000);
     await page.goto(baseUrl);
@@ -51,15 +60,33 @@ for (const engine of [chromium,firefox]) {
     await page.getByRole("heading",{name:"Review contact transfer",exact:true}).waitFor();
     await page.getByRole("cell",{name:sourceValue,exact:false}).waitFor();
     await page.getByRole("cell",{name:destinationValue,exact:false}).waitFor();
+    if (withReferences) {
+      await page.getByRole("heading",{name:"Review source-reference transfer",exact:true}).waitFor();
+      await page.getByRole("cell",{name:originalReference.value,exact:true}).waitFor();
+      await page.getByRole("cell",{name:destinationReference.value,exact:true}).waitFor();
+    }
     const commit = page.getByRole("button",{name:"Merge as duplicate",exact:true});
     assert.equal(await commit.isEnabled(),false,"contact transfer did not require explicit review confirmation");
     await page.getByRole("checkbox",{name:"Move every source contact to the profile kept, preserving consent, primary status and verification.",exact:true}).check();
+    if (withReferences) {
+      assert.equal(await commit.isEnabled(),false,"reference transfer did not require its own confirmation");
+      await page.getByRole("checkbox",{name:"Move every source-system reference to the profile kept, preserving its identifier and value.",exact:true}).check();
+    }
     const saved = page.waitForResponse(response=>response.request().method()==="POST" && new URL(response.url()).pathname.endsWith(`/persons/${source.personId}/merge`));
     page.once("dialog",dialog=>dialog.accept());
     await commit.click();
     const response = await saved;
     assert.equal(response.status(),201,await response.text());
     const merged = (await response.json()).data;
+    if (withReferences) {
+      assert.equal(response.request().postDataJSON().referenceResolution,"move_to_destination");
+      const movedReferences = await get(`/persons/${destination.personId}/references`);
+      assert.equal(movedReferences.profileRevision,3);
+      assert.equal(movedReferences.references.length,2);
+      assert.deepEqual(movedReferences.references.find(item=>item.referenceId===originalReference.referenceId),originalReference);
+      assert.deepEqual(movedReferences.references.find(item=>item.referenceId===destinationReference.referenceId),destinationReference);
+      assert.equal((await get(`/persons/${source.personId}/references`)).references.length,0);
+    }
     const transferred = (await get(`/persons/${destination.personId}/contacts`)).contacts;
     assert.equal(transferred.length,2);
     assert.deepEqual({...transferred.find(item=>item.contactId===contact.contactId),revision:undefined},{...original,revision:undefined});
@@ -81,6 +108,14 @@ for (const engine of [chromium,firefox]) {
     assert.equal(returned.revision,original.revision+2);
     assert.equal((await get(`/persons/${destination.personId}/contacts`)).contacts.length,1);
     assert.equal((await get(`/persons/${source.personId}`)).status,"active");
+    if (withReferences) {
+      const sourceReferences = await get(`/persons/${source.personId}/references`);
+      const keptReferences = await get(`/persons/${destination.personId}/references`);
+      assert.equal(sourceReferences.profileRevision,4);
+      assert.equal(keptReferences.profileRevision,4);
+      assert.deepEqual(sourceReferences.references,[originalReference]);
+      assert.deepEqual(keptReferences.references,[destinationReference]);
+    }
     await write(`/persons/${destination.personId}/contacts/${existing.contactId}`,{expectedRevision:existing.revision,consent:"restricted",primary:true},"patch");
     await page.getByRole("button",{name:"Merge history",exact:true}).click();
     await openReview();
@@ -90,6 +125,9 @@ for (const engine of [chromium,firefox]) {
     await page.getByRole("button",{name:`Compare with Destination ${tag}`,exact:true}).click();
     await page.getByRole("heading",{name:"Review contact transfer",exact:true}).waitFor();
     await page.getByRole("checkbox",{name:"Move every source contact to the profile kept, preserving consent, primary status and verification.",exact:true}).check();
+    if (withReferences) {
+      await page.getByRole("checkbox",{name:"Move every source-system reference to the profile kept, preserving its identifier and value.",exact:true}).check();
+    }
     const secondSave = page.waitForResponse(item=>item.request().method()==="POST" && new URL(item.url()).pathname.endsWith(`/persons/${source.personId}/merge`));
     page.once("dialog",dialog=>dialog.accept());
     await commit.click();
@@ -110,6 +148,31 @@ for (const engine of [chromium,firefox]) {
     assert.equal(preserved.primary,false);
     assert.equal(preserved.verified,true);
     assert.equal(preserved.revision,current.revision+1);
-    console.log(`PASS ${engine.name()} reviewed contact merge, unchanged consent/verification, replay, restoration and conflict/correction guards`);
+    if (withReferences) {
+      const assertReferenceConflict = async () => {
+        const deniedReferenceRestore = page.waitForResponse(item=>item.request().method()==="POST" && new URL(item.url()).pathname.endsWith(`/merges/${secondMerge.mergeId}/restore`));
+        page.once("dialog",dialog=>dialog.accept());
+        await historyRow.getByRole("button",{name:"Restore source profile",exact:true}).click();
+        const referenceConflict = await deniedReferenceRestore;
+        assert.equal(referenceConflict.status(),409);
+        assert.equal((await referenceConflict.json()).code,"MERGE_REFERENCES_CHANGED");
+        await page.getByText("A transferred source reference changed or was removed after this merge. Review its correction before restoring the source profile.",{exact:true}).waitFor();
+      };
+      const currentReferences = await get(`/persons/${destination.personId}/references`);
+      const editedValue = `EDITED-${randomUUID()}`;
+      await write(`/persons/${destination.personId}/references/${originalReference.referenceId}`,{
+        expectedRevision:currentReferences.profileRevision,source:originalReference.source,value:editedValue,
+      },"patch");
+      const editedReferences = await get(`/persons/${destination.personId}/references`);
+      assert.equal(editedReferences.references.find(item=>item.referenceId===originalReference.referenceId).value,editedValue);
+      await assertReferenceConflict();
+      await write(`/persons/${destination.personId}/references/${originalReference.referenceId}/remove`,{expectedRevision:editedReferences.profileRevision});
+      await assertReferenceConflict();
+      assert.deepEqual((await get(`/persons/${destination.personId}/references`)).references,[destinationReference]);
+      assert.equal((await get(`/persons/${source.personId}/references`)).references.length,0);
+      assert.equal((await get(`/persons/${source.personId}`)).status,"merged");
+      assert.equal((await get(`/persons/${destination.personId}/contacts`)).contacts.find(item=>item.contactId===contact.contactId).revision,current.revision+1);
+    }
+    console.log(`PASS ${engine.name()} reviewed ${withReferences ? "reference/contact" : "contact"} merge, unchanged values, replay, restoration and conflict/correction guards`);
   } finally { await browser.close(); }
 }
