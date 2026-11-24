@@ -48,7 +48,7 @@ Directories will be introduced as their corresponding implementation work begins
 
 ## Development status
 
-The main baseline verified on 2026-11-17 is `55d7f4c2b6ea33386cc0fc8df6b346709bf828bb`, after session listing and creation in PR #134. Contracts/PostgreSQL and secret-history workflows passed on that commit. Native Linux and Docker Compose are both required release deliverables; neither complete installer is present yet.
+See [Project state](docs/PROJECT_STATE.md) for the current verified main commit and CI receipts. Native Linux and Docker Compose are both required release deliverables; neither complete installer is present yet.
 
 ## Security and data handling
 

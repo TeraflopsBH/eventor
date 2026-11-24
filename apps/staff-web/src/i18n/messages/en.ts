@@ -307,6 +307,12 @@ export default {
       failed: "Could not load or update saved views.",
     },
     bulk: {
+      group: "Group for selected guests",
+      chooseGroup: "Choose a group",
+      addGroup: "Add group to selected",
+      removeGroup: "Remove group from selected",
+      confirmGroupAdd: "Add {count} selected guests to {label}? Existing roles are preserved; new members receive the member role.",
+      confirmGroupRemove: "Remove {count} selected guests from {label}? Other group memberships are preserved.",
       tag: "Tag for selected guests",
       chooseTag: "Choose a tag",
       addTag: "Add tag to selected",

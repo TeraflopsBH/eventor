@@ -439,6 +439,14 @@ jobs:
           EVENTOR_RESTORATION_BROWSER_BASE_URL: http://localhost:4173
         run: bash scripts/dev/run-browser-smoke.sh registry-restoration
 
+      - name: Seed bulk group browser access
+        run: psql "$MIGRATOR_URL" -X -v ON_ERROR_STOP=1 -f tests/database/event_guest_bulk_groups_browser_fixture.sql
+
+      - name: Verify bulk group changes in Chromium and Firefox
+        env:
+          EVENTOR_BULK_GROUPS_BROWSER_BASE_URL: http://localhost:4173
+        run: bash scripts/dev/run-browser-smoke.sh event-guest-bulk-groups
+
       - name: Stop the staff web preview
         if: always()
         run: |

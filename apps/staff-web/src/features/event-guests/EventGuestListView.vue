@@ -87,6 +87,14 @@ const bulkTagOptions = computed(() => {
   return tags.value.filter((tag) => !tag.retired || tagIds.has(tag.tagId));
 });
 const bulkTag = computed(() => bulkTagOptions.value.find(({ tagId }) => tagId === bulkTagId.value));
+const bulkGroupId = ref("");
+const bulkGroupOptions = computed(() => {
+  const groupIds = new Set((roster.value?.people ?? [])
+    .filter((guest) => selectedGuests.value.includes(guest.participationId))
+    .flatMap(({ groupIds }) => groupIds));
+  return groups.value.filter((group) => !group.retired || groupIds.has(group.groupId));
+});
+const bulkGroup = computed(() => bulkGroupOptions.value.find(({ groupId }) => groupId === bulkGroupId.value));
 const bulkResult = ref<{ processedCount: number; updatedCount: number } | null>(null);
 const selectableGuests = computed(() => (roster.value?.people ?? []).filter((row) => row.status !== "cancelled"));
 const allGuestsSelected = computed(() => selectableGuests.value.length > 0
@@ -129,6 +137,7 @@ async function loadPage(pageOffset: number): Promise<void> {
   bulkCategory.value = null;
   bulkStatus.value = "";
   bulkTagId.value = "";
+  bulkGroupId.value = "";
   editing.value = null;
   relationshipGuest.value = null;
   notesGuest.value = null;
@@ -159,6 +168,7 @@ function chooseEvent(): void {
   bulkCategory.value = null;
   bulkStatus.value = "";
   bulkTagId.value = "";
+  bulkGroupId.value = "";
   bulkResult.value = null;
   showImport.value = false;
   showCategories.value = false;
@@ -247,6 +257,18 @@ function saveBulkTag(action: "add" | "remove"): void {
   if (!window.confirm(t(message, { count: guests.length, label: tag.label }))) return;
   void run(async () => {
     bulkResult.value = (await api.setEventGuestBulkTag(eventId.value, tag.tagId, action, guests)).data;
+    await loadPage(offset.value);
+  });
+}
+
+function saveBulkGroup(action: "add" | "remove"): void {
+  const group = bulkGroup.value;
+  const guests = selectedGuestRevisions();
+  if (!group || !guests.length || (action === "add" && group.retired)) return;
+  const message = action === "add" ? "eventGuests.bulk.confirmGroupAdd" : "eventGuests.bulk.confirmGroupRemove";
+  if (!window.confirm(t(message, { count: guests.length, label: group.label }))) return;
+  void run(async () => {
+    bulkResult.value = (await api.setEventGuestBulkGroup(eventId.value, group.groupId, action, guests)).data;
     await loadPage(offset.value);
   });
 }
@@ -567,6 +589,21 @@ onMounted(() => run(async () => {
           @click="saveBulkTag('add')">{{ t("eventGuests.bulk.addTag") }}</button>
         <button class="button button-secondary" type="button" :disabled="busy || rowEditing || !bulkTag"
           @click="saveBulkTag('remove')">{{ t("eventGuests.bulk.removeTag") }}</button>
+      </div>
+      <div v-if="bulkGroupOptions.length" class="guest-list-controls">
+        <div>
+          <label for="roster-bulk-group">{{ t("eventGuests.bulk.group") }}</label>
+          <select id="roster-bulk-group" v-model="bulkGroupId" :disabled="busy || rowEditing">
+            <option value="" disabled>{{ t("eventGuests.bulk.chooseGroup") }}</option>
+            <option v-for="group in bulkGroupOptions" :key="group.groupId" :value="group.groupId">
+              {{ group.retired ? t("eventGuests.tags.retiredOption", { label: group.label }) : group.label }}
+            </option>
+          </select>
+        </div>
+        <button class="button button-primary" type="button" :disabled="busy || rowEditing || !bulkGroup || bulkGroup.retired"
+          @click="saveBulkGroup('add')">{{ t("eventGuests.bulk.addGroup") }}</button>
+        <button class="button button-secondary" type="button" :disabled="busy || rowEditing || !bulkGroup"
+          @click="saveBulkGroup('remove')">{{ t("eventGuests.bulk.removeGroup") }}</button>
       </div>
     </template>
     <p v-if="bulkResult" role="status">{{ t("eventGuests.bulk.result", { updated: bulkResult.updatedCount, count: bulkResult.processedCount }) }}</p>

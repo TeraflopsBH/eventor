@@ -5218,6 +5218,28 @@ export function buildApi(dependencies: ApiDependencies): FastifyInstance {
       [tagId, action, JSON.stringify(guests)]);
   });
 
+  type BulkGuestGroupBody = JsonRequestBody<"/events/{eventId}/participations/bulk/groups", "patch">;
+  server.patch<{ Params: { eventId: string }; Body: BulkGuestGroupBody }>("/events/:eventId/participations/bulk/groups", {
+    schema: {
+      params: participationEventParams, headers: idempotencyHeaders,
+      body: {
+        type: "object", additionalProperties: false, required: ["groupId", "action", "guests"],
+        properties: {
+          groupId: { type: "string", pattern: uuidPattern },
+          action: { type: "string", enum: ["add", "remove"] },
+          guests: bulkGuestSelectionSchema,
+        },
+      },
+    },
+  }, (request, reply) => {
+    const { action } = request.body;
+    const groupId = request.body.groupId.toLowerCase();
+    const guests = normalizeBulkGuests(request.body.guests);
+    return withGuestListCommand(request, reply, request.params.eventId, "guest.participation.bulk_groups", { groupId, action, guests },
+      "SELECT eogp.set_event_guest_bulk_group($1::uuid,$2::uuid,$3::uuid,$4::uuid,$5::text,$6::jsonb) AS result",
+      [groupId, action, JSON.stringify(guests)]);
+  });
+
   type CategoryCreateBody = JsonRequestBody<"/events/{eventId}/guest-categories", "post">;
   server.post<{ Params: { eventId: string }; Body: CategoryCreateBody }>("/events/:eventId/guest-categories", {
     schema: {

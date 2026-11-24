@@ -4778,6 +4778,41 @@ paths:
         '409': { $ref: '#/components/responses/Conflict' }
         '412': { $ref: '#/components/responses/PreconditionFailed' }
         '422': { $ref: '#/components/responses/UnprocessableEntity' }
+  "/events/{eventId}/participations/bulk/groups":
+    patch:
+      tags: ["Event Participation"]
+      operationId: setEventGuestBulkGroup
+      summary: "Add or remove a group membership for up to 50 event guests in one transaction"
+      description: "Existing group roles and unrelated memberships are preserved. New members receive the member role. Retired groups can only be removed. A stale, cancelled or unavailable guest rejects the entire batch; no partial changes are committed."
+      security: [{ StaffSession: [], StaffCsrf: [] }]
+      parameters:
+        - $ref: '#/components/parameters/PEventId'
+        - $ref: '#/components/parameters/IdempotencyKey'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              additionalProperties: false
+              required: [groupId, action, guests]
+              properties:
+                groupId: { type: string, format: uuid }
+                action: { type: string, enum: [add, remove] }
+                guests: { $ref: '#/components/schemas/BulkEventGuestSelection' }
+      responses:
+        '200':
+          description: "Counts of selected and updated guests."
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/BulkEventGuestChangeEnvelope' }
+        '400': { $ref: '#/components/responses/BadRequest' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '404': { $ref: '#/components/responses/NotFound' }
+        '409': { $ref: '#/components/responses/Conflict' }
+        '412': { $ref: '#/components/responses/PreconditionFailed' }
+        '422': { $ref: '#/components/responses/UnprocessableEntity' }
   "/events/{eventId}/participations/{participationId}/category":
     patch:
       tags: ["Event Participation"]
