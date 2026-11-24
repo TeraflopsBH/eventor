@@ -26,9 +26,11 @@ const referenceRows = computed(() => [
 ]);
 const sourceContacts = ref<RegistryContact[]>([]);
 const destinationContacts = ref<RegistryContact[]>([]);
-const contactRows = computed(() => [
-  ...sourceContacts.value.map(contact=>({...contact,profile:"source"})),
-  ...destinationContacts.value.map(contact=>({...contact,profile:"destination"})),
+type MergeContactRow = RegistryContact & { profile: "source" | "destination" };
+const contactReviewNotice = ref("");
+const contactRows = computed<MergeContactRow[]>(() => [
+  ...sourceContacts.value.map(contact=>({...contact,profile:"source" as const})),
+  ...destinationContacts.value.map(contact=>({...contact,profile:"destination" as const})),
 ]);
 const offset = ref(0);
 const nextOffset = ref<number | null>(null);
@@ -47,6 +49,7 @@ async function run(operation: () => Promise<void>): Promise<void> {
       preview.value = null;
       history.value = null;
       correctionMergeId.value = null;
+      contactReviewNotice.value = "";
       sourceContacts.value = [];
       destinationContacts.value = [];
       transferContacts.value = false;
@@ -79,35 +82,60 @@ function search(): void {
   void run(() => load(0));
 }
 
-function review(destination: GuestRegistryProfile): void {
+async function loadReview(destination: GuestRegistryProfile): Promise<void> {
   const source = props.source;
   if (!source) return;
+  preview.value = null;
+  transferContacts.value = false;
+  transferReferences.value = false;
+  sourceReferences.value = [];
+  destinationReferences.value = [];
+  sourceContacts.value = [];
+  destinationContacts.value = [];
+  const reviewed = (await api.previewGuestRegistryMerge(source.personId,destination.personId)).data;
+  if ((!reviewed.blocker && reviewed.contactCount>0) || reviewed.blocker === "contact_conflict") {
+    const [from,to] = await Promise.all([
+      api.getGuestRegistryContacts(source.personId),api.getGuestRegistryContacts(destination.personId),
+    ]);
+    if (!from.data.canManage || !to.data.canManage) throw new ApiError("Contact access changed",403,"FORBIDDEN");
+    sourceContacts.value = from.data.contacts;
+    destinationContacts.value = to.data.contacts;
+  }
+  if (!reviewed.blocker && reviewed.referenceCount>0) {
+    const [from,to] = await Promise.all([
+      api.getGuestRegistryReferences(source.personId),api.getGuestRegistryReferences(destination.personId),
+    ]);
+    if (!from.data.canManage || !to.data.canManage) throw new ApiError("Reference access changed",403,"FORBIDDEN");
+    sourceReferences.value = from.data.references;
+    destinationReferences.value = to.data.references;
+  }
+  preview.value = reviewed;
+}
+
+function review(destination: GuestRegistryProfile): void {
+  contactReviewNotice.value = "";
+  void run(() => loadReview(destination));
+}
+
+function canClearPrimary(contact: MergeContactRow): boolean {
+  return contact.primary && contactRows.value.some(other =>
+    other.contactId !== contact.contactId && other.kind === contact.kind && other.primary);
+}
+
+function clearPrimary(contact: MergeContactRow): void {
+  const reviewed = preview.value;
+  if (busy.value || reviewed?.blocker !== "contact_conflict" || !canClearPrimary(contact)) return;
+  const person = reviewed[contact.profile];
+  if (!window.confirm(t("registry.merge.confirmClearPrimary", { name: fullName(person), value: contact.value }))) return;
   void run(async () => {
+    // Invalidate the old review before editing; merge remains a separate, explicit command.
     preview.value = null;
-    transferContacts.value = false;
-    transferReferences.value = false;
-    sourceReferences.value = [];
-    destinationReferences.value = [];
-    sourceContacts.value = [];
-    destinationContacts.value = [];
-    const reviewed = (await api.previewGuestRegistryMerge(source.personId,destination.personId)).data;
-    if (!reviewed.blocker && reviewed.contactCount>0) {
-      const [from,to] = await Promise.all([
-        api.getGuestRegistryContacts(source.personId),api.getGuestRegistryContacts(destination.personId),
-      ]);
-      if (!from.data.canManage || !to.data.canManage) throw new ApiError("Contact access changed",403,"FORBIDDEN");
-      sourceContacts.value = from.data.contacts;
-      destinationContacts.value = to.data.contacts;
-    }
-    if (!reviewed.blocker && reviewed.referenceCount>0) {
-      const [from,to] = await Promise.all([
-        api.getGuestRegistryReferences(source.personId),api.getGuestRegistryReferences(destination.personId),
-      ]);
-      if (!from.data.canManage || !to.data.canManage) throw new ApiError("Reference access changed",403,"FORBIDDEN");
-      sourceReferences.value = from.data.references;
-      destinationReferences.value = to.data.references;
-    }
-    preview.value = reviewed;
+    contactReviewNotice.value = "";
+    await api.updateGuestRegistryContact(person.personId, contact.contactId, {
+      expectedRevision: contact.revision, consent: contact.consent, primary: false,
+    });
+    contactReviewNotice.value = t("registry.merge.primaryUpdated");
+    await loadReview(reviewed.destination);
   });
 }
 
@@ -149,6 +177,7 @@ onMounted(() => run(() => load(0)));
   <section class="registry-merge" aria-labelledby="registry-merge-heading">
     <h3 id="registry-merge-heading">{{ t(source ? "registry.merge.review" : "registry.merge.history") }}</h3>
     <p v-if="error" role="alert" class="form-error">{{ error }}</p>
+    <p v-if="contactReviewNotice" role="status">{{ contactReviewNotice }}</p>
     <template v-if="source">
       <form @submit.prevent="search">
         <label>{{ t("registry.merge.destinationSearch") }} <input v-model="query" maxlength="200" :disabled="busy"></label>
@@ -179,7 +208,32 @@ onMounted(() => run(() => load(0)));
           </tbody>
         </table>
         <p v-if="preview.blocker" role="status">{{ t(`registry.merge.blocker.${preview.blocker}`) }}</p>
-        <template v-else>
+        <section v-if="preview.blocker === 'contact_conflict'" aria-labelledby="merge-contact-conflict-heading">
+          <h4 id="merge-contact-conflict-heading">{{ t("registry.merge.contactConflictReview") }}</h4>
+          <p>{{ t("registry.merge.contactConflictHelp") }}</p>
+          <table class="data-table">
+            <thead><tr>
+              <th scope="col">{{ t("registry.merge.field") }}</th>
+              <th scope="col">{{ t("registry.contacts.kind") }}</th>
+              <th scope="col">{{ t("registry.contacts.value") }}</th>
+              <th scope="col">{{ t("registry.contacts.consent") }}</th>
+              <th scope="col">{{ t("common.actions") }}</th>
+            </tr></thead>
+            <tbody><tr v-for="contact in contactRows" :key="contact.contactId">
+              <th scope="row">{{ t(`registry.merge.${contact.profile}`) }}</th>
+              <td>{{ t(`registry.contacts.${contact.kind}`) }}</td>
+              <td>{{ contact.value }}
+                <small v-if="contact.primary">{{ t("registry.contacts.primary") }}</small>
+                <small>{{ t(contact.verified ? "registry.contacts.verified" : "registry.contacts.unverified") }}</small>
+              </td>
+              <td>{{ t(`registry.contacts.consentValue.${contact.consent}`) }}</td>
+              <td><button v-if="canClearPrimary(contact)" class="button button-secondary" type="button"
+                :disabled="busy" :aria-label="t('registry.merge.clearPrimaryNamed', { value: contact.value, name: fullName(preview[contact.profile]) })"
+                @click="clearPrimary(contact)">{{ t("registry.merge.clearPrimary") }}</button></td>
+            </tr></tbody>
+          </table>
+        </section>
+        <template v-if="!preview.blocker">
           <p>{{ t("registry.merge.resolution") }}</p>
           <template v-if="preview.contactCount">
             <h4>{{ t("registry.merge.contacts") }}</h4>

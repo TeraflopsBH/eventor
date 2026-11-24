@@ -440,6 +440,12 @@ export default {
       failed: "Pregled ili primjenu vraćanja nije moguće izvršiti.",
     },
     merge: {
+      contactConflictReview: "Pregled konfliktnih kontakata",
+      contactConflictHelp: "Uporedite oba profila prije izmjena. Ako su dva kontakta iste vrste primarna, odaberite kojem ukloniti primarnu oznaku. Ova radnja odmah mijenja taj kontakt i traži novi pregled spajanja. Vraćanje kasnijeg spajanja čuva ovu izmjenu. Jednake vrijednosti kontakata i ostale prepreke i dalje zahtijevaju zasebnu ispravku; kontakti se ne brišu niti kombinuju.",
+      clearPrimary: "Ukloni primarnu oznaku i ponovo pregledaj",
+      clearPrimaryNamed: "Ukloni primarnu oznaku za {value} na profilu {name} i ponovo pregledaj",
+      confirmClearPrimary: "Ukloniti primarnu oznaku za {value} na profilu {name}? Ova radnja sada mijenja kontakt i čuva njegov pristanak, verifikaciju i vrijednost. Spajanje profila i dalje zahtijeva zasebnu potvrdu.",
+      primaryUpdated: "Primarna oznaka je izmijenjena. Pregledajte osvježeno poređenje prije spajanja.",
       references: "Pregled prenosa izvornih referenci",
       transferReferences: "Prenesi sve reference izvornih sistema na zadržani profil, uz očuvanje oznake i vrijednosti.",
       referenceCorrection: "Izmijenjene ili uklonjene prenesene reference zahtijevaju pregled ispravke prije vraćanja. Uklonjene vrijednosti se ne obnavljaju.",
