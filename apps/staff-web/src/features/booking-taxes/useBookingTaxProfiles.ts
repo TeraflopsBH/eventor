@@ -1,3 +1,4 @@
+import { generatedReferenceCode } from "../../reference-code.ts";
 import { computed, reactive, ref, type Ref } from "vue";
 import type { StaffTab } from "../application-shell/useStaffSession";
 import type { BookingTaxProfile, BookingTaxProfileRevisionInput, BookingTaxCode } from "../../api";
@@ -95,7 +96,7 @@ function taxProfileRevisionPayload(): BookingTaxProfileRevisionInput {
 }
 
 async function createBookingTaxProfile(): Promise<void> {
-  const code=taxProfileCreateForm.code.trim(), name=taxProfileCreateForm.name.trim();
+  const code=taxProfileCreateForm.code.trim() || (taxProfileCreateForm.code = generatedReferenceCode("TAX")), name=taxProfileCreateForm.name.trim();
   if (code.length<2 || !/^[A-Za-z0-9][A-Za-z0-9._-]*$/.test(code) || !name || !/^[A-Z]{3}$/.test(taxProfileCreateForm.currency)) {
     pageError.value=translate("commercialConfiguration.taxCreateFields"); return;
   }

@@ -43,12 +43,12 @@ const {
             <h4>{{ t("commercialConfiguration.approvalView.create_approval_policy") }}</h4>
             <form class="draft-revision-form" @submit.prevent="createBookingApprovalPolicy">
               <label>{{ t("commercialConfiguration.approvalView.policy_code") }}
-                <input v-model="approvalPolicyCreateForm.code" type="text" required minlength="2" maxlength="80"  :placeholder="t('commercialConfiguration.approvalView.approval_placeholder_code')" />
+                <input v-model="approvalPolicyCreateForm.code" type="text" minlength="2" maxlength="80"  :placeholder="t('commercialConfiguration.approvalView.approval_placeholder_code')" />
               </label>
               <label>{{ t("commercialConfiguration.approvalView.policy_name") }}
                 <input v-model="approvalPolicyCreateForm.name" type="text" required maxlength="250"  :placeholder="t('commercialConfiguration.approvalView.approval_placeholder_name')" />
               </label>
-              <button class="button button-primary" type="submit" :disabled="busy || approvalPolicyCreateForm.code.trim().length < 2 || !approvalPolicyCreateForm.name.trim()">{{ t("commercialConfiguration.approvalView.create_policy") }}</button>
+              <button class="button button-primary" type="submit" :disabled="busy || !approvalPolicyCreateForm.name.trim()">{{ t("commercialConfiguration.approvalView.create_policy") }}</button>
             </form>
           </section>
           <section class="inquiry-card">

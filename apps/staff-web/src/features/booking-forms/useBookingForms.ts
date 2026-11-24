@@ -1,3 +1,4 @@
+import { generatedReferenceCode } from "../../reference-code.ts";
 import { computed, reactive, ref, type Ref } from "vue";
 import type { BookingForm, BookingFormField, BookingFormSchema, BookingFormTranslation } from "../../api";
 import { moveBookingFormField, validateBookingFormDraft } from "./validateBookingFormDraft.ts";
@@ -98,7 +99,7 @@ export function useBookingForms({ api, busy, pageError, pageNotice, clearMessage
   }
   function selectForm(id: string): void { selectedFormId.value = id; syncRevision(); }
   async function create(): Promise<void> {
-    const code = createForm.code.trim();
+    const code = createForm.code.trim() || (createForm.code = generatedReferenceCode("FRM"));
     const name = createForm.name.trim();
     if (!/^[A-Za-z0-9][A-Za-z0-9_-]{1,79}$/.test(code) || !name || name.length > 250) {
       pageError.value = translate("bookingForms.invalidIdentity"); return;

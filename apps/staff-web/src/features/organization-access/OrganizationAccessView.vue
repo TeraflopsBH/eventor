@@ -1,4 +1,6 @@
 <script setup lang="ts">
+import { generatedReferenceCode } from "../../reference-code";
+import { formatDateTime } from "../../i18n/format";
 import { computed, onMounted, reactive, ref } from "vue";
 import { useI18n } from "vue-i18n";
 import {
@@ -42,7 +44,7 @@ function describeScope(grant: OrganizationAccessGrant): string {
 }
 
 function expiry(value: string): string {
-  const date = new Intl.DateTimeFormat(locale.value, { dateStyle: "medium", timeStyle: "short" }).format(new Date(value));
+  const date = formatDateTime(value, locale.value);
   return t("organizationAccess.expires", { date });
 }
 
@@ -100,7 +102,7 @@ async function createRole(): Promise<void> {
   notice.value = "";
   try {
     await api.createOrganizationEventRole(props.organizationId, {
-      code: roleDraft.code.trim().toUpperCase(), name: roleDraft.name.trim(),
+      code: roleDraft.code.trim().toUpperCase() || (roleDraft.code = generatedReferenceCode("ROLE")), name: roleDraft.name.trim(),
       description: roleDraft.description.trim(), permissionCodes: roleDraft.permissionCodes,
     });
     notice.value = t("organizationAccess.roleCreated");
@@ -279,7 +281,7 @@ onMounted(() => { void load(0); });
         :disabled="busy" @click="showRoleForm = !showRoleForm">{{ t("organizationAccess.createRole") }}</button>
       <form v-if="showRoleForm" class="event-role-form" @submit.prevent="createRole">
         <label>{{ t("organizationAccess.roleCode") }}
-          <input v-model="roleDraft.code" required maxlength="40" pattern="[A-Za-z0-9][A-Za-z0-9_\-]{0,39}">
+          <input v-model="roleDraft.code" :placeholder="t('common.generatedCode')" maxlength="40" pattern="[A-Za-z0-9][A-Za-z0-9_\-]{0,39}">
         </label>
         <label>{{ t("organizationAccess.roleName") }}<input v-model="roleDraft.name" required maxlength="120"></label>
         <label>{{ t("organizationAccess.roleDescription") }}<input v-model="roleDraft.description" maxlength="500"></label>

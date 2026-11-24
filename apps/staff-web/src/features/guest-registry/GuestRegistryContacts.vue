@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import { formatDateTime } from "../../i18n/format";
 import { onMounted, reactive, ref } from "vue";
 import { useI18n } from "vue-i18n";
 import { api, ApiError, type RegistryContact, type RegistryContactConsent, type RegistryContactDirectory, type RegistryContactVerification } from "../../api";
@@ -93,7 +94,7 @@ function revokeVerification(contact: RegistryContact): void {
 }
 
 function verificationTime(value: string): string {
-  return new Intl.DateTimeFormat(locale.value, { dateStyle: "medium", timeStyle: "short" }).format(new Date(value));
+  return formatDateTime(value, locale.value);
 }
 
 onMounted(() => run(load));

@@ -46,7 +46,7 @@ const {
           <section class="inquiry-card">
             <h4>{{ t("commercialConfiguration.priceView.create_organization_price_list") }}</h4>
             <form class="draft-revision-form" @submit.prevent="createBookingPriceList">
-              <label>{{ t("commercialConfiguration.priceView.code") }}<input v-model="priceListCreateForm.code" type="text" required minlength="2" maxlength="80"  :placeholder="t('commercialConfiguration.priceView.price_placeholder_code')" /></label>
+              <label>{{ t("commercialConfiguration.priceView.code") }}<input v-model="priceListCreateForm.code" type="text" minlength="2" maxlength="80"  :placeholder="t('commercialConfiguration.priceView.price_placeholder_code')" /></label>
               <label>{{ t("commercialConfiguration.priceView.name") }}<input v-model="priceListCreateForm.name" type="text" required maxlength="250"  :placeholder="t('commercialConfiguration.priceView.price_placeholder_name')" /></label>
               <label>{{ t("commercialConfiguration.priceView.currency") }}<input v-model="priceListCreateForm.currency" type="text" required minlength="3" maxlength="3" pattern="[A-Z]{3}" /></label>
               <label>{{ t("commercialConfiguration.priceView.tax_basis") }}
@@ -57,7 +57,7 @@ const {
                   <option value="not_applicable">{{ t("commercialConfiguration.priceView.not_applicable") }}</option>
                 </select>
               </label>
-              <button class="button button-primary" type="submit" :disabled="busy || priceListCreateForm.code.trim().length < 2 || !priceListCreateForm.name.trim()">{{ t("commercialConfiguration.priceView.create_price_list") }}</button>
+              <button class="button button-primary" type="submit" :disabled="busy || !priceListCreateForm.name.trim()">{{ t("commercialConfiguration.priceView.create_price_list") }}</button>
               <p class="fine-print">{{ t("commercialConfiguration.priceView.currency_and_tax_basis_are_explicit_organization_inputs") }}</p>
             </form>
           </section>

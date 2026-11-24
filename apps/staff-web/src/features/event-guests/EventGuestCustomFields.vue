@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import { generatedReferenceCode } from "../../reference-code";
 import { onMounted, ref } from "vue";
 import { useI18n } from "vue-i18n";
 import { api, ApiError, type EventGuestRow, type GuestFieldDefinition, type GuestFieldEntry, type GuestFieldType, type GuestFieldValue } from "../../api";
@@ -46,7 +47,7 @@ async function load(): Promise<void> {
 }
 
 function create(): void {
-  const normalized = code.value.trim().toUpperCase();
+  const normalized = code.value.trim().toUpperCase() || (code.value = generatedReferenceCode("FLD"));
   if (!/^[A-Z0-9][A-Z0-9_-]{0,39}$/.test(normalized) || !label.value.trim()) {
     error.value = t("eventGuests.fields.invalidDefinition");
     return;
@@ -155,7 +156,7 @@ onMounted(() => run(load));
     </template>
     <template v-else-if="definitions">
       <form v-if="canManage" class="field-controls" @submit.prevent="create">
-        <label>{{ t("eventGuests.fields.code") }} <input v-model="code" maxlength="40" required :disabled="busy"></label>
+        <label>{{ t("eventGuests.fields.code") }} <input v-model="code" :placeholder="t('common.generatedCode')" maxlength="40" :disabled="busy"></label>
         <label>{{ t("eventGuests.fields.label") }} <input v-model="label" maxlength="120" required :disabled="busy"></label>
         <div>
           <label for="guest-field-type">{{ t("eventGuests.fields.type") }}</label>

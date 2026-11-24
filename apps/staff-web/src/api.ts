@@ -1247,7 +1247,7 @@ export interface GuestRegistryMutation {
   status: "active" | "archived" | "merged";
 }
 
-export interface GuestRegistryProfile extends GuestRegistryMutation, GuestRegistryNames {}
+export interface GuestRegistryProfile extends GuestRegistryMutation, GuestRegistryNames { labels?: RegistryLabel[] }
 
 export interface GuestRegistryDirectory {
   people: GuestRegistryProfile[];
@@ -1621,7 +1621,13 @@ export interface GuestImportPreview {
   })[];
 }
 
+export interface RegistryLabel {labelId:string;label:string;retired:boolean}
+export interface RegistryPersonLabels {revision:number;canManage:boolean;labels:RegistryLabel[];assignedLabelIds:string[]}
 export const api = {
+  getRegistryPersonLabels:(personId:string)=>request<Envelope<RegistryPersonLabels>>(`/persons/${encodeURIComponent(personId)}/labels`),
+  setRegistryPersonLabels:(personId:string,expectedRevision:number,labelIds:string[])=>request<Envelope<{revision:number;assignedLabelIds:string[]}>>(`/persons/${encodeURIComponent(personId)}/labels`,{method:"PATCH",idempotent:true,body:{expectedRevision,labelIds}}),
+  createRegistryLabel:(organizationId:string,label:string)=>request<Envelope<RegistryLabel>>(`/organizations/${encodeURIComponent(organizationId)}/persons/labels`,{method:"POST",idempotent:true,body:{label}}),
+  retireRegistryLabel:(organizationId:string,labelId:string)=>request<Envelope<RegistryLabel>>(`/organizations/${encodeURIComponent(organizationId)}/persons/labels/${encodeURIComponent(labelId)}/retire`,{method:"POST",idempotent:true}),
   enableEventGuestRegistry: (eventId: string) =>
     request<Envelope<{ eventId: string; guestRegistryEnabled: boolean }>>(`/events/${encodeURIComponent(eventId)}/guest-registry/enable`, {
       method: "POST", idempotent: true,

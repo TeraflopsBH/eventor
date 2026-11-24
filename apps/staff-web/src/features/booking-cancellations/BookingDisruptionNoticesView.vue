@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import { formatDateTime } from "../../i18n/format";
 import { onMounted, reactive, ref } from "vue";
 import { useI18n } from "vue-i18n";
 import { api, ApiError, type BookingDisruptionNotice, type DisruptionBooking } from "../../api";
@@ -21,7 +22,7 @@ const error = ref("");
 const notice = ref("");
 
 function formatDate(value: string | null): string {
-  return value ? new Intl.DateTimeFormat(locale.value,{dateStyle:"medium",timeStyle:"short"}).format(new Date(value)) : "—";
+  return value ? formatDateTime(value, locale.value) : "—";
 }
 
 async function run(operation: () => Promise<void>): Promise<void> {

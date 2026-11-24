@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import { formatDateTime } from "../../i18n/format";
 import { onMounted, ref } from "vue";
 import { useI18n } from "vue-i18n";
 import { setLocale } from "../../i18n";
@@ -129,12 +130,9 @@ function formatPublicDate(value: string | null | undefined, timezone?: string | 
   const date = new Date(value);
   if (Number.isNaN(date.getTime())) return value;
   try {
-    return new Intl.DateTimeFormat(locale.value, {
-      dateStyle: "medium", timeStyle: "short",
-      ...(timezone ? { timeZone: timezone } : {}),
-    }).format(date);
+    return formatDateTime(date, locale.value, { ...(timezone ? { timeZone: timezone } : {}) });
   } catch {
-    return new Intl.DateTimeFormat(locale.value, { dateStyle: "medium", timeStyle: "short" }).format(date);
+    return formatDateTime(date, locale.value);
   }
 }
 

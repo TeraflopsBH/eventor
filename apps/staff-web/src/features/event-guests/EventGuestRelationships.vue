@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import { formatDateTime } from "../../i18n/format";
 import { onMounted, ref } from "vue";
 import { useI18n } from "vue-i18n";
 import { api, ApiError, type EventGuestRelationship, type EventGuestRow } from "../../api";
@@ -75,7 +76,7 @@ function retire(link: EventGuestRelationship): void {
 }
 
 function formatDate(value: string): string {
-  return new Intl.DateTimeFormat(locale.value, { dateStyle: "medium", timeStyle: "short" }).format(new Date(value));
+  return formatDateTime(value, locale.value);
 }
 
 onMounted(() => {

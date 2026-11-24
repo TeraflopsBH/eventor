@@ -1,5 +1,6 @@
 export default {
   common: {
+    generatedCode: "Automatski ako ostavite prazno",
     notProvided: "Nije navedeno",
       "unexpectedError": "Došlo je do neočekivane greške.",
       refresh: "Osvježi",
@@ -383,6 +384,20 @@ export default {
     exportLimit: "Izvoz prelazi 20.000 gostiju. Suzite pretragu ili filtere.",
   },
   registry: {
+    labels: {
+      title: "Oznake registra",
+      help: "Interne klasifikacije poput VIP, govornik ili partner. Oznake pripadaju trajnom profilu i ne objavljuju se gostima. Kategorije događaja ostaju odvojene.",
+      empty: "Oznake registra još nisu postavljene.",
+      newLabel: "Nova oznaka registra",
+      create: "Kreiraj oznaku",
+      save: "Sačuvaj oznake profila",
+      saved: "Oznake profila su sačuvane.",
+      retire: "Povuci",
+      retired: "povučeno",
+      retireNamed: "Povuci oznaku {label}",
+      confirmRetire: "Povući oznaku {label}? Postojeće dodjele ostaju vidljive, a nove dodjele su blokirane.",
+    },
+    preferredNameHelp: "Neobavezno ime kojim osoba želi da joj se obraćate, npr. nadimak. Ne zamjenjuje puno ime niti mijenja zabilježene identitete na događajima.",
     bulkArchive: {
       selectPage: "Odaberi aktivne profile na ovoj stranici",
       selectProfile: "Odaberi {name}",
@@ -475,7 +490,7 @@ export default {
         contact_conflict: "Kontakti sadrže duplu vrijednost ili konkurentne primarne kontakte. Riješite konflikt kontakata prije spajanja.",
 
         inactive_profile: "Oba profila moraju biti aktivna.",
-        source_has_linked_records: "Izvorni profil ima zapise koje treba zasebno riješiti prije spajanja, poput otvorenog događaja, kontakta, identifikatora ili aktivne veze.",
+        source_has_linked_records: "Izvorni profil ima zapise koji zahtijevaju zaseban pregled prije spajanja, poput oznaka registra, otvorenih događaja, nepodržanih kontakata/identifikatora ili aktivnih odnosa.",
         event_history_access_required: "Za pregled ovog spajanja potreban je pristup popisima gostiju događaja izvornog profila.",
         event_history_overlap: "Profili imaju zapise o učešću na istom događaju. Pregledajte zapise događaja prije spajanja.",
       },
@@ -530,6 +545,7 @@ export default {
     noParticipations: "Na ovoj stranici nema vidljivih učešća.",
     noChanges: "Na ovoj stranici nema promjena profila.",
     historyAction: {
+        labels_changed: "Oznake registra su izmijenjene",
       create: "Kreiran",
       update: "Ažuriran",
       archive: "Arhiviran",
@@ -806,6 +822,7 @@ export default {
     },
   },
   localeSettings: {
+    emailSettings: "Postavke e-pošte i SMTP-a",
     eyebrow: "JEZIČKE POSTAVKE",
     title: "Jezičke postavke",
     description: "Vaša jezička postavka prati vaš korisnički račun kroz organizacije. Zadani jezik organizacije koristi se samo ako niste odabrali lični jezik.",

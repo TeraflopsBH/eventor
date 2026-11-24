@@ -1,3 +1,4 @@
+import { generatedReferenceCode } from "../../reference-code.ts";
 import { computed, reactive, ref, type Ref } from "vue";
 import type { StaffTab } from "../application-shell/useStaffSession";
 import type { BookingCancellationPolicy, BookingCancellationPolicyRevisionInput } from "../../api";
@@ -44,7 +45,7 @@ async function openBookingCancellationPolicies(): Promise<void> {
 function selectBookingCancellationPolicy(policyId: string): void { selectedCancellationPolicyId.value = policyId; loadCancellationPolicyEditor(); }
 
 async function createBookingCancellationPolicy(): Promise<void> {
-  const code = cancellationPolicyCreateForm.code.trim(), name = cancellationPolicyCreateForm.name.trim();
+  const code = cancellationPolicyCreateForm.code.trim() || (cancellationPolicyCreateForm.code = generatedReferenceCode("CXL")), name = cancellationPolicyCreateForm.name.trim();
   if (code.length < 2 || code.length > 80 || !name || name.length > 250) { pageError.value = translate("commercialConfiguration.cancelFields"); return; }
   if (!window.confirm(translate("commercialConfiguration.cancelCreateConfirm"))) return;
   clearMessages(); busy.value = true;

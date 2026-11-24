@@ -1,3 +1,4 @@
+import { formatDateTime } from "../../i18n/format.ts";
 import type { BookingInquiryAssignee } from "../../api";
 import type { SupportedLocale } from "../../i18n";
 
@@ -33,11 +34,7 @@ export function formatInquiryDate(
   if (!value) return emptyLabel;
   const parsed = new Date(value);
   if (Number.isNaN(parsed.getTime())) return value;
-  return new Intl.DateTimeFormat(locale, {
-    dateStyle: "medium",
-    timeStyle: "short",
-    timeZone,
-  }).format(parsed);
+  return formatDateTime(parsed, locale, timeZone);
 }
 
 export function formatBookingMoney(

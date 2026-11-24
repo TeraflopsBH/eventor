@@ -7,6 +7,8 @@ import type { SupportedLocale } from "../../i18n";
 
 const props = defineProps<{
   organizationId: string;
+  canConfigureDelivery?: boolean;
+  loadDelivery: () => Promise<void>;
   onProfileChanged: () => Promise<void>;
   busy: Ref<boolean>;
   pageNotice: Ref<string>;
@@ -19,6 +21,13 @@ const defaultLocale = ref<SupportedLocale>("en");
 const canManage = ref(false);
 const loading = ref(false);
 const showAccess = ref(false);
+const showDelivery = ref(false);
+async function toggleDelivery(): Promise<void> {
+  showDelivery.value = !showDelivery.value;
+  if (showDelivery.value) {
+    try { await props.loadDelivery(); } catch (error) { props.showError(error); }
+  }
+}
 
 async function load(): Promise<void> {
   loading.value = true;
@@ -76,6 +85,10 @@ onMounted(() => { void load(); });
     <button v-if="canManage" type="button" class="button button-secondary" :aria-expanded="showAccess" @click="showAccess = !showAccess">
       {{ $t("organizationAccess.title") }}
     </button>
+    <button v-if="canConfigureDelivery" type="button" class="button button-secondary" :aria-expanded="showDelivery" @click="toggleDelivery">
+      {{ $t("localeSettings.emailSettings") }}
+    </button>
+    <slot v-if="showDelivery && canConfigureDelivery" name="delivery" />
     <OrganizationAccessView v-if="canManage && showAccess" :key="organizationId" :organization-id="organizationId" />
   </section>
 </template>

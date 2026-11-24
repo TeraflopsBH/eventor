@@ -519,3 +519,8 @@ Ordered parent and child locks, current field authority and review-state validat
 ### Migration 185 — Atomic roster group membership batches
 
 `set_event_guest_bulk_group` adds or removes one same-event group for 1–50 distinct participation IDs with expected revisions. It reuses the existing event write authorization/lifecycle lock and single-participation group command, locks selected participations in stable order, and commits all membership/revision/audit changes atomically. Stale, missing, cancelled or unauthorized selections reject the batch. Existing group roles and unrelated memberships are preserved; new memberships retain the established `member` default. Retired groups can only be removed. No new tables or direct runtime DML grants are introduced. The idempotent API rechecks current guest-management authority on replay.
+
+
+### Migration 186 — Persistent Registry classifications
+
+Organization-scoped `registry_labels` and `registry_person_label_assignments` provide internal labels such as VIP. Definitions have stable UUIDs and can be retired without deleting existing assignments. Registry management is required for creation, retirement and revision-checked assignment; Registry read is required to see them. Forced RLS, explicit actor context, composite tenant FKs and private table/helper grants protect the boundary. Audit stores assignment changes by label ID. Only the authorized Registry directory/profile reads gain label badges; public/event projections are unchanged. Labelled source profiles remain blocked from merging until separate reviewed resolution, preventing silent loss of classifications (ADR 0014). Existing profiles start without labels.

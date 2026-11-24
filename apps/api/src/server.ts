@@ -4463,6 +4463,30 @@ export function buildApi(dependencies: ApiDependencies): FastifyInstance {
     }, statusCode);
   }
 
+  server.get<{Params:{personId:string}}>("/persons/:personId/labels",{schema:{params:registryPersonParams}},(request,reply)=>
+    withRegistryRead(reply,registryPrincipal(request),"SELECT eogp.list_registry_person_labels($1::uuid,$2::uuid,$3::uuid) AS result",[request.params.personId]));
+  function registryLabelCommand(request:FastifyRequest,reply:FastifyReply,principal:StaffPrincipal,operation:string,input:Record<string,unknown>,sql:string,args:readonly unknown[],status=200) {
+    return withCommand(request,reply.header("cache-control","no-store, private"),operation,input,async client=>{
+      const result=await client.query<ResultRow>(sql,[principal.organizationId,principal.membershipId,...args]);
+      return (result.rows[0]?.result??{}) as Record<string,unknown>;
+    },async client=>{await client.query("SELECT eogp.assert_guest_registry_permission($1::uuid,$2::uuid,true)",[principal.organizationId,principal.membershipId]);},status);
+  }
+  type RegistryLabelsBody=JsonRequestBody<"/persons/{personId}/labels","patch">;
+  server.patch<{Params:{personId:string};Body:RegistryLabelsBody}>("/persons/:personId/labels",{schema:{params:registryPersonParams,headers:idempotencyHeaders,
+    body:{type:"object",additionalProperties:false,required:["expectedRevision","labelIds"],properties:{expectedRevision:personRevision,labelIds:{type:"array",maxItems:100,uniqueItems:true,items:{type:"string",pattern:uuidPattern}}}}}},(request,reply)=>{
+      const labelIds=request.body.labelIds.map(id=>id.toLowerCase()).sort();
+      return registryLabelCommand(request,reply,registryPrincipal(request),"guest.registry.labels.set",{personId:request.params.personId,expectedRevision:request.body.expectedRevision,labelIds},
+        "SELECT eogp.set_registry_person_labels($1::uuid,$2::uuid,$3::uuid,$4::integer,$5::uuid[]) AS result",[request.params.personId,request.body.expectedRevision,labelIds]);
+  });
+  type RegistryLabelCreateBody=JsonRequestBody<"/organizations/{organizationId}/persons/labels","post">;
+  server.post<{Params:{organizationId:string};Body:RegistryLabelCreateBody}>(`${registryPath}/labels`,{schema:{params:registryOrgParams,headers:idempotencyHeaders,
+    body:{type:"object",additionalProperties:false,required:["label"],properties:{label:{type:"string",minLength:1,maxLength:80}}}}},(request,reply)=>
+    registryLabelCommand(request,reply,registryPrincipal(request,request.params.organizationId),"guest.registry.label.create",request.body,
+      "SELECT eogp.write_registry_label($1::uuid,$2::uuid,NULL,$3::text) AS result",[request.body.label],201));
+  server.post<{Params:{organizationId:string;labelId:string}}>(`${registryPath}/labels/:labelId/retire`,{schema:{headers:idempotencyHeaders,params:{type:"object",required:["organizationId","labelId"],properties:{organizationId:{type:"string",pattern:uuidPattern},labelId:{type:"string",pattern:uuidPattern}}}}},(request,reply)=>
+    registryLabelCommand(request,reply,registryPrincipal(request,request.params.organizationId),"guest.registry.label.retire",{labelId:request.params.labelId},
+      "SELECT eogp.write_registry_label($1::uuid,$2::uuid,$3::uuid,NULL) AS result",[request.params.labelId]));
+
   type RegistryMergeBody = JsonRequestBody<"/persons/{personId}/merge", "post">;
   server.post<{ Params: { personId: string }; Body: RegistryMergeBody }>("/persons/:personId/merge", {
     schema: {

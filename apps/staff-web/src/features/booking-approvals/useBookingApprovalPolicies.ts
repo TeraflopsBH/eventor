@@ -1,3 +1,4 @@
+import { generatedReferenceCode } from "../../reference-code.ts";
 import { computed, reactive, ref, type Ref } from "vue";
 import type { StaffTab } from "../application-shell/useStaffSession";
 import type { BookingApprovalPolicy, BookingApprovalRule } from "../../api";
@@ -52,7 +53,7 @@ function selectBookingApprovalPolicy(policyId: string): void {
 }
 
 async function createBookingApprovalPolicy(): Promise<void> {
-  const code = approvalPolicyCreateForm.code.trim();
+  const code = approvalPolicyCreateForm.code.trim() || (approvalPolicyCreateForm.code = generatedReferenceCode("APR"));
   const name = approvalPolicyCreateForm.name.trim();
   if (code.length < 2 || code.length > 80 || name.length < 1 || name.length > 250) {
     pageError.value = translate("commercialConfiguration.approvalFields");

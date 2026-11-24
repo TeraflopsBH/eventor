@@ -37,7 +37,7 @@ const {
           <button class="button button-secondary" type="button" :disabled="busy" @click="loadBookingTaxProfiles">{{ t("commercialConfiguration.taxView.refresh_profiles") }}</button></div>
         <div class="inquiry-detail-grid">
           <section class="inquiry-card"><h4>{{ t("commercialConfiguration.taxView.create_tax_profile") }}</h4><form class="draft-revision-form" @submit.prevent="createBookingTaxProfile">
-            <label>{{ t("commercialConfiguration.taxView.profile_code") }}<input v-model="taxProfileCreateForm.code" required minlength="2" maxlength="80" /></label>
+            <label>{{ t("commercialConfiguration.taxView.profile_code") }}<input v-model="taxProfileCreateForm.code" minlength="2" maxlength="80" :placeholder="t('common.generatedCode')" /></label>
             <label>{{ t("commercialConfiguration.taxView.profile_name") }}<input v-model="taxProfileCreateForm.name" required maxlength="250" /></label>
             <label>{{ t("commercialConfiguration.taxView.jurisdiction_authority_identifier") }}<input v-model="taxProfileCreateForm.jurisdictionCode" maxlength="100" placeholder="Organization-defined identifier" /></label>
             <label>{{ t("commercialConfiguration.taxView.tax_registration_identifier") }}<input v-model="taxProfileCreateForm.registrationIdentifier" maxlength="120" /></label>

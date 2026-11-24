@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import { generatedReferenceCode } from "../../reference-code";
 import { computed, ref } from "vue";
 import { useI18n } from "vue-i18n";
 import { api, ApiError, guestGroupKinds, guestGroupPlacementPreferences, type EventGuestGroup, type GuestGroupPlacementPreference, type GuestListOption } from "../../api";
@@ -74,7 +75,7 @@ function beginEdit(option: Option): void {
 }
 
 function save(): void {
-  const normalizedCode = code.value.trim().toUpperCase();
+  const normalizedCode = code.value.trim().toUpperCase() || (code.value = generatedReferenceCode({ categories: "CAT", tags: "TAG", groups: "GRP" }[props.kind]));
   const normalizedLabel = label.value.trim();
   if (!/^[A-Z0-9][A-Z0-9_-]{0,39}$/.test(normalizedCode) || !normalizedLabel) {
     error.value = t(message("invalid"));
@@ -113,7 +114,7 @@ function retire(option: GuestListOption): void {
   <section class="guest-options" :aria-labelledby="`guest-${kind}-heading`">
     <h3 :id="`guest-${kind}-heading`">{{ t(message("manage")) }}</h3>
     <form class="option-form" @submit.prevent="save">
-      <label>{{ t(message("code")) }} <input v-model="code" required maxlength="40" :disabled="busy || !!editing"></label>
+      <label>{{ t(message("code")) }} <input v-model="code" :placeholder="t('common.generatedCode')" maxlength="40" :disabled="busy || !!editing"></label>
       <label>{{ t(message("label")) }} <input v-model="label" required maxlength="120" :disabled="busy"></label>
       <template v-if="kind === 'groups'">
         <div class="group-metadata-field">

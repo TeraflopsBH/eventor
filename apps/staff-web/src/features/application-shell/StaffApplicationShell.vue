@@ -89,7 +89,6 @@ const selectedLocale = computed({
       </section>
 
       <nav class="tabs" :aria-label="$t('app.workspaceSections')">
-        <button v-if="canOpen('delivery')" :disabled="busy" :class="{ active: activeTab === 'delivery' }" @click="activeTab = 'delivery'">{{ $t("navigation.delivery") }}</button>
         <button v-if="canOpen('campaign')" :disabled="busy" :class="{ active: activeTab === 'campaign' }" @click="activeTab = 'campaign'">{{ $t("navigation.campaigns") }}</button>
         <button v-if="canOpen('event-guests')" :disabled="busy" :class="{ active: activeTab === 'event-guests' }" @click="activeTab = 'event-guests'">{{ $t("navigation.eventGuests") }}</button>
         <button v-if="canOpen('guest-registry')" :disabled="busy" :class="{ active: activeTab === 'guest-registry' }" @click="activeTab = 'guest-registry'">{{ $t("navigation.guestRegistry") }}</button>

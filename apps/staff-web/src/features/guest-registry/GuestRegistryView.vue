@@ -1,4 +1,6 @@
 <script setup lang="ts">
+import GuestRegistryLabels from "./GuestRegistryLabels.vue";
+import { formatDateTime } from "../../i18n/format";
 import { computed, onMounted, reactive, ref } from "vue";
 import { useI18n } from "vue-i18n";
 import GuestRegistryContacts from "./GuestRegistryContacts.vue";
@@ -122,6 +124,14 @@ function showProfile(personId: string): Promise<void> {
   });
 }
 
+function refreshProfileLabels(personId: string): Promise<void> {
+  return run(async () => {
+    const { data } = await api.getGuestRegistryProfile(personId);
+    if (profile.value?.personId === personId) profile.value = data;
+    await load(filters.offset);
+  });
+}
+
 function refreshReferenceProfile(personId: string): Promise<void> {
   return run(async () => {
     const { data } = await api.getGuestRegistryProfile(personId);
@@ -198,7 +208,7 @@ function loadHistory(personId: string, offset = 0): Promise<void> {
 }
 
 function formatTime(value: string): string {
-  return new Intl.DateTimeFormat(locale.value, { dateStyle: "medium", timeStyle: "short" }).format(new Date(value));
+  return formatDateTime(value, locale.value);
 }
 
 function showEventLink(personId: string): Promise<void> {
@@ -297,7 +307,8 @@ onMounted(search);
       <label>{{ t("registry.firstName") }}<input v-model="form.firstName" required maxlength="200"></label>
       <label>{{ t("registry.lastName") }}<input v-model="form.lastName" required maxlength="200"></label>
       <label>{{ t("registry.displayName") }}<input v-model="form.displayName" maxlength="250"></label>
-      <label>{{ t("registry.preferredName") }}<input v-model="form.preferredName" maxlength="200"></label>
+      <label>{{ t("registry.preferredName") }}<input v-model="form.preferredName" aria-describedby="registry-preferred-name-help" maxlength="200"></label>
+      <p id="registry-preferred-name-help" class="fine-print">{{ t("registry.preferredNameHelp") }}</p>
       <div class="registry-toolbar">
         <button class="button button-primary" type="submit" :disabled="busy">{{ t("common.save") }}</button>
         <button class="button button-secondary" type="button" :disabled="busy" @click="editing = false">{{ t("common.cancel") }}</button>
@@ -327,6 +338,7 @@ onMounted(search);
         <button class="button button-secondary" :disabled="busy" @click="loadHistory(profile.personId)">{{ t("registry.history") }}</button>
         <button class="button button-secondary" :disabled="busy" @click="closeProfile">{{ t("common.close") }}</button>
       </div>
+      <GuestRegistryLabels :key="`labels-${profile.personId}`" :organization-id="organizationId" :person-id="profile.personId" @changed="refreshProfileLabels(profile.personId)" />
       <GuestRegistryMerges v-if="showMergeReview && directory?.canMerge" :key="`merge-${profile.personId}`" :organization-id="organizationId" :source="profile"
         @changed="refreshAfterMerge" />
       <GuestRegistryContacts v-if="showContacts" :key="`contacts-${profile.personId}`" :person-id="profile.personId" :active="profile.status === 'active'" />
@@ -427,7 +439,9 @@ onMounted(search);
               :aria-label="t('registry.bulkArchive.selectProfile', { name: `${person.firstName} ${person.lastName}` })"
               :disabled="busy || editing">
           </td>
-          <td>{{ person.lastName }}</td><td>{{ person.firstName }}</td><td>{{ person.displayName }}</td>
+          <td>{{ person.lastName }}</td><td>{{ person.firstName }}</td><td>{{ person.displayName }}
+            <span v-for="label in person.labels" :key="label.labelId" class="pill">{{label.label}}<small v-if="label.retired"> ({{t("registry.labels.retired")}})</small></span>
+          </td>
           <td><button class="button button-secondary" :disabled="busy || editing" @click="showProfile(person.personId)">{{ t("registry.view") }}</button></td>
         </tr></tbody>
       </table>
