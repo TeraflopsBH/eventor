@@ -410,6 +410,14 @@ jobs:
           EVENTOR_DISRUPTION_BROWSER_BASE_URL: http://localhost:4173
         run: bash scripts/dev/run-browser-smoke.sh booking-disruption
 
+      - name: Seed independent public cancellation bookings
+        run: psql "$MIGRATOR_URL" -X -v ON_ERROR_STOP=1 -f tests/database/public_booking_cancellation_browser_fixture.sql
+
+      - name: Verify public customer cancellation and scoped status in Chromium and Firefox
+        env:
+          EVENTOR_CANCELLATION_BROWSER_BASE_URL: http://localhost:4173
+        run: bash scripts/dev/run-browser-smoke.sh public-booking-cancellation
+
       - name: Stop the staff web preview
         if: always()
         run: |

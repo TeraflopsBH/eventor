@@ -6,7 +6,7 @@ import { formatApiError } from "../../i18n/api-errors";
 import { setLocale } from "../../i18n";
 
 const props = defineProps<{ mode: "request" | "status" }>();
-const { locale } = useI18n();
+const { locale, t } = useI18n();
 const requestedLocale = new URLSearchParams(window.location.search).get("locale");
 if (requestedLocale) setLocale(requestedLocale);
 const hash = new URLSearchParams(window.location.hash.slice(1));
@@ -99,14 +99,14 @@ const labels = computed(() => bs.value ? {
   noRequest: "The request associated with this secure link could not be found.",
 });
 
-function formatError(value: unknown): string {
+function formatError(value: unknown, unavailableLink = false): string {
   if (value instanceof ApiError) {
-    if (value.status === 404 || value.status === 410) {
+    if (value.status === 404 || value.status === 410 || (unavailableLink && value.code === "STATE_CONFLICT")) {
       return bs.value
         ? "Ova veza je istekla, opozvana ili više nije dostupna."
         : "This link has expired, been revoked, or is no longer available.";
     }
-    return formatApiError(value, (key) => key);
+    return formatApiError(value, t);
   }
   return value instanceof Error ? value.message : labels.value.retry;
 }
@@ -144,7 +144,7 @@ async function load(): Promise<void> {
       status.value = current.data;
     }
   } catch (value) {
-    error.value = formatError(value);
+    error.value = formatError(value, true);
   } finally {
     loading.value = false;
   }
