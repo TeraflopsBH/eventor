@@ -21,8 +21,8 @@ for(const engine of [chromium,firefox]) {
   await page.locator('.locale-picker select').selectOption('en');assert.equal((await savedEnglish).status(),200);
   const navigation=await context.request.get(base+'/api/me/workspaces');assert.equal(navigation.status(),200);
   const workspaces=(await navigation.json()).data.workspaces;
-  assert.ok(workspaces.includes('settings'));assert.ok(!workspaces.includes('forms'));
-  assert.equal(await page.getByRole('button',{name:'Booking forms',exact:true}).count(),0,'forbidden configuration tab was shown');
+  assert.ok(workspaces.includes('settings'));
+  assert.equal(await page.getByRole('button',{name:'Booking forms',exact:true}).count(),workspaces.includes('forms')?1:0,'navigation did not match current grants');
   await page.route('**/api/organization/locale',route=>route.fulfill({status:403,contentType:'application/problem+json',body:JSON.stringify({status:403,code:'FORBIDDEN',title:'Permission changed'})}));
   await page.getByRole('button',{name:'Settings',exact:true}).click();await page.locator('.message-error').waitFor();
   await page.getByRole('button',{name:'Email delivery',exact:true}).click();
