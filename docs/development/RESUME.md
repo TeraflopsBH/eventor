@@ -4,9 +4,11 @@ The previous stop is reconciled. PR #206 and #207 are merged. The last recorded 
 
 ## Current slice
 
-Branch `feat/registry-primary-contact-conflict-review` improves the blocked Registry merge comparison. Authorized staff can compare conflicting contacts and explicitly clear a competing primary flag through the existing audited, revision-checked editor, then receive a fresh merge preview. Values, consent and verification remain intact. A stale edit does not overwrite newer consent. The ordinary separate merge confirmation and server guards remain in force. This independent contact edit is preserved by a later merge restoration. No API/schema change.
+Branch `fix/staff-language-and-workspace-feedback` fixes anonymous language persistence, interrupted account preference saves, permission-aware navigation and stale cross-tab error messages. The new `/me/workspaces` endpoint returns current navigation hints, while each data endpoint retains its scoped checks. Full app checks, fresh isolated PostgreSQL acceptance and Chromium/Firefox staff shell tests passed locally. Logs use `staff-feedback-*`.
 
-Full application checks and the contact-only, reference/contact and reviewed-restoration browser journeys passed in Chromium and Firefox against the existing local PostgreSQL database. Local logs: `.eventor-dev/logs/primary-conflict-full.log`, `primary-conflict-contact-browser.log`, `primary-conflict-reference-browser.log`, `primary-conflict-acceptance.log`. Native/fresh Docker database checks passed for the preceding migration 185 slice; this UI-only slice did not repeat them. Ignored logs are workstation evidence, not portable dependencies.
+The user's interactive preview is on http://localhost:15173 with API 18080. Its database is reserved for exploration; `.eventor-dev/user-preview.json` records the container and fixed connection directory. Do not reset or reseed that database. Fresh acceptance used separate ports 15174/18081 and a separate database.
+
+Next requested: email/password-only sign-in; automatic workspace selection for a single membership, a named selector for multiple memberships, audited switching, and an explicit platform superadmin role. Do not grant ordinary organization managers cross-tenant access.
 
 ## Resume procedure
 

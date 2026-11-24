@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import { storedStaffLocale } from "./i18n/staff-locale";
 import { computed, onMounted, ref, watch } from "vue";
 import { useI18n } from "vue-i18n";
 import type { SupportedLocale } from "./i18n";
@@ -49,6 +50,11 @@ const isPublicBookingFormPage = /^\/book\/[A-Za-z0-9][A-Za-z0-9-]{1,79}\/[A-Za-z
 const isGuestInvitationPage = /(?:^|\/)guest\/invitation\/?$/.test(window.location.pathname);
 const isPublicBookingCancellationRequestPage = /^\/booking\/cancellation\/?$/.test(window.location.pathname);
 const isPublicBookingCancellationStatusPage = /^\/booking\/cancellation-status\/?$/.test(window.location.pathname);
+if (!isPublicOfferPage && !isPublicBookingFormPage && !isGuestInvitationPage
+    && !isPublicBookingCancellationRequestPage && !isPublicBookingCancellationStatusPage) {
+  const savedLocale = storedStaffLocale();
+  if (savedLocale) locale.value = savedLocale;
+}
 const activeTab = ref<StaffTab>("delivery");
 const busy = ref(false);
 const pageError = ref("");
@@ -62,6 +68,9 @@ const staffSessionState = useStaffSession({
   resetWorkspace: () => resetWorkspace(),
   translate,
   applyLocale: (value) => { locale.value = value as SupportedLocale; },
+  applyWorkspaces: (workspaces) => {
+    if (!workspaces.includes(activeTab.value)) activeTab.value = workspaces[0] ?? "settings";
+  },
 });
 const { principal, showError, refreshSession } = staffSessionState;
 
@@ -79,6 +88,8 @@ function clearMessages(): void {
   pageError.value = "";
   pageNotice.value = "";
 }
+
+watch(activeTab, clearMessages, { flush: "sync" });
 
 let resetBookingDraftState = (): void => {};
 
@@ -150,6 +161,19 @@ const organizerEventState = useOrganizerEvents({
   translate,
 });
 const organizerEventsWorkspace = { ...organizerEventState, busy };
+watch(staffSessionState.loadingSession, (loading) => {
+  if (loading || !principal.value) return;
+  const initialLoad = {
+    events: organizerEventState.refresh,
+    inquiries: openInquiryWorkspace,
+    approvals: bookingApprovalPolicyState.openBookingApprovalPolicies,
+    forms: bookingFormState.open,
+    prices: bookingPriceListState.openBookingPriceLists,
+    cancellations: openBookingCancellationWorkspace,
+    taxes: bookingTaxProfileState.openBookingTaxProfiles,
+  }[activeTab.value as "events" | "inquiries" | "approvals" | "forms" | "prices" | "cancellations" | "taxes"];
+  if (initialLoad) void initialLoad();
+});
 
 const bookingFormsWorkspace = { ...bookingFormState, busy };
 

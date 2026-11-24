@@ -26,6 +26,7 @@ const {
   openInquiryWorkspace, openBookingApprovalPolicies, openBookingPriceLists,
   openBookingCancellationPolicies, openBookingTaxProfiles, openBookingForms, openEvents,
 } = props.workspace;
+const canOpen = (tab: StaffTab) => props.workspace.workspaces.value.includes(tab);
 const selectedLocale = computed({
   get: () => locale.value as SupportedLocale,
   set: (value: SupportedLocale) => {
@@ -88,19 +89,19 @@ const selectedLocale = computed({
       </section>
 
       <nav class="tabs" :aria-label="$t('app.workspaceSections')">
-        <button :class="{ active: activeTab === 'delivery' }" @click="activeTab = 'delivery'">{{ $t("navigation.delivery") }}</button>
-        <button :class="{ active: activeTab === 'campaign' }" @click="activeTab = 'campaign'">{{ $t("navigation.campaigns") }}</button>
-        <button :class="{ active: activeTab === 'event-guests' }" @click="activeTab = 'event-guests'">{{ $t("navigation.eventGuests") }}</button>
-        <button :class="{ active: activeTab === 'guest-registry' }" @click="activeTab = 'guest-registry'">{{ $t("navigation.guestRegistry") }}</button>
-        <button :class="{ active: activeTab === 'guest-invitations' }" @click="activeTab = 'guest-invitations'">{{ $t("navigation.guestInvitations") }}</button>
-        <button :class="{ active: activeTab === 'events' }" @click="openEvents">{{ $t("navigation.events") }}</button>
-        <button :class="{ active: activeTab === 'inquiries' }" @click="openInquiryWorkspace">{{ $t("navigation.inquiries") }}</button>
-        <button :class="{ active: activeTab === 'approvals' }" @click="openBookingApprovalPolicies">{{ $t("navigation.approvals") }}</button>
-        <button :class="{ active: activeTab === 'forms' }" @click="openBookingForms">{{ $t("navigation.bookingForms") }}</button>
-        <button :class="{ active: activeTab === 'prices' }" @click="openBookingPriceLists">{{ $t("navigation.prices") }}</button>
-        <button :class="{ active: activeTab === 'cancellations' }" @click="openBookingCancellationPolicies">{{ $t("navigation.cancellations") }}</button>
-        <button :class="{ active: activeTab === 'taxes' }" @click="openBookingTaxProfiles">{{ $t("navigation.taxes") }}</button>
-        <button :class="{ active: activeTab === 'settings' }" @click="activeTab = 'settings'">{{ $t("navigation.settings") }}</button>
+        <button v-if="canOpen('delivery')" :disabled="busy" :class="{ active: activeTab === 'delivery' }" @click="activeTab = 'delivery'">{{ $t("navigation.delivery") }}</button>
+        <button v-if="canOpen('campaign')" :disabled="busy" :class="{ active: activeTab === 'campaign' }" @click="activeTab = 'campaign'">{{ $t("navigation.campaigns") }}</button>
+        <button v-if="canOpen('event-guests')" :disabled="busy" :class="{ active: activeTab === 'event-guests' }" @click="activeTab = 'event-guests'">{{ $t("navigation.eventGuests") }}</button>
+        <button v-if="canOpen('guest-registry')" :disabled="busy" :class="{ active: activeTab === 'guest-registry' }" @click="activeTab = 'guest-registry'">{{ $t("navigation.guestRegistry") }}</button>
+        <button v-if="canOpen('guest-invitations')" :disabled="busy" :class="{ active: activeTab === 'guest-invitations' }" @click="activeTab = 'guest-invitations'">{{ $t("navigation.guestInvitations") }}</button>
+        <button v-if="canOpen('events')" :disabled="busy" :class="{ active: activeTab === 'events' }" @click="openEvents">{{ $t("navigation.events") }}</button>
+        <button v-if="canOpen('inquiries')" :disabled="busy" :class="{ active: activeTab === 'inquiries' }" @click="openInquiryWorkspace">{{ $t("navigation.inquiries") }}</button>
+        <button v-if="canOpen('approvals')" :disabled="busy" :class="{ active: activeTab === 'approvals' }" @click="openBookingApprovalPolicies">{{ $t("navigation.approvals") }}</button>
+        <button v-if="canOpen('forms')" :disabled="busy" :class="{ active: activeTab === 'forms' }" @click="openBookingForms">{{ $t("navigation.bookingForms") }}</button>
+        <button v-if="canOpen('prices')" :disabled="busy" :class="{ active: activeTab === 'prices' }" @click="openBookingPriceLists">{{ $t("navigation.prices") }}</button>
+        <button v-if="canOpen('cancellations')" :disabled="busy" :class="{ active: activeTab === 'cancellations' }" @click="openBookingCancellationPolicies">{{ $t("navigation.cancellations") }}</button>
+        <button v-if="canOpen('taxes')" :disabled="busy" :class="{ active: activeTab === 'taxes' }" @click="openBookingTaxProfiles">{{ $t("navigation.taxes") }}</button>
+        <button v-if="canOpen('settings')" :disabled="busy" :class="{ active: activeTab === 'settings' }" @click="activeTab = 'settings'">{{ $t("navigation.settings") }}</button>
       </nav>
 
       

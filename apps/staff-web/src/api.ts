@@ -50,6 +50,7 @@ async function request<T>(
     extraHeaders?: Record<string, string>;
     credentials?: RequestCredentials;
     skipCsrf?: boolean;
+    keepalive?: boolean;
   } = {},
 ): Promise<T> {
   const method = options.method ?? "GET";
@@ -71,6 +72,7 @@ async function request<T>(
     headers,
     credentials: options.credentials ?? "include",
     cache: "no-store",
+    keepalive: options.keepalive,
     body: options.body === undefined ? undefined : JSON.stringify(options.body),
   });
 
@@ -2030,7 +2032,8 @@ export const api = {
   login: (body: { email: string; password: string; organizationSlug: string }) =>
     request<Envelope<{ csrfToken: string; expiresAt: string }>>("/auth/session", { method: "POST", body }),
   me: () => request<Envelope<Principal>>("/me"),
-  updateUserLocale: (locale: "bs-BA" | "en" | null) => request<Envelope<{ userLocale: "bs-BA" | "en" | null }>>("/me/preferences", { method: "PATCH", body: { locale } }),
+  getStaffWorkspaces: () => request<Envelope<{ workspaces: import("./features/application-shell/useStaffSession").StaffTab[] }>>("/me/workspaces"),
+  updateUserLocale: (locale: "bs-BA" | "en" | null) => request<Envelope<{ userLocale: "bs-BA" | "en" | null }>>("/me/preferences", { method: "PATCH", body: { locale }, keepalive: true }),
   listOrganizationAccessRoles: (organizationId: string) =>
     request<Envelope<OrganizationAccessRole[]>>(`/organizations/${encodeURIComponent(organizationId)}/roles`),
   createOrganizationEventRole: (organizationId: string, body: {

@@ -447,6 +447,11 @@ jobs:
           EVENTOR_BULK_GROUPS_BROWSER_BASE_URL: http://localhost:4173
         run: bash scripts/dev/run-browser-smoke.sh event-guest-bulk-groups
 
+      - name: Verify language persistence and permission-aware staff navigation
+        env:
+          EVENTOR_STAFF_SHELL_BROWSER_BASE_URL: http://localhost:4173
+        run: bash scripts/dev/run-browser-smoke.sh staff-shell
+
       - name: Stop the staff web preview
         if: always()
         run: |
