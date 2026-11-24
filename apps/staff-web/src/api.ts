@@ -157,6 +157,7 @@ export interface OrganizationAccessGrant {
 }
 
 export interface OrganizationAccessMember {
+  hostManaged: boolean;
   membershipId: string;
   revision: number;
   displayName: string;

@@ -229,7 +229,8 @@ onMounted(() => { void load(0); });
               <th scope="row">{{ member.displayName }}</th>
               <td>
                 <span>{{ t(`organizationAccess.statuses.${member.status}`) }}</span>
-                <button v-if="['active','suspended'].includes(member.status)" class="button button-secondary" type="button"
+                <small v-if="member.hostManaged" class="muted block">{{ t("organizationAccess.hostManaged") }}</small>
+                <button v-if="!member.hostManaged && ['active','suspended'].includes(member.status)" class="button button-secondary" type="button"
                   :disabled="busy" @click="changeMemberAccess(member)">
                   {{ t(member.status === 'active' ? "organizationAccess.suspendMember" : "organizationAccess.restoreMember") }}
                 </button>

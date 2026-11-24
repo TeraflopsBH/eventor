@@ -767,6 +767,7 @@ export default {
   organizationAccess: {
     memberSearch: "Member name",
     findMembers: "Find members",
+    hostManaged: "Access managed by the host administrator",
     suspendMember: "Suspend access",
     restoreMember: "Restore access",
     confirmSuspend: "Suspend organization access for {member}? Their current sessions in this organization will be revoked.",

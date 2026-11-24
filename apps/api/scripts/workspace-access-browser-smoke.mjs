@@ -27,6 +27,16 @@ for(const engine of [chromium,firefox]){
   const adminPage=await admin.newPage();await adminPage.goto(base);await adminPage.getByText('Platform administrator',{exact:true}).waitFor();await adminPage.getByLabel('Workspace',{exact:true}).selectOption(orgA);
   await adminPage.locator('.account strong').filter({hasText:adminMe.memberships.find(item=>item.organizationId===orgA).organizationName}).waitFor();
   await adminPage.getByRole('button',{name:'Guest Registry',exact:true}).waitFor();
+  await adminPage.getByRole('button',{name:'Settings',exact:true}).click();
+  await adminPage.getByRole('button',{name:'Organization access',exact:true}).click();
+  const memberRow=adminPage.getByRole('row').filter({hasText:'Demo platform administrator'});
+  await memberRow.getByText('Access managed by the host administrator',{exact:true}).waitFor();
+  assert.equal(await memberRow.getByRole('button',{name:'Suspend access',exact:true}).count(),0);
+  const directory=(await(await admin.request.get(`${base}/api/organizations/${orgA}/memberships`)).json()).data.members;
+  assert.equal(directory.find(member=>member.displayName==='Demo multi-workspace organizer').hostManaged,false);
+  assert.equal(directory.find(member=>member.displayName==='Demo platform administrator').hostManaged,true);
+  const ordinaryRow=adminPage.getByRole('row').filter({hasText:'Demo multi-workspace organizer'});
+  await ordinaryRow.getByRole('button',{name:'Suspend access',exact:true}).waitFor();
   assert.equal((await admin.request.get(`${base}/api/organizations/${orgA}/persons`)).status(),200);await admin.close();
   console.log(`PASS ${engine.name()} email-first selection, atomic context rotation, CSRF, tenant limits and explicit platform access`);
  }finally{await browser.close();}
