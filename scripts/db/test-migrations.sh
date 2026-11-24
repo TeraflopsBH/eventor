@@ -12,5 +12,7 @@ ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
 psql "$MIGRATOR_URL" -X -v ON_ERROR_STOP=1 \
   -c "SET ROLE eventor_owner" \
   -f "$ROOT_DIR/database/tests/rls_and_constraints.sql"
+psql "$MIGRATOR_URL" -X -v ON_ERROR_STOP=1 \
+  -f "$ROOT_DIR/tests/database/guest_registry_contact_merge_smoke.sql"
 bash "$ROOT_DIR/scripts/db/test-concurrency.sh"
 bash "$ROOT_DIR/scripts/db/test_revision_publication_concurrency.sh"

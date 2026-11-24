@@ -418,6 +418,14 @@ jobs:
           EVENTOR_CANCELLATION_BROWSER_BASE_URL: http://localhost:4173
         run: bash scripts/dev/run-browser-smoke.sh public-booking-cancellation
 
+      - name: Seed reviewed Registry contact merge browser access
+        run: psql "$MIGRATOR_URL" -X -v ON_ERROR_STOP=1 -f tests/database/registry_contact_merge_browser_fixture.sql
+
+      - name: Verify reviewed Registry contact merges and restoration in Chromium and Firefox
+        env:
+          EVENTOR_CONTACT_MERGE_BROWSER_BASE_URL: http://localhost:4173
+        run: bash scripts/dev/run-browser-smoke.sh registry-contact-merge
+
       - name: Stop the staff web preview
         if: always()
         run: |

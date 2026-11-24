@@ -418,6 +418,9 @@ export default {
       stale: "This profile changed. Reload its references before editing again.",
     },
     merge: {
+      contacts: "Review contact transfer",
+      transferContacts: "Move every source contact to the profile kept, preserving consent, primary status and verification.",
+      contactCorrection: "Restoration returns transferred contacts if they have not changed. Edited contacts require a reviewed correction before restoration.",
       review: "Review duplicate profile",
       history: "Merge history",
       destinationSearch: "Search for the profile to keep",
@@ -436,6 +439,9 @@ export default {
       moreHistoricalEvents: "Showing {shown} of {total} closed events. The source profile’s event history has the full list.",
       fromMergedProfile: "From a merged profile",
       blocker: {
+        contact_access_required: "Contact management permission is required to review and transfer these contacts.",
+        contact_conflict: "These contacts contain a duplicate value or competing primary contacts. Resolve the contact conflict before merging.",
+
         inactive_profile: "Both profiles must be active.",
         source_has_linked_records: "The source has records that require separate resolution before merging, such as an open event, contact, identifier or active relationship.",
         event_history_access_required: "You need guest access to the source profile’s events to review this merge.",
@@ -1772,6 +1778,7 @@ export default {
     "smtpCredentialsConflict": "Email credentials cannot be replaced and cleared in the same request.",
     "smtpCredentialsNotAllowed": "Email credentials can only be supplied when password authentication is selected.",
     "staleRevision": "The information has changed. Refresh the page and try again.",
+    "mergeContactsChanged": "A transferred contact changed after this merge. Review the contact correction before restoring the source profile.",
     "lastOrganizationAdmin": "Keep another active organization administrator before suspending access.",
     "stateConflict": "This action is not valid in the resource's current state.",
     "unauthenticated": "Your session has expired. Sign in again to continue.",
