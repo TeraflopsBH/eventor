@@ -171,3 +171,9 @@ MIGRATOR_URL=... bash scripts/admin/platform-admin.sh revoke admin@example.inval
 Use protected environment configuration for the actual connection, rather than committing credentials. The operation records the host database principal and reason. It reconciles managed access across active organizations; revocation removes those managed grants and affected sessions while preserving independent ordinary membership/grant facts. Ordinary organization management is separate from platform administration. Inactive-organization recovery and account creation remain host operations. See ADR 0015 for the private control-plane/RLS boundary.
 
 When an interactive preview is running, reserve its database for the user and run acceptance on a separate database and ports. The workstation receipt under ignored `.eventor-dev/user-preview.json` identifies the running build and connection directory. Do not run disposable reset/reseed fixtures against it.
+
+### Interactive preview persistence
+
+The disposable database helper `.eventor-dev/start-compose-ci.sh` uses Docker `--rm`; stopping that container also removes its anonymous database volume. It is suitable for isolated acceptance runs, but must not be used as persistent storage for an interactive preview the owner may edit. The November 25 preview shutdown exposed this distinction; its exploratory edits were not retained.
+
+For future interactive previews, use a dedicated named PostgreSQL volume and a container without `--rm`. Record the container, volume, connection and build snapshot in ignored preview state. Before shutdown, take a privileged `pg_dump` into an ignored, access-restricted local directory and verify the dump is readable; keep sensitive data out of Git. Check container mounts and removal mode before claiming data is preserved. Stop only the preview's identified API/web processes and database container. Do not remove its volume during routine shutdown.
