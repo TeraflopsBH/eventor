@@ -494,3 +494,10 @@ Roster exports include the same immutable participation code shown in the staff 
 ## Provider booking disruption notices (000181)
 
 The provider notice workspace reuses booking_disruption_notices. Booking-scoped or organization-scoped booking.manage grants permit directory access and recording/reading notices. The directory and history are paginated. Runtime direct table privileges are revoked, and commands preserve append-only history and audit references. The staff projection contains public notice facts and omits provider operational summaries. Delivery across organizations and event-owned acknowledgement/resolution remain a separate workflow.
+
+
+## Reviewed Registry contact transfers (000182)
+
+Non-conflicting email/phone contacts may move to a reviewed duplicate-profile destination only with explicit resolution and contact-management permission. The review fingerprints both contact sets; parent-profile locks serialize contact writes and merge/restoration. Contact IDs, ciphertext, fingerprints, consent, primary flags and verification evidence remain unchanged. `person_merge_contact_transfers` is an append-only tenant-scoped journal of merge/contact references and transferred revisions; runtime roles cannot access its table or invoke the private legacy transition helpers.
+
+Restoration returns unchanged transferred records to the source and advances contact revisions. Edited contacts cause SQLSTATE `P1821` / API `MERGE_CONTACTS_CHANGED` before either the merge or its contacts change. Duplicate values, competing primaries, unsupported contact kinds and the existing identifier/relationship/event blockers require separate reviewed resolution.

@@ -418,6 +418,9 @@ export default {
       stale: "Profil je izmijenjen. Ponovo učitajte reference prije uređivanja.",
     },
     merge: {
+      contacts: "Pregled prenosa kontakata",
+      transferContacts: "Prenesi sve kontakte izvornog profila na zadržani profil, uz očuvanje saglasnosti, primarnog statusa i verifikacije.",
+      contactCorrection: "Vraćanje profila vraća prenesene kontakte ako nisu mijenjani. Izmijenjeni kontakti zahtijevaju pregled ispravke prije vraćanja.",
       review: "Pregledaj duplikat profila",
       history: "Historija spajanja",
       destinationSearch: "Pronađite profil koji želite zadržati",
@@ -436,6 +439,9 @@ export default {
       moreHistoricalEvents: "Prikazano je {shown} od {total} završenih događaja. Potpuni popis je u historiji događaja izvornog profila.",
       fromMergedProfile: "Sa spojenog profila",
       blocker: {
+        contact_access_required: "Za pregled i prenos ovih kontakata potrebno je ovlaštenje za upravljanje kontaktima.",
+        contact_conflict: "Kontakti sadrže duplu vrijednost ili konkurentne primarne kontakte. Riješite konflikt kontakata prije spajanja.",
+
         inactive_profile: "Oba profila moraju biti aktivna.",
         source_has_linked_records: "Izvorni profil ima zapise koje treba zasebno riješiti prije spajanja, poput otvorenog događaja, kontakta, identifikatora ili aktivne veze.",
         event_history_access_required: "Za pregled ovog spajanja potreban je pristup popisima gostiju događaja izvornog profila.",
@@ -1773,6 +1779,7 @@ export default {
     "smtpCredentialsConflict": "E-mail pristupni podaci ne mogu se istovremeno zamijeniti i ukloniti u istom zahtjevu.",
     "smtpCredentialsNotAllowed": "E-mail pristupni podaci mogu se unijeti samo kada je odabrana autentifikacija lozinkom.",
     "staleRevision": "Podaci su izmijenjeni. Osvježite stranicu i pokušajte ponovo.",
+    "mergeContactsChanged": "Preneseni kontakt je izmijenjen nakon spajanja. Pregledajte ispravku kontakta prije vraćanja izvornog profila.",
     "lastOrganizationAdmin": "Prije suspenzije pristupa osigurajte drugog aktivnog administratora organizacije.",
     "stateConflict": "Ova radnja nije dozvoljena u trenutnom stanju resursa.",
     "unauthenticated": "Vaša sesija je istekla. Ponovo se prijavite za nastavak.",
