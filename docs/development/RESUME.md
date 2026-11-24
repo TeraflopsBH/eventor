@@ -1,24 +1,26 @@
-# Development resume — 2026-11-24
+# Development resume — 2026-11-25
 
-The previous stop is reconciled. PR #206 and #207 are merged. The last recorded verified baseline is `789696636d5d70bae1af083075c244b7b4af359c`; post-merge contracts/PostgreSQL run `45406989186` and secret-history run `45406989335` passed. See [current state](../PROJECT_STATE.md) and its archive for receipts.
+The interruption is reconciled. PR #209 and #210 are merged. Last recorded verified main: `28f37fe5566e53e68476e686766f9e61ba3b274c`, with post-merge contracts `45421323539` and secret history `45421323442` passing. Current state and its linked archive retain the prior receipts.
 
 ## Current slice
 
-`fix/staff-language-and-workspace-feedback` (PR #209) contains language persistence, interrupted-save recovery, permission-aware navigation and tab error isolation. Its browser fixtures were updated to grant the event authority they exercise and to expect revoked workspaces to disappear. Check its latest exact head before integration.
+`feat/email-first-workspace-access` implements email/password-only sign-in, named choices for multiple active memberships, audited atomic workspace switching with original session expiry, and explicit host-managed platform administration. Migration 187 and ADR 0015 define its boundaries. Existing organization managers retain tenant limits; auth/runtime cannot set the global flag. Host CLI: `scripts/admin/platform-admin.sh`.
 
-Unpublished `feat/staff-preview-polish` follows that branch with Bosnian numeric 24-hour date formatting, optional generated reference codes, preferred-name help, SMTP inside Settings and persistent internal Registry labels (migration 186, ADR 0014). Labels appear in directory/profile reads, support revision-checked assignment/retirement and block source merges until separately resolved. Full app, native PostgreSQL, fresh Docker and both-browser checks passed locally; logs use `preview-polish-*`. Finish its PR/CI after #209 is merged, rebasing only this unpublished branch onto verified main.
+Full application, native PostgreSQL, fresh Docker upgrade/RLS/concurrency/auth checks and Chromium/Firefox staff-shell/Registry-label/workspace journeys passed. Final browser execution was resumed after the limit interruption. Logs: `.eventor-dev/logs/workspace-access-full.log`, `workspace-access-native.log`, `workspace-access-browser.log`, and `staff-shell-compose-tests.log`. Exact-head CI must be checked before merging. Do not rewrite published history.
 
-The user's preview remains http://localhost:15173 (API 18080), with a reserved database recorded in `.eventor-dev/user-preview.json`. It now has the tested polish build and migration 186, plus a clearly synthetic Demo VIP Guest. Do not reset or reseed that database. Acceptance uses separate ports 15174/18081 and separate fresh databases.
+## Interactive preview
 
-Next requested: email/password-only sign-in; automatic workspace selection for one membership, a named selector for several, audited switching, and explicit platform superadmin access. Ordinary organization managers must retain tenant boundaries. The empty unpublished `feat/email-first-workspace-access` branch was created before polish feedback and contains no authentication changes.
+http://localhost:15173, API 18080. Its reserved database is recorded in `.eventor-dev/user-preview.json`; never reset or reseed it while the user explores. It has migration 187 and the tested workspace build, preserving previous data and Demo VIP Guest. `ci-b@example.invalid` is the normal single-workspace demo. `organizer@demo.eventor.invalid` has two memberships. `admin@demo.eventor.invalid` is an explicitly provisioned synthetic platform administrator. The existing public CI fixture password is used only in this disposable local data. Acceptance runs separately on 15174/18081 with its own databases.
 
-## Resume procedure
+The preview is served from an ignored build snapshot so unfinished source edits do not disrupt it. Its API and web processes were restarted after interruption; consult the JSON receipt/logs before starting duplicates. The optional production worker is not running in this local preview.
 
-1. Inspect Git status and fetch origin. Inspect the exact PR head for the current branch; never infer CI success from local tests. Do not apply the older backup stashes: their work is already merged.
-2. Merge only after all five required checks pass and GitHub reports CLEAN. Squash using the exact checked head; never force-push published history.
-3. Fast-forward local main, verify post-merge contracts and secret-history workflows, then reconcile the active state.
-4. Continue #104: remaining initial-merge conflicts, active relationships and open/overlapping event history, broader organization/user administration and event settings. These incremental changes do not complete that issue. Continue #112 and #105–#108 in roadmap order afterwards.
+## First resume actions
+
+1. Inspect Git status, fetch origin, inspect the exact PR head and required checks. The current branch follows the already-tested #210 tree. Rebase only while unpublished, with explicit Git identity and stop-on-error shell behavior. Never reapply older backup stashes: their changes are merged.
+2. Merge only after all five required checks pass and GitHub reports CLEAN. Squash using the exact checked head.
+3. Fast-forward main, inspect post-merge contracts and secret-history runs, then reconcile the active handoff/ignored verified receipt.
+4. Continue #104: remaining linked-record/initial-merge conflicts and broader user/member onboarding, event settings and remaining roster controls. Then #112 and #105–#108 in roadmap order. These slices do not complete the full product or production installers.
 
 ## Workstation
 
-`/home/nedim/coding/eventor` is a symlink to `/home/nedim/Development/eventor`. Docker works; the doctor last reported 23 passes without warnings/failures. Optional native PostgreSQL regression uses ignored local PG18 binaries. Both release installers and final acceptance VM validation remain future work. User authorization for routine development, testing, PR creation and verified squash merges persists.
+The chat path `/home/nedim/coding/eventor` is a symlink to `/home/nedim/Development/eventor`. Docker works. Native PostgreSQL regression uses ignored local PG18 binaries. Reuse this checkout, keep detailed logs ignored, and keep active project state concise. User authorization for development, testing, PR creation and verified squash merges persists.

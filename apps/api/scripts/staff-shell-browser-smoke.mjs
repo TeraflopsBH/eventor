@@ -10,7 +10,6 @@ for(const engine of [chromium,firefox]) {
   await page.reload();
   assert.equal(await page.locator('html').getAttribute('lang'),'bs-BA','anonymous language was lost on refresh');
   await page.locator('input[autocomplete="username"]').fill('ci-b@example.invalid');
-  await page.locator('input[autocomplete="organization"]').fill('ci-venue-b');
   await page.locator('input[autocomplete="current-password"]').fill('CI-only-password-2026');
   await page.locator('form button[type="submit"]').click();
   await page.locator('.tabs').waitFor();

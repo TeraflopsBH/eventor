@@ -25,7 +25,8 @@ export function useStaffSession({
   const loadingSession = ref(true);
   const workspaces = ref<StaffTab[]>([]);
   let preferenceWrites: Promise<void> = Promise.resolve();
-  const loginForm = reactive({ email: "", password: "", organizationSlug: "" });
+  const loginForm = reactive({ email: "", password: "", organizationId: "" });
+  const loginOrganizations=ref<{organizationId:string;organizationName:string}[]>([]);
   const selectedOrganization = computed(() =>
     principal.value?.memberships?.find((membership) => membership.selected)?.organizationName
     ?? principal.value?.organizationId
@@ -82,11 +83,16 @@ export function useStaffSession({
     clearMessages();
     busy.value = true;
     try {
-      await api.login({
-        email: loginForm.email.trim(),
-        password: loginForm.password,
-        organizationSlug: loginForm.organizationSlug.trim(),
+      const result=await api.login({
+        email: loginForm.email.trim(),password:loginForm.password,
+        ...(loginForm.organizationId?{organizationId:loginForm.organizationId}:{}),
       });
+      if("organizationSelectionRequired" in result.data) {
+        loginOrganizations.value=result.data.organizations;
+        loginForm.organizationId="";
+        return;
+      }
+      loginOrganizations.value=[];
       loginForm.password = "";
       await refreshSession();
       if (principal.value) pageNotice.value = translate("auth.signedIn");
@@ -131,11 +137,24 @@ export function useStaffSession({
     }
   }
 
+  function clearLoginSelection():void {
+    loginOrganizations.value=[];loginForm.organizationId="";loginForm.password="";
+  }
+  async function switchOrganization(organizationId:string):Promise<void> {
+    if(busy.value||organizationId===principal.value?.organizationId)return;
+    clearMessages();busy.value=true;
+    try {
+      await api.switchStaffOrganization(organizationId);
+      principal.value=null;resetWorkspace();
+      window.location.replace("/");
+    } catch(error){showError(error);busy.value=false;}
+  }
   async function signOut(): Promise<void> {
     clearMessages();
     busy.value = true;
     try {
       await api.logout();
+      clearLoginSelection();
       principal.value = null;
       resetWorkspace();
       pageNotice.value = translate("auth.signedOut");
@@ -146,5 +165,5 @@ export function useStaffSession({
     }
   }
 
-  return { principal, loadingSession, workspaces, loginForm, selectedOrganization, showError, refreshSession, signIn, signOut, saveLocalePreference, useOrganizationLocalePreference };
+  return { principal, loadingSession, workspaces, loginOrganizations, clearLoginSelection, switchOrganization, loginForm, selectedOrganization, showError, refreshSession, signIn, signOut, saveLocalePreference, useOrganizationLocalePreference };
 }

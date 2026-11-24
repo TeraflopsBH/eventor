@@ -20,6 +20,7 @@ import {
   STAFF_SESSION_COOKIE,
   SessionAuthError,
   type CreatedStaffSession,
+  type StaffOrganizationSelection,
   type StaffPrincipal,
 } from "./session-auth.js";
 export type { StaffPrincipal } from "./session-auth.js";
@@ -81,7 +82,8 @@ export interface ApiDependencies {
   readonly createStaffSession?: (
     request: FastifyRequest,
     body: SessionCreateBody,
-  ) => Promise<CreatedStaffSession>;
+  ) => Promise<CreatedStaffSession | StaffOrganizationSelection>;
+  readonly switchStaffOrganization?: (request:FastifyRequest,principal:StaffPrincipal,organizationId:string)=>Promise<CreatedStaffSession>;
   readonly revokeStaffSession?: (principal: StaffPrincipal) => Promise<void>;
   readonly getCurrentPrincipal?: (principal: StaffPrincipal) => Promise<Record<string, unknown>>;
   readonly updateUserLocale?: (principal: StaffPrincipal, locale: "bs-BA" | "en" | null) => Promise<void>;
@@ -1850,11 +1852,12 @@ export function buildApi(dependencies: ApiDependencies): FastifyInstance {
       schema: {
         body: {
           type: "object",
-          required: ["email", "password", "organizationSlug"],
+          required: ["email", "password"],
           properties: {
             email: { type: "string", format: "email", maxLength: 320 },
             password: { type: "string", minLength: 12, maxLength: 1024 },
             organizationSlug: { type: "string", minLength: 2, maxLength: 80 },
+            organizationId: { type: "string", pattern: uuidPattern },
           },
           additionalProperties: false,
         },
@@ -1865,6 +1868,7 @@ export function buildApi(dependencies: ApiDependencies): FastifyInstance {
         throw new ApiError(503, "AUTHENTICATION_NOT_CONFIGURED", "Staff authentication is not configured.");
       }
       const created = await dependencies.createStaffSession(request, request.body);
+      if ("organizationSelectionRequired" in created) return reply.header("cache-control","no-store, private").send({data:created});
       const maxAge = Math.max(1, Math.floor((created.expiresAt.getTime() - Date.now()) / 1000));
       reply.header("set-cookie", [
         `${STAFF_SESSION_COOKIE}=${encodeURIComponent(created.sessionToken)}; Path=/; Max-Age=${maxAge}; Secure; HttpOnly; SameSite=Strict`,
@@ -1881,6 +1885,17 @@ export function buildApi(dependencies: ApiDependencies): FastifyInstance {
       });
     },
   );
+
+  server.post<{Body:{organizationId:string}}>("/auth/session/organization",{schema:{body:{type:"object",additionalProperties:false,required:["organizationId"],properties:{organizationId:{type:"string",pattern:uuidPattern}}}}},async(request,reply)=>{
+    if(!dependencies.switchStaffOrganization) throw new ApiError(503,"AUTHENTICATION_NOT_CONFIGURED","Workspace switching is unavailable.");
+    const created=await dependencies.switchStaffOrganization(request,request.staffPrincipal!,request.body.organizationId);
+    const maxAge=Math.max(1,Math.floor((created.expiresAt.getTime()-Date.now())/1000));
+    reply.header("set-cookie",[
+      `${STAFF_SESSION_COOKIE}=${encodeURIComponent(created.sessionToken)}; Path=/; Max-Age=${maxAge}; Secure; HttpOnly; SameSite=Strict`,
+      `${STAFF_CSRF_COOKIE}=${encodeURIComponent(created.csrfToken)}; Path=/; Max-Age=${maxAge}; Secure; SameSite=Strict`,
+    ]);
+    return reply.header("cache-control","no-store, private").send({data:{organizationId:created.principal.organizationId}});
+  });
 
   server.delete("/auth/session", async (request, reply) => {
     const principal = request.staffPrincipal!;

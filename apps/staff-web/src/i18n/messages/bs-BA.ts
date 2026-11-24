@@ -74,6 +74,10 @@ export default {
     "footerDescription": "Samostalno hostovano · Ograničeno na organizaciju · API je mjerodavan",
   },
   auth: {
+    chooseWorkspace: "Odaberite radni prostor",
+    workspace: "Radni prostor",
+    platformAdmin: "Administrator platforme",
+
     platformEyebrow: "PLATFORMA ZA ORGANIZACIJU DOGAĐAJA",
     headline: "Jedan radni prostor za sve aktivnosti iza svakog događaja.",
     description: "Prijavite se za upravljanje postavkama dostave organizacije i ovlaštenim tokovima obavještavanja o događajima.",

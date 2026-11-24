@@ -238,3 +238,30 @@ test("staff login throttles after database-recorded failed attempts", async () =
   );
   assert.equal(mock.calls.some((call) => call.sql.startsWith("SELECT account.id AS user_id")), false);
 });
+
+test("email-only login selects a single membership without an organization slug",async()=>{
+ const mock=makePool(await argon2.hash("correct horse battery staple",{type:argon2.argon2id}));
+ const auth=new PostgresStaffSessionAuth(mock.pool,{allowedOrigins:[origin],fingerprintKey:Buffer.alloc(32,9)});
+ const result=await auth.createStaffSession(request(),{email:"staff@example.test",password:"correct horse battery staple"});
+ assert.ok("principal" in result);assert.equal(result.principal.organizationId,organizationId);
+});
+
+test("multiple memberships are disclosed only after password verification and require an explicit valid choice",async()=>{
+ const mock=makePool(await argon2.hash("correct horse battery staple",{type:argon2.argon2id}));
+ const choices=[{membership_id:membershipId,organization_id:organizationId,organization_slug:"event-owner",organization_name:"Event Owner",default_locale:"en"},
+  {membership_id:"bbbbbbbb-1111-4111-8111-bbbbbbbbbbbb",organization_id:"11111111-1111-4111-8111-111111111111",organization_slug:"other-owner",organization_name:"Other Owner",default_locale:"en"}];
+ let discoveries=0;
+ const pool={query:async(sql:string,values:unknown[]=[])=>{
+  if(sql.replace(/\s+/g," ").trim().startsWith("SELECT membership.id AS membership_id")){discoveries++;return{rows:choices,rowCount:2};}
+  return mock.pool.query(sql,values);
+ }} as unknown as Pool;
+ const auth=new PostgresStaffSessionAuth(pool,{allowedOrigins:[origin],fingerprintKey:Buffer.alloc(32,9)});
+ await assert.rejects(auth.createStaffSession(request(),{email:"staff@example.test",password:"invalid password fixture"}),error=>error instanceof SessionAuthError&&error.code==="INVALID_CREDENTIALS");
+ assert.equal(discoveries,0,"invalid password disclosed memberships");
+ const result=await auth.createStaffSession(request(),{email:"staff@example.test",password:"correct horse battery staple"});
+ assert.ok("organizationSelectionRequired" in result);assert.deepEqual(result.organizations,choices.map(choice=>({organizationId:choice.organization_id,organizationName:choice.organization_name})));
+ assert.equal(mock.calls.filter(call=>call.sql.startsWith("INSERT INTO eogp.user_sessions")).length,0,"selection issued an authenticated cookie prematurely");
+ await assert.rejects(auth.createStaffSession(request(),{email:"staff@example.test",password:"correct horse battery staple",organizationId:"33333333-3333-4333-8333-333333333333"}),error=>error instanceof SessionAuthError&&error.code==="INVALID_CREDENTIALS");
+ const selected=await auth.createStaffSession(request(),{email:"staff@example.test",password:"correct horse battery staple",organizationId:choices[1]!.organization_id});
+ assert.ok("principal" in selected);assert.equal(selected.principal.organizationId,choices[1]!.organization_id);
+});

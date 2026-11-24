@@ -623,6 +623,41 @@ paths:
         '403': { $ref: '#/components/responses/Forbidden' }
         '422': { $ref: '#/components/responses/UnprocessableEntity' }
         '500': { $ref: '#/components/responses/InternalServerError' }
+  /auth/session/organization:
+    post:
+      tags: ["Authentication"]
+      operationId: switchStaffOrganization
+      summary: "Switch the authenticated staff session to another permitted workspace"
+      description: "Requires current session and CSRF. Only the current user's active memberships can be selected. Rotates cookies, revokes the old session and audits the switch atomically. Platform-admin workspaces are provisioned only by an explicit host-managed role."
+      security: [{ StaffSession: [], StaffCsrf: [] }]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              additionalProperties: false
+              required: [organizationId]
+              properties:
+                organizationId: { type: string, format: uuid }
+      responses:
+        '200':
+          description: "Selected workspace; new session cookies replace the old ones."
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [data]
+                properties:
+                  data:
+                    type: object
+                    required: [organizationId]
+                    properties:
+                      organizationId: { type: string, format: uuid }
+        '400': { $ref: '#/components/responses/BadRequest' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '503': { $ref: '#/components/responses/ServiceUnavailable' }
   "/auth/session":
     delete:
       tags: ["Authentication"]
@@ -644,7 +679,8 @@ paths:
     post:
       tags: ["Authentication"]
       operationId: createStaffSession
-      summary: "Authenticate a staff user"
+      summary: "Authenticate with email and password, then select a workspace if needed"
+      description: "Organization names are disclosed only after password verification. A single active membership opens directly. Several memberships return a selection without issuing session cookies; resubmit credentials with the selected organization ID. Existing slug-based API clients remain supported."
       security: []
       requestBody:
         required: true
@@ -656,7 +692,7 @@ paths:
           description: "Successful response."
           content:
             application/json:
-              schema: { $ref: '#/components/schemas/DataEnvelope' }
+              schema: { $ref: '#/components/schemas/StaffLoginEnvelope' }
         '400': { $ref: '#/components/responses/BadRequest' }
         '401': { $ref: '#/components/responses/Unauthorized' }
         '403': { $ref: '#/components/responses/Forbidden' }
@@ -6112,7 +6148,7 @@ paths:
           description: "Successful response."
           content:
             application/json:
-              schema: { $ref: '#/components/schemas/DataEnvelope' }
+              schema: { $ref: '#/components/schemas/StaffPrincipalEnvelope' }
         '400': { $ref: '#/components/responses/BadRequest' }
         '401': { $ref: '#/components/responses/Unauthorized' }
         '403': { $ref: '#/components/responses/Forbidden' }
@@ -8894,14 +8930,75 @@ components:
                 labels:
                   type: array
                   items: { $ref: '#/components/schemas/RegistryLabel' }
+    StaffPrincipalEnvelope:
+      type: object
+      required: [data]
+      properties:
+        data:
+          type: object
+          required: [userId, organizationId, membershipId]
+          properties:
+            userId: { type: string, format: uuid }
+            organizationId: { type: string, format: uuid }
+            membershipId: { type: string, format: uuid }
+            userLocale: { type: [string, 'null'], enum: [en, bs-BA, null] }
+            organizationDefaultLocale: { type: string, enum: [en, bs-BA] }
+            platformAdmin: { type: boolean, description: Explicit host-managed platform administrator flag. }
+            memberships:
+              type: array
+              items:
+                type: object
+                required: [membershipId, organizationId, organizationSlug, organizationName, selected]
+                properties:
+                  membershipId: { type: string, format: uuid }
+                  organizationId: { type: string, format: uuid }
+                  organizationSlug: { type: string }
+                  organizationName: { type: string }
+                  selected: { type: boolean }
+    StaffOrganizationChoice:
+      type: object
+      required: [organizationId, organizationName]
+      properties:
+        organizationId: { type: string, format: uuid }
+        organizationName: { type: string }
+    StaffOrganizationSelection:
+      type: object
+      required: [organizationSelectionRequired, organizations]
+      properties:
+        organizationSelectionRequired: { type: boolean, const: true }
+        organizations:
+          type: array
+          items: { $ref: '#/components/schemas/StaffOrganizationChoice' }
+    StaffSessionCreated:
+      type: object
+      required: [userId, organizationId, membershipId, csrfToken, expiresAt]
+      properties:
+        userId: { type: string, format: uuid }
+        organizationId: { type: string, format: uuid }
+        membershipId: { type: string, format: uuid }
+        csrfToken: { type: string }
+        expiresAt: { type: string, format: date-time }
+    StaffLoginEnvelope:
+      type: object
+      required: [data]
+      properties:
+        data:
+          oneOf:
+            - $ref: '#/components/schemas/StaffSessionCreated'
+            - $ref: '#/components/schemas/StaffOrganizationSelection'
     SessionCreateRequest:
       type: object
-      required: [email, password, organizationSlug]
+      required: [email, password]
       additionalProperties: false
       properties:
         email: { type: string, format: email, maxLength: 320 }
         password: { type: string, minLength: 12, maxLength: 1024, writeOnly: true }
-        organizationSlug: { type: string, minLength: 2, maxLength: 80 }
+        organizationSlug:
+          description: Optional compatibility selector for existing API clients; ordinary users choose a workspace name after authentication.
+          type: string
+          minLength: 2
+          maxLength: 80
+        organizationId: { type: string, format: uuid }
     PublicBookingFormOptionV1:
       type: object
       required: [value, label]

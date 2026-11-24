@@ -155,3 +155,19 @@ With PostgreSQL 18's postgres, initdb, pg_ctl, psql and createdb binaries on PAT
 The command initializes a fresh temporary cluster, accepts connections through its private Unix socket, bootstraps the application roles, rehearses populated upgrades and runs the database constraint, RLS, concurrency and authentication privilege tests. It stops and removes its temporary cluster on exit. Logs remain under .eventor-dev/logs/native-postgres.*.
 
 Use scripts/dev/check.sh full for the application checks. GitHub CI adds the broader database integration and browser suites.
+
+
+## Staff workspaces and platform administration
+
+The UI signs in with email/password. A single active membership opens directly; multiple memberships produce a named selector. The signed-in workspace menu rotates session credentials and clears prior workspace state. API clients may still supply the optional legacy organization slug.
+
+Platform administration is explicit and defaults off. A host operator with the privileged migration connection can grant or revoke it for an existing staff account:
+
+```bash
+MIGRATOR_URL=... bash scripts/admin/platform-admin.sh grant admin@example.invalid 'approved host administration'
+MIGRATOR_URL=... bash scripts/admin/platform-admin.sh revoke admin@example.invalid 'access withdrawn'
+```
+
+Use protected environment configuration for the actual connection, rather than committing credentials. The operation records the host database principal and reason. It reconciles managed access across active organizations; revocation removes those managed grants and affected sessions while preserving independent ordinary membership/grant facts. Ordinary organization management is separate from platform administration. Inactive-organization recovery and account creation remain host operations. See ADR 0015 for the private control-plane/RLS boundary.
+
+When an interactive preview is running, reserve its database for the user and run acceptance on a separate database and ports. The workstation receipt under ignored `.eventor-dev/user-preview.json` identifies the running build and connection directory. Do not run disposable reset/reseed fixtures against it.

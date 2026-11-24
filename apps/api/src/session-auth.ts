@@ -35,6 +35,9 @@ export interface CreatedStaffSession {
   readonly expiresAt: Date;
 }
 
+export interface StaffOrganizationChoice { organizationId: string; organizationName: string }
+export interface StaffOrganizationSelection { organizationSelectionRequired: true; organizations: StaffOrganizationChoice[] }
+export interface StaffLoginInput { email: string; password: string; organizationSlug?: string; organizationId?: string }
 export class SessionAuthError extends Error {
   constructor(
     readonly status: number,
@@ -50,6 +53,7 @@ interface AuthIdentityRow extends QueryResultRow {
   user_id: string;
   password_hash: string | null;
   user_status: string;
+  is_platform_admin?: boolean;
   membership_id: string;
   membership_status: string;
   organization_id: string;
@@ -74,6 +78,7 @@ interface MembershipRow extends QueryResultRow {
 
 interface UserLocaleRow extends QueryResultRow {
   locale_preference: string | null;
+  is_platform_admin?: boolean;
 }
 
 function sha256(value: string): string {
@@ -260,15 +265,14 @@ export class PostgresStaffSessionAuth {
     return typeof hash === "string" && constantTimeStringEqual(sha256(csrfCookieValue), hash);
   }
 
-  async createStaffSession(
-    request: FastifyRequest,
-    input: { email: string; password: string; organizationSlug: string },
-  ): Promise<CreatedStaffSession> {
+  async createStaffSession(request: FastifyRequest, input: StaffLoginInput & {organizationSlug:string}): Promise<CreatedStaffSession>;
+  async createStaffSession(request: FastifyRequest, input: StaffLoginInput): Promise<CreatedStaffSession | StaffOrganizationSelection>;
+  async createStaffSession(request: FastifyRequest, input: StaffLoginInput): Promise<CreatedStaffSession | StaffOrganizationSelection> {
     const email = input.email.trim().toLowerCase();
-    const organizationSlug = input.organizationSlug.trim().toLowerCase();
-    if (email.length > 320 || organizationSlug.length < 2 || organizationSlug.length > 80
+    const organizationSlug = input.organizationSlug?.trim().toLowerCase();
+    if (email.length > 320 || (organizationSlug !== undefined && (organizationSlug.length < 2 || organizationSlug.length > 80)) || (organizationSlug !== undefined && input.organizationId !== undefined)
         || Buffer.byteLength(input.password, "utf8") > 1024) {
-      throw new SessionAuthError(400, "INVALID_LOGIN", "Enter a valid email, password and organization.");
+      throw new SessionAuthError(400, "INVALID_LOGIN", "Enter a valid email and password.");
     }
 
     const emailFingerprint = fingerprint(this.config.fingerprintKey, "email", email);
@@ -329,23 +333,8 @@ export class PostgresStaffSessionAuth {
     }
 
     const identity = await this.authPool.query<AuthIdentityRow>(
-      `SELECT
-         account.id AS user_id,
-         account.password_hash,
-         account.status AS user_status,
-         membership.id AS membership_id,
-         membership.status AS membership_status,
-         organization.id AS organization_id,
-         organization.status AS organization_status
-       FROM eogp.users AS account
-       JOIN eogp.organization_memberships AS membership
-         ON membership.user_id = account.id
-       JOIN eogp.organizations AS organization
-         ON organization.id = membership.organization_id
-       WHERE lower(account.email) = $1
-         AND organization.slug = $2
-       LIMIT 1`,
-      [email, organizationSlug],
+      `SELECT account.id AS user_id, account.password_hash, account.status AS user_status, account.is_platform_admin
+         FROM eogp.users AS account WHERE lower(account.email)=$1 LIMIT 1`, [email],
     );
     const row = identity.rows[0];
     const candidateHash = row?.password_hash?.startsWith("$argon2id$")
@@ -362,8 +351,6 @@ export class PostgresStaffSessionAuth {
     const validIdentity = Boolean(
       row
       && row.user_status === "active"
-      && row.membership_status === "active"
-      && row.organization_status === "active"
       && row.password_hash?.startsWith("$argon2id$")
       && passwordMatches,
     );
@@ -372,6 +359,14 @@ export class PostgresStaffSessionAuth {
       throw new SessionAuthError(401, "INVALID_CREDENTIALS", "The supplied sign-in details are not valid.");
     }
 
+    if (row.is_platform_admin) await this.authPool.query("SELECT eogp.refresh_platform_admin_access($1::uuid)",[row.user_id]);
+    const organizations = await this.availableOrganizations(row.user_id);
+    const selected = input.organizationId ? organizations.find(item=>item.organization_id===input.organizationId)
+      : organizationSlug ? organizations.find(item=>item.organization_slug===organizationSlug)
+      : organizations.length===1 ? organizations[0] : undefined;
+    if (!organizations.length || ((input.organizationId || organizationSlug) && !selected)) {
+      throw new SessionAuthError(401,"INVALID_CREDENTIALS","The supplied sign-in details are not valid.");
+    }
     await this.authPool.query(
       `UPDATE eogp.auth_login_attempts
           SET failed_attempts = 0,
@@ -393,16 +388,33 @@ export class PostgresStaffSessionAuth {
       );
     }
 
+    if (!selected) return { organizationSelectionRequired: true,
+      organizations: organizations.map(item=>({organizationId:item.organization_id,organizationName:item.organization_name})) };
+    return this.issueStaffSession(request,{...row,organization_id:selected.organization_id,membership_id:selected.membership_id});
+  }
+
+  private async availableOrganizations(userId:string): Promise<MembershipRow[]> {
+    const result=await this.authPool.query<MembershipRow>(
+      `SELECT membership.id AS membership_id, organization.id AS organization_id,
+         organization.slug AS organization_slug,organization.name AS organization_name,organization.default_locale
+       FROM eogp.organization_memberships membership JOIN eogp.organizations organization ON organization.id=membership.organization_id
+       JOIN eogp.users account ON account.id=membership.user_id
+       WHERE membership.user_id=$1 AND membership.status='active' AND organization.status='active' AND account.status='active'
+       ORDER BY organization.name,organization.id`,[userId]);
+    return result.rows;
+  }
+
+  private async issueStaffSession(request:FastifyRequest,row:Pick<AuthIdentityRow,"user_id"|"organization_id"|"membership_id">,database:Pick<Pool,"query">=this.authPool,recordAuthentication=true,existingExpiry?:Date):Promise<CreatedStaffSession> {
     const sessionToken = randomBytes(32).toString("base64url");
     const csrfToken = randomBytes(32).toString("base64url");
-    const expiresAt = new Date(Date.now() + this.ttlSeconds * 1000);
-    const sourceHash = sourceFingerprint;
+    const expiresAt = existingExpiry ?? new Date(Date.now() + this.ttlSeconds * 1000);
+    const sourceHash = fingerprint(this.config.fingerprintKey,"source",request.ip || "unknown");
     const userAgent = request.headers["user-agent"];
     const userAgentFingerprint = typeof userAgent === "string"
       ? fingerprint(this.config.fingerprintKey, "user-agent", userAgent.slice(0, 500))
       : null;
 
-    const created = await this.authPool.query<QueryResultRow & { id: string }>(
+    const created = await database.query<QueryResultRow & { id: string }>(
       `INSERT INTO eogp.user_sessions (
          user_id, organization_id, membership_id,
          session_token_sha256, csrf_token_sha256, expires_at,
@@ -425,7 +437,7 @@ export class PostgresStaffSessionAuth {
       throw new SessionAuthError(503, "SESSION_CREATE_FAILED", "The sign-in service is temporarily unavailable.");
     }
 
-    await this.authPool.query(
+    if (recordAuthentication) await database.query(
       `UPDATE eogp.users
           SET last_authenticated_at = clock_timestamp(),
               updated_at = clock_timestamp()
@@ -446,6 +458,24 @@ export class PostgresStaffSessionAuth {
     };
   }
 
+  async switchStaffOrganization(request:FastifyRequest,principal:StaffPrincipal,organizationId:string):Promise<CreatedStaffSession> {
+    if (!principal.sessionId) throw new SessionAuthError(401,"UNAUTHENTICATED","Sign in again.");
+    const client=await this.authPool.connect();
+    try {
+      await client.query("BEGIN");
+      const target=await client.query<AuthIdentityRow>("SELECT user_id,membership_id,organization_id FROM eogp.lock_staff_workspace_membership($1::uuid,$2::uuid)",[principal.userId,organizationId]);
+      const row=target.rows[0];
+      if (!row) throw new SessionAuthError(403,"FORBIDDEN","This workspace is not available to your account.");
+      const current=await client.query<QueryResultRow & {expires_at:Date}>(`SELECT id,expires_at FROM eogp.user_sessions WHERE id=$1 AND user_id=$2 AND organization_id=$3 AND membership_id=$4 AND revoked_at IS NULL AND expires_at>clock_timestamp() FOR UPDATE`,
+        [principal.sessionId,principal.userId,principal.organizationId,principal.membershipId]);
+      if (!current.rows.length) throw new SessionAuthError(401,"UNAUTHENTICATED","Sign in again.");
+      const created=await this.issueStaffSession(request,row,client,false,current.rows[0]!.expires_at);
+      await client.query("UPDATE eogp.user_sessions SET revoked_at=clock_timestamp() WHERE id=$1",[principal.sessionId]);
+      await client.query("SELECT eogp.record_staff_workspace_switch($1::uuid,$2::uuid,$3::uuid,$4::uuid)",[principal.userId,organizationId,row.membership_id,principal.organizationId]);
+      await client.query("COMMIT");return created;
+    } catch(error){try{await client.query("ROLLBACK");}catch{/* Preserve error. */}throw error;}finally{client.release();}
+  }
+
   async revokeStaffSession(principal: StaffPrincipal): Promise<void> {
     if (!principal.sessionId) return;
     await this.authPool.query(
@@ -461,6 +491,7 @@ export class PostgresStaffSessionAuth {
   }
 
   async getCurrentPrincipal(principal: StaffPrincipal): Promise<Record<string, unknown>> {
+    await this.authPool.query("SELECT eogp.refresh_platform_admin_access($1::uuid)",[principal.userId]);
     const memberships = await this.authPool.query<MembershipRow>(
       `SELECT
          membership.id AS membership_id,
@@ -478,7 +509,7 @@ export class PostgresStaffSessionAuth {
       [principal.userId],
     );
     const preference = await this.authPool.query<UserLocaleRow>(
-      "SELECT locale_preference FROM eogp.users WHERE id=$1",
+      "SELECT locale_preference,is_platform_admin FROM eogp.users WHERE id=$1",
       [principal.userId],
     );
     const selectedMembership = memberships.rows.find((row) =>
@@ -489,6 +520,7 @@ export class PostgresStaffSessionAuth {
       organizationId: principal.organizationId,
       membershipId: principal.membershipId,
       userLocale: preference.rows[0]?.locale_preference ?? null,
+      platformAdmin: preference.rows[0]?.is_platform_admin === true,
       organizationDefaultLocale: selectedMembership?.default_locale ?? "en",
       memberships: memberships.rows.map((row) => ({
         membershipId: row.membership_id,
