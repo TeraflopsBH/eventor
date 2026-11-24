@@ -21,3 +21,7 @@ Global provisioning uses private organization-ID, managed-access and append-only
 Tenant membership commands cannot suspend a platform-managed administrator while the global role is active. Host revocation removes its managed grants, revokes affected sessions and restores prior membership status where it was not active. Independently held ordinary memberships and grants remain. Provisioning audit identifies the host database principal, rather than falsely attributing it to the affected staff user. Workspace switching separately records the authenticated user's target membership as actor.
 
 Inactive-organization recovery and global account provisioning remain host operations; this does not claim a complete global account-management console. All normal memberships, organization/venue boundaries, guest privacy and existing command authorization continue to apply.
+
+## Tenant directory controls — 2026-11-25
+
+The authorized member directory exposes a `hostManaged` boolean for each membership in the selected organization. It does not expose global account lists, emails or other memberships. Both searched and unfiltered directory paths use the same projection. The staff UI identifies host-managed access and omits tenant suspension/restoration controls for those members. The existing database membership guard remains authoritative; hiding a control grants no authority and does not replace server checks. Independent event-role assignments remain ordinary tenant-managed facts.

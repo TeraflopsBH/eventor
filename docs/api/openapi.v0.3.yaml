@@ -8796,12 +8796,15 @@ components:
         expiresAt: { type: [string, 'null'], format: date-time }
     OrganizationAccessMember:
       type: object
-      required: [membershipId, revision, displayName, status, grants]
+      required: [membershipId, revision, displayName, status, hostManaged, grants]
       properties:
         membershipId: { type: string, format: uuid }
         revision: { type: integer, minimum: 1 }
         displayName: { type: string }
         status: { type: string, enum: [invited, active, suspended, revoked] }
+        hostManaged:
+          type: boolean
+          description: Host-managed platform access cannot be suspended through tenant membership commands.
         grants:
           type: array
           items: { $ref: '#/components/schemas/OrganizationAccessGrant' }

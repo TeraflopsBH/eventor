@@ -21,6 +21,11 @@ BEGIN
  IF v_access.membership_id<>v_member OR v_access.previous_membership_status<>'active' THEN RAISE EXCEPTION 'existing membership not preserved';END IF;
  PERFORM set_config('app.organization_id',v_a::text,true);
  IF (SELECT count(*) FROM eogp.role_permissions WHERE organization_id=v_a AND role_id=v_access.role_id)<>(SELECT count(*) FROM eogp.permissions WHERE scope_kind<>'platform') THEN RAISE EXCEPTION 'platform role lacks current organization operations';END IF;
+ PERFORM set_config('app.actor_membership_id',v_member::text,true);
+ IF (eogp.search_organization_access_members(v_a,v_member,0,'Synthetic platform administrator')->'members'->0->>'hostManaged')::boolean IS DISTINCT FROM true
+  OR (SELECT item->>'hostManaged' FROM jsonb_array_elements(eogp.list_organization_access_members(v_a,v_member,0)->'members') item WHERE item->>'membershipId'=v_member::text)::boolean IS DISTINCT FROM true THEN
+  RAISE EXCEPTION 'host-managed membership not identified in both directory paths';END IF;
+ BEGIN PERFORM eogp.search_organization_access_members(v_b,v_member,0,'');RAISE EXCEPTION 'directory crossed tenant boundary';EXCEPTION WHEN insufficient_privilege THEN NULL;END;
  BEGIN UPDATE eogp.organization_memberships SET status='suspended' WHERE organization_id=v_a AND id=v_member;RAISE EXCEPTION 'tenant operation disabled platform administrator';EXCEPTION WHEN insufficient_privilege THEN NULL;END;
  INSERT INTO eogp.user_sessions(user_id,organization_id,membership_id,session_token_sha256,csrf_token_sha256,expires_at)
  VALUES(v_user,v_a,v_member,repeat('a',64),repeat('b',64),clock_timestamp()+interval '1 hour') RETURNING id INTO v_session;

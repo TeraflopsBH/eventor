@@ -4,7 +4,7 @@ Updated 2026-11-25. This page is the current development handoff. Detailed histo
 
 ## Verified integration baseline
 
-`main` was verified at `28f37fe5566e53e68476e686766f9e61ba3b274c`, after [preview polish, PR #210](https://github.com/TeraflopsBH/eventor/pull/210). Post-merge [contracts/PostgreSQL](https://github.com/TeraflopsBH/eventor/actions/runs/45421323539) and [secret history](https://github.com/TeraflopsBH/eventor/actions/runs/45421323442) passed.
+`main` was verified at `58e4c95e1c6923b437ea80cc1364e3ada80e8eb3`, after [email-first workspace access, PR #211](https://github.com/TeraflopsBH/eventor/pull/211). Post-merge [contracts/PostgreSQL](https://github.com/TeraflopsBH/eventor/actions/runs/45507846026) and [secret history](https://github.com/TeraflopsBH/eventor/actions/runs/45507846531) passed.
 
 This includes reviewed current-state restoration (#206), source-reference transfers with preserved encryption identity (#205), reviewed contact transfers (#204), public cancellation isolation (#203), the concise handoff (#202), provider notices (#201) and UUID compatibility (#200). Detailed receipts are in the linked archive.
 
@@ -14,7 +14,11 @@ Staff sign-in now starts with email/password. A single active workspace opens di
 
 Migration 187 adds an explicit, host-managed platform administrator flag (default false) with tracked memberships/system grants for active organizations. Private global provisioning/audit records and narrow auth-only helpers preserve the normal selected-tenant RLS/runtime boundary. Ordinary organization managers gain no cross-tenant authority. Host revocation removes managed privileges and affected sessions while retaining independent membership/grant facts (ADR 0015). Global account provisioning and inactive-organization recovery remain host operations.
 
-Full application, native PostgreSQL, fresh isolated Docker database and Chromium/Firefox checks passed locally, including password-before-workspace disclosure, session rotation/lifetime, CSRF, normal tenant limits, explicit platform access and revocation. The live preview was verified separately. Exact-head CI remains required before integration.
+Full application, native PostgreSQL, fresh isolated Docker database and Chromium/Firefox checks passed locally, including password-before-workspace disclosure, session rotation/lifetime, CSRF, normal tenant limits, explicit platform access and revocation. The live preview was verified separately. PR #211 passed exact-head CI and post-merge verification.
+
+The next slice adds a selected-tenant `hostManaged` member-directory field and labels host-managed platform access in both languages, omitting unsupported suspension controls. Migration 188 reuses the authorized search projection for both directory paths. The server membership guard remains authoritative. Full application checks, fresh PostgreSQL migration/RLS/concurrency/auth checks, and Chromium/Firefox staff-shell, Registry-label and workspace journeys passed locally. Exact-head CI remains required before integration.
+
+The interactive preview and its database container were stopped at the owner’s request, preserving its data.
 
 Preview feedback already includes persistent language selection, permission-aware tabs/error isolation, `DD.MM.YYYY HH:mm` Bosnian dates, optional generated codes, preferred-name help, SMTP under Settings and persistent Registry label badges such as VIP.
 

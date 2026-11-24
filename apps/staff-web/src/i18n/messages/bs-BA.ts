@@ -767,6 +767,7 @@ export default {
   organizationAccess: {
     memberSearch: "Ime člana",
     findMembers: "Pronađi članove",
+    hostManaged: "Pristupom upravlja administrator sistema",
     suspendMember: "Suspenduj pristup",
     restoreMember: "Vrati pristup",
     confirmSuspend: "Suspendovati pristup organizaciji za člana {member}? Trenutne sesije u ovoj organizaciji bit će opozvane.",

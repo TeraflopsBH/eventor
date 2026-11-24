@@ -1,8 +1,12 @@
 # Development resume — 2026-11-25
 
-The interruption is reconciled. PR #209 and #210 are merged. Last recorded verified main: `28f37fe5566e53e68476e686766f9e61ba3b274c`, with post-merge contracts `45421323539` and secret history `45421323442` passing. Current state and its linked archive retain the prior receipts.
+The interruption is reconciled. PR #209–#211 are merged. Last recorded verified main: `58e4c95e1c6923b437ea80cc1364e3ada80e8eb3`, with post-merge contracts `45507846026` and secret history `45507846531` passing. Current state and its linked archive retain the prior receipts.
 
 ## Current slice
+
+`codex/platform-member-controls` adds a scoped `hostManaged` member-directory flag and bilingual host-management labels, omitting unsupported tenant suspension controls. Migration 188 unifies directory projections; the existing server guard remains unchanged. Full application and fresh PostgreSQL checks passed, plus Chromium/Firefox staff-shell, Registry-label and focused workspace/member-control checks. Exact-head CI remains required before integration.
+
+Previous completed slice:
 
 `feat/email-first-workspace-access` implements email/password-only sign-in, named choices for multiple active memberships, audited atomic workspace switching with original session expiry, and explicit host-managed platform administration. Migration 187 and ADR 0015 define its boundaries. Existing organization managers retain tenant limits; auth/runtime cannot set the global flag. Host CLI: `scripts/admin/platform-admin.sh`.
 
@@ -12,11 +16,11 @@ Full application, native PostgreSQL, fresh Docker upgrade/RLS/concurrency/auth c
 
 http://localhost:15173, API 18080. Its reserved database is recorded in `.eventor-dev/user-preview.json`; never reset or reseed it while the user explores. It has migration 187 and the tested workspace build, preserving previous data and Demo VIP Guest. `ci-b@example.invalid` is the normal single-workspace demo. `organizer@demo.eventor.invalid` has two memberships. `admin@demo.eventor.invalid` is an explicitly provisioned synthetic platform administrator. The existing public CI fixture password is used only in this disposable local data. Acceptance runs separately on 15174/18081 with its own databases.
 
-The preview is served from an ignored build snapshot so unfinished source edits do not disrupt it. Its API and web processes were restarted after interruption; consult the JSON receipt/logs before starting duplicates. The optional production worker is not running in this local preview.
+The preview is served from an ignored build snapshot so unfinished source edits do not disrupt it. Its API, web and reserved database container are now stopped at the owner’s request; data and build are preserved. Consult the JSON receipt/logs before restarting. The optional production worker is not running in this local preview.
 
 ## First resume actions
 
-1. Inspect Git status, fetch origin, inspect the exact PR head and required checks. The current branch follows the already-tested #210 tree. Rebase only while unpublished, with explicit Git identity and stop-on-error shell behavior. Never reapply older backup stashes: their changes are merged.
+1. Inspect Git status, fetch origin, inspect the exact PR head and required checks. The current branch follows the verified #211 tree. Rebase only while unpublished, with explicit Git identity and stop-on-error shell behavior. Never reapply older backup stashes: their changes are merged.
 2. Merge only after all five required checks pass and GitHub reports CLEAN. Squash using the exact checked head.
 3. Fast-forward main, inspect post-merge contracts and secret-history runs, then reconcile the active handoff/ignored verified receipt.
 4. Continue #104: remaining linked-record/initial-merge conflicts and broader user/member onboarding, event settings and remaining roster controls. Then #112 and #105–#108 in roadmap order. These slices do not complete the full product or production installers.
