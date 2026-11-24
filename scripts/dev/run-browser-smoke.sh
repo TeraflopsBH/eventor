@@ -34,12 +34,16 @@ case "${1:-}" in
     script='registry-reference-merge-browser-smoke.mjs'
     base_url_env='EVENTOR_REFERENCE_MERGE_BROWSER_BASE_URL'
     ;;
+  event-guest-bulk-groups)
+    script='event-guest-bulk-groups-browser-smoke.mjs'
+    base_url_env='EVENTOR_BULK_GROUPS_BROWSER_BASE_URL'
+    ;;
   registry-restoration)
     script='registry-restoration-browser-smoke.mjs'
     base_url_env='EVENTOR_RESTORATION_BROWSER_BASE_URL'
     ;;
   *)
-    printf 'Usage: bash scripts/dev/run-browser-smoke.sh {session|guest-invitation|organization-access|booking-disruption|public-booking-cancellation|registry-contact-merge|registry-reference-merge|registry-restoration}\n' >&2
+    printf 'Usage: bash scripts/dev/run-browser-smoke.sh {session|guest-invitation|organization-access|booking-disruption|public-booking-cancellation|registry-contact-merge|registry-reference-merge|registry-restoration|event-guest-bulk-groups}\n' >&2
     exit 2
     ;;
 esac

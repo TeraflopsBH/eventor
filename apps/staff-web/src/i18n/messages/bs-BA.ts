@@ -307,6 +307,12 @@ export default {
       failed: "Učitavanje ili ažuriranje spremljenih prikaza nije uspjelo.",
     },
     bulk: {
+      group: "Grupa za odabrane goste",
+      chooseGroup: "Odaberite grupu",
+      addGroup: "Dodaj grupu odabranima",
+      removeGroup: "Ukloni grupu odabranima",
+      confirmGroupAdd: "Dodati {count} odabranih gostiju u grupu {label}? Postojeće uloge se čuvaju; novi članovi dobijaju ulogu člana.",
+      confirmGroupRemove: "Ukloniti {count} odabranih gostiju iz grupe {label}? Ostala članstva u grupama se čuvaju.",
       tag: "Oznaka za odabrane goste",
       chooseTag: "Odaberite oznaku",
       addTag: "Dodaj oznaku odabranima",

@@ -514,3 +514,8 @@ The private append-only transfer journal retains reference IDs and canonical v1 
 A separate restoration preview binds the actor, merge, both identities/revisions and current transferred-record state. The reviewed command returns only selected current contact/reference records, keeps unselected records at the destination, and requires acknowledgement of removed references. It preserves current consent, verification, values and encryption identity. Missing references cannot be returned or recreated.
 
 Ordered parent and child locks, current field authority and review-state validation protect the atomic correction. SQLSTATE `P1841` maps to `MERGE_RESTORATION_REVIEW_STALE`. A private append-only correction record retains the reviewed state digest and returned/kept/removed IDs; the ordinary merge history exposes only the coarse restoration mode. Existing strict unchanged-record restoration remains available. See ADR 0013.
+
+
+### Migration 185 — Atomic roster group membership batches
+
+`set_event_guest_bulk_group` adds or removes one same-event group for 1–50 distinct participation IDs with expected revisions. It reuses the existing event write authorization/lifecycle lock and single-participation group command, locks selected participations in stable order, and commits all membership/revision/audit changes atomically. Stale, missing, cancelled or unauthorized selections reject the batch. Existing group roles and unrelated memberships are preserved; new memberships retain the established `member` default. Retired groups can only be removed. No new tables or direct runtime DML grants are introduced. The idempotent API rechecks current guest-management authority on replay.
