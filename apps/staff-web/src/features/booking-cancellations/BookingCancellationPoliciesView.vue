@@ -47,7 +47,7 @@ const {
           <button class="button button-secondary" type="button" :disabled="busy" @click="loadBookingCancellationPolicies">{{ t("commercialConfiguration.cancelView.refresh_policies") }}</button></div>
         <div class="inquiry-detail-grid">
           <section class="inquiry-card"><h4>{{ t("commercialConfiguration.cancelView.create_cancellation_policy") }}</h4><form class="draft-revision-form" @submit.prevent="createBookingCancellationPolicy">
-            <label>{{ t("commercialConfiguration.cancelView.policy_code") }}<input v-model="cancellationPolicyCreateForm.code" required minlength="2" maxlength="80" /></label>
+            <label>{{ t("commercialConfiguration.cancelView.policy_code") }}<input v-model="cancellationPolicyCreateForm.code" minlength="2" maxlength="80" :placeholder="t('common.generatedCode')" /></label>
             <label>{{ t("commercialConfiguration.cancelView.policy_name") }}<input v-model="cancellationPolicyCreateForm.name" required maxlength="250" /></label>
             <button class="button button-primary" type="submit" :disabled="busy">{{ t("commercialConfiguration.cancelView.create_policy") }}</button></form></section>
           <section class="inquiry-card"><h4>{{ t("commercialConfiguration.cancelView.existing_policies") }}</h4><label>{{ t("commercialConfiguration.cancelView.select_policy") }}<select v-model="selectedCancellationPolicyId" @change="selectBookingCancellationPolicy(selectedCancellationPolicyId)">

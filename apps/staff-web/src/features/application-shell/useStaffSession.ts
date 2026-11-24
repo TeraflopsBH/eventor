@@ -12,7 +12,6 @@ interface StaffSessionDependencies {
   pageError: Ref<string>;
   pageNotice: Ref<string>;
   clearMessages: () => void;
-  loadConfiguration: () => Promise<void>;
   resetWorkspace: () => void;
   translate: (key: string, params?: Record<string, string | number>) => string;
   applyLocale: (locale: string) => void;
@@ -20,7 +19,7 @@ interface StaffSessionDependencies {
 }
 
 export function useStaffSession({
-  api, busy, pageError, pageNotice, clearMessages, loadConfiguration, resetWorkspace, translate, applyLocale, applyWorkspaces,
+  api, busy, pageError, pageNotice, clearMessages, resetWorkspace, translate, applyLocale, applyWorkspaces,
 }: StaffSessionDependencies) {
   const principal = ref<Principal | null>(null);
   const loadingSession = ref(true);
@@ -67,7 +66,7 @@ export function useStaffSession({
       const available = await api.getStaffWorkspaces();
       workspaces.value = available.data.workspaces;
       applyWorkspaces(workspaces.value);
-      if (workspaces.value.includes("delivery")) await loadConfiguration();
+
     } catch (error) {
       if (error instanceof ApiError && error.status === 401) {
         principal.value = null;

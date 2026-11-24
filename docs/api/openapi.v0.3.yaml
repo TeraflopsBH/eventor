@@ -7278,6 +7278,117 @@ paths:
         '403': { $ref: '#/components/responses/Forbidden' }
         '404': { $ref: '#/components/responses/NotFound' }
         '422': { $ref: '#/components/responses/UnprocessableEntity' }
+  "/persons/{personId}/labels":
+    get:
+      tags: ["Guest Registry"]
+      operationId: getRegistryPersonLabels
+      summary: "Read internal Registry labels and assignments"
+      description: "Internal Registry data; never included in public guest projections. Registry read/manage permission is required. Writes require Registry management. Retired labels cannot be newly assigned. Labelled source profiles require separate resolution before merging."
+      security: [{ StaffSession: [] }]
+      parameters:
+        - $ref: '#/components/parameters/PPersonId'
+      responses:
+        '200':
+          description: "Internal label result."
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/RegistryPersonLabelsEnvelope' }
+        '400': { $ref: '#/components/responses/BadRequest' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '404': { $ref: '#/components/responses/NotFound' }
+        '409': { $ref: '#/components/responses/Conflict' }
+        '412': { $ref: '#/components/responses/PreconditionFailed' }
+    patch:
+      tags: ["Guest Registry"]
+      operationId: setRegistryPersonLabels
+      summary: "Set internal profile labels with revision checks"
+      description: "Internal Registry data; never included in public guest projections. Registry read/manage permission is required. Writes require Registry management. Retired labels cannot be newly assigned. Labelled source profiles require separate resolution before merging."
+      security: [{ StaffSession: [], StaffCsrf: [] }]
+      parameters:
+        - $ref: '#/components/parameters/PPersonId'
+        - $ref: '#/components/parameters/IdempotencyKey'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              additionalProperties: false
+              required: [expectedRevision, labelIds]
+              properties:
+                expectedRevision: { type: integer, minimum: 1 }
+                labelIds: { type: array, maxItems: 100, uniqueItems: true, items: { type: string, format: uuid } }
+      responses:
+        '200':
+          description: "Internal label result."
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/RegistryPersonLabelMutationEnvelope' }
+        '400': { $ref: '#/components/responses/BadRequest' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '404': { $ref: '#/components/responses/NotFound' }
+        '409': { $ref: '#/components/responses/Conflict' }
+        '412': { $ref: '#/components/responses/PreconditionFailed' }
+  "/organizations/{organizationId}/persons/labels":
+    post:
+      tags: ["Guest Registry"]
+      operationId: createRegistryLabel
+      summary: "Create an organization Registry label"
+      description: "Internal Registry data; never included in public guest projections. Registry read/manage permission is required. Writes require Registry management. Retired labels cannot be newly assigned. Labelled source profiles require separate resolution before merging."
+      security: [{ StaffSession: [], StaffCsrf: [] }]
+      parameters:
+        - $ref: '#/components/parameters/POrganizationId'
+        - $ref: '#/components/parameters/IdempotencyKey'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              additionalProperties: false
+              required: [label]
+              properties:
+                label: { type: string, minLength: 1, maxLength: 80 }
+      responses:
+        '201':
+          description: "Internal label result."
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/RegistryLabelEnvelope' }
+        '400': { $ref: '#/components/responses/BadRequest' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '404': { $ref: '#/components/responses/NotFound' }
+        '409': { $ref: '#/components/responses/Conflict' }
+        '412': { $ref: '#/components/responses/PreconditionFailed' }
+  "/organizations/{organizationId}/persons/labels/{labelId}/retire":
+    post:
+      tags: ["Guest Registry"]
+      operationId: retireRegistryLabel
+      summary: "Retire a Registry label while retaining assignments"
+      description: "Internal Registry data; never included in public guest projections. Registry read/manage permission is required. Writes require Registry management. Retired labels cannot be newly assigned. Labelled source profiles require separate resolution before merging."
+      security: [{ StaffSession: [], StaffCsrf: [] }]
+      parameters:
+        - $ref: '#/components/parameters/POrganizationId'
+        - $ref: '#/components/parameters/IdempotencyKey'
+        - in: path
+          name: labelId
+          required: true
+          schema: { type: string, format: uuid }
+      responses:
+        '200':
+          description: "Internal label result."
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/RegistryLabelEnvelope' }
+        '400': { $ref: '#/components/responses/BadRequest' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '404': { $ref: '#/components/responses/NotFound' }
+        '409': { $ref: '#/components/responses/Conflict' }
+        '412': { $ref: '#/components/responses/PreconditionFailed' }
   "/persons/{personId}/merge":
     post:
       tags: ["Guest Registry"]
@@ -8741,6 +8852,48 @@ components:
             username: { type: string, minLength: 1, maxLength: 320 }
             password: { type: string, minLength: 1, maxLength: 4096, writeOnly: true }
         clearCredentials: { type: boolean, default: false }
+    RegistryLabel:
+      type: object
+      additionalProperties: false
+      required: [labelId, label, retired]
+      properties:
+        labelId: { type: string, format: uuid }
+        label: { type: string, minLength: 1, maxLength: 80 }
+        retired: { type: boolean }
+    RegistryLabelEnvelope:
+      type: object
+      required: [data]
+      properties:
+        data: { $ref: '#/components/schemas/RegistryLabel' }
+    RegistryPersonLabelMutation:
+      type: object
+      required: [revision, assignedLabelIds]
+      properties:
+        revision: { type: integer, minimum: 1 }
+        assignedLabelIds:
+          type: array
+          maxItems: 100
+          uniqueItems: true
+          items: { type: string, format: uuid }
+    RegistryPersonLabelMutationEnvelope:
+      type: object
+      required: [data]
+      properties:
+        data: { $ref: '#/components/schemas/RegistryPersonLabelMutation' }
+    RegistryPersonLabelsEnvelope:
+      type: object
+      required: [data]
+      properties:
+        data:
+          allOf:
+            - $ref: '#/components/schemas/RegistryPersonLabelMutation'
+            - type: object
+              required: [canManage, labels]
+              properties:
+                canManage: { type: boolean }
+                labels:
+                  type: array
+                  items: { $ref: '#/components/schemas/RegistryLabel' }
     SessionCreateRequest:
       type: object
       required: [email, password, organizationSlug]
@@ -9518,6 +9671,10 @@ components:
             lastName: { type: string }
             displayName: { type: [string, 'null'] }
             preferredName: { type: [string, 'null'] }
+            labels:
+              description: Internal classifications included only by Registry directory/profile reads.
+              type: array
+              items: { $ref: '#/components/schemas/RegistryLabel' }
     GuestRegistryMutationEnvelope:
       type: object
       required: [data]

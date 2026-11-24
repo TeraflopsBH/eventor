@@ -1,3 +1,4 @@
+import { generatedReferenceCode } from "../../reference-code.ts";
 import { computed, reactive, ref, type ComputedRef, type Ref } from "vue";
 import type { StaffTab } from "../application-shell/useStaffSession";
 import type { BookingPriceList, BookingPriceListItem, BookingTaxProfileRevision } from "../../api";
@@ -63,7 +64,7 @@ function selectBookingPriceList(priceListId: string): void {
 }
 
 async function createBookingPriceList(): Promise<void> {
-  const code = priceListCreateForm.code.trim();
+  const code = priceListCreateForm.code.trim() || (priceListCreateForm.code = generatedReferenceCode("PRC"));
   const name = priceListCreateForm.name.trim();
   if (code.length < 2 || code.length > 80 || !/^[A-Za-z0-9][A-Za-z0-9._-]*$/.test(code) || !name) {
     pageError.value = translate("commercialConfiguration.priceCodeName");

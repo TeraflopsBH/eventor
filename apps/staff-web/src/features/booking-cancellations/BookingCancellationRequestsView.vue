@@ -1,13 +1,14 @@
 <script setup lang="ts">
+import { formatDateTime } from "../../i18n/format";
 import type { Ref } from "vue";
 import { useI18n } from "vue-i18n";
 import type { useBookingCancellationRequests } from "./useBookingCancellationRequests";
 
 type Workspace = ReturnType<typeof useBookingCancellationRequests> & { busy: Ref<boolean> };
 const props = defineProps<{ workspace: Workspace }>();
-const { t } = useI18n();
+const { t, locale } = useI18n();
 const dateLabel = (value: string | null): string => value
-  ? new Intl.DateTimeFormat(undefined, { dateStyle: "medium", timeStyle: "short" }).format(new Date(value))
+  ? formatDateTime(value, locale.value)
   : "—";
 const statusLabel = (value: string): string => {
   const key = `cancellationRequests.status.${value}`;

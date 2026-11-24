@@ -55,21 +55,19 @@ if (!isPublicOfferPage && !isPublicBookingFormPage && !isGuestInvitationPage
   const savedLocale = storedStaffLocale();
   if (savedLocale) locale.value = savedLocale;
 }
-const activeTab = ref<StaffTab>("delivery");
+const activeTab = ref<StaffTab>("events");
 const busy = ref(false);
 const pageError = ref("");
 const pageNotice = ref("");
 
-let loadEmailConfiguration: () => Promise<void> = async () => {};
 let resetWorkspace: () => void = () => {};
 const staffSessionState = useStaffSession({
   api, busy, pageError, pageNotice, clearMessages,
-  loadConfiguration: () => loadEmailConfiguration(),
   resetWorkspace: () => resetWorkspace(),
   translate,
   applyLocale: (value) => { locale.value = value as SupportedLocale; },
   applyWorkspaces: (workspaces) => {
-    if (!workspaces.includes(activeTab.value)) activeTab.value = workspaces[0] ?? "settings";
+    if (!workspaces.includes(activeTab.value) || activeTab.value === "delivery") activeTab.value = workspaces.find(tab => tab !== "delivery") ?? "settings";
   },
 });
 const { principal, showError, refreshSession } = staffSessionState;
@@ -198,8 +196,7 @@ const campaignState = useCampaigns({
 const emailDeliveryState = useEmailDelivery({
   api, busy, pageError, pageNotice, clearMessages, showError, translate,
 });
-const { configuration, loadConfiguration } = emailDeliveryState;
-loadEmailConfiguration = loadConfiguration;
+const { configuration } = emailDeliveryState;
 resetWorkspace = (): void => {
   emailDeliveryState.reset();
   campaignState.reset();
@@ -299,7 +296,9 @@ onMounted(() => {
 
       <BookingCancellationPoliciesView v-else-if="activeTab === 'cancellations' && principal" :organization-id="principal.organizationId" :workspace="bookingCancellationPoliciesWorkspace" />
 
-      <OrganizationLocaleView v-else-if="activeTab === 'settings' && principal" :organization-id="principal.organizationId" :busy="organizationLocaleWorkspace.busy" :page-notice="organizationLocaleWorkspace.pageNotice" :show-error="showError" :translate="translate" :on-default-locale-changed="applyOrganizationDefaultLocale" :on-profile-changed="refreshSession" />
+      <OrganizationLocaleView v-else-if="activeTab === 'settings' && principal" :organization-id="principal.organizationId" :busy="organizationLocaleWorkspace.busy" :page-notice="organizationLocaleWorkspace.pageNotice" :show-error="showError" :translate="translate" :on-default-locale-changed="applyOrganizationDefaultLocale" :on-profile-changed="refreshSession" :can-configure-delivery="staffSessionState.workspaces.value.includes('delivery')" :load-delivery="emailDeliveryState.loadConfiguration">
+        <template #delivery><EmailDeliveryView :workspace="emailDeliveryWorkspace" /></template>
+      </OrganizationLocaleView>
 
       <CampaignWorkspaceView v-else :workspace="campaignWorkspace" />
     

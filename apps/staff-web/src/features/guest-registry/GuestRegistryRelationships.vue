@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import { formatDateTime } from "../../i18n/format";
 import { onMounted, ref } from "vue";
 import { useI18n } from "vue-i18n";
 import { api, ApiError, guestRegistryRelationshipKinds, type GuestRegistryProfile,
@@ -74,7 +75,7 @@ function personLabel(profile: GuestRegistryProfile): string {
 }
 
 function formatTime(value: string): string {
-  return new Intl.DateTimeFormat(locale.value, { dateStyle: "medium" }).format(new Date(value));
+  return formatDateTime(value, locale.value, { dateStyle: "medium" });
 }
 
 onMounted(() => run(load));

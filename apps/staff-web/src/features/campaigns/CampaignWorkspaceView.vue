@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import { formatDateTime } from "../../i18n/format";
 import type { Ref } from "vue";
 import { useI18n } from "vue-i18n";
 import type { EmailConfiguration } from "../../api";
@@ -12,7 +13,7 @@ type Workspace = ReturnType<typeof useCampaigns> & {
 const props = defineProps<{ workspace: Workspace }>();
 const { t, locale } = useI18n();
 function formatDate(value: string): string {
-  return new Intl.DateTimeFormat(locale.value, { dateStyle: "medium", timeStyle: "short" }).format(new Date(value));
+  return formatDateTime(value, locale.value);
 }
 function statusLabel(status: string): string {
   const known = ["previewed", "confirmed", "queued", "sending", "completed", "failed", "cancelled", "uncertain", "sent", "delivered", "bounced", "suppressed", "pending", "draft", "published", "retired"];

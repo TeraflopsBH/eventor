@@ -1,5 +1,6 @@
 export default {
   common: {
+    generatedCode: "Automatic if left blank",
     notProvided: "Not provided",
       "unexpectedError": "An unexpected error occurred.",
       refresh: "Refresh",
@@ -383,6 +384,20 @@ export default {
     exportLimit: "This export exceeds 20,000 guests. Narrow the search or filters.",
   },
   registry: {
+    labels: {
+      title: "Registry labels",
+      help: "Internal classifications such as VIP, speaker or partner. These labels belong to the persistent profile and are not published to guests. Event categories remain separate.",
+      empty: "No Registry labels have been configured.",
+      newLabel: "New Registry label",
+      create: "Create label",
+      save: "Save profile labels",
+      saved: "Profile labels saved.",
+      retire: "Retire",
+      retired: "retired",
+      retireNamed: "Retire label {label}",
+      confirmRetire: "Retire {label}? Existing assignments remain visible, and new assignments are blocked.",
+    },
+    preferredNameHelp: "Optional name the person prefers to be addressed by, such as a nickname. It does not replace their full name or change recorded event identities.",
     bulkArchive: {
       selectPage: "Select active profiles on this page",
       selectProfile: "Select {name}",
@@ -475,7 +490,7 @@ export default {
         contact_conflict: "These contacts contain a duplicate value or competing primary contacts. Resolve the contact conflict before merging.",
 
         inactive_profile: "Both profiles must be active.",
-        source_has_linked_records: "The source has records that require separate resolution before merging, such as an open event, contact, identifier or active relationship.",
+        source_has_linked_records: "The source has records requiring separate review before merging, such as Registry labels, open events, unsupported contacts/identifiers or active relationships.",
         event_history_access_required: "You need guest access to the source profile’s events to review this merge.",
         event_history_overlap: "The profiles have participation records in the same event. Review the event records separately before merging.",
       },
@@ -530,6 +545,7 @@ export default {
     noParticipations: "No visible event participation on this page.",
     noChanges: "No profile changes on this page.",
     historyAction: {
+        labels_changed: "Registry labels updated",
       create: "Created",
       update: "Updated",
       archive: "Archived",
@@ -806,6 +822,7 @@ export default {
     },
   },
   localeSettings: {
+    emailSettings: "Email and SMTP settings",
     eyebrow: "LANGUAGE SETTINGS",
     title: "Language preferences",
     description: "Your language preference follows your staff account across organizations. The organization default is used only when you have not selected a personal language.",

@@ -6,6 +6,10 @@ repo="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
 playwright_image='mcr.microsoft.com/playwright:v1.56.1-noble@sha256:f1e7e01021efd65dd1a2c56064be399f3e4de00fd021ac561325f2bfbb2b837a'
 
 case "${1:-}" in
+  registry-labels)
+    script='registry-labels-browser-smoke.mjs'
+    base_url_env='EVENTOR_REGISTRY_LABELS_BROWSER_BASE_URL'
+    ;;
   staff-shell)
     script='staff-shell-browser-smoke.mjs'
     base_url_env='EVENTOR_STAFF_SHELL_BROWSER_BASE_URL'
@@ -47,7 +51,7 @@ case "${1:-}" in
     base_url_env='EVENTOR_RESTORATION_BROWSER_BASE_URL'
     ;;
   *)
-    printf 'Usage: bash scripts/dev/run-browser-smoke.sh {staff-shell|session|guest-invitation|organization-access|booking-disruption|public-booking-cancellation|registry-contact-merge|registry-reference-merge|registry-restoration|event-guest-bulk-groups}\n' >&2
+    printf 'Usage: bash scripts/dev/run-browser-smoke.sh {registry-labels|staff-shell|session|guest-invitation|organization-access|booking-disruption|public-booking-cancellation|registry-contact-merge|registry-reference-merge|registry-restoration|event-guest-bulk-groups}\n' >&2
     exit 2
     ;;
 esac

@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import { formatDateTime } from "../../i18n/format";
 import { computed, onMounted, ref } from "vue";
 import { useI18n } from "vue-i18n";
 import { api, ApiError, type GuestRegistryMergeHistory, type GuestRegistryMergePreview, type GuestRegistryProfile, type RegistryContact, type GuestRegistryReference } from "../../api";
@@ -167,7 +168,7 @@ function restorationApplied():void {
 }
 
 function formatTime(value: string): string {
-  return new Intl.DateTimeFormat(locale.value, { dateStyle: "medium", timeStyle: "short" }).format(new Date(value));
+  return formatDateTime(value, locale.value);
 }
 
 onMounted(() => run(() => load(0)));

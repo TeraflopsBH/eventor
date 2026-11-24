@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import { formatDateTime } from "../../i18n/format";
 import { computed, onMounted, ref, watch } from "vue";
 import { useI18n } from "vue-i18n";
 import { api, ApiError, type ExternalBookingActionContext, type ExternalBookingCancellationStatus, type ExternalBookingCancellationSubmission } from "../../api";
@@ -114,7 +115,7 @@ function formatDate(value: string | null): string {
   if (!value) return "—";
   const date = new Date(value);
   if (Number.isNaN(date.getTime())) return value;
-  return new Intl.DateTimeFormat(locale.value, { dateStyle: "long", timeStyle: "short" }).format(date);
+  return formatDateTime(date, locale.value);
 }
 function statusDescription(value: string): string {
   switch (value) {

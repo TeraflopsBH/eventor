@@ -1,18 +1,21 @@
 import type { SupportedLocale } from "./index";
 
-export function formatDateTime(
-  value: string | Date | null | undefined,
-  locale: SupportedLocale,
-  timeZone?: string,
-): string {
+export function formatDateTime(value: string | Date | null | undefined, locale: string, timeZoneOrOptions?: string | Intl.DateTimeFormatOptions): string {
   if (value === null || value === undefined || value === "") return "—";
+  const options: Intl.DateTimeFormatOptions = typeof timeZoneOrOptions === "string" ? { timeZone: timeZoneOrOptions } : timeZoneOrOptions ?? {};
   const date = value instanceof Date ? value : new Date(value);
-  if (Number.isNaN(date.getTime())) return String(value);
-  return new Intl.DateTimeFormat(locale, {
-    dateStyle: "medium",
-    timeStyle: "short",
-    ...(timeZone ? { timeZone } : {}),
-  }).format(date);
+  if (!Number.isFinite(date.getTime())) return "—";
+  if (locale === "bs-BA") {
+    const formatter = new Intl.DateTimeFormat("bs-BA", {
+      year: "numeric", month: "2-digit", day: "2-digit",
+      ...(options.timeStyle === undefined && options.dateStyle && !options.hour ? {} : { hour: "2-digit", minute: "2-digit", hourCycle: "h23" as const }),
+      ...(options.timeZone ? { timeZone: options.timeZone } : {}),
+    });
+    const parts = Object.fromEntries(formatter.formatToParts(date).map(part => [part.type, part.value]));
+    return `${parts.day}.${parts.month}.${parts.year}${parts.hour ? ` ${parts.hour}:${parts.minute}` : ""}`;
+  }
+  const dateOnly = options.dateStyle && !options.timeStyle && !options.hour;
+  return new Intl.DateTimeFormat(locale, { dateStyle: "medium", ...(dateOnly ? {} : { timeStyle: "short" as const }), ...options }).format(date);
 }
 
 export function formatMoney(

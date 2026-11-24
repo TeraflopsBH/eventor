@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import { formatDateTime } from "../../i18n/format";
 import { computed, onMounted, ref, watch } from "vue";
 import { useI18n } from "vue-i18n";
 import { api, type GuestInvitationDeliveryAttempt, type GuestInvitationEvent, type GuestInvitationParticipation, type GuestInvitationRsvpHistoryEntry } from "../../api";
@@ -125,7 +126,7 @@ async function toggleRsvpHistory(person: GuestInvitationParticipation): Promise<
 }
 function formatRsvpTimestamp(value: string): string {
   const date = new Date(value);
-  return Number.isFinite(date.getTime()) ? new Intl.DateTimeFormat(localeValue.value === "en" ? "en-GB" : "bs-BA", { dateStyle: "medium", timeStyle: "short" }).format(date) : value;
+  return Number.isFinite(date.getTime()) ? formatDateTime(date, localeValue.value === "en" ? "en-GB" : "bs-BA") : value;
 }
 
 async function toggleAttemptHistory(invitationId: string): Promise<void> {

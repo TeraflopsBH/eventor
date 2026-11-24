@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import { formatDateTime } from "../../i18n/format";
 import { computed, onMounted, ref, watch } from "vue";
 import { useI18n } from "vue-i18n";
 import { api, ApiError, type GuestInvitation } from "../../api";
@@ -91,13 +92,9 @@ function formatDate(value: string | null | undefined): string {
   const date = new Date(value);
   if (Number.isNaN(date.getTime())) return value;
   try {
-    return new Intl.DateTimeFormat(locale.value, {
-      dateStyle: "long",
-      timeStyle: "short",
-      timeZone: invitation.value?.timezone,
-    }).format(date);
+    return formatDateTime(date, locale.value, { timeZone: invitation.value?.timezone });
   } catch {
-    return new Intl.DateTimeFormat(locale.value, { dateStyle: "long", timeStyle: "short" }).format(date);
+    return formatDateTime(date, locale.value);
   }
 }
 

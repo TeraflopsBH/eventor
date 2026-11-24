@@ -452,6 +452,11 @@ jobs:
           EVENTOR_STAFF_SHELL_BROWSER_BASE_URL: http://localhost:4173
         run: bash scripts/dev/run-browser-smoke.sh staff-shell
 
+      - name: Verify persistent Registry labels in Chromium and Firefox
+        env:
+          EVENTOR_REGISTRY_LABELS_BROWSER_BASE_URL: http://localhost:4173
+        run: bash scripts/dev/run-browser-smoke.sh registry-labels
+
       - name: Stop the staff web preview
         if: always()
         run: |

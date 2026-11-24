@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import { generatedReferenceCode } from "../../reference-code";
 import { computed, onMounted, ref } from "vue";
 import { useI18n } from "vue-i18n";
 import { api, ApiError, type EventGuestRow, type EventGuestTag, type RestrictedEventGuestTags } from "../../api";
@@ -48,7 +49,7 @@ async function run(operation: () => Promise<void>): Promise<void> {
 }
 
 function create(): void {
-  const normalizedCode = code.value.trim().toUpperCase();
+  const normalizedCode = code.value.trim().toUpperCase() || (code.value = generatedReferenceCode("TAG"));
   const normalizedLabel = label.value.trim();
   if (!/^[A-Z0-9][A-Z0-9_-]{0,39}$/.test(normalizedCode) || !normalizedLabel) {
     error.value = t("eventGuests.tags.invalid");
@@ -109,7 +110,7 @@ onMounted(() => run(load));
       </form>
       <template v-else>
         <form v-if="!guest && data.canManage" class="restricted-tag-actions" @submit.prevent="create">
-          <label>{{ t("eventGuests.restrictedTags.code") }} <input v-model="code" required maxlength="40" :disabled="busy"></label>
+          <label>{{ t("eventGuests.restrictedTags.code") }} <input v-model="code" :placeholder="t('common.generatedCode')" maxlength="40" :disabled="busy"></label>
           <label>{{ t("eventGuests.tags.label") }} <input v-model="label" required maxlength="120" :disabled="busy"></label>
           <button class="button button-primary" type="submit" :disabled="busy">{{ t("eventGuests.tags.add") }}</button>
         </form>

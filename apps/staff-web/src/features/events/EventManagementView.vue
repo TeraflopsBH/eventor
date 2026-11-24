@@ -1,4 +1,7 @@
 <script setup lang="ts">
+import { formatDateTime } from "../../i18n/format";
+import { useI18n } from "vue-i18n";
+import { generatedReferenceCode } from "../../reference-code";
 import { computed, reactive, ref, watch, type Ref } from "vue";
 import type { useOrganizerEvents } from "./useOrganizerEvents";
 import type { OrganizerEvent, OrganizerEventAction, OrganizerEventSessionAction, OrganizerEventSessionDetails } from "../../api";
@@ -7,6 +10,7 @@ type Workspace = ReturnType<typeof useOrganizerEvents> & { busy: Ref<boolean> };
 
 const props = defineProps<{ workspace: Workspace; t: (key: string, params?: Record<string, string | number>) => string }>();
 const t = props.t;
+const { locale } = useI18n();
 const {
   defaultTimezone, events, sessions, sessionsEventId, busy, canArchive, refresh, createEvent, updateEvent,
   archiveEvent, enableGuestRegistry, transitionEvent, showSessions, createSession, updateSession, transitionSession,
@@ -135,7 +139,7 @@ async function submitSession(event: OrganizerEvent): Promise<void> {
       title, startsAt, endsAt, expectedDetailsRevision: editing.detailsRevision,
     })
     : await createSession(event.eventId, {
-      code: sessionForm.code.trim(),
+      code: sessionForm.code.trim() || (sessionForm.code = generatedReferenceCode("SES")),
       title,
       ...(startsAt && endsAt ? { startsAt, endsAt } : {}),
     });
@@ -176,7 +180,7 @@ function formatDate(value?: string | null, timeZone?: string): string {
   if (!value) return "—";
   const date = new Date(value);
   if (Number.isNaN(date.getTime())) return "—";
-  return new Intl.DateTimeFormat(undefined, { dateStyle: "medium", timeStyle: "short", ...(timeZone ? { timeZone } : {}) }).format(date);
+  return formatDateTime(date, locale.value, { ...(timeZone ? { timeZone } : {}) });
 }
 function statusLabel(status: OrganizerEvent["status"]): string {
   return props.t(`events.status.${status}`);
@@ -195,7 +199,7 @@ function resetCreate(): void {
 }
 async function submitCreate(): Promise<void> {
   formError.value = "";
-  if (!createForm.eventCode.trim() || !createForm.title.trim() || !createForm.startsAt || !createForm.endsAt) return;
+  if (!createForm.title.trim() || !createForm.startsAt || !createForm.endsAt) return;
   let startsAt: string;
   let endsAt: string;
   try {
@@ -210,7 +214,7 @@ async function submitCreate(): Promise<void> {
     return;
   }
   const created = await createEvent({
-    eventCode: createForm.eventCode.trim(),
+    eventCode: createForm.eventCode.trim() || (createForm.eventCode = generatedReferenceCode("EVT")),
     title: createForm.title.trim(),
     descriptionInternal: createForm.descriptionInternal.trim() || null,
     startsAt,
@@ -269,7 +273,7 @@ async function submitUpdate(): Promise<void> {
       <div class="form-grid">
         <label>
           <span>{{ t("events.eventCode") }}</span>
-          <input v-model="createForm.eventCode" required minlength="2" maxlength="80" autocomplete="off">
+          <input v-model="createForm.eventCode" :placeholder="t('common.generatedCode')" minlength="2" maxlength="80" autocomplete="off">
         </label>
         <label>
           <span>{{ t("events.eventTitle") }}</span>
@@ -426,7 +430,7 @@ async function submitUpdate(): Promise<void> {
         <p v-if="sessionFormError" class="form-error form-wide" role="alert">{{ sessionFormError }}</p>
         <label v-if="!editingSession">
           <span>{{ t("events.sessionCode") }}</span>
-          <input v-model="sessionForm.code" required pattern="[A-Za-z0-9][A-Za-z0-9_\-]{1,79}" maxlength="80">
+          <input v-model="sessionForm.code" :placeholder="t('common.generatedCode')" pattern="[A-Za-z0-9][A-Za-z0-9_\-]{1,79}" maxlength="80">
         </label>
         <label>
           <span>{{ t("events.sessionTitle") }}</span>

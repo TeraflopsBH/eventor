@@ -4,11 +4,13 @@ The previous stop is reconciled. PR #206 and #207 are merged. The last recorded 
 
 ## Current slice
 
-Branch `fix/staff-language-and-workspace-feedback` fixes anonymous language persistence, interrupted account preference saves, permission-aware navigation and stale cross-tab error messages. The new `/me/workspaces` endpoint returns current navigation hints, while each data endpoint retains its scoped checks. Full app checks, fresh isolated PostgreSQL acceptance and Chromium/Firefox staff shell tests passed locally. Logs use `staff-feedback-*`.
+`fix/staff-language-and-workspace-feedback` (PR #209) contains language persistence, interrupted-save recovery, permission-aware navigation and tab error isolation. Its browser fixtures were updated to grant the event authority they exercise and to expect revoked workspaces to disappear. Check its latest exact head before integration.
 
-The user's interactive preview is on http://localhost:15173 with API 18080. Its database is reserved for exploration; `.eventor-dev/user-preview.json` records the container and fixed connection directory. Do not reset or reseed that database. Fresh acceptance used separate ports 15174/18081 and a separate database.
+Unpublished `feat/staff-preview-polish` follows that branch with Bosnian numeric 24-hour date formatting, optional generated reference codes, preferred-name help, SMTP inside Settings and persistent internal Registry labels (migration 186, ADR 0014). Labels appear in directory/profile reads, support revision-checked assignment/retirement and block source merges until separately resolved. Full app, native PostgreSQL, fresh Docker and both-browser checks passed locally; logs use `preview-polish-*`. Finish its PR/CI after #209 is merged, rebasing only this unpublished branch onto verified main.
 
-Next requested: email/password-only sign-in; automatic workspace selection for a single membership, a named selector for multiple memberships, audited switching, and an explicit platform superadmin role. Do not grant ordinary organization managers cross-tenant access.
+The user's preview remains http://localhost:15173 (API 18080), with a reserved database recorded in `.eventor-dev/user-preview.json`. It now has the tested polish build and migration 186, plus a clearly synthetic Demo VIP Guest. Do not reset or reseed that database. Acceptance uses separate ports 15174/18081 and separate fresh databases.
+
+Next requested: email/password-only sign-in; automatic workspace selection for one membership, a named selector for several, audited switching, and explicit platform superadmin access. Ordinary organization managers must retain tenant boundaries. The empty unpublished `feat/email-first-workspace-access` branch was created before polish feedback and contains no authentication changes.
 
 ## Resume procedure
 

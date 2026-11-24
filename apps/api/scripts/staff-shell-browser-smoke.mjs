@@ -23,9 +23,29 @@ for(const engine of [chromium,firefox]) {
   const workspaces=(await navigation.json()).data.workspaces;
   assert.ok(workspaces.includes('settings'));
   assert.equal(await page.getByRole('button',{name:'Booking forms',exact:true}).count(),workspaces.includes('forms')?1:0,'navigation did not match current grants');
+  assert.equal(await page.locator('.tabs').getByRole('button',{name:'Email delivery',exact:true}).count(),0,'SMTP remained in the main navigation');
+  await page.getByRole('button',{name:'Settings',exact:true}).click();
+  await page.getByRole('button',{name:'Email and SMTP settings',exact:true}).click();
+  await page.getByRole('heading',{name:'SMTP configuration',exact:true}).waitFor();
+  await page.getByRole('button',{name:'Events',exact:true}).click();
+  await page.getByRole('button',{name:'Create event',exact:true}).click();
+  const eventTitle=`Automatic reference ${engine.name()} ${Date.now()}`;
+  await page.getByLabel('Event title',{exact:true}).fill(eventTitle);
+  await page.locator('input[type="datetime-local"]').nth(0).fill('2027-03-01T10:00');
+  await page.locator('input[type="datetime-local"]').nth(1).fill('2027-03-01T11:00');
+  const createdEvent=page.waitForResponse(r=>r.request().method()==='POST'&&new URL(r.url()).pathname.endsWith('/events'));
+  await page.locator('form.event-form button[type="submit"]').click();
+  const creation=await createdEvent;assert.equal(creation.status(),201,await creation.text());
+  assert.match(creation.request().postDataJSON().eventCode,/^EVT-[A-F0-9]{16}$/);
+  const bosnian=page.waitForResponse(r=>r.request().method()==='PATCH'&&r.url().endsWith('/me/preferences'));
+  await page.locator('.locale-picker select').selectOption('bs-BA');assert.equal((await bosnian).status(),200);
+  await page.getByRole('row').filter({hasText:eventTitle}).getByRole('cell').filter({hasText:'01.03.2027 10:00'}).waitFor();
+  const english=page.waitForResponse(r=>r.request().method()==='PATCH'&&r.url().endsWith('/me/preferences'));
+  await page.locator('.locale-picker select').selectOption('en');assert.equal((await english).status(),200);
+
   await page.route('**/api/organization/locale',route=>route.fulfill({status:403,contentType:'application/problem+json',body:JSON.stringify({status:403,code:'FORBIDDEN',title:'Permission changed'})}));
   await page.getByRole('button',{name:'Settings',exact:true}).click();await page.locator('.message-error').waitFor();
-  await page.getByRole('button',{name:'Email delivery',exact:true}).click();
+  await page.getByRole('button',{name:'Events',exact:true}).click();
   assert.equal(await page.locator('.message-error').count(),0,'another section inherited a stale permission warning');
   await page.unroute('**/api/organization/locale');
   // An interrupted preference request is retried during session restoration.
