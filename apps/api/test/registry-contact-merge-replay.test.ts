@@ -10,8 +10,8 @@ const destination = "79000000-0000-4000-8000-000000000002";
 const review = "79000000-0000-4000-8000-000000000003";
 const mergeId = "79000000-0000-4000-8000-000000000004";
 
-for (const operation of ["contact-transfer","reference-transfer","combined-transfer","restore"] as const) {
-  const restoring = operation==="restore";
+for (const operation of ["contact-transfer","reference-transfer","combined-transfer","restore","reviewed-restore"] as const) {
+  const restoring = operation==="restore" || operation==="reviewed-restore";
   const referenceTransfer = operation==="reference-transfer" || operation==="combined-transfer";
   const contactTransfer = operation==="contact-transfer" || operation==="combined-transfer";
   test(`cached Registry ${operation} rechecks current linked-data permission`, async () => {
@@ -42,6 +42,11 @@ for (const operation of ["contact-transfer","reference-transfer","combined-trans
           assert.deepEqual(values,[organizationId,membershipId,source,destination,1,1,"duplicate_profile",review,contactTransfer ? "move_to_destination" : null,referenceTransfer ? "move_to_destination" : null]);
           return {rows:[{result:{mergeId,status:"merged"}}]};
         }
+        if (sql.includes("SELECT eogp.restore_guest_registry_merge_reviewed(")) {
+          commandCalls++;
+          assert.deepEqual(values,[organizationId,membershipId,mergeId,review,[source,destination].sort(),[],false,"return_selected_current_records"]);
+          return {rows:[{result:{mergeId,status:"restored"}}]};
+        }
         if (sql.includes("SELECT eogp.restore_guest_registry_merge(")) {
           commandCalls++;
           return {rows:[{result:{mergeId,status:"restored"}}]};
@@ -57,15 +62,16 @@ for (const operation of ["contact-transfer","reference-transfer","combined-trans
     });
     const request = {
       method:"POST" as const,
-      url:!restoring ? `/persons/${source}/merge` : `/organizations/${organizationId}/persons/merges/${mergeId}/restore`,
+      url:!restoring ? `/persons/${source}/merge` : `/organizations/${organizationId}/persons/merges/${mergeId}/${operation==="reviewed-restore" ? "restore-reviewed" : "restore"}`,
       headers:{"idempotency-key":`contact-${operation}-replay-fixture`},
+      ...(operation==="reviewed-restore" ? {payload:{reviewId:review,returnContactIds:[destination,source],returnReferenceIds:[],keepRemovedReferences:false,resolution:"return_selected_current_records"}} : {}),
       ...(!restoring ? {payload:{reviewId:review,destinationPersonId:destination,sourceRevision:1,
         destinationRevision:1,reason:"duplicate_profile",...(referenceTransfer ? {referenceResolution:"move_to_destination"} : {}),...(contactTransfer ? {contactResolution:"move_to_destination"} : {})}} : {}),
     };
     try {
       const first = await app.inject(request);
       assert.equal(first.statusCode,!restoring ? 201 : 200,first.body);
-      const replay = await app.inject(request);
+      const replay = await app.inject(operation==="reviewed-restore" ? {...request,payload:{...request.payload,returnContactIds:[source,destination]}} : request);
       assert.equal(replay.statusCode,first.statusCode,replay.body);
       assert.equal(commandCalls,1);
       assert.equal(permissionCalls.length,operation==="combined-transfer" ? 2 : 1);
@@ -80,7 +86,7 @@ for (const operation of ["contact-transfer","reference-transfer","combined-trans
   });
 }
 
-for (const [sqlState,code] of [["P1821","MERGE_CONTACTS_CHANGED"],["P1831","MERGE_REFERENCES_CHANGED"]] as const) {
+for (const [sqlState,code,status] of [["P1821","MERGE_CONTACTS_CHANGED",409],["P1831","MERGE_REFERENCES_CHANGED",409],["P1841","MERGE_RESTORATION_REVIEW_STALE",412]] as const) {
 test(`${code} produces a specific restoration conflict without exposing private state`, async () => {
   const client = {
     async query(sql:string) {
@@ -99,7 +105,7 @@ test(`${code} produces a specific restoration conflict without exposing private 
   try {
     const response = await app.inject({method:"POST",url:`/organizations/${organizationId}/persons/merges/${mergeId}/restore`,
       headers:{"idempotency-key":"changed-contact-restoration-fixture"}});
-    assert.equal(response.statusCode,409,response.body);
+    assert.equal(response.statusCode,status,response.body);
     assert.equal(response.json<{code:string}>().code,code);
     assert.ok(!response.body.includes("synthetic private contact details"));
   } finally { await app.close(); }

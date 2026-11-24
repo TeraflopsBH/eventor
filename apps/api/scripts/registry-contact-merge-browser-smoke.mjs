@@ -4,6 +4,7 @@ import { chromium, firefox } from "playwright";
 
 const baseUrl = process.env.EVENTOR_CONTACT_MERGE_BROWSER_BASE_URL ?? "http://localhost:4173";
 const withReferences = process.env.EVENTOR_MERGE_REFERENCES === "1";
+const reviewedRestoration = process.env.EVENTOR_REVIEWED_RESTORATION === "1";
 const org = "10000000-0000-0000-0000-00000000000a";
 for (const engine of [chromium,firefox]) {
   const browser = await engine.launch();
@@ -37,6 +38,7 @@ for (const engine of [chromium,firefox]) {
     const original = (await get(`/persons/${source.personId}/contacts`)).contacts[0];
     let originalReference;
     let destinationReference;
+    let removableReference;
     if (withReferences) {
       await write(`/persons/${source.personId}/references`,{expectedRevision:source.revision,source:"BROWSER_MERGE",value:`SRC-${randomUUID()}`});
       await write(`/persons/${destination.personId}/references`,{expectedRevision:destination.revision,source:"BROWSER_MERGE",value:`DEST-${randomUUID()}`});
@@ -116,6 +118,11 @@ for (const engine of [chromium,firefox]) {
       assert.deepEqual(sourceReferences.references,[originalReference]);
       assert.deepEqual(keptReferences.references,[destinationReference]);
     }
+    if (reviewedRestoration) {
+      const directory=await get(`/persons/${source.personId}/references`);
+      const extra=await write(`/persons/${source.personId}/references`,{expectedRevision:directory.profileRevision,source:"BROWSER_REMOVABLE",value:`REMOVABLE-${randomUUID()}`});
+      removableReference=(await get(`/persons/${source.personId}/references`)).references.find(item=>item.referenceId===extra.referenceId);
+    }
     await write(`/persons/${destination.personId}/contacts/${existing.contactId}`,{expectedRevision:existing.revision,consent:"restricted",primary:true},"patch");
     await page.getByRole("button",{name:"Merge history",exact:true}).click();
     await openReview();
@@ -166,13 +173,52 @@ for (const engine of [chromium,firefox]) {
       const editedReferences = await get(`/persons/${destination.personId}/references`);
       assert.equal(editedReferences.references.find(item=>item.referenceId===originalReference.referenceId).value,editedValue);
       await assertReferenceConflict();
-      await write(`/persons/${destination.personId}/references/${originalReference.referenceId}/remove`,{expectedRevision:editedReferences.profileRevision});
+      await write(`/persons/${destination.personId}/references/${reviewedRestoration ? removableReference.referenceId : originalReference.referenceId}/remove`,{expectedRevision:editedReferences.profileRevision});
       await assertReferenceConflict();
-      assert.deepEqual((await get(`/persons/${destination.personId}/references`)).references,[destinationReference]);
+      const remainingReferences=(await get(`/persons/${destination.personId}/references`)).references;
+      if (reviewedRestoration) {
+        assert.equal(remainingReferences.length,2);
+        assert.equal(remainingReferences.find(item=>item.referenceId===originalReference.referenceId).value,editedValue);
+      } else assert.deepEqual(remainingReferences,[destinationReference]);
       assert.equal((await get(`/persons/${source.personId}/references`)).references.length,0);
       assert.equal((await get(`/persons/${source.personId}`)).status,"merged");
       assert.equal((await get(`/persons/${destination.personId}/contacts`)).contacts.find(item=>item.contactId===contact.contactId).revision,current.revision+1);
+      if (reviewedRestoration) {
+        await historyRow.getByRole("button",{name:"Review current records",exact:true}).click();
+        const panel=page.getByRole("region",{name:"Review current records for restoration",exact:true});
+        const returnContact=panel.getByRole("checkbox",{name:`Return contact ${sourceValue} to source`,exact:true});
+        const returnReference=panel.getByRole("checkbox",{name:`Return reference ${editedValue} to source`,exact:true});
+        await returnContact.check();await returnReference.check();
+        assert.equal(await panel.getByText(removableReference.value,{exact:true}).count(),0,"removed private reference value reappeared in review");
+        const acknowledgement=panel.getByRole("checkbox",{name:"I reviewed these choices and where the current records will remain.",exact:true});
+        const apply=panel.getByRole("button",{name:"Apply reviewed restoration",exact:true});
+        await acknowledgement.check();
+        assert.equal(await apply.isEnabled(),false,"missing references were not explicitly acknowledged");
+        await panel.getByRole("checkbox",{name:"Keep removed source references deleted",exact:true}).check();
+        await acknowledgement.check();
+        const applied=page.waitForResponse(item=>item.request().method()==="POST" && new URL(item.url()).pathname.endsWith(`/merges/${secondMerge.mergeId}/restore-reviewed`));
+        page.once("dialog",dialog=>dialog.accept());await apply.click();
+        const appliedResponse=await applied;
+        assert.equal(appliedResponse.status(),200,await appliedResponse.text());
+        const appliedData=(await appliedResponse.json()).data;
+        const applyReplay=await context.request.post(appliedResponse.url(),{
+          headers:{origin:baseUrl,"x-csrf-token":csrf,"idempotency-key":(await appliedResponse.request().allHeaders())["idempotency-key"]},
+          data:appliedResponse.request().postDataJSON(),
+        });
+        assert.equal(applyReplay.status(),200);assert.deepEqual((await applyReplay.json()).data,appliedData);
+        await panel.waitFor({state:"detached"});
+        const correctedContact=(await get(`/persons/${source.personId}/contacts`)).contacts[0];
+        assert.deepEqual({...correctedContact,revision:undefined},{...preserved,revision:undefined});
+        assert.equal(correctedContact.revision,preserved.revision+1);
+        assert.equal((await get(`/persons/${destination.personId}/contacts`)).contacts.length,1);
+        assert.deepEqual((await get(`/persons/${source.personId}/references`)).references,[{...originalReference,value:editedValue}]);
+        assert.deepEqual((await get(`/persons/${destination.personId}/references`)).references,[destinationReference]);
+        assert.equal((await get(`/persons/${source.personId}`)).status,"active");
+        const correctedHistory=(await get(`/organizations/${org}/persons/merges?offset=0`)).merges.find(item=>item.mergeId===secondMerge.mergeId);
+        assert.equal(correctedHistory.restorationMode,"reviewed_current_state");
+        await page.getByRole("row").filter({hasText:tag}).getByText("Reviewed current-state restoration",{exact:true}).waitFor();
+      }
     }
-    console.log(`PASS ${engine.name()} reviewed ${withReferences ? "reference/contact" : "contact"} merge, unchanged values, replay, restoration and conflict/correction guards`);
+    console.log(`PASS ${engine.name()} reviewed ${reviewedRestoration ? "current-state restoration and reference/contact" : withReferences ? "reference/contact" : "contact"} merge, unchanged values, replay, restoration and conflict/correction guards`);
   } finally { await browser.close(); }
 }
