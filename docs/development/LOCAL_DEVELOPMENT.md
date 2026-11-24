@@ -114,7 +114,10 @@ The CI smoke runner uses the pinned Playwright image for Chromium, Firefox and t
 npm --prefix apps/api install --no-save --package-lock=false playwright@1.56.1
 EVENTOR_BROWSER_BASE_URL=http://localhost:8080 bash scripts/dev/run-browser-smoke.sh session
 EVENTOR_GUEST_BROWSER_BASE_URL=http://localhost:4173 bash scripts/dev/run-browser-smoke.sh guest-invitation
+EVENTOR_CANCELLATION_BROWSER_BASE_URL=http://localhost:4173 bash scripts/dev/run-browser-smoke.sh public-booking-cancellation
 ```
+
+The public cancellation check uses the real API and independent synthetic confirmed bookings. Apply `provider_disruption_browser_fixture.sql` and then `public_booking_cancellation_browser_fixture.sql` from `tests/database/` after the base migration smoke data, as CI does; use a fresh disposable database for another complete run.
 
 The session check expects the synthetic login fixture with the test password configured on the API database. The invitation check uses the built staff preview and browser-side test responses. The runner uses Linux host networking so the browser sees the same loopback URLs as the host. Update the client version and image pin together when upgrading Playwright.
 

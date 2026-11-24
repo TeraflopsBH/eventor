@@ -1,12 +1,12 @@
 # Eventor project state
 
-Updated 2026-11-23. This page is the current development handoff. Detailed historical entries and older CI receipts are preserved in the [state archive](PROJECT_STATE_HISTORY_2026-11-23.md).
+Updated 2026-11-24. This page is the current development handoff. Detailed historical entries and older CI receipts are preserved in the [state archive](PROJECT_STATE_HISTORY_2026-11-23.md).
 
 ## Verified integration baseline
 
-GitHub `main` includes [provider notice recording, PR #201](https://github.com/TeraflopsBH/eventor/pull/201), commit `06d47b255c7107b94201c191da562ea2612e57c1`. Its exact PR head `d675fa2803c01b33396bc7cf23c9fc2f6204a2a1` passed the [contracts/PostgreSQL workflow](https://github.com/TeraflopsBH/eventor/actions/runs/45287155488) and [secret scan](https://github.com/TeraflopsBH/eventor/actions/runs/45287155349). Post-merge checks must be inspected before claiming their result.
+GitHub `main` is at `caf1e3a876c146909c38d514e30e7f535c5014e4`, after [PR #202](https://github.com/TeraflopsBH/eventor/pull/202). Its post-merge [contracts/PostgreSQL](https://github.com/TeraflopsBH/eventor/actions/runs/45350424654) and [secret history](https://github.com/TeraflopsBH/eventor/actions/runs/45350424621) checks passed.
 
-The preceding [UUID compatibility fix, PR #200](https://github.com/TeraflopsBH/eventor/pull/200), also passed post-merge [contracts/PostgreSQL](https://github.com/TeraflopsBH/eventor/actions/runs/45287094886) and [secret history](https://github.com/TeraflopsBH/eventor/actions/runs/45287094861) checks.
+This includes [provider notice recording, PR #201](https://github.com/TeraflopsBH/eventor/pull/201), and [UUID compatibility, PR #200](https://github.com/TeraflopsBH/eventor/pull/200). The provider feature's post-merge [contracts/PostgreSQL](https://github.com/TeraflopsBH/eventor/actions/runs/45287673680) and [secret history](https://github.com/TeraflopsBH/eventor/actions/runs/45287673697) checks also passed.
 
 ## Implemented workflows
 
@@ -31,7 +31,7 @@ Canonical UUID validation accepts identifiers already stored in PostgreSQL, incl
 4. Complete both secure native Linux and production Docker Compose installers under [#108](https://github.com/TeraflopsBH/eventor/issues/108), including bootstrap, configuration, health, upgrade and recovery.
 5. Run final integrated acceptance on the acceptance VM after the release candidate and both installers are complete. Production readiness and deployed-host acceptance remain unverified.
 
-The [roadmap](ROADMAP.md) and [blueprint gap analysis](BLUEPRINT_TO_REPOSITORY_GAP_ANALYSIS_v1.0.md) retain the broader backlog. A dedicated public customer-cancellation browser journey and full organizer/venue collaboration acceptance remain follow-ups; existing SQL checks do not replace them.
+The [roadmap](ROADMAP.md) and [blueprint gap analysis](BLUEPRINT_TO_REPOSITORY_GAP_ANALYSIS_v1.0.md) retain the broader backlog. Public customer-cancellation browser acceptance covers submission, idempotent retry, cookie omission, fragment cleanup, reusable scoped status, unchanged booking confirmation and bilingual revoked-link errors. Both cancellation routes skip staff-session restoration, preserving the link locale even when staff cookies are present. Full organizer/venue collaboration acceptance remains a follow-up.
 
 ## Development and verification
 

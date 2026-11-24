@@ -232,7 +232,8 @@ async function openBookingDraft(): Promise<void> {
 
 
 onMounted(() => {
-  if (!isPublicOfferPage && !isPublicBookingFormPage && !isGuestInvitationPage) void refreshSession();
+  if (!isPublicOfferPage && !isPublicBookingFormPage && !isGuestInvitationPage
+      && !isPublicBookingCancellationRequestPage && !isPublicBookingCancellationStatusPage) void refreshSession();
 });
 
 </script>
