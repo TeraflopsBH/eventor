@@ -440,6 +440,12 @@ export default {
       failed: "Could not review or apply this restoration.",
     },
     merge: {
+      contactConflictReview: "Review conflicting contacts",
+      contactConflictHelp: "Compare both profiles before changing anything. If two contacts of the same kind are primary, choose which primary flag to clear. This edits that contact immediately and requests a fresh merge review. Restoring a later merge preserves this edit. Matching contact values and other blockers still require separate correction; no contacts are deleted or combined.",
+      clearPrimary: "Clear primary flag and review again",
+      clearPrimaryNamed: "Clear primary flag for {value} on {name} and review again",
+      confirmClearPrimary: "Clear the primary flag for {value} on {name}? This changes the contact now and preserves its consent, verification and value. The profiles will still require a separate merge confirmation.",
+      primaryUpdated: "Primary flag updated. Review the refreshed comparison before merging.",
       references: "Review source-reference transfer",
       transferReferences: "Move every source-system reference to the profile kept, preserving its identifier and value.",
       referenceCorrection: "Edited or removed transferred references require a correction review before restoration. Removed values are not recreated.",

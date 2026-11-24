@@ -128,9 +128,36 @@ for (const engine of [chromium,firefox]) {
     await openReview();
     await page.getByText("These contacts contain a duplicate value or competing primary contacts. Resolve the contact conflict before merging.",{exact:true}).waitFor();
     assert.equal(await page.getByRole("button",{name:"Merge as duplicate",exact:true}).count(),0);
-    await write(`/persons/${destination.personId}/contacts/${existing.contactId}`,{expectedRevision:existing.revision+1,consent:"restricted",primary:false},"patch");
+    const conflictPanel = page.getByRole("region", { name: "Review conflicting contacts", exact: true });
+    await conflictPanel.locator("td").filter({ hasText: sourceValue }).waitFor();
+    await conflictPanel.locator("td").filter({ hasText: destinationValue }).waitFor();
+    const clearDestination = page.getByRole("button", { name: `Clear primary flag for ${destinationValue} on Browser ${tag} and review again`, exact: true });
+    const beforeCorrection = (await get(`/persons/${destination.personId}/contacts`)).contacts.find(item=>item.contactId===existing.contactId);
+    page.once("dialog", dialog=>dialog.dismiss());
+    await clearDestination.click();
+    assert.deepEqual((await get(`/persons/${destination.personId}/contacts`)).contacts.find(item=>item.contactId===existing.contactId),beforeCorrection);
+    // Another editor changes consent after the comparison. The stale correction must never overwrite it.
+    await write(`/persons/${destination.personId}/contacts/${existing.contactId}`,{expectedRevision:beforeCorrection.revision,consent:"unknown",primary:true},"patch");
+    page.once("dialog", dialog=>dialog.accept());
+    const staleCorrection = page.waitForResponse(item=>item.request().method()==="PATCH" && new URL(item.url()).pathname.endsWith(`/contacts/${existing.contactId}`));
+    await clearDestination.click();
+    assert.equal((await staleCorrection).status(),412);
+    await page.locator(".registry-merge").getByRole("alert").waitFor();
+    assert.equal(await page.getByRole("button",{name:"Merge as duplicate",exact:true}).count(),0);
+    const latestCorrection = (await get(`/persons/${destination.personId}/contacts`)).contacts.find(item=>item.contactId===existing.contactId);
+    assert.equal(latestCorrection.consent,"unknown");
+    assert.equal(latestCorrection.primary,true);
     await page.getByRole("button",{name:`Compare with Destination ${tag}`,exact:true}).click();
+    await clearDestination.waitFor();
+    page.once("dialog", dialog=>dialog.accept());
+    const primaryCorrection = page.waitForResponse(item=>item.request().method()==="PATCH" && new URL(item.url()).pathname.endsWith(`/contacts/${existing.contactId}`));
+    await clearDestination.click();
+    assert.equal((await primaryCorrection).status(),200);
     await page.getByRole("heading",{name:"Review contact transfer",exact:true}).waitFor();
+    assert.deepEqual((await get(`/persons/${destination.personId}/contacts`)).contacts.find(item=>item.contactId===existing.contactId),
+      {...latestCorrection,primary:false,revision:latestCorrection.revision+1});
+    assert.equal((await get(`/persons/${source.personId}`)).status,"active","primary correction silently merged the profiles");
+    assert.equal(await commit.isEnabled(),false,"fresh review reused the prior transfer confirmation");
     await page.getByRole("checkbox",{name:"Move every source contact to the profile kept, preserving consent, primary status and verification.",exact:true}).check();
     if (withReferences) {
       await page.getByRole("checkbox",{name:"Move every source-system reference to the profile kept, preserving its identifier and value.",exact:true}).check();
