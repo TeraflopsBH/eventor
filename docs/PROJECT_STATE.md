@@ -18,7 +18,7 @@ Full application, native PostgreSQL, fresh isolated Docker database and Chromium
 
 The next slice adds a selected-tenant `hostManaged` member-directory field and labels host-managed platform access in both languages, omitting unsupported suspension controls. Migration 188 reuses the authorized search projection for both directory paths. The server membership guard remains authoritative. Full application checks, fresh PostgreSQL migration/RLS/concurrency/auth checks, and Chromium/Firefox staff-shell, Registry-label and workspace journeys passed locally. Exact-head CI remains required before integration.
 
-The interactive preview and its database container were stopped at the owner’s request, preserving its data.
+The interactive preview was stopped at the owner’s request. Its disposable `--rm` database container was removed on stop: source, fixtures and build remain, but exploratory database edits were not retained. Recreate the next interactive preview with a persistent named volume and a local backup before shutdown.
 
 Preview feedback already includes persistent language selection, permission-aware tabs/error isolation, `DD.MM.YYYY HH:mm` Bosnian dates, optional generated codes, preferred-name help, SMTP under Settings and persistent Registry label badges such as VIP.
 

@@ -14,9 +14,9 @@ Full application, native PostgreSQL, fresh Docker upgrade/RLS/concurrency/auth c
 
 ## Interactive preview
 
-http://localhost:15173, API 18080. Its reserved database is recorded in `.eventor-dev/user-preview.json`; never reset or reseed it while the user explores. It has migration 187 and the tested workspace build, preserving previous data and Demo VIP Guest. `ci-b@example.invalid` is the normal single-workspace demo. `organizer@demo.eventor.invalid` has two memberships. `admin@demo.eventor.invalid` is an explicitly provisioned synthetic platform administrator. The existing public CI fixture password is used only in this disposable local data. Acceptance runs separately on 15174/18081 with its own databases.
+http://localhost:15173, API 18080. Its reserved database is recorded in `.eventor-dev/user-preview.json`; the original disposable container has now been removed on shutdown. Recreate a future preview with a persistent named volume; do not reset or reseed it while the user explores. The retained build targets migration 187. Source fixtures remain available, but the original exploratory database edits and Demo VIP Guest are no longer preserved. `ci-b@example.invalid` is the normal single-workspace demo. `organizer@demo.eventor.invalid` has two memberships. `admin@demo.eventor.invalid` is an explicitly provisioned synthetic platform administrator. The existing public CI fixture password is used only in this disposable local data. Acceptance runs separately on 15174/18081 with its own databases.
 
-The preview is served from an ignored build snapshot so unfinished source edits do not disrupt it. Its API, web and reserved database container are now stopped at the owner’s request; data and build are preserved. Consult the JSON receipt/logs before restarting. The optional production worker is not running in this local preview.
+The preview is served from an ignored build snapshot so unfinished source edits do not disrupt it. Its API and web are stopped at the owner’s request. The database used `--rm` and was removed by Docker on stop; the build remains, but exploratory database edits were not retained. Consult the JSON receipt/logs before restarting. The optional production worker is not running in this local preview.
 
 ## First resume actions
 
