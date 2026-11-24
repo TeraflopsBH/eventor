@@ -11,7 +11,8 @@ post_dir="$(mktemp -d)"
 middle_dir="$(mktemp -d)"
 forward_dir="$(mktemp -d)"
 later_dir="$(mktemp -d)"
-trap 'rm -rf "$pre_dir" "$post_dir" "$middle_dir" "$forward_dir" "$later_dir"' EXIT
+reference_dir="$(mktemp -d)"
+trap 'rm -rf "$pre_dir" "$post_dir" "$middle_dir" "$forward_dir" "$later_dir" "$reference_dir"' EXIT
 
 # Rehearse the exact schema boundary immediately before the worker-fix
 # migration. The migration chain through 000073 is applied first, then the
@@ -105,15 +106,21 @@ admin_eventor_url="${ADMIN_URL%/postgres}/eventor"
 psql "$admin_eventor_url" -X -v ON_ERROR_STOP=1 \
   -f "$ROOT_DIR/tests/database/guest_invitation_forward_migration_smoke.sql"
 
-echo "=== Apply remaining forward migrations from 000078 onward ==="
+echo "=== Apply forward migrations 000078 through 000182 ==="
 for file in "$ROOT_DIR"/database/migrations/[0-9][0-9][0-9][0-9][0-9][0-9]_*.sql; do
   filename="$(basename "$file")"
   version="${filename%%_*}"
-  if (( 10#${version} >= 78 )); then
+  if (( 10#${version} >= 78 && 10#${version} < 183 )); then
     cp "$file" "$later_dir/"
+  elif (( 10#${version} >= 183 )); then
+    cp "$file" "$reference_dir/"
   fi
 done
 DATABASE_URL="$MIGRATOR_URL" MIGRATIONS_DIR="$later_dir" \
   bash "$ROOT_DIR/scripts/db/migrate.sh"
 
-echo "Populated schema upgrade rehearsals 000073 -> 000074 and 000076 -> 000077 passed."
+echo "=== Rehearse reference encryption binding on populated tenants ==="
+psql "$MIGRATOR_URL" -X -v ON_ERROR_STOP=1 -f "$ROOT_DIR/tests/database/registry_reference_binding_migration_fixture.sql"
+DATABASE_URL="$MIGRATOR_URL" MIGRATIONS_DIR="$reference_dir" bash "$ROOT_DIR/scripts/db/migrate.sh"
+psql "$MIGRATOR_URL" -X -v ON_ERROR_STOP=1 -f "$ROOT_DIR/tests/database/registry_reference_binding_forward_migration_smoke.sql"
+echo "Populated schema upgrade rehearsals 000073 -> 000074, 000076 -> 000077 and 000182 -> 000183 passed."

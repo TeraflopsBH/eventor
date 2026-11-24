@@ -418,6 +418,9 @@ export default {
       stale: "This profile changed. Reload its references before editing again.",
     },
     merge: {
+      references: "Review source-reference transfer",
+      transferReferences: "Move every source-system reference to the profile kept, preserving its identifier and value.",
+      referenceCorrection: "Edited or removed transferred references require a correction review before restoration. Removed values are not recreated.",
       contacts: "Review contact transfer",
       transferContacts: "Move every source contact to the profile kept, preserving consent, primary status and verification.",
       contactCorrection: "Restoration returns transferred contacts if they have not changed. Edited contacts require a reviewed correction before restoration.",
@@ -439,6 +442,7 @@ export default {
       moreHistoricalEvents: "Showing {shown} of {total} closed events. The source profile’s event history has the full list.",
       fromMergedProfile: "From a merged profile",
       blocker: {
+        reference_access_required: "Source-reference management permission is required to review and transfer these references.",
         contact_access_required: "Contact management permission is required to review and transfer these contacts.",
         contact_conflict: "These contacts contain a duplicate value or competing primary contacts. Resolve the contact conflict before merging.",
 
@@ -1778,6 +1782,7 @@ export default {
     "smtpCredentialsConflict": "Email credentials cannot be replaced and cleared in the same request.",
     "smtpCredentialsNotAllowed": "Email credentials can only be supplied when password authentication is selected.",
     "staleRevision": "The information has changed. Refresh the page and try again.",
+    "mergeReferencesChanged": "A transferred source reference changed or was removed after this merge. Review its correction before restoring the source profile.",
     "mergeContactsChanged": "A transferred contact changed after this merge. Review the contact correction before restoring the source profile.",
     "lastOrganizationAdmin": "Keep another active organization administrator before suspending access.",
     "stateConflict": "This action is not valid in the resource's current state.",

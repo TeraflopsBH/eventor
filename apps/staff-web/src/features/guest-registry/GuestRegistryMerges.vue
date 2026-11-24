@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import { computed, onMounted, ref } from "vue";
 import { useI18n } from "vue-i18n";
-import { api, ApiError, type GuestRegistryMergeHistory, type GuestRegistryMergePreview, type GuestRegistryProfile, type RegistryContact } from "../../api";
+import { api, ApiError, type GuestRegistryMergeHistory, type GuestRegistryMergePreview, type GuestRegistryProfile, type RegistryContact, type GuestRegistryReference } from "../../api";
 import { formatApiError } from "../../i18n/api-errors";
 
 const props = defineProps<{ organizationId: string; source: GuestRegistryProfile | null }>();
@@ -15,6 +15,13 @@ const candidates = ref<GuestRegistryProfile[] | null>(null);
 const preview = ref<GuestRegistryMergePreview | null>(null);
 const history = ref<GuestRegistryMergeHistory | null>(null);
 const transferContacts = ref(false);
+const transferReferences = ref(false);
+const sourceReferences = ref<GuestRegistryReference[]>([]);
+const destinationReferences = ref<GuestRegistryReference[]>([]);
+const referenceRows = computed(() => [
+  ...sourceReferences.value.map(reference=>({...reference,profile:"source"})),
+  ...destinationReferences.value.map(reference=>({...reference,profile:"destination"})),
+]);
 const sourceContacts = ref<RegistryContact[]>([]);
 const destinationContacts = ref<RegistryContact[]>([]);
 const contactRows = computed(() => [
@@ -40,6 +47,9 @@ async function run(operation: () => Promise<void>): Promise<void> {
       sourceContacts.value = [];
       destinationContacts.value = [];
       transferContacts.value = false;
+      transferReferences.value = false;
+      sourceReferences.value = [];
+      destinationReferences.value = [];
     }
     error.value = failure instanceof ApiError ? formatApiError(failure, t) : t("registry.merge.failed");
   } finally {
@@ -72,6 +82,9 @@ function review(destination: GuestRegistryProfile): void {
   void run(async () => {
     preview.value = null;
     transferContacts.value = false;
+    transferReferences.value = false;
+    sourceReferences.value = [];
+    destinationReferences.value = [];
     sourceContacts.value = [];
     destinationContacts.value = [];
     const reviewed = (await api.previewGuestRegistryMerge(source.personId,destination.personId)).data;
@@ -83,16 +96,24 @@ function review(destination: GuestRegistryProfile): void {
       sourceContacts.value = from.data.contacts;
       destinationContacts.value = to.data.contacts;
     }
+    if (!reviewed.blocker && reviewed.referenceCount>0) {
+      const [from,to] = await Promise.all([
+        api.getGuestRegistryReferences(source.personId),api.getGuestRegistryReferences(destination.personId),
+      ]);
+      if (!from.data.canManage || !to.data.canManage) throw new ApiError("Reference access changed",403,"FORBIDDEN");
+      sourceReferences.value = from.data.references;
+      destinationReferences.value = to.data.references;
+    }
     preview.value = reviewed;
   });
 }
 
 function merge(): void {
   const resolution = preview.value;
-  if (!resolution || resolution.blocker || (resolution.contactCount>0 && !transferContacts.value) ||
+  if (!resolution || resolution.blocker || (resolution.contactCount>0 && !transferContacts.value) || (resolution.referenceCount>0 && !transferReferences.value) ||
       !window.confirm(t("registry.merge.confirm", { source: fullName(resolution.source), destination: fullName(resolution.destination) }))) return;
   void run(async () => {
-    await api.commitGuestRegistryMerge(resolution,transferContacts.value);
+    await api.commitGuestRegistryMerge(resolution,transferContacts.value,transferReferences.value);
     emit("changed");
   });
 }
@@ -173,6 +194,21 @@ onMounted(() => run(() => load(0)));
             <label><input v-model="transferContacts" type="checkbox" :disabled="busy"> {{ t("registry.merge.transferContacts") }}</label>
             <p>{{ t("registry.merge.contactCorrection") }}</p>
           </template>
+          <template v-if="preview.referenceCount">
+            <h4>{{ t("registry.merge.references") }}</h4>
+            <div class="table-scroll"><table class="data-table">
+              <thead><tr>
+                <th scope="col">{{ t("registry.merge.field") }}</th>
+                <th scope="col">{{ t("registry.references.source") }}</th>
+                <th scope="col">{{ t("registry.references.value") }}</th>
+              </tr></thead>
+              <tbody><tr v-for="reference in referenceRows" :key="reference.referenceId">
+                <td>{{ t(`registry.merge.${reference.profile}`) }}</td><td>{{ reference.source }}</td><td>{{ reference.value }}</td>
+              </tr></tbody>
+            </table></div>
+            <label><input v-model="transferReferences" type="checkbox" :disabled="busy"> {{ t("registry.merge.transferReferences") }}</label>
+            <p>{{ t("registry.merge.referenceCorrection") }}</p>
+          </template>
           <template v-if="preview.historicalCount">
             <h4>{{ t("registry.merge.historicalEvents") }}</h4>
             <p>{{ t("registry.merge.historicalImpact") }}</p>
@@ -187,7 +223,7 @@ onMounted(() => run(() => load(0)));
               {{ t("registry.merge.moreHistoricalEvents", { shown: preview.historicalEvents.length, total: preview.historicalCount }) }}
             </p>
           </template>
-          <button class="button button-primary" type="button" :disabled="busy || (preview.contactCount>0 && !transferContacts)" @click="merge">{{ t("registry.merge.commit") }}</button>
+          <button class="button button-primary" type="button" :disabled="busy || (preview.contactCount>0 && !transferContacts) || (preview.referenceCount>0 && !transferReferences)" @click="merge">{{ t("registry.merge.commit") }}</button>
         </template>
       </div>
     </template>

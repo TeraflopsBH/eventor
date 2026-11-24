@@ -30,8 +30,12 @@ case "${1:-}" in
     script='registry-contact-merge-browser-smoke.mjs'
     base_url_env='EVENTOR_CONTACT_MERGE_BROWSER_BASE_URL'
     ;;
+  registry-reference-merge)
+    script='registry-reference-merge-browser-smoke.mjs'
+    base_url_env='EVENTOR_REFERENCE_MERGE_BROWSER_BASE_URL'
+    ;;
   *)
-    printf 'Usage: bash scripts/dev/run-browser-smoke.sh {session|guest-invitation|organization-access|booking-disruption|public-booking-cancellation|registry-contact-merge}\n' >&2
+    printf 'Usage: bash scripts/dev/run-browser-smoke.sh {session|guest-invitation|organization-access|booking-disruption|public-booking-cancellation|registry-contact-merge|registry-reference-merge}\n' >&2
     exit 2
     ;;
 esac

@@ -1251,6 +1251,7 @@ function databaseError(error: unknown): ApiError {
   const code = typeof error === "object" && error !== null && "code" in error
     ? String((error as { code?: unknown }).code ?? "") : "";
   switch (code) {
+    case "P1831": return new ApiError(409, "MERGE_REFERENCES_CHANGED", "A transferred source reference changed or was removed. Review its correction before restoring the source profile.");
     case "P1821": return new ApiError(409, "MERGE_CONTACTS_CHANGED", "A transferred contact changed. Review its correction before restoring the source profile.");
     case "P1771": return new ApiError(409, "LAST_ORGANIZATION_ADMIN", "Keep another active organization administrator before suspending access.");
     case "42501": return new ApiError(403, "FORBIDDEN", "You are not permitted to perform this operation.");
@@ -4223,14 +4224,14 @@ export function buildApi(dependencies: ApiDependencies): FastifyInstance {
     return withRegistryRead(reply, principal, "SELECT eogp.read_guest_registry_references($1::uuid,$2::uuid,$3::uuid) AS result",
       [personId], (value) => {
         const directory = value as {
-          references: { referenceId: string; source: string; ciphertext: string }[];
+          references: { referenceId: string; source: string; ciphertext: string; encryptionPersonId: string }[];
           canManage: boolean; profileRevision: number;
         };
         return {
           ...directory,
-          references: directory.references.map(({ ciphertext, source, referenceId }) => ({
+          references: directory.references.map(({ ciphertext, source, referenceId, encryptionPersonId }) => ({
             referenceId, source,
-            value: decryptContactValue(Buffer.from(ciphertext, "base64"), sourceReferenceKey(organizationId, personId, source),
+            value: decryptContactValue(Buffer.from(ciphertext, "base64"), sourceReferenceKey(organizationId, encryptionPersonId, source),
               { organizationId, contactKind: "other" }),
           })),
         };
@@ -4418,7 +4419,7 @@ export function buildApi(dependencies: ApiDependencies): FastifyInstance {
   function withRegistryMergeCommand(
     request: FastifyRequest, reply: FastifyReply, principal: StaffPrincipal, operation: string,
     body: Record<string, unknown>, query: string, args: readonly unknown[], statusCode = 200,
-    contactPermission?: { transfer: true } | { restoreMergeId: string },
+    mergePermissions?: { transfer?: boolean; references?: boolean } | { restoreMergeId: string },
   ) {
     const identity = [principal.organizationId, principal.membershipId];
     return withCommand(request, reply.header("cache-control", "no-store, private"), operation, body, async (client) => {
@@ -4426,11 +4427,12 @@ export function buildApi(dependencies: ApiDependencies): FastifyInstance {
       return (result.rows[0]?.result ?? {}) as Record<string, unknown>;
     }, async (client) => {
       await client.query("SELECT eogp.assert_guest_registry_merge_permission($1::uuid,$2::uuid)", identity);
-      if (contactPermission && "transfer" in contactPermission) {
-        await client.query("SELECT eogp.assert_guest_contact_permission($1::uuid,$2::uuid,true)",identity);
-      } else if (contactPermission && "restoreMergeId" in contactPermission) {
+      if (mergePermissions && "restoreMergeId" in mergePermissions) {
         await client.query("SELECT eogp.assert_guest_registry_merge_restore_permission($1::uuid,$2::uuid,$3::uuid)",
-          [...identity,contactPermission.restoreMergeId]);
+          [...identity,mergePermissions.restoreMergeId]);
+      } else if (mergePermissions) {
+        if (mergePermissions.transfer) await client.query("SELECT eogp.assert_guest_contact_permission($1::uuid,$2::uuid,true)",identity);
+        if (mergePermissions.references) await client.query("SELECT eogp.assert_guest_reference_permission($1::uuid,$2::uuid,true)",identity);
       }
     }, statusCode);
   }
@@ -4447,17 +4449,18 @@ export function buildApi(dependencies: ApiDependencies): FastifyInstance {
           reviewId: mergeTarget,
           reason: { type: "string", const: "duplicate_profile" },
           contactResolution: { type: "string", const: "move_to_destination" },
+          referenceResolution: { type: "string", const: "move_to_destination" },
         },
       },
     },
   }, (request, reply) => {
     const { personId } = request.params;
-    const { destinationPersonId, sourceRevision, destinationRevision, reason, reviewId, contactResolution } = request.body;
+    const { destinationPersonId, sourceRevision, destinationRevision, reason, reviewId, contactResolution, referenceResolution } = request.body;
     return withRegistryMergeCommand(request, reply, registryPrincipal(request), "guest.registry.merge",
       { personId, ...request.body },
-      "SELECT eogp.commit_guest_registry_merge($1::uuid,$2::uuid,$3::uuid,$4::uuid,$5::integer,$6::integer,$7::text,$8::uuid,$9::text) AS result",
-      [personId, destinationPersonId, sourceRevision, destinationRevision, reason, reviewId, contactResolution ?? null], 201,
-      contactResolution ? {transfer:true} : undefined);
+      "SELECT eogp.commit_guest_registry_merge($1::uuid,$2::uuid,$3::uuid,$4::uuid,$5::integer,$6::integer,$7::text,$8::uuid,$9::text,$10::text) AS result",
+      [personId, destinationPersonId, sourceRevision, destinationRevision, reason, reviewId, contactResolution ?? null, referenceResolution ?? null], 201,
+      contactResolution || referenceResolution ? {transfer:!!contactResolution,references:!!referenceResolution} : undefined);
   });
 
   server.post<{ Params: { organizationId: string; mergeId: string } }>(`${registryPath}/merges/:mergeId/restore`, {

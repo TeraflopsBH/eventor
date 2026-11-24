@@ -7186,15 +7186,16 @@ paths:
                 properties:
                   data:
                     type: object
-                    required: [reviewId, source, destination, blocker, historicalEvents, historicalCount, contactCount]
+                    required: [reviewId, source, destination, blocker, historicalEvents, historicalCount, contactCount, referenceCount]
                     properties:
                       reviewId: { type: string, format: uuid }
                       source: { $ref: '#/components/schemas/GuestRegistryProfile' }
                       destination: { $ref: '#/components/schemas/GuestRegistryProfile' }
                       blocker:
                         type: [string, 'null']
-                        enum: [inactive_profile, source_has_linked_records, event_history_access_required, event_history_overlap, contact_access_required, contact_conflict, null]
+                        enum: [inactive_profile, source_has_linked_records, event_history_access_required, event_history_overlap, contact_access_required, contact_conflict, reference_access_required, null]
                       contactCount: { type: integer, minimum: 0 }
+                      referenceCount: { type: integer, minimum: 0 }
                       historicalCount: { type: integer, minimum: 0 }
                       historicalEvents:
                         type: array
@@ -7238,6 +7239,7 @@ paths:
                 destinationRevision: { type: integer, minimum: 1, maximum: 2147483647 }
                 reason: { type: string, const: duplicate_profile }
                 contactResolution: { type: string, const: move_to_destination, description: "Required when the reviewed source has transferable contacts. Requires contact management permission." }
+                referenceResolution: { type: string, const: move_to_destination, description: "Required when the reviewed source has source-system references. Requires reference management permission." }
       responses:
         '201':
           description: "The merge was recorded and the source was marked merged."

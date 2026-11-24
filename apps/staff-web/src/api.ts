@@ -1259,8 +1259,9 @@ export interface GuestRegistryMergePreview {
   reviewId: string;
   source: GuestRegistryProfile;
   destination: GuestRegistryProfile;
-  blocker: "inactive_profile" | "source_has_linked_records" | "event_history_access_required" | "event_history_overlap" | "contact_access_required" | "contact_conflict" | null;
+  blocker: "inactive_profile" | "source_has_linked_records" | "event_history_access_required" | "event_history_overlap" | "contact_access_required" | "contact_conflict" | "reference_access_required" | null;
   contactCount: number;
+  referenceCount: number;
   historicalCount: number;
   historicalEvents: {
     eventId: string;
@@ -1851,7 +1852,7 @@ export const api = {
     request<Envelope<GuestRegistryMergePreview>>(`/persons/${encodeURIComponent(personId)}/merge-preview`, {
       method: "POST", body: { destinationPersonId },
     }),
-  commitGuestRegistryMerge: (preview: GuestRegistryMergePreview, transferContacts = false) =>
+  commitGuestRegistryMerge: (preview: GuestRegistryMergePreview, transferContacts = false, transferReferences = false) =>
     request<Envelope<GuestRegistryMergeChange>>(`/persons/${encodeURIComponent(preview.source.personId)}/merge`, {
       method: "POST", idempotent: true,
       body: {
@@ -1859,6 +1860,7 @@ export const api = {
         destinationPersonId: preview.destination.personId, sourceRevision: preview.source.revision,
         destinationRevision: preview.destination.revision, reason: "duplicate_profile",
         ...(transferContacts ? {contactResolution:"move_to_destination"} : {}),
+        ...(transferReferences ? {referenceResolution:"move_to_destination"} : {}),
       },
     }),
   restoreGuestRegistryMerge: (organizationId: string, mergeId: string) =>
