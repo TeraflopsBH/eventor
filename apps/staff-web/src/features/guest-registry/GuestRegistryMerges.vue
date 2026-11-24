@@ -2,6 +2,7 @@
 import { computed, onMounted, ref } from "vue";
 import { useI18n } from "vue-i18n";
 import { api, ApiError, type GuestRegistryMergeHistory, type GuestRegistryMergePreview, type GuestRegistryProfile, type RegistryContact, type GuestRegistryReference } from "../../api";
+import GuestRegistryRestoration from "./GuestRegistryRestoration.vue";
 import { formatApiError } from "../../i18n/api-errors";
 
 const props = defineProps<{ organizationId: string; source: GuestRegistryProfile | null }>();
@@ -14,6 +15,7 @@ const appliedQuery = ref(query.value);
 const candidates = ref<GuestRegistryProfile[] | null>(null);
 const preview = ref<GuestRegistryMergePreview | null>(null);
 const history = ref<GuestRegistryMergeHistory | null>(null);
+const correctionMergeId=ref<string|null>(null);
 const transferContacts = ref(false);
 const transferReferences = ref(false);
 const sourceReferences = ref<GuestRegistryReference[]>([]);
@@ -44,6 +46,7 @@ async function run(operation: () => Promise<void>): Promise<void> {
       candidates.value = null;
       preview.value = null;
       history.value = null;
+      correctionMergeId.value = null;
       sourceContacts.value = [];
       destinationContacts.value = [];
       transferContacts.value = false;
@@ -125,6 +128,14 @@ function restore(entry: GuestRegistryMergeHistory["merges"][number]): void {
     await load(offset.value);
     emit("changed");
   });
+}
+
+function reviewRestoration(entry:GuestRegistryMergeHistory["merges"][number]):void {
+  error.value="";correctionMergeId.value=entry.mergeId;
+}
+function restorationApplied():void {
+  correctionMergeId.value=null;
+  void run(async()=>{await load(offset.value);emit("changed");});
 }
 
 function formatTime(value: string): string {
@@ -243,14 +254,18 @@ onMounted(() => run(() => load(0)));
             <td>{{ formatTime(entry.mergedAt) }}</td>
             <td>
               <span v-if="entry.restoredAt">{{ t("registry.merge.restored", { time: formatTime(entry.restoredAt) }) }}</span>
-              <button v-else class="button button-secondary" type="button" :disabled="busy" @click="restore(entry)">
-                {{ t("registry.merge.restore") }}
-              </button>
+              <small v-if="entry.restorationMode==='reviewed_current_state'">{{ t("registry.restoration.reviewed") }}</small>
+              <template v-if="!entry.restoredAt">
+                <button class="button button-secondary" type="button" :disabled="busy || correctionMergeId!==null" @click="restore(entry)">{{ t("registry.merge.restore") }}</button>
+                <button class="button button-secondary" type="button" :disabled="busy || correctionMergeId!==null" @click="reviewRestoration(entry)">{{ t("registry.restoration.open") }}</button>
+              </template>
             </td>
           </tr></tbody>
         </table>
       </div>
     </template>
+    <GuestRegistryRestoration v-if="correctionMergeId" :key="correctionMergeId" :organization-id="organizationId" :merge-id="correctionMergeId"
+      @changed="restorationApplied" @close="correctionMergeId=null" />
     <div v-if="offset > 0 || nextOffset !== null">
       <button class="button button-secondary" type="button" :disabled="busy || offset === 0" @click="run(() => load(Math.max(0, offset - 50)))">
         {{ t("registry.previous") }}

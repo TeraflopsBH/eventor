@@ -7253,6 +7253,74 @@ paths:
         '409': { $ref: '#/components/responses/Conflict' }
         '412': { $ref: '#/components/responses/PreconditionFailed' }
         '422': { $ref: '#/components/responses/UnprocessableEntity' }
+  "/organizations/{organizationId}/persons/merges/{mergeId}/restore-preview":
+    post:
+      tags: ["Guest Registry"]
+      operationId: previewGuestRegistryMergeRestoration
+      summary: "Review current transferred records before correcting a profile merge"
+      security: [{ StaffSession: [], StaffCsrf: [] }]
+      parameters:
+        - $ref: '#/components/parameters/POrganizationId'
+        - name: mergeId
+          in: path
+          required: true
+          schema: { type: string, format: uuid }
+      responses:
+        '200':
+          description: "An actor-bound current-state review without contact/reference values."
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [data]
+                properties:
+                  data: { $ref: '#/components/schemas/GuestRegistryRestorationReview' }
+        '400': { $ref: '#/components/responses/BadRequest' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '404': { $ref: '#/components/responses/NotFound' }
+        '409': { $ref: '#/components/responses/Conflict' }
+        '412': { $ref: '#/components/responses/PreconditionFailed' }
+  "/organizations/{organizationId}/persons/merges/{mergeId}/restore-reviewed":
+    post:
+      tags: ["Guest Registry"]
+      operationId: restoreGuestRegistryMergeReviewed
+      summary: "Restore the source with explicitly selected current records"
+      security: [{ StaffSession: [], StaffCsrf: [] }]
+      parameters:
+        - $ref: '#/components/parameters/POrganizationId'
+        - name: mergeId
+          in: path
+          required: true
+          schema: { type: string, format: uuid }
+        - $ref: '#/components/parameters/IdempotencyKey'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              additionalProperties: false
+              required: [reviewId, returnContactIds, returnReferenceIds, keepRemovedReferences, resolution]
+              properties:
+                reviewId: { type: string, format: uuid }
+                returnContactIds: { type: array, uniqueItems: true, items: { type: string, format: uuid } }
+                returnReferenceIds: { type: array, uniqueItems: true, items: { type: string, format: uuid } }
+                keepRemovedReferences: { type: boolean }
+                resolution: { type: string, const: return_selected_current_records }
+      responses:
+        '200':
+          description: "The source was restored and only selected current records were returned."
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/GuestRegistryMergeChangeEnvelope' }
+        '400': { $ref: '#/components/responses/BadRequest' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '404': { $ref: '#/components/responses/NotFound' }
+        '409': { $ref: '#/components/responses/Conflict' }
+        '412': { $ref: '#/components/responses/PreconditionFailed' }
+        '422': { $ref: '#/components/responses/UnprocessableEntity' }
   "/persons/{personId}/linkable-events":
     get:
       tags: ["Guest Registry"]
@@ -9410,6 +9478,32 @@ components:
             canExport: { type: boolean }
             canMerge: { type: boolean }
             nextOffset: { type: [integer, 'null'], minimum: 0 }
+    GuestRegistryRestorationReview:
+      type: object
+      required: [reviewId, source, destination, contacts, references, missingReferenceCount]
+      properties:
+        reviewId: { type: string, format: uuid }
+        source: { $ref: '#/components/schemas/GuestRegistryProfile' }
+        destination: { $ref: '#/components/schemas/GuestRegistryProfile' }
+        missingReferenceCount: { type: integer, minimum: 0 }
+        contacts:
+          type: array
+          items:
+            type: object
+            required: [contactId, revision, changed]
+            properties:
+              contactId: { type: string, format: uuid }
+              revision: { type: integer, minimum: 1 }
+              changed: { type: boolean }
+        references:
+          type: array
+          items:
+            type: object
+            required: [referenceId, changed, missing]
+            properties:
+              referenceId: { type: string, format: uuid }
+              changed: { type: boolean }
+              missing: { type: boolean }
     GuestRegistryMergeChangeEnvelope:
       type: object
       required: [data]
@@ -9436,12 +9530,13 @@ components:
               maxItems: 50
               items:
                 type: object
-                required: [mergeId, sourceName, destinationName, mergedAt, restoredAt]
+                required: [mergeId, sourceName, destinationName, mergedAt, restoredAt, restorationMode]
                 properties:
                   mergeId: { type: string, format: uuid }
                   sourceName: { type: string }
                   destinationName: { type: string }
                   mergedAt: { type: string, format: date-time }
+                  restorationMode: { type: [string, 'null'], enum: [unchanged, reviewed_current_state, null] }
                   restoredAt: { type: [string, 'null'], format: date-time }
             nextOffset: { type: [integer, 'null'], minimum: 0 }
     GuestRegistryExportEnvelope:

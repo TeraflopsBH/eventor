@@ -1273,8 +1273,24 @@ export interface GuestRegistryMergePreview {
 }
 
 export interface GuestRegistryMergeHistory {
-  merges: { mergeId: string; sourceName: string; destinationName: string; mergedAt: string; restoredAt: string | null }[];
+  merges: { mergeId: string; sourceName: string; destinationName: string; mergedAt: string; restoredAt: string | null; restorationMode: "unchanged" | "reviewed_current_state" | null }[];
   nextOffset: number | null;
+}
+
+export interface GuestRegistryRestorationReview {
+  reviewId:string;
+  source:GuestRegistryProfile;
+  destination:GuestRegistryProfile;
+  contacts:{contactId:string;revision:number;changed:boolean}[];
+  references:{referenceId:string;changed:boolean;missing:boolean}[];
+  missingReferenceCount:number;
+}
+export interface GuestRegistryRestorationChoice {
+  reviewId:string;
+  returnContactIds:string[];
+  returnReferenceIds:string[];
+  keepRemovedReferences:boolean;
+  resolution:"return_selected_current_records";
 }
 
 interface GuestRegistryMergeChange {
@@ -1867,6 +1883,11 @@ export const api = {
     request<Envelope<GuestRegistryMergeChange>>(`/organizations/${encodeURIComponent(organizationId)}/persons/merges/${encodeURIComponent(mergeId)}/restore`, {
       method: "POST", idempotent: true,
     }),
+  previewGuestRegistryMergeRestoration:(organizationId:string,mergeId:string)=>
+    request<Envelope<GuestRegistryRestorationReview>>(`/organizations/${encodeURIComponent(organizationId)}/persons/merges/${encodeURIComponent(mergeId)}/restore-preview`,{method:"POST"}),
+  restoreGuestRegistryMergeReviewed:(organizationId:string,mergeId:string,body:GuestRegistryRestorationChoice,idempotencyKey:string)=>
+    request<Envelope<GuestRegistryMergeChange>>(`/organizations/${encodeURIComponent(organizationId)}/persons/merges/${encodeURIComponent(mergeId)}/restore-reviewed`,
+      {method:"POST",body,idempotent:true,idempotencyKey}),
   setGuestRegistryContactVerification: (
     personId: string, contactId: string, expectedRevision: number, method: RegistryContactVerification | null,
   ) => request<Envelope<{ contactId: string; revision: number; verified: boolean }>>(

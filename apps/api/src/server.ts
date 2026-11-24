@@ -1251,6 +1251,7 @@ function databaseError(error: unknown): ApiError {
   const code = typeof error === "object" && error !== null && "code" in error
     ? String((error as { code?: unknown }).code ?? "") : "";
   switch (code) {
+    case "P1841": return new ApiError(412, "MERGE_RESTORATION_REVIEW_STALE", "The merge or its records changed. Reload the restoration review before applying your choices.");
     case "P1831": return new ApiError(409, "MERGE_REFERENCES_CHANGED", "A transferred source reference changed or was removed. Review its correction before restoring the source profile.");
     case "P1821": return new ApiError(409, "MERGE_CONTACTS_CHANGED", "A transferred contact changed. Review its correction before restoring the source profile.");
     case "P1771": return new ApiError(409, "LAST_ORGANIZATION_ADMIN", "Keep another active organization administrator before suspending access.");
@@ -4475,6 +4476,32 @@ export function buildApi(dependencies: ApiDependencies): FastifyInstance {
     "guest.registry.merge.restore", { mergeId: request.params.mergeId },
     "SELECT eogp.restore_guest_registry_merge($1::uuid,$2::uuid,$3::uuid) AS result", [request.params.mergeId],200,
     {restoreMergeId:request.params.mergeId}));
+
+  const registryMergeRestorationParams = {
+    type:"object",additionalProperties:false,required:["organizationId","mergeId"],
+    properties:{organizationId:mergeTarget,mergeId:mergeTarget},
+  };
+  server.post<{Params:{organizationId:string;mergeId:string}}>(`${registryPath}/merges/:mergeId/restore-preview`,{
+    schema:{params:registryMergeRestorationParams},
+  },(request,reply)=>withRegistryRead(reply,registryPrincipal(request,request.params.organizationId),
+    "SELECT eogp.preview_guest_registry_merge_restoration($1::uuid,$2::uuid,$3::uuid) AS result",[request.params.mergeId]));
+  type ReviewedRestorationBody = JsonRequestBody<"/organizations/{organizationId}/persons/merges/{mergeId}/restore-reviewed","post">;
+  server.post<{Params:{organizationId:string;mergeId:string};Body:ReviewedRestorationBody}>(`${registryPath}/merges/:mergeId/restore-reviewed`,{
+    schema:{params:registryMergeRestorationParams,headers:idempotencyHeaders,body:{
+      type:"object",additionalProperties:false,required:["reviewId","returnContactIds","returnReferenceIds","keepRemovedReferences","resolution"],
+      properties:{reviewId:mergeTarget,
+        returnContactIds:{type:"array",uniqueItems:true,items:mergeTarget},returnReferenceIds:{type:"array",uniqueItems:true,items:mergeTarget},
+        keepRemovedReferences:{type:"boolean"},resolution:{type:"string",const:"return_selected_current_records"},
+      },
+    }},
+  },(request,reply)=>{
+    const {reviewId,returnContactIds,returnReferenceIds,keepRemovedReferences,resolution}=request.body;
+    const contacts=[...returnContactIds].sort(); const references=[...returnReferenceIds].sort();
+    return withRegistryMergeCommand(request,reply,registryPrincipal(request,request.params.organizationId),"guest.registry.merge.restore_reviewed",
+      {mergeId:request.params.mergeId,reviewId,returnContactIds:contacts,returnReferenceIds:references,keepRemovedReferences,resolution},
+      "SELECT eogp.restore_guest_registry_merge_reviewed($1::uuid,$2::uuid,$3::uuid,$4::uuid,$5::uuid[],$6::uuid[],$7::boolean,$8::text) AS result",
+      [request.params.mergeId,reviewId,contacts,references,keepRemovedReferences,resolution],200,{restoreMergeId:request.params.mergeId});
+  });
 
   server.get<{ Params: { personId: string } }>("/persons/:personId", { schema: { params: registryPersonParams } },
     (request, reply) => readRegistry(reply, registryPrincipal(request), request.params.personId));

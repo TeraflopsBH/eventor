@@ -2,6 +2,10 @@
 
 Updated 2026-11-24. This page is the current development handoff. Detailed historical entries and older CI receipts are preserved in the [state archive](PROJECT_STATE_HISTORY_2026-11-23.md).
 
+## Stop checkpoint
+
+The reviewed current-state restoration task is saved on `feat/reviewed-merge-restoration-corrections`, with local application, database and both-browser checks passing. PR CI/merge reconciliation is the first resume step. See [the resume checkpoint](development/RESUME.md) for exact status, evidence and remaining work. No subsequent feature was started.
+
 ## Verified integration baseline
 
 GitHub `main` is at `d77961055c120bcd1a8a0e13471e18b8444be7b7`, after [reviewed Registry contact transfers, PR #204](https://github.com/TeraflopsBH/eventor/pull/204). Its post-merge [contracts/PostgreSQL](https://github.com/TeraflopsBH/eventor/actions/runs/45355535239) and [secret history](https://github.com/TeraflopsBH/eventor/actions/runs/45355535340) checks passed.

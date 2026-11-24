@@ -434,6 +434,11 @@ jobs:
           EVENTOR_REFERENCE_MERGE_BROWSER_BASE_URL: http://localhost:4173
         run: bash scripts/dev/run-browser-smoke.sh registry-reference-merge
 
+      - name: Verify reviewed restoration with current records and removed references in Chromium and Firefox
+        env:
+          EVENTOR_RESTORATION_BROWSER_BASE_URL: http://localhost:4173
+        run: bash scripts/dev/run-browser-smoke.sh registry-restoration
+
       - name: Stop the staff web preview
         if: always()
         run: |

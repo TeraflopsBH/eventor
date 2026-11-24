@@ -18,7 +18,7 @@ A reviewer with Registry merge and source-reference management authority may exp
 
 The append-only `person_merge_reference_transfers` journal stores only references and canonical v1 SHA-256 state evidence. Its hash uses explicit fields, hexadecimal bytes and epoch time, so session timezone and bytea formatting cannot change the result. The journal intentionally has no foreign key to the current identifier: an authorized later reference removal remains possible. Removed encrypted values are not copied into the journal or recreated during restoration.
 
-Restoration returns unchanged references with their original IDs, values and encryption bindings. An edited or missing reference produces `MERGE_REFERENCES_CHANGED` before profiles or contacts partially restore. A separate correction review is required for that case. Unsupported identifier kinds, active relationships and open/overlapping event history retain their existing blockers. This decision does not complete the broader conflict/correction workflow under #104.
+Restoration returns unchanged references with their original IDs, values and encryption bindings. An edited or missing reference produces `MERGE_REFERENCES_CHANGED` before profiles or contacts partially restore. A separate correction review is required for that case; see [ADR 0013](0013-reviewed-merge-restoration.md). Unsupported identifier kinds, active relationships and open/overlapping event history retain their existing blockers. This decision does not complete the broader conflict/correction workflow under #104.
 
 ## Verification
 
