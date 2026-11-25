@@ -4,9 +4,9 @@ Verified main: `17e04c04bd11ee2099097c393dd990821faa9629` (#218), with post-merg
 
 ## Current slice
 
-`codex/reviewed-registry-relationship-merges` adds migration 192/ADR 0019: actor-reviewed transfer of non-conflicting active Registry relationships with separate management authority and acknowledgement. Self-links/duplicates remain blocked. Original IDs, direction, kind and attribution are preserved; ended history and unrelated destination links are untouched. Both restoration paths return unchanged links, and refuse changed/ended/missing links before partial effects. Returning links are read-only in current-state correction.
+`codex/host-existing-staff-membership` adds ADR 0020 and a host-only command for an existing active account's new organization membership. No credentials, existing memberships/sessions, roles or platform flags change. Every existing membership state is refused; concurrent attempts yield one membership and audit receipt. No migration or HTTP route is introduced. Full application and real PostgreSQL acceptance passed locally (`membership-full.log`, `membership-postgres.log`); exact-head CI remains required.
 
-Full application, fresh PostgreSQL upgrade/migration/RLS/concurrency/role and Chromium/Firefox acceptance passed locally. Deterministic concurrent-end and destination-create tests passed. Logs are `relationship-*`; exact-head CI remains required before merging. All legacy overloads route through acknowledgement; private helpers/journal are not exposed to app roles. Inspect Git status before switching; never rewrite published history.
+Relationship transfers (#219, migration 192/ADR 0019) merged at `b50da4a2fd5f82d71acb1b8c7d78fca87310c261`, matching checked head `d34d7121e4b1a114dfbb58970b2a09fe723c4739` after all five required checks passed. Post-merge contracts `45575310141` and secrets `45575309986` must be verified. This unpublished successor was rebased onto that main before publication; do not rewrite published history.
 
 ## Interactive preview
 
@@ -16,7 +16,7 @@ The preview is served from an ignored build snapshot so unfinished source edits 
 
 ## First resume actions
 
-1. Inspect Git status, fetch origin, inspect the exact PR head and required checks. The current slice follows verified #218. Rebase only while unpublished, with explicit Git identity and stop-on-error shell behavior. Never reapply older backup stashes: their changes are merged.
+1. Inspect Git status, fetch origin, inspect the exact PR head and required checks. The current slice follows integrated #219; inspect its post-merge receipts too. Rebase only while unpublished, with explicit Git identity and stop-on-error shell behavior. Never reapply older backup stashes: their changes are merged.
 2. Merge only after all five required checks pass and GitHub reports CLEAN. Squash using the exact checked head.
 3. Fast-forward main, inspect post-merge contracts and secret-history runs, then reconcile the active handoff/ignored verified receipt.
 4. Continue #104: relationship conflict/correction and remaining linked-record/initial-merge conflicts and broader user/member onboarding, event settings and remaining roster controls. Then #112 and #105–#108 in roadmap order. These slices do not complete the full product or production installers.
