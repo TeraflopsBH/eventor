@@ -149,7 +149,7 @@ case "$command_name" in
     [[ -f "$ENV_FILE" ]] || { printf 'Development database is already stopped.\n'; exit 0; }
     load_environment
     container_id="$(compose ps --status running -q postgres)"
-    [[ -n "$container_id" ]] || { printf 'Development database is already stopped; its named volume is retained.\n'; exit 0; }
+    [[ -n "$container_id" ]] || { printf 'Development database is not running.\n'; exit 0; }
     verify_persistent_container "$container_id"
     backup_database
     compose stop postgres
