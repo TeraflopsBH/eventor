@@ -4834,6 +4834,39 @@ paths:
         '409': { $ref: '#/components/responses/Conflict' }
         '412': { $ref: '#/components/responses/PreconditionFailed' }
         '422': { $ref: '#/components/responses/UnprocessableEntity' }
+  "/events/{eventId}/participations/bulk/roster-name-reset":
+    post:
+      tags: ["Event Participation"]
+      operationId: resetEventGuestBulkRosterNames
+      summary: "Restore recorded display names for up to 50 selected event guests"
+      description: Clears event-local display-name overrides using the normal guest.manage, lifecycle and per-row revision checks. Preserves Registry records and pinned event identities. A stale or invalid row rolls back the batch.
+      security: [{ StaffSession: [], StaffCsrf: [] }]
+      parameters:
+        - $ref: '#/components/parameters/PEventId'
+        - $ref: '#/components/parameters/IdempotencyKey'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              additionalProperties: false
+              required: [guests]
+              properties:
+                guests: { $ref: '#/components/schemas/BulkEventGuestSelection' }
+      responses:
+        '200':
+          description: "Counts of selected and updated guests."
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/BulkEventGuestChangeEnvelope' }
+        '400': { $ref: '#/components/responses/BadRequest' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '404': { $ref: '#/components/responses/NotFound' }
+        '409': { $ref: '#/components/responses/Conflict' }
+        '412': { $ref: '#/components/responses/PreconditionFailed' }
+        '422': { $ref: '#/components/responses/UnprocessableEntity' }
   "/events/{eventId}/participations/bulk/status":
     patch:
       tags: ["Event Participation"]

@@ -5267,6 +5267,17 @@ export function buildApi(dependencies: ApiDependencies): FastifyInstance {
       [categoryId, JSON.stringify(guests)]);
   });
 
+  type BulkRosterNameResetBody = JsonRequestBody<"/events/{eventId}/participations/bulk/roster-name-reset", "post">;
+  server.post<{ Params: { eventId: string }; Body: BulkRosterNameResetBody }>("/events/:eventId/participations/bulk/roster-name-reset", {
+    schema: { params: participationEventParams, headers: idempotencyHeaders,
+      body: { type: "object", additionalProperties: false, required: ["guests"], properties: { guests: bulkGuestSelectionSchema } },
+    },
+  }, (request, reply) => {
+    const guests = normalizeBulkGuests(request.body.guests);
+    return withGuestListCommand(request, reply, request.params.eventId, "guest.participation.bulk_roster_name_reset", { guests },
+      "SELECT eogp.reset_event_guest_bulk_roster_names($1::uuid,$2::uuid,$3::uuid,$4::jsonb) AS result", [JSON.stringify(guests)]);
+  });
+
   type BulkStatusBody = { status: "eligible" | "waitlisted" | "ineligible" | "withdrawn"; guests: BulkGuestSelection };
   server.patch<{ Params: { eventId: string }; Body: BulkStatusBody }>("/events/:eventId/participations/bulk/status", {
     schema: {

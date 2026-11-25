@@ -1774,6 +1774,10 @@ export const api = {
         method: "PATCH", body: { categoryId, guests }, idempotent: true,
       },
     ),
+  resetEventGuestBulkRosterNames: (eventId: string, guests: { participationId: string; expectedRevision: number }[]) =>
+    request<Envelope<{ processedCount: number; updatedCount: number }>>(`/events/${encodeURIComponent(eventId)}/participations/bulk/roster-name-reset`, {
+      method: "POST", idempotent: true, body: { guests },
+    }),
   setEventGuestBulkStatus: (eventId: string, status: ManagedParticipationStatus, guests: { participationId: string; expectedRevision: number }[]) =>
     request<Envelope<{ processedCount: number; updatedCount: number }>>(
       `/events/${encodeURIComponent(eventId)}/participations/bulk/status`, {

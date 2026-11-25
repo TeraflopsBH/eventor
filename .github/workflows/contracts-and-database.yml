@@ -470,6 +470,11 @@ jobs:
           EVENTOR_RSVP_SETTINGS_BROWSER_BASE_URL: http://localhost:4173
         run: bash scripts/dev/run-browser-smoke.sh event-rsvp-settings
 
+      - name: Verify bulk roster name reset in Chromium and Firefox
+        env:
+          EVENTOR_BULK_NAME_RESET_BROWSER_BASE_URL: http://localhost:4173
+        run: bash scripts/dev/run-browser-smoke.sh event-guest-bulk-name-reset
+
       - name: Stop the staff web preview
         if: always()
         run: |

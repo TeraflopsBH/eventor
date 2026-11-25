@@ -237,6 +237,15 @@ function saveBulkCategory(): void {
   });
 }
 
+function resetBulkRosterNames(): void {
+  const guests = selectedGuestRevisions();
+  if (!guests.length || !window.confirm(t("eventGuests.bulk.confirmResetNames", { count: guests.length }))) return;
+  void run(async () => {
+    bulkResult.value = (await api.resetEventGuestBulkRosterNames(eventId.value, guests)).data;
+    await loadPage(offset.value);
+  });
+}
+
 function saveBulkStatus(): void {
   const next = bulkStatus.value;
   const guests = selectedGuestRevisions();
@@ -551,6 +560,10 @@ onMounted(() => run(async () => {
       :event-id="eventId" :guest="relationshipGuest" :can-manage="roster.canManage" @close="relationshipGuest = null" />
     <template v-if="roster?.canManage && selectedGuests.length">
       <p>{{ t("eventGuests.bulk.selected", { count: selectedGuests.length }) }}</p>
+      <div class="guest-list-controls">
+        <button class="button button-secondary" type="button" :disabled="busy || rowEditing" @click="resetBulkRosterNames">{{ t("eventGuests.bulk.resetNames") }}</button>
+        <p class="muted">{{ t("eventGuests.bulk.resetNamesHelp") }}</p>
+      </div>
       <form class="guest-list-controls" @submit.prevent="saveBulkCategory">
         <div>
           <label for="roster-bulk-category">{{ t("eventGuests.bulk.category") }}</label>

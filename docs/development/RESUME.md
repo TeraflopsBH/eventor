@@ -4,9 +4,11 @@ Verified main: `ce17be1e3245a7f2dcac5d3ba5d7198058263cc5`, after PRs #212/#213; 
 
 ## Current slice
 
-`codex/event-rsvp-settings` adds event-level RSVP policy read/publication using existing policy tables. Migration 189 and ADR 0016 define scoped `event.manage`, immutable revisions, pinned historical invitations, stale policy/time-zone rejection and explicit publication. The bilingual event UI shares the scheduler's local-time conversion. No notifications or other modules are enabled. Full application checks and fresh PostgreSQL migration/upgrade/RLS/concurrency/auth checks passed. Chromium/Firefox verified publication, local deadlines, refresh, idempotent retry, stale revisions, CSRF and permissions, including unchanged deadline precision. Inspect ignored `rsvp-settings-*` logs and Git status before resuming. Exact-head CI remains required.
+PR #214 is merged at `a12b65b8ee9b00ec2ea4ff169987c156cf21a63f` after exact-head CI passed (`d963ca982360da1c57dae2ee49c099d6110c6ae3`, contracts `45517205943`, secrets `45517205714`). Post-merge contracts `45517906890` and secrets `45517906960` must be inspected before calling that baseline post-merge verified.
 
-PR #211 email-first access and #212 host-managed member controls are already merged and verified. Never reapply their old changes or rewrite published history.
+`codex/bulk-roster-name-reset` is rebased onto the merged #214 tree. Migration 190 adds only an atomic wrapper around the existing audited per-row reset. The bilingual UI confirms selection count and explains Registry/snapshot preservation. Full application, fresh PostgreSQL upgrade/migration/RLS/concurrency/auth and Chromium/Firefox checks passed; logs are `bulk-name-reset-*`. Exact-head CI is required before integration. No published history was rewritten.
+
+Migration 189/ADR 0016 RSVP settings are integrated. Broader account onboarding, linked-record merge conflicts and remaining event/roster controls remain open under #104.
 
 ## Interactive preview
 
