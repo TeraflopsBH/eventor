@@ -3248,10 +3248,41 @@ paths:
         '429': { $ref: '#/components/responses/TooManyRequests' }
         '500': { $ref: '#/components/responses/InternalServerError' }
   "/events/{eventId}/booking-links":
+    get:
+      tags: ["Event Responsibilities"]
+      operationId: listEventBookingLinks
+      summary: "List event-owned booking associations"
+      description: "Requires event.manage for the selected event. Returns association metadata, including terminal records, without provider commercial details or guest data."
+      security: [{ StaffSession: [] }]
+      parameters:
+        - $ref: '#/components/parameters/PEventId'
+        - name: offset
+          in: query
+          schema: { type: integer, minimum: 0, maximum: 100000 }
+      responses:
+        '200':
+          description: "Authorized association page."
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [data]
+                properties:
+                  data:
+                    type: object
+                    required: [links, nextOffset]
+                    properties:
+                      links: { type: array, maxItems: 50, items: { $ref: '#/components/schemas/EventBookingLink' } }
+                      nextOffset: { type: [integer, 'null'], minimum: 0 }
+        '400': { $ref: '#/components/responses/BadRequest' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '404': { $ref: '#/components/responses/NotFound' }
     post:
       tags: ["Event Responsibilities"]
       operationId: linkBookingToEvent
-      summary: "Link an external booking to this event under an explicit grant"
+      summary: "Associate a booking record with an event"
+      description: "Requires event.manage for the event. Same-organization links also require booking.manage and a null/omitted collaboration grant. Cross-organization links require an active accepted booking-scoped booking.event.link grant. Existing active identical associations are reused; terminal or differently defined associations require separate correction. Association does not reserve resources or change booking/event status."
       security: [{ StaffSession: [], StaffCsrf: [] }]
       parameters:
         - $ref: '#/components/parameters/PEventId'
@@ -3266,7 +3297,7 @@ paths:
           description: "Successful response."
           content:
             application/json:
-              schema: { $ref: '#/components/schemas/DataEnvelope' }
+              schema: { $ref: '#/components/schemas/EventBookingLinkEnvelope' }
         '400': { $ref: '#/components/responses/BadRequest' }
         '401': { $ref: '#/components/responses/Unauthorized' }
         '403': { $ref: '#/components/responses/Forbidden' }
@@ -9826,14 +9857,32 @@ components:
         status: { type: string, enum: [not_started, in_progress, blocked, completed, cancelled, waived] }
         dueAt: { type: string, format: date-time }
         permittedProjection: { type: object, additionalProperties: true }
+    EventBookingLink:
+      type: object
+      required: [linkId, eventId, bookingOwnerOrganizationId, bookingId, collaborationGrantId, relationshipKind, status, createdAt]
+      properties:
+        linkId: { type: string, format: uuid }
+        eventId: { type: string, format: uuid }
+        bookingOwnerOrganizationId: { type: string, format: uuid }
+        bookingId: { type: string, format: uuid }
+        collaborationGrantId: { type: [string, 'null'], format: uuid }
+        relationshipKind: { type: string, enum: [venue_for_event, service_for_event, other] }
+        status: { type: string, enum: [active, ended, revoked] }
+        createdAt: { type: string, format: date-time }
+    EventBookingLinkEnvelope:
+      type: object
+      required: [data]
+      properties:
+        data: { $ref: '#/components/schemas/EventBookingLink' }
     BookingEventLinkRequest:
       type: object
-      required: [bookingOwnerOrganizationId, bookingId, relationshipKind, collaborationGrantId]
+      additionalProperties: false
+      required: [bookingOwnerOrganizationId, bookingId, relationshipKind]
       properties:
         bookingOwnerOrganizationId: { type: string, format: uuid }
         bookingId: { type: string, format: uuid }
         relationshipKind: { type: string, enum: [venue_for_event, service_for_event, other] }
-        collaborationGrantId: { type: string, format: uuid }
+        collaborationGrantId: { type: [string, 'null'], format: uuid }
     DisruptionResolutionRequest:
       type: object
       required: [resolutionKind]
