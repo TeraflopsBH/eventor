@@ -7377,16 +7377,23 @@ paths:
                 properties:
                   data:
                     type: object
-                    required: [reviewId, source, destination, blocker, historicalEvents, historicalCount, contactCount, referenceCount]
+                    required: [reviewId, source, destination, blocker, historicalEvents, historicalCount, contactCount, referenceCount, labelCount, sourceLabels, destinationLabels]
                     properties:
                       reviewId: { type: string, format: uuid }
                       source: { $ref: '#/components/schemas/GuestRegistryProfile' }
                       destination: { $ref: '#/components/schemas/GuestRegistryProfile' }
                       blocker:
                         type: [string, 'null']
-                        enum: [inactive_profile, source_has_linked_records, event_history_access_required, event_history_overlap, contact_access_required, contact_conflict, reference_access_required, null]
+                        enum: [inactive_profile, source_has_linked_records, event_history_access_required, event_history_overlap, contact_access_required, contact_conflict, reference_access_required, label_conflict, label_limit, null]
                       contactCount: { type: integer, minimum: 0 }
                       referenceCount: { type: integer, minimum: 0 }
+                      labelCount: { type: integer, minimum: 0 }
+                      sourceLabels:
+                        type: array
+                        items: { $ref: '#/components/schemas/RegistryLabel' }
+                      destinationLabels:
+                        type: array
+                        items: { $ref: '#/components/schemas/RegistryLabel' }
                       historicalCount: { type: integer, minimum: 0 }
                       historicalEvents:
                         type: array
@@ -7521,7 +7528,7 @@ paths:
     post:
       tags: ["Guest Registry"]
       operationId: commitGuestRegistryMerge
-      summary: "Merge a reviewed duplicate profile and explicitly transfer eligible contacts"
+      summary: "Merge a reviewed duplicate profile with explicit linked-record transfers"
       security: [{ StaffSession: [], StaffCsrf: [] }]
       parameters:
         - $ref: '#/components/parameters/PPersonId'
@@ -7542,6 +7549,7 @@ paths:
                 reason: { type: string, const: duplicate_profile }
                 contactResolution: { type: string, const: move_to_destination, description: "Required when the reviewed source has transferable contacts. Requires contact management permission." }
                 referenceResolution: { type: string, const: move_to_destination, description: "Required when the reviewed source has source-system references. Requires reference management permission." }
+                labelResolution: { type: string, const: move_to_destination, description: "Required when the reviewed source has non-overlapping Registry labels. Preserves the original assignment metadata, including retired classifications." }
       responses:
         '201':
           description: "The merge was recorded and the source was marked merged."
@@ -9918,8 +9926,12 @@ components:
             nextOffset: { type: [integer, 'null'], minimum: 0 }
     GuestRegistryRestorationReview:
       type: object
-      required: [reviewId, source, destination, contacts, references, missingReferenceCount]
+      required: [reviewId, source, destination, contacts, references, missingReferenceCount, labels]
       properties:
+        labels:
+          type: array
+          description: Unchanged classification assignments that return to the source with restoration.
+          items: { $ref: '#/components/schemas/RegistryLabel' }
         reviewId: { type: string, format: uuid }
         source: { $ref: '#/components/schemas/GuestRegistryProfile' }
         destination: { $ref: '#/components/schemas/GuestRegistryProfile' }

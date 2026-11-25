@@ -543,3 +543,9 @@ Both organization member directory commands return `hostManaged`, derived from t
 ### Migration 190 — Bulk restoration of recorded roster names
 
 `reset_event_guest_bulk_roster_names` validates a selection of 1–50 participation IDs/current revisions and reuses the normal permissioned, audited event-local roster-name command with a null override. Rows are processed in stable ID order inside the request transaction. Stale/invalid/cancelled/cross-event selections roll back the batch; unchanged rows retain their revisions and generate no extra per-row change audit. Registry names and pinned event identities are never rewritten. This adds no new tables or permissions.
+
+### Migration 191 — Reviewed Registry label transfers
+
+`person_merge_label_transfers` is an append-only, forced-tenant-RLS journal containing merge/label IDs and canonical assignment-state evidence. Runtime/auth/worker have no direct access. Reviewed merge adds `labelResolution=move_to_destination` for non-overlapping assignments, preserves original assignment author/time and retired label identity, and enforces the existing 100-label profile limit. Review evidence binds both assignment sets and retirement state; stable parent/definition locks protect commit. All legacy overloads route through explicit acknowledgement; renamed implementations are private.
+
+Both restoration APIs guard label state before invoking the existing contact/reference/name restoration. Unchanged assignments return to the source; removed/edited assignments block with `MERGE_LABELS_CHANGED`. The current-record review lists returning labels separately from selectable contacts/references. No classification backfill, historical snapshot rewrite or public projection change occurs. See ADR 0018.

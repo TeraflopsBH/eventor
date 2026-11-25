@@ -478,6 +478,11 @@ jobs:
           EVENTOR_BULK_NAME_RESET_BROWSER_BASE_URL: http://localhost:4173
         run: bash scripts/dev/run-browser-smoke.sh event-guest-bulk-name-reset
 
+      - name: Verify reviewed Registry label transfer and restoration
+        env:
+          EVENTOR_LABEL_MERGE_BROWSER_BASE_URL: http://localhost:4173
+        run: bash scripts/dev/run-browser-smoke.sh registry-label-merge
+
       - name: Stop the staff web preview
         if: always()
         run: |
