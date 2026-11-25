@@ -539,3 +539,7 @@ Both organization member directory commands return `hostManaged`, derived from t
 ### Migration 189 — Event RSVP policy publication
 
 `get_event_rsvp_settings` reads the effective event time zone and current published RSVP revision under scoped `event.manage`. `publish_event_rsvp_settings` locks the event, validates answer codes, finite deadline, expected policy ID and effective time zone, then inserts a published revision and audit. Existing policy IDs are reused; event-wide increasing revision numbers avoid ambiguity with legacy multiple-policy data. Issued invitations keep their original policy references. Runtime direct policy-table writes are revoked; no new tables or mandatory services are introduced. See ADR 0016.
+
+### Migration 190 — Bulk restoration of recorded roster names
+
+`reset_event_guest_bulk_roster_names` validates a selection of 1–50 participation IDs/current revisions and reuses the normal permissioned, audited event-local roster-name command with a null override. Rows are processed in stable ID order inside the request transaction. Stale/invalid/cancelled/cross-event selections roll back the batch; unchanged rows retain their revisions and generate no extra per-row change audit. Registry names and pinned event identities are never rewritten. This adds no new tables or permissions.

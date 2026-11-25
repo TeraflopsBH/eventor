@@ -4,6 +4,9 @@ Verified main: `ce17be1e3245a7f2dcac5d3ba5d7198058263cc5`, after PRs #212/#213; 
 
 ## Current slice
 
+PR #214 (`codex/event-rsvp-settings`) is published and awaiting exact-head CI after correcting an older policy fixture's role. Current unpublished `codex/bulk-roster-name-reset` is based on that tested feature head and adds migration 190 plus a confirmed atomic bulk reset of event-local display names. Rebase only this unpublished slice onto the merged #214 main before publishing. Do not rewrite #214's published history. Bulk checks are in `bulk-name-reset-*` ignored logs.
+
+
 `codex/event-rsvp-settings` adds event-level RSVP policy read/publication using existing policy tables. Migration 189 and ADR 0016 define scoped `event.manage`, immutable revisions, pinned historical invitations, stale policy/time-zone rejection and explicit publication. The bilingual event UI shares the scheduler's local-time conversion. No notifications or other modules are enabled. Full application checks and fresh PostgreSQL migration/upgrade/RLS/concurrency/auth checks passed. Chromium/Firefox verified publication, local deadlines, refresh, idempotent retry, stale revisions, CSRF and permissions, including unchanged deadline precision. Inspect ignored `rsvp-settings-*` logs and Git status before resuming. Exact-head CI remains required.
 
 PR #211 email-first access and #212 host-managed member controls are already merged and verified. Never reapply their old changes or rewrite published history.
