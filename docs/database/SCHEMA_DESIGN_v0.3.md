@@ -593,3 +593,7 @@ Runtime list/detail/action wrappers require organization-scoped collaboration ma
 ### Migration 199 — Published party names and reviewed acceptance
 
 Nullable grantor/recipient display names capture each party's own organization name at proposal/valid acceptance. The trigger reads only the current tenant, freezes published names and leaves legacy unknowns null; no backfill or directory RLS change occurs. Metadata adds party/state/window action hints. Detailed review adds a fingerprint of grant scope/configuration/purpose/validity, using epoch timestamp values for timezone independence. Interactive acceptance locks and rechecks that fingerprint on both first use and cached retries. Existing unpinned programmatic acceptance/idempotency remains compatible. See ADR 0024 and the populated 198-to-199 upgrade rehearsal.
+
+### Migration 200 — Accepted partner booking options
+
+The scoped event chooser reads only incoming active/accepted/effective booking grants with `booking.event.link`. It requires exact event management, omits all existing booking associations before pagination and projects only identities, captured provider name and shared purpose. No provider record/directory/configuration is queried. Current authority is independently checked by existing association creation. Reads are audited; runtime gets only function execution. SQL/browser regressions cover invalid windows/actions/status, exact event scope, source revocation between review/commit, terminal history, unchanged event/provider facts and denial cleanup. See ADR 0021.

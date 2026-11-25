@@ -1285,6 +1285,7 @@ export interface EventDisruptionNotice {
   resolutionKind:"relocate"|"amend_booking"|"postpone"|"cancel_event"|"unresolved";
   createdAt:string;acknowledgedAt:string|null;sourceNotice:Omit<BookingDisruptionNotice,"noticeId">|null;
 }
+export interface PartnerBookingOption {grantId:string;bookingOwnerOrganizationId:string;bookingId:string;providerName:string|null;purpose:string}
 export interface EventBookingLink {
   bookingCode?:string|null;
   linkId:string;eventId:string;bookingOwnerOrganizationId:string;bookingId:string;collaborationGrantId:string|null;
@@ -1675,6 +1676,7 @@ export const api = {
   publishLocalEventDisruption:(eventId:string,body:{bookingId:string;sourceBookingNoticeId:string})=>request<Envelope<EventDisruptionNotice>>(`/events/${encodeURIComponent(eventId)}/disruption-notices`,{method:"POST",idempotent:true,body}),
   acknowledgeEventDisruption:(noticeId:string)=>request<Envelope<EventDisruptionNotice>>(`/event-disruption-notices/${encodeURIComponent(noticeId)}/acknowledge`,{method:"POST",idempotent:true,body:{}}),
   endEventBookingLink:(eventId:string,linkId:string)=>request<Envelope<EventBookingLink>>(`/events/${encodeURIComponent(eventId)}/booking-links/${encodeURIComponent(linkId)}/end`,{method:"POST",idempotent:true,body:{}}),
+  listPartnerBookingOptions:(eventId:string,offset=0)=>request<Envelope<{options:PartnerBookingOption[];nextOffset:number|null}>>(`/events/${encodeURIComponent(eventId)}/partner-booking-options?offset=${offset}`),
   listEventBookingLinks:(eventId:string,offset=0)=>request<Envelope<{links:EventBookingLink[];nextOffset:number|null}>>(`/events/${encodeURIComponent(eventId)}/booking-links?offset=${offset}`),
   createEventBookingLink:(eventId:string,body:Pick<EventBookingLink,"bookingOwnerOrganizationId"|"bookingId"|"relationshipKind"> & {collaborationGrantId?:string|null})=>request<Envelope<EventBookingLink>>(`/events/${encodeURIComponent(eventId)}/booking-links`,{method:"POST",idempotent:true,body}),
   getRegistryPersonLabels:(personId:string)=>request<Envelope<RegistryPersonLabels>>(`/persons/${encodeURIComponent(personId)}/labels`),

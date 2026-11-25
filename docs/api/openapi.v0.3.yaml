@@ -3357,6 +3357,49 @@ paths:
         '403': { $ref: '#/components/responses/Forbidden' }
         '404': { $ref: '#/components/responses/NotFound' }
         '409': { $ref: '#/components/responses/Conflict' }
+  "/events/{eventId}/partner-booking-options":
+    get:
+      tags: ["Collaboration"]
+      operationId: listEventPartnerBookingOptions
+      summary: "Choose accepted partner booking scopes for an event"
+      description: "Requires exact event.manage. Returns active, accepted, effective booking.event.link grants addressed to the selected organization, excluding all existing associations before pagination. No provider booking record, directory, configuration, commercial or guest data is read. Creation independently rechecks authority."
+      security: [{ StaffSession: [] }]
+      parameters:
+        - $ref: '#/components/parameters/PEventId'
+        - in: query
+          name: offset
+          schema: { type: integer, minimum: 0, maximum: 100000, default: 0 }
+      responses:
+        '200':
+          description: "Private permitted grant choices."
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [data]
+                properties:
+                  data:
+                    type: object
+                    required: [options, nextOffset]
+                    properties:
+                      options:
+                        type: array
+                        maxItems: 50
+                        items:
+                          type: object
+                          additionalProperties: false
+                          required: [grantId, bookingOwnerOrganizationId, bookingId, providerName, purpose]
+                          properties:
+                            grantId: { type: string, format: uuid }
+                            bookingOwnerOrganizationId: { type: string, format: uuid }
+                            bookingId: { type: string, format: uuid }
+                            providerName: { type: [string, 'null'] }
+                            purpose: { type: string }
+                      nextOffset: { type: [integer, 'null'], minimum: 0, maximum: 100000 }
+        '400': { $ref: '#/components/responses/BadRequest' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '404': { $ref: '#/components/responses/NotFound' }
   "/events/{eventId}/booking-links":
     get:
       tags: ["Event Responsibilities"]

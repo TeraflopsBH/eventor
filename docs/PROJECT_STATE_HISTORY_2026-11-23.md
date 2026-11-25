@@ -661,3 +661,8 @@ Migration 197 exposes the existing one-way association ending under exact event 
 ## 2026-11-25 — Permissioned collaboration lifecycle APIs (#228)
 
 Migration 198/ADR 0023 expose party-scoped list/detail and recipient acceptance/grantor revocation while revoking direct runtime reads. Current role/state/window/actor authority is checked on retries. The old proposed-revocation constraint failure was reproduced and fixed without fictitious acceptance. Checked head `52a6f826b952bb53cd7a42081171e95e3a483dff` passed all five checks/CLEAN; squash main `449ce2cb0ca2c22be8f711731dcf0fdcd5d4ab88` has the identical tree. Post-merge contracts `45631105545` and secrets `45631105546` passed. Full application/fresh PostgreSQL/real API and both acceptance-revocation race orders passed. Staff controls, new proposals/discovery and partner delivery were deferred to following slices.
+
+
+## 2026-11-25 — Settings Partner access (#229)
+
+Migration 199/ADR 0024 add captured immutable party names, reviewed fingerprint-bound acceptance and bilingual Settings controls. Names are published in each party's own tenant; legacy unknowns stay null and directory RLS remains unchanged. Interactive acceptance rechecks scope/configuration on first use and cached retry. Checked head `08b510740e630564dff339aa7e7b95a0707a9d6b` passed all five checks/CLEAN; squash main `f6039be2d630b7834fe19856660a051a17db2ec9` has the identical tree. Post-merge contracts `45671121922` and secrets `45671121975` passed. Full/fresh PostgreSQL, populated 198-to-199 upgrade, real API stale/retry, Chromium/Firefox and synthetic desktop/mobile inspection passed. New proposal/discovery and partner booking/notice controls remained follow-ups.

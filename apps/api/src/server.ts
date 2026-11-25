@@ -4625,6 +4625,10 @@ export function buildApi(dependencies: ApiDependencies): FastifyInstance {
     schema:{params:eventParams,querystring:{type:"object",properties:{offset:{type:"integer",minimum:0,maximum:100000}}}},
   },(request,reply)=>withRegistryRead(reply,registryPrincipal(request),
     "SELECT eogp.list_event_booking_links($1::uuid,$3::uuid,$2::uuid,$4::integer) AS result",[request.params.eventId,request.query.offset??0]));
+  server.get<{Params:{eventId:string};Querystring:{offset?:number}}>("/events/:eventId/partner-booking-options",{
+    schema:{params:eventParams,querystring:{type:"object",additionalProperties:false,properties:{offset:{type:"integer",minimum:0,maximum:100000}}}},
+  },(request,reply)=>withRegistryRead(reply,registryPrincipal(request),
+    "SELECT eogp.list_event_partner_booking_options($1::uuid,$3::uuid,$2::uuid,$4::integer) AS result",[request.params.eventId,request.query.offset??0]));
   type EventBookingLinkBody=JsonRequestBody<"/events/{eventId}/booking-links","post">;
   server.post<{Params:{eventId:string};Body:EventBookingLinkBody}>("/events/:eventId/booking-links",{
     schema:{params:eventParams,headers:idempotencyHeaders,body:{type:"object",additionalProperties:false,

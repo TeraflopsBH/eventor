@@ -871,6 +871,14 @@ export default {
     }
 },
   eventBookingLinks: {
+    partnerTitle: "Shared partner bookings",
+    partnerHelp: "Choose a booking scope from an accepted partner grant. Only the shared provider name and purpose are shown. Linking changes no booking or event decisions.",
+    partnerChoose: "Choose a shared partner booking",
+    partnerLink: "Link partner booking",
+    partnerFallback: "Partner booking",
+    noPartners: "No available accepted partner booking grants on this page. Existing associations are omitted, including ended links.",
+    partnerConfirm: "Link {partner} to {event} using this accepted grant?",
+
     actions: "Actions",
     end: "End link",
     endConfirm: "End this booking link for {event}? New notices cannot be published through it. Historical links and published notices are retained; booking and event status use separate workflows.",
@@ -879,7 +887,7 @@ export default {
     open: "Linked bookings",
     openNamed: "Linked bookings for {event}",
     title: "Bookings for {event}",
-    help: "Link existing booking records from this organization to this event. Resource reservations, status changes and partner booking setup use their own workflows.",
+    help: "Link permitted local or shared partner bookings to this event. Resource reservations and booking/event status changes use their own workflows.",
     reload: "Reload linked bookings",
     empty: "No bookings are linked to this event.",
     existing: "Linked bookings",

@@ -528,6 +528,12 @@ jobs:
         env:
           EVENTOR_COLLABORATION_BROWSER_BASE_URL: http://localhost:4173
         run: bash scripts/dev/run-browser-smoke.sh collaboration-grants
+      - name: Seed accepted partner booking options
+        run: psql "$MIGRATOR_URL" -X -v ON_ERROR_STOP=1 -f tests/database/event_partner_booking_browser_fixture.sql
+      - name: Verify accepted partner booking selection
+        env:
+          EVENTOR_PARTNER_BOOKING_BROWSER_BASE_URL: http://localhost:4173
+        run: bash scripts/dev/run-browser-smoke.sh event-partner-booking
       - name: Stop the staff web preview
         if: always()
         run: |

@@ -48,5 +48,7 @@ psql "$MIGRATOR_URL" -X -v ON_ERROR_STOP=1 \
   -f "$ROOT_DIR/tests/database/staff_collaboration_lifecycle_smoke.sql"
 psql "$MIGRATOR_URL" -X -v ON_ERROR_STOP=1 \
   -f "$ROOT_DIR/tests/database/collaboration_party_names_smoke.sql"
+psql "$MIGRATOR_URL" -X -v ON_ERROR_STOP=1 \
+  -f "$ROOT_DIR/tests/database/event_partner_booking_options_smoke.sql"
 bash "$ROOT_DIR/scripts/db/test-concurrency.sh"
 bash "$ROOT_DIR/scripts/db/test_revision_publication_concurrency.sh"
