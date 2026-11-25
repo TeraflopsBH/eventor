@@ -642,3 +642,8 @@ Migration 194/ADR 0021 expose existing association commands under exact event an
 ## 2026-11-25 — Events linked-booking selector (#224)
 
 Migration 195 projects local reference labels only under current booking authority. Bilingual Events controls search permitted bookings and explicitly confirm associations; external/restricted references remain generic. Checked head `2d3603a44ab70a6d44bea1900bcad56233fe31bc` passed all five checks/CLEAN; squash main `fe5cec3df1a970c14eec609a80f15141d565e3ec` has the identical tree. Post-merge contracts `45623757322` and secrets `45623757442` passed. Full local application/fresh PostgreSQL/Chromium/Firefox tests and synthetic desktop/mobile inspection passed. Partner setup and lifecycle correction remain open.
+
+
+## 2026-11-25 — Explicit local disruption inbox APIs (#225)
+
+Migration 196/ADR 0022 reuse event-owned disruption receipts. Senders need exact booking/event management and an active local link; event managers read/acknowledge allowlisted published public facts without source access. Original snapshots, provenance and acknowledgement survive retries/concurrency; internal notes remain private. Checked head `b7b7df823049abb7affdbaeb129832c48389043d` passed all five checks/CLEAN; squash main `1d6a585bbe83a800ac90aeb0196fcd52ae1ec919` has the identical tree. Post-merge contracts `45625280596` and secrets `45625280632` passed. Full/fresh PostgreSQL/real API concurrency and revocation acceptance passed; partner delivery, email and resolution remain open.

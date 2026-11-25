@@ -3293,6 +3293,36 @@ paths:
         '422': { $ref: '#/components/responses/UnprocessableEntity' }
         '429': { $ref: '#/components/responses/TooManyRequests' }
         '500': { $ref: '#/components/responses/InternalServerError' }
+  "/events/{eventId}/booking-links/{linkId}/end":
+    post:
+      tags: ["Collaboration"]
+      operationId: endEventBookingLink
+      summary: "End an event-owned booking association while preserving history"
+      description: "Requires current exact event.manage, including retries. Source booking authority or an active provider grant is not required to end the event-owned link. Existing ended links retain their original actor/audit; revoked links cannot be relabelled. No booking/event/resource/grant facts or prior notice receipts change. The stable audit reason identifies this explicit manager action; it does not infer a business reason."
+      security: [{ StaffSession: [], StaffCsrf: [] }]
+      parameters:
+        - $ref: '#/components/parameters/PEventId'
+        - in: path
+          name: linkId
+          required: true
+          schema: { type: string, format: uuid }
+        - $ref: '#/components/parameters/IdempotencyKey'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { type: object, additionalProperties: false }
+      responses:
+        '200':
+          description: "Original terminal association metadata."
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/EventBookingLinkEnvelope' }
+        '400': { $ref: '#/components/responses/BadRequest' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '404': { $ref: '#/components/responses/NotFound' }
+        '409': { $ref: '#/components/responses/Conflict' }
   "/events/{eventId}/booking-links":
     get:
       tags: ["Event Responsibilities"]

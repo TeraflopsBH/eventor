@@ -38,6 +38,10 @@ function save(){
   selected.value="";await loadLinks();notice.value=t("eventBookingLinks.saved");
  });
 }
+function endLink(link:EventBookingLink){
+ if(busy.value || !window.confirm(t("eventBookingLinks.endConfirm",{event:props.eventTitle})))return;
+ void run(async()=>{await api.endEventBookingLink(props.eventId,link.linkId);await loadLinks(linksOffset.value);notice.value=t("eventBookingLinks.ended");});
+}
 const reference=(link:EventBookingLink)=>link.bookingCode??t(link.bookingOwnerOrganizationId===props.organizationId?"eventBookingLinks.restricted":"eventBookingLinks.external");
 const bookingState=(status:string)=>t(`eventBookingLinks.bookingState.${["confirmed","completed","cancelled","closed"].includes(status)?status:"unknown"}`);
 onMounted(reload);
@@ -52,8 +56,8 @@ onMounted(reload);
   <template v-if="links">
    <p v-if="!links.length">{{t("eventBookingLinks.empty")}}</p>
    <div v-else class="links-scroll" role="region" :aria-label="t('eventBookingLinks.existing')" tabindex="0">
-    <table><caption>{{t("eventBookingLinks.existing")}}</caption><thead><tr><th scope="col">{{t("eventBookingLinks.booking")}}</th><th scope="col">{{t("eventBookingLinks.kind")}}</th><th scope="col">{{t("eventBookingLinks.status")}}</th><th scope="col">{{t("eventBookingLinks.created")}}</th></tr></thead>
-     <tbody><tr v-for="link in links" :key="link.linkId"><td>{{reference(link)}}</td><td>{{t(`eventBookingLinks.kinds.${link.relationshipKind}`)}}</td><td>{{t(`eventBookingLinks.statuses.${link.status}`)}}</td><td>{{formatDateTime(link.createdAt,locale)}}</td></tr></tbody>
+    <table><caption>{{t("eventBookingLinks.existing")}}</caption><thead><tr><th scope="col">{{t("eventBookingLinks.booking")}}</th><th scope="col">{{t("eventBookingLinks.kind")}}</th><th scope="col">{{t("eventBookingLinks.status")}}</th><th scope="col">{{t("eventBookingLinks.created")}}</th><th scope="col">{{t("eventBookingLinks.actions")}}</th></tr></thead>
+     <tbody><tr v-for="link in links" :key="link.linkId"><td>{{reference(link)}}</td><td>{{t(`eventBookingLinks.kinds.${link.relationshipKind}`)}}</td><td>{{t(`eventBookingLinks.statuses.${link.status}`)}}</td><td>{{formatDateTime(link.createdAt,locale)}}</td><td><button v-if="link.status==='active'" type="button" class="button button-secondary" :disabled="busy" @click="endLink(link)">{{t("eventBookingLinks.end")}}</button></td></tr></tbody>
     </table>
    </div>
    <div v-if="linksOffset || nextLinks!==null" class="links-toolbar">

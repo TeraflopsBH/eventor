@@ -58,3 +58,24 @@ test("booking reference lookup forwards only selected-organization context and v
   assert.equal((await app.inject({method:"POST",url:"/organizations/10000000-0000-0000-0000-00000000000a/booking-references/search",payload:{query:"Synthetic"}})).statusCode,403);assert.equal(reads,1);
  }finally{await app.close();}
 });
+
+test("ending event association canonicalizes identity and rechecks event authority on cached retry",async()=>{
+ let stored:{request_sha256:unknown;response_status:unknown;response_body:unknown}|null=null,revoked=false,calls=0;
+ const scope=[organizationId,eventId,membershipId,linkId];
+ const client={async query(sql:string,values:readonly unknown[]=[]){
+  if(sql.startsWith("SELECT request_sha256"))return{rows:stored?[stored]:[]};
+  if(sql.startsWith("INSERT INTO eogp.idempotency_records")){stored={request_sha256:values[4],response_status:null,response_body:null};return{rows:[{id:linkId}]};}
+  if(sql.startsWith("UPDATE eogp.idempotency_records"))stored={request_sha256:values[4],response_status:values[5],response_body:values[6]};
+  if(sql.includes("SELECT eogp.assert_event_booking_link_end_permission")){assert.deepEqual(values,scope);if(revoked)throw Object.assign(new Error("private ending authority detail"),{code:"42501"});}
+  if(sql.includes("SELECT eogp.end_event_booking_link")){assert.deepEqual(values,scope);calls++;return{rows:[{result:{linkId,status:"ended"}}]};}
+  return{rows:[]};
+ },release(){}};
+ const app=buildApi({pool:{connect:async()=>client} as unknown as Pool,authenticateStaff:async()=>({organizationId,membershipId,userId:organizationId}),verifyMutationOrigin:async()=>true});
+ const request={method:"POST" as const,url:`/events/${eventId.toUpperCase()}/booking-links/${linkId.toUpperCase()}/end`,headers:{"idempotency-key":"synthetic-link-ending-retry"},payload:{}};
+ try{
+  const response=await app.inject(request);assert.equal(response.statusCode,200,response.body);assert.match(response.headers["cache-control"]??"",/no-store/);
+  assert.equal((await app.inject({...request,url:request.url.toLowerCase()})).statusCode,200);assert.equal(calls,1);
+  revoked=true;const denied=await app.inject(request);assert.equal(denied.statusCode,403,denied.body);assert.ok(!denied.body.includes("private ending authority detail"));assert.equal(calls,1);
+  assert.equal((await app.inject({...request,url:`/events/${eventId}/booking-links/invalid/end`})).statusCode,400);
+ }finally{await app.close();}
+});

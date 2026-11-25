@@ -821,6 +821,11 @@ export default {
     }
 },
   eventBookingLinks: {
+    actions: "Radnje",
+    end: "Završi povezivanje",
+    endConfirm: "Završiti ovo povezivanje rezervacije za događaj {event}? Kroz njega se više ne mogu objavljivati nove obavijesti. Historija i objavljene obavijesti ostaju sačuvane; statusi rezervacije i događaja imaju zasebne postupke.",
+    ended: "Povezivanje je završeno. Historija i objavljene obavijesti ostaju sačuvane.",
+
     open: "Povezane rezervacije",
     openNamed: "Povezane rezervacije za {event}",
     title: "Rezervacije za {event}",

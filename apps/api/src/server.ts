@@ -4616,6 +4616,17 @@ export function buildApi(dependencies: ApiDependencies): FastifyInstance {
     },async client=>{await client.query("SELECT eogp.assert_event_booking_link_permission($1::uuid,$2::uuid,$3::uuid,$4::uuid,$5::uuid,$6::uuid)",identity);},201);
   });
 
+  server.post<{Params:{eventId:string;linkId:string};Body:Record<string,never>}>("/events/:eventId/booking-links/:linkId/end",{
+    schema:{params:{type:"object",additionalProperties:false,required:["eventId","linkId"],properties:{eventId:{type:"string",pattern:uuidPattern},linkId:{type:"string",pattern:uuidPattern}}},headers:idempotencyHeaders,body:{type:"object",additionalProperties:false}},
+  },(request,reply)=>{
+    const principal=registryPrincipal(request);const input={eventId:request.params.eventId.toLowerCase(),linkId:request.params.linkId.toLowerCase()};
+    const scope=[principal.organizationId,input.eventId,principal.membershipId,input.linkId];
+    return withCommand(request,reply.header("cache-control","no-store, private"),"event.booking_link.end",input,async client=>{
+      const result=await client.query<ResultRow>("SELECT eogp.end_event_booking_link($1::uuid,$2::uuid,$3::uuid,$4::uuid) AS result",scope);
+      return (result.rows[0]?.result??{}) as Record<string,unknown>;
+    },async client=>{await client.query("SELECT eogp.assert_event_booking_link_end_permission($1::uuid,$2::uuid,$3::uuid,$4::uuid)",scope);},200);
+  });
+
   server.get<{Params:{eventId:string};Querystring:{offset?:number}}>("/events/:eventId/disruption-notices",{
     schema:{params:eventParams,querystring:{type:"object",additionalProperties:false,properties:{offset:{type:"integer",minimum:0,maximum:100000}}}},
   },(request,reply)=>withRegistryRead(reply,registryPrincipal(request),
