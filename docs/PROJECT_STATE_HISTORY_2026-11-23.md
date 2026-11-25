@@ -624,3 +624,11 @@ Checked head `d34d7121e4b1a114dfbb58970b2a09fe723c4739` passed all five required
 ### Verified integration — Existing-account membership onboarding (#220), 2026-11-25
 
 Checked head `76a7ff88dad20e1bbb4e1bcf70895215b5feb905` passed all five required checks with CLEAN merge state; PR contracts `45575664776` and secrets `45575664806` succeeded. Squash main `594468b7cee4294aa57faa46d72ac243c31ce5cb` matches the checked tree. Post-merge contracts `45576797145` and secrets `45576797109` passed. ADR 0020 defines explicit host provisioning without account/session/role changes. The user preview remains stopped.
+
+### Verified integration — Registry classification filters (#221), 2026-11-25
+
+Checked head `655c740891073b232f66edf5d1568b85b4f9ac0b` passed all five required checks with CLEAN merge state; PR contracts `45615199360` and secrets `45615198961` succeeded. Squash main `946410af4ef2e4a621954ca613cd6fd6b32b8d02` matches the checked tree. Post-merge contracts `45616192807` and secrets `45616192184` passed. The initial CI mobile failure was reproduced with richer booking grants and repaired by containing navigation overflow. Migration 193 retains retired-label filters and consistent exports. The user preview remains stopped.
+
+### Verified integration — Contextual bilingual workspace headings (#222), 2026-11-25
+
+Checked head `b99fbf6e7fa51244bccb32adcef4574d828ffb46` passed all five required checks with CLEAN merge state. Squash main `b6a3c94000fe26831f9997935fd0bcb9a07d33e3` matches the checked tree. Post-merge contracts `45617577494` and secrets `45617577661` passed. Headings/help follow the selected section in both languages; navigation, sessions and permissions retain their existing behavior. The user preview remains stopped.

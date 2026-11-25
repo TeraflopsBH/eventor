@@ -1,12 +1,14 @@
 # Development resume — 2026-11-25
 
-Verified main: `594468b7cee4294aa57faa46d72ac243c31ce5cb` (#220), with post-merge contracts `45576797145` and secrets `45576797109` passing. Prior receipts remain in the archive/ignored checkpoint.
+Verified main: `b6a3c94000fe26831f9997935fd0bcb9a07d33e3` (#222), with post-merge contracts `45617577494` and secrets `45617577661` passing. Prior receipts remain in the archive/ignored checkpoint.
 
 ## Current slice
 
-`codex/contextual-workspace-headings` updates the staff shell heading and help text for each selected section in both languages. No API/schema/permission behavior changes. Staff tests/build and Chromium/Firefox language/navigation/error-isolation journeys passed (`workspace-headings-*` logs). The branch was rebased onto #221 main before publication; never rewrite published history.
+`codex/booking-event-link-commands` adds migration 194/ADR 0021: create/list boundaries over existing associations with exact event management plus local booking management or active accepted cross-organization booking scope. Existing active identical links are reused; terminal/changed meaning is refused. Direct app-role table access is revoked. No booking/event status, snapshots or guest data change. This is an API foundation; staff selectors and disruption delivery/acknowledgement remain open.
 
-#221 classification filtering merged at `946410af4ef2e4a621954ca613cd6fd6b32b8d02`, matching exact checked head `655c740891073b232f66edf5d1568b85b4f9ac0b` after all five checks passed and CLEAN. The repaired CI contracts run `45615199360` and secrets `45615198961` passed. Post-merge contracts `45616192807` and secrets `45616192184` are running. Migration 193 and the richer-navigation mobile browser repair are integrated.
+Full application and fresh PostgreSQL upgrade/migration/RLS/concurrency/role checks passed locally (`booking-link-*`). SQL/API regressions cover grant/event/tenant scope, revocation, normalized cached retries and retained provenance. Concurrent requests produce one link/audit; real PostgreSQL API retries recheck revoked booking authority. Exact-head CI remains required. The branch was rebased onto verified #222 main before publication; never rewrite published history.
+
+#221 is verified at `946410af4ef2e4a621954ca613cd6fd6b32b8d02` (post-merge contracts `45616192807`, secrets `45616192184`). #222 contextual headings merged at `b6a3c94000fe26831f9997935fd0bcb9a07d33e3`, matching checked head `b99fbf6e7fa51244bccb32adcef4574d828ffb46` after all five checks passed. Post-merge contracts `45617577494` and secrets `45617577661` passed.
 
 The owner has a pending delegation-policy question: may organization administrators grant only permissions they hold, or any tenant permission? Do not implement organization-wide role grants until that answer arrives. Other independent #104 work can continue.
 

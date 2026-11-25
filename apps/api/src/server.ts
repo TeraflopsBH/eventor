@@ -4589,6 +4589,28 @@ export function buildApi(dependencies: ApiDependencies): FastifyInstance {
     type: "object", required: ["eventId"], properties: { eventId: { type: "string", pattern: uuidPattern } },
   };
 
+  server.get<{Params:{eventId:string};Querystring:{offset?:number}}>("/events/:eventId/booking-links",{
+    schema:{params:eventParams,querystring:{type:"object",properties:{offset:{type:"integer",minimum:0,maximum:100000}}}},
+  },(request,reply)=>withRegistryRead(reply,registryPrincipal(request),
+    "SELECT eogp.list_event_booking_links($1::uuid,$3::uuid,$2::uuid,$4::integer) AS result",[request.params.eventId,request.query.offset??0]));
+  type EventBookingLinkBody=JsonRequestBody<"/events/{eventId}/booking-links","post">;
+  server.post<{Params:{eventId:string};Body:EventBookingLinkBody}>("/events/:eventId/booking-links",{
+    schema:{params:eventParams,headers:idempotencyHeaders,body:{type:"object",additionalProperties:false,
+      required:["bookingOwnerOrganizationId","bookingId","relationshipKind"],properties:{
+        bookingOwnerOrganizationId:{type:"string",pattern:uuidPattern},bookingId:{type:"string",pattern:uuidPattern},
+        collaborationGrantId:{type:["string","null"],pattern:uuidPattern},relationshipKind:{type:"string",enum:["venue_for_event","service_for_event","other"]},
+      }}},
+  },(request,reply)=>{
+    const principal=registryPrincipal(request);
+    const input={eventId:request.params.eventId.toLowerCase(),bookingOwnerOrganizationId:request.body.bookingOwnerOrganizationId.toLowerCase(),
+      bookingId:request.body.bookingId.toLowerCase(),collaborationGrantId:request.body.collaborationGrantId?.toLowerCase()??null,relationshipKind:request.body.relationshipKind};
+    const identity=[principal.organizationId,input.eventId,principal.membershipId,input.bookingOwnerOrganizationId,input.bookingId,input.collaborationGrantId];
+    return withCommand(request,reply.header("cache-control","no-store, private"),"event.booking_link.create",input,async client=>{
+      const result=await client.query<ResultRow>("SELECT eogp.create_event_booking_link($1::uuid,$2::uuid,$3::uuid,$4::uuid,$5::uuid,$6::uuid,$7::text) AS result",[...identity,input.relationshipKind]);
+      return (result.rows[0]?.result??{}) as Record<string,unknown>;
+    },async client=>{await client.query("SELECT eogp.assert_event_booking_link_permission($1::uuid,$2::uuid,$3::uuid,$4::uuid,$5::uuid,$6::uuid)",identity);},201);
+  });
+
   server.get<{ Params: { eventId: string } }>("/events/:eventId/rsvp-settings", {
     schema: { params: participationEventParams },
   }, (request, reply) => withRegistryRead(reply, registryPrincipal(request),

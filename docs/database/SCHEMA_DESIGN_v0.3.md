@@ -559,3 +559,9 @@ Review evidence binds both active relationship sets independently of profile rev
 ### Migration 193 — Registry classification filters
 
 A `(organization_id,label_id,person_id)` index supports tenant-scoped classification lookup. A Registry-read-authorized catalogue returns active and retired definitions. New directory/export overloads accept an optional label UUID and intersect it with existing name/profile-state filters before their page/export caps. Null and legacy overloads preserve existing unfiltered behavior and audit shape; selected IDs appear in internal read/export audit evidence. Unknown and foreign IDs produce empty results. Assignment history, public/event projections, direct-table ACLs and separate export authority remain unchanged. See ADR 0014.
+
+### Migration 194 — Booking/event association commands
+
+The existing `booking_event_links` table becomes a command-only application boundary. Creation requires exact event-management scope, plus booking-management authority for same-organization references or an accepted, active, booking-scoped `booking.event.link` grant for cross-organization references. Same-organization requests use no collaboration grant. Event-row serialization preserves one original row/audit under duplicate requests; existing active identical references are reused, while terminal or differently defined associations are refused.
+
+The list projection contains event-owned association IDs/kind/status/time and retains terminal records. It excludes provider commercial/contact fields and guest data. Cached retries revalidate current source/event authority. Existing creator/grant/audit triggers and tenant RLS remain active; direct runtime/auth/worker table access is revoked. No backfill, parallel aggregate or booking/event/snapshot mutation occurs. See ADR 0021. Staff selectors, lifecycle correction and disruption delivery/acknowledgement remain follow-ups.
