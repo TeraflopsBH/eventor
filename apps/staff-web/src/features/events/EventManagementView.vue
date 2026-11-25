@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import EventDisruptionInboxView from "./EventDisruptionInboxView.vue";
 import EventBookingLinksView from "./EventBookingLinksView.vue";
 import EventRsvpSettingsView from "./EventRsvpSettingsView.vue";
 import { sessionLocalTime, zonedLocalDateTimeToIso } from "../../local-date-time";
@@ -29,6 +30,8 @@ const lifecycleActions: Partial<Record<OrganizerEvent["status"], OrganizerEventA
 const canEditEvent = (event: OrganizerEvent) =>
   !["ready_for_approval", "approved", "archived"].includes(event.status);
 const createOpen = ref(false);
+const disruptionEventId=ref("");
+const disruptionEvent=computed(()=>events.value.find(event=>event.eventId===disruptionEventId.value));
 const bookingLinksEventId=ref("");
 const bookingLinksEvent=computed(()=>events.value.find(event=>event.eventId===bookingLinksEventId.value));
 const settingsEventId = ref("");
@@ -323,6 +326,7 @@ async function submitUpdate(): Promise<void> {
                 <button class="button button-secondary button-small" type="button" :aria-expanded="settingsEventId === event.eventId"
                   @click="settingsEventId = settingsEventId === event.eventId ? '' : event.eventId">{{ t("events.rsvpSettings") }}</button>
                 <button type="button" class="button button-secondary button-small" :disabled="busy" :aria-label="t('eventBookingLinks.openNamed',{event:event.title})" :aria-expanded="bookingLinksEventId===event.eventId" @click="bookingLinksEventId=bookingLinksEventId===event.eventId?'':event.eventId">{{t("eventBookingLinks.open")}}</button>
+                <button type="button" class="button button-secondary button-small" :disabled="busy" :aria-label="t('eventDisruptionInbox.openNamed',{event:event.title})" :aria-expanded="disruptionEventId===event.eventId" @click="disruptionEventId=disruptionEventId===event.eventId?'':event.eventId">{{t("eventDisruptionInbox.open")}}</button>
                 <span v-if="event.guestRegistryEnabled" class="muted">{{ t("events.guestListEnabled") }}</span>
                 <button v-else-if="['draft', 'planned', 'scheduled', 'active'].includes(event.status)"
                   class="button button-secondary button-small" type="button" :disabled="busy" @click="enableGuestRegistry(event)">
@@ -351,6 +355,7 @@ async function submitUpdate(): Promise<void> {
         </tbody>
       </table>
     </div>
+    <EventDisruptionInboxView v-if="disruptionEvent" :key="disruptionEvent.eventId" :organization-id="organizationId" :event-id="disruptionEvent.eventId" :event-title="disruptionEvent.title" />
     <EventBookingLinksView v-if="bookingLinksEvent" :key="bookingLinksEvent.eventId" :organization-id="organizationId" :event-id="bookingLinksEvent.eventId" :event-title="bookingLinksEvent.title" />
     <EventRsvpSettingsView v-if="settingsEvent" :key="settingsEvent.eventId" :event-id="settingsEvent.eventId" :event-title="settingsEvent.title" :read-only="['completed','cancelled','archived'].includes(settingsEvent.status)" :t="t" />
     <section v-if="sessionsEvent" class="event-form" aria-labelledby="organizer-sessions-heading">

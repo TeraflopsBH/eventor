@@ -23,3 +23,8 @@ Migration 196 allows local null-grant receipts while retaining mandatory matchin
 Publication and acknowledgement are audited and leave booking/event status, schedules, reservations, guest modules, invitations and RSVP unchanged. Acknowledgement means receipt was seen; it is neither resolution nor acceptance of a booking amendment. No cancellation, postponement, relocation, notification campaign, outbox delivery or commercial decision is inferred. Those commands and partner delivery remain subsequent #112 slices. The API foundation does not by itself expose staff action controls.
 
 SQL/API tests cover scope, revocation, safe snapshots, immutable provenance, unchanged aggregates, pagination and retry identity. Real PostgreSQL concurrent publication and acknowledgement tests require one receipt, one audit per transition and the original acknowledgement timestamp. Live SMTP/HTTPS and production installation acceptance are separate.
+
+
+## Staff controls extension
+
+The Events inbox uses server-filtered local association references and existing source-notice reads. Staff preview the public notice before native confirmation; repeated publication retains the original receipt. Event-only managers see published safe snapshots and may acknowledge, while source controls remain unavailable without booking authority. Role enforcement remains in the commands. Bilingual text separates receipt from resolution and inbox publication from email/partner delivery. Keyboard heading focus, escaped summaries, contained mobile layout and authorization cleanup are covered in Chromium/Firefox.
