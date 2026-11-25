@@ -1,14 +1,14 @@
 # Development resume — 2026-11-25
 
-Verified main: `745b6d4b2b73a8f643f3aa9afc999485ed6c1df2` (#223), with post-merge contracts `45620849659` and secrets `45620849359` passing. Prior receipts remain in the archive/ignored checkpoint.
+Verified main: `fe5cec3df1a970c14eec609a80f15141d565e3ec` (#224), with post-merge contracts `45623757322` and secrets `45623757442` passing. Prior receipts remain in the archive/ignored checkpoint.
 
 ## Current slice
 
-`codex/event-disruption-inbox-commands` adds migration 196/ADR 0022. Explicit local notice publication needs exact booking/event management and an active local association; immutable public snapshots are readable/acknowledgeable by event managers. Original publication/acknowledgement audits and first timestamps are retained under concurrent duplicates. Cached retries recheck source/event authority. Internal source/receipt fields are omitted. Booking/event/resource/guest facts remain unchanged. Partner publication and staff notice controls remain follow-ups.
+`codex/event-disruption-inbox-workspace` adds the bilingual Events inbox, explicit public-source preview/publication confirmation, event-only receipt acknowledgement and scoped source controls. The heading receives focus when opened. Public text is escaped, date/summary text identifies source choices, and authorization failure clears private panel data. All event/booking/guest decisions remain separate.
 
-Full application checks, final fresh PostgreSQL upgrade/migration/RLS/concurrency/auth-role tests and real PostgreSQL concurrent command/API-revocation acceptance passed (`disruption-inbox-*`). SQL covers safe/legacy projections, pagination, immutable history, scope and unchanged aggregates. Exact-head CI remains required.
+The API parent #225 merged at `1d6a585bbe83a800ac90aeb0196fcd52ae1ec919`, matching checked head `b7b7df823049abb7affdbaeb129832c48389043d` after all five checks/CLEAN. Post-merge verification is pending. It adds migration 196/ADR 0022 over the existing receipt aggregate; full application/final fresh PostgreSQL/API concurrency acceptance passed. The staff slice adds no further migration/API change. Full application, Chromium/Firefox flow and inspected synthetic desktop/mobile screenshots passed locally; final source-choice wording was rechecked with staff build/browser runs. Exact-head CI remains required.
 
-#224 linked-booking UI integrated at `fe5cec3df1a970c14eec609a80f15141d565e3ec`, matching checked head `2d3603a44ab70a6d44bea1900bcad56233fe31bc` after all five checks/CLEAN. Post-merge contracts `45623757322` and secrets `45623757442` are pending. Rebase only unpublished child commits onto this main before publication. Next: notice inbox/publication/acknowledgement staff controls with explicit confirmation and bilingual permission/failure handling. Never treat inbox publication as SMTP delivery or acknowledgement as resolution.
+Inspect #225 post-merge runs; commit/rebase only unpublished UI child commits onto that main before publication. Never rewrite published history. Next #112 work: explicitly scoped cross-organization partner setup/delivery and reviewed resolution/amendment/postponement flows; do not treat inbox publication as SMTP delivery or acknowledgement as resolution.
 
 The owner has a pending delegation-policy question: may organization administrators grant only permissions they hold, or any tenant permission? Do not implement organization-wide role grants until that answer arrives. Other independent #104 work can continue.
 

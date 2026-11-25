@@ -512,6 +512,12 @@ jobs:
         env:
           EVENTOR_BOOKING_LINK_BROWSER_BASE_URL: http://localhost:4173
         run: bash scripts/dev/run-browser-smoke.sh event-booking-links
+      - name: Seed event-only disruption inbox browser account
+        run: psql "$MIGRATOR_URL" -X -v ON_ERROR_STOP=1 -f tests/database/event_disruption_inbox_browser_fixture.sql
+      - name: Verify event disruption inbox in Chromium and Firefox
+        env:
+          EVENTOR_EVENT_INBOX_BROWSER_BASE_URL: http://localhost:4173
+        run: bash scripts/dev/run-browser-smoke.sh event-disruption-inbox
       - name: Stop the staff web preview
         if: always()
         run: |

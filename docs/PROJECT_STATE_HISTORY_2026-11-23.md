@@ -637,3 +637,8 @@ Checked head `b99fbf6e7fa51244bccb32adcef4574d828ffb46` passed all five required
 ## 2026-11-25 — Booking/event association foundation (#223)
 
 Migration 194/ADR 0021 expose existing association commands under exact event and local booking/accepted partner-grant authority. Duplicate creation is serialized before audit, terminal meaning cannot be silently changed and cached retries recheck authority. Checked head `aded19004def37f11d78933bfa35b97c50b8fb26` passed all five checks/CLEAN; squash main `745b6d4b2b73a8f643f3aa9afc999485ed6c1df2` has the identical tree. Post-merge contracts `45620849659` and secret history `45620849359` passed. Full local application/fresh PostgreSQL migration, tenant, grant, retry and concurrency tests passed. Staff selectors and notification workflows were explicitly deferred to subsequent slices.
+
+
+## 2026-11-25 — Events linked-booking selector (#224)
+
+Migration 195 projects local reference labels only under current booking authority. Bilingual Events controls search permitted bookings and explicitly confirm associations; external/restricted references remain generic. Checked head `2d3603a44ab70a6d44bea1900bcad56233fe31bc` passed all five checks/CLEAN; squash main `fe5cec3df1a970c14eec609a80f15141d565e3ec` has the identical tree. Post-merge contracts `45623757322` and secrets `45623757442` passed. Full local application/fresh PostgreSQL/Chromium/Firefox tests and synthetic desktop/mobile inspection passed. Partner setup and lifecycle correction remain open.
