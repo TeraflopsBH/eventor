@@ -48,9 +48,20 @@ try{
  const revoked=await api.inject(revoke);assert.equal(revoked.statusCode,200,revoked.body);assert.equal(revoked.json().data.acceptedAt,accepted.json().data.acceptedAt);
  const repeated=await api.inject({...revoke,payload:{reason:revoke.payload.reason.trim()}});assert.equal(repeated.statusCode,200,repeated.body);assert.equal(repeated.json().data.revokedAt,revoked.json().data.revokedAt);
  principal={organizationId:b,membershipId:actorB,userId:user};assert.equal((await api.inject(accept)).statusCode,409,'cached acceptance ignored source revocation');
+ const reviewedGrant=await ownerTransaction(a,actorA,async()=>(await owner.query("SELECT eogp.propose_collaboration_grant(NULL,$1,'booking',NULL,NULL,$2,'Synthetic reviewed booking collaboration','{}',ARRAY['booking.event.link'],clock_timestamp()-interval '1 hour',clock_timestamp()+interval '1 day',$3) AS id",[b,booking,actorA])).rows[0].id);
+ const reviewedDetails=await api.inject({method:'GET',url:`/collaboration-grants/${reviewedGrant}`});assert.equal(reviewedDetails.statusCode,200,reviewedDetails.body);const oldFingerprint=reviewedDetails.json().data.reviewFingerprint;assert.match(oldFingerprint,/^[a-f0-9]{64}$/);
+ await ownerTransaction(a,actorA,()=>owner.query("UPDATE eogp.collaboration_grants SET projection=$3::jsonb WHERE organization_id=$1 AND id=$2",[a,reviewedGrant,{reviewLabel:'Synthetic privileged source correction'}]));
+ const reviewedRequest={method:'POST',url:`/collaboration-grants/${reviewedGrant}/accept`,headers:{'idempotency-key':`reviewed-collaboration-${reviewedGrant}`},payload:{expectedReviewFingerprint:oldFingerprint}};
+ assert.equal((await api.inject(reviewedRequest)).statusCode,409,'stale reviewed scope was accepted');
+ const refreshed=await api.inject({method:'GET',url:`/collaboration-grants/${reviewedGrant}`});assert.equal(refreshed.json().data.status,'proposed');const freshFingerprint=refreshed.json().data.reviewFingerprint;assert.notEqual(freshFingerprint,oldFingerprint);
+ const pinnedRequest={...reviewedRequest,payload:{expectedReviewFingerprint:freshFingerprint}};
+ const pinned=await api.inject(pinnedRequest);assert.equal(pinned.statusCode,200,pinned.body);assert.equal((await api.inject(pinnedRequest)).statusCode,200);
+ await ownerTransaction(a,actorA,()=>owner.query("UPDATE eogp.collaboration_grants SET projection=$3::jsonb WHERE organization_id=$1 AND id=$2",[a,reviewedGrant,{reviewLabel:'Synthetic later privileged correction'}]));
+ assert.equal((await api.inject(pinnedRequest)).statusCode,409,'cached interactive acceptance ignored changed reviewed meaning');
  await ownerTransaction(b,actorB,()=>owner.query("DELETE FROM eogp.role_permissions WHERE organization_id=$1 AND role_id=$2 AND permission_code='collaboration.manage'",[b,roleB]));
  assert.equal((await api.inject(accept)).statusCode,403,'cached acceptance ignored role revocation');
+ assert.equal((await api.inject(pinnedRequest)).statusCode,403,'cached reviewed acceptance ignored role revocation');
  principal={organizationId:a,membershipId:actorA,userId:user};await ownerTransaction(a,actorA,()=>owner.query("DELETE FROM eogp.role_permissions WHERE organization_id=$1 AND role_id=$2 AND permission_code='collaboration.manage'",[a,roleA]));
  assert.equal((await api.inject(revoke)).statusCode,403,'cached revocation ignored role revocation');
- console.log('PASS acceptance/revocation serialize in both orders and preserve authentic history/audits; real PostgreSQL API review and cached retries enforce grant/role revocation');
+ console.log('PASS acceptance/revocation serialize in both orders and preserve authentic history/audits; real PostgreSQL API reviewed acceptance and cached retries enforce changed scope and grant/role revocation');
 }finally{if(api)await api.close();if(pool)await pool.end();await Promise.allSettled(clients.map(async client=>{await client.query('ROLLBACK');await client.end();}));await owner.end();}

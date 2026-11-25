@@ -12,7 +12,8 @@ middle_dir="$(mktemp -d)"
 forward_dir="$(mktemp -d)"
 later_dir="$(mktemp -d)"
 reference_dir="$(mktemp -d)"
-trap 'rm -rf "$pre_dir" "$post_dir" "$middle_dir" "$forward_dir" "$later_dir" "$reference_dir"' EXIT
+party_dir="$(mktemp -d)"
+trap 'rm -rf "$pre_dir" "$post_dir" "$middle_dir" "$forward_dir" "$later_dir" "$reference_dir" "$party_dir"' EXIT
 
 # Rehearse the exact schema boundary immediately before the worker-fix
 # migration. The migration chain through 000073 is applied first, then the
@@ -112,8 +113,10 @@ for file in "$ROOT_DIR"/database/migrations/[0-9][0-9][0-9][0-9][0-9][0-9]_*.sql
   version="${filename%%_*}"
   if (( 10#${version} >= 78 && 10#${version} < 183 )); then
     cp "$file" "$later_dir/"
-  elif (( 10#${version} >= 183 )); then
+  elif (( 10#${version} >= 183 && 10#${version} < 199 )); then
     cp "$file" "$reference_dir/"
+  elif (( 10#${version} >= 199 )); then
+    cp "$file" "$party_dir/"
   fi
 done
 DATABASE_URL="$MIGRATOR_URL" MIGRATIONS_DIR="$later_dir" \
@@ -123,4 +126,24 @@ echo "=== Rehearse reference encryption binding on populated tenants ==="
 psql "$MIGRATOR_URL" -X -v ON_ERROR_STOP=1 -f "$ROOT_DIR/tests/database/registry_reference_binding_migration_fixture.sql"
 DATABASE_URL="$MIGRATOR_URL" MIGRATIONS_DIR="$reference_dir" bash "$ROOT_DIR/scripts/db/migrate.sh"
 psql "$MIGRATOR_URL" -X -v ON_ERROR_STOP=1 -f "$ROOT_DIR/tests/database/registry_reference_binding_forward_migration_smoke.sql"
-echo "Populated schema upgrade rehearsals 000073 -> 000074, 000076 -> 000077 and 000182 -> 000183 passed."
+echo "=== Rehearse party-name capture without rewriting existing grants ==="
+party_before="$(psql "$MIGRATOR_URL" -X -qAt -v ON_ERROR_STOP=1 <<'SQL'
+SET ROLE eventor_owner;
+SET app.organization_id='11111111-1111-4111-8111-111111111111';
+SELECT to_jsonb(grant_row)::text FROM eogp.collaboration_grants grant_row WHERE id='60000000-0000-4000-8000-000000000001';
+SQL
+)"
+[[ -n "$party_before" ]] || { echo 'Legacy collaboration upgrade fixture is missing' >&2; exit 1; }
+DATABASE_URL="$MIGRATOR_URL" MIGRATIONS_DIR="$party_dir" bash "$ROOT_DIR/scripts/db/migrate.sh"
+party_after="$(psql "$MIGRATOR_URL" -X -qAt -v ON_ERROR_STOP=1 <<'SQL'
+SET ROLE eventor_owner;
+SET app.organization_id='11111111-1111-4111-8111-111111111111';
+SELECT (to_jsonb(grant_row)-'grantor_display_name'-'grantee_display_name')::text FROM eogp.collaboration_grants grant_row
+ WHERE id='60000000-0000-4000-8000-000000000001' AND grantor_display_name IS NULL AND grantee_display_name IS NULL;
+SQL
+)"
+if [[ "$party_before" != "$party_after" ]]; then
+  echo 'Party-name upgrade changed historical grant facts or invented legacy names' >&2
+  exit 1
+fi
+echo "Populated schema upgrade rehearsals 000073 -> 000074, 000076 -> 000077, 000182 -> 000183 and 000198 -> 000199 passed."

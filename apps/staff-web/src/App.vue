@@ -296,7 +296,7 @@ onMounted(() => {
 
       <BookingCancellationPoliciesView v-else-if="activeTab === 'cancellations' && principal" :organization-id="principal.organizationId" :workspace="bookingCancellationPoliciesWorkspace" />
 
-      <OrganizationLocaleView v-else-if="activeTab === 'settings' && principal" :organization-id="principal.organizationId" :busy="organizationLocaleWorkspace.busy" :page-notice="organizationLocaleWorkspace.pageNotice" :show-error="showError" :translate="translate" :on-default-locale-changed="applyOrganizationDefaultLocale" :on-profile-changed="refreshSession" :can-configure-delivery="staffSessionState.workspaces.value.includes('delivery')" :load-delivery="emailDeliveryState.loadConfiguration">
+      <OrganizationLocaleView v-else-if="activeTab === 'settings' && principal" :organization-id="principal.organizationId" :busy="organizationLocaleWorkspace.busy" :page-notice="organizationLocaleWorkspace.pageNotice" :show-error="showError" :translate="translate" :on-default-locale-changed="applyOrganizationDefaultLocale" :on-profile-changed="refreshSession" :can-manage-collaboration="staffSessionState.canManageCollaboration.value" :can-configure-delivery="staffSessionState.workspaces.value.includes('delivery')" :load-delivery="emailDeliveryState.loadConfiguration">
         <template #delivery><EmailDeliveryView :workspace="emailDeliveryWorkspace" /></template>
       </OrganizationLocaleView>
 

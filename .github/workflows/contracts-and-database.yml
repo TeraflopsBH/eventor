@@ -522,6 +522,12 @@ jobs:
         env:
           EVENTOR_EVENT_INBOX_BROWSER_BASE_URL: http://localhost:4173
         run: bash scripts/dev/run-browser-smoke.sh event-disruption-inbox
+      - name: Seed scoped collaboration grant browser managers
+        run: psql "$MIGRATOR_URL" -X -v ON_ERROR_STOP=1 -f tests/database/collaboration_grant_browser_fixture.sql
+      - name: Verify partner access review and lifecycle controls
+        env:
+          EVENTOR_COLLABORATION_BROWSER_BASE_URL: http://localhost:4173
+        run: bash scripts/dev/run-browser-smoke.sh collaboration-grants
       - name: Stop the staff web preview
         if: always()
         run: |

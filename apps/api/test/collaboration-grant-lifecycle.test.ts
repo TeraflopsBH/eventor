@@ -42,3 +42,24 @@ test("collaboration list and detail pass selected party context and bound paging
   assert.equal((await app.inject({method:"GET",url:'/organizations/10000000-0000-0000-0000-00000000000a/collaboration-grants'})).statusCode,403);assert.equal(reads,2);
  }finally{await app.close();}
 });
+
+test("interactive acceptance binds the reviewed meaning and rechecks it on cached retries",async()=>{
+ const fingerprint="a".repeat(64);let calls=0,stale=false,stored:{request_sha256:unknown;response_status:unknown;response_body:unknown}|null=null;
+ const scope=[org,actor,grant,fingerprint];
+ const client={async query(sql:string,values:readonly unknown[]=[]){
+  if(sql.startsWith("SELECT request_sha256"))return{rows:stored?[stored]:[]};
+  if(sql.startsWith("INSERT INTO eogp.idempotency_records")){stored={request_sha256:values[4],response_status:null,response_body:null};return{rows:[{id:grant}]};}
+  if(sql.startsWith("UPDATE eogp.idempotency_records"))stored={request_sha256:values[4],response_status:values[5],response_body:values[6]};
+  if(sql.includes("SELECT eogp.assert_reviewed_collaboration_acceptance")){assert.deepEqual(values,scope);if(stale)throw Object.assign(new Error("private source correction detail"),{code:"55000"});}
+  if(sql.includes("SELECT eogp.accept_reviewed_collaboration_grant")){assert.deepEqual(values,scope);calls++;return{rows:[{result:{grantId:grant,status:"active"}}]};}
+  if(sql.includes("SELECT eogp.staff_collaboration_grant_action"))assert.fail("interactive acceptance bypassed the reviewed command");
+  return{rows:[]};
+ },release(){}};
+ const app=buildApi({pool:{connect:async()=>client} as unknown as Pool,authenticateStaff:async()=>({organizationId:org,membershipId:actor,userId:org}),verifyMutationOrigin:async()=>true});
+ const request={method:"POST" as const,url:`/collaboration-grants/${grant}/accept`,headers:{"idempotency-key":"synthetic-reviewed-grant"},payload:{expectedReviewFingerprint:fingerprint}};
+ try{
+  assert.equal((await app.inject(request)).statusCode,200);assert.equal((await app.inject(request)).statusCode,200);assert.equal(calls,1);
+  stale=true;const refused=await app.inject(request);assert.equal(refused.statusCode,409,refused.body);assert.ok(!refused.body.includes("private source correction detail"));assert.equal(calls,1);
+  assert.equal((await app.inject({...request,payload:{expectedReviewFingerprint:"invalid"}})).statusCode,400);
+ }finally{await app.close();}
+});

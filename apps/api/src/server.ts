@@ -1,4 +1,4 @@
-import { availableStaffWorkspaces, type WorkspaceGrant } from "./staff-workspaces.js";
+import { availableStaffCapabilities, availableStaffWorkspaces, type WorkspaceGrant } from "./staff-workspaces.js";
 import { isUuid, uuidPattern } from "./uuid.js";
 import Fastify, { type FastifyInstance, type FastifyReply, type FastifyRequest } from "fastify";
 import { createCipheriv, createDecipheriv, createHash, createHmac, randomBytes, randomUUID } from "node:crypto";
@@ -1940,7 +1940,7 @@ export function buildApi(dependencies: ApiDependencies): FastifyInstance {
         [principal.organizationId, principal.membershipId],
       );
       await client.query("COMMIT");
-      return reply.header("cache-control", "no-store, private").send({ data: { workspaces: availableStaffWorkspaces(grants.rows) } });
+      return reply.header("cache-control", "no-store, private").send({ data: { workspaces: availableStaffWorkspaces(grants.rows), capabilities:availableStaffCapabilities(grants.rows) } });
     } catch (error) {
       try { await client.query("ROLLBACK"); } catch { /* preserve original failure */ }
       throw databaseError(error);
@@ -4006,16 +4006,22 @@ export function buildApi(dependencies: ApiDependencies): FastifyInstance {
   server.get<{Params:{grantId:string}}>("/collaboration-grants/:grantId",{schema:{params:collaborationGrantParams}},
     (request,reply)=>withRegistryRead(reply,registryPrincipal(request),"SELECT eogp.read_staff_collaboration_grant($1::uuid,$2::uuid,$3::uuid) AS result",[request.params.grantId]));
   for(const action of ["accept","revoke"] as const){
-    server.post<{Params:{grantId:string};Body:{reason?:string}}>(`/collaboration-grants/:grantId/${action}`,{
-      schema:{params:collaborationGrantParams,headers:idempotencyHeaders,body:action==="accept"?{type:"object",additionalProperties:false}:{type:"object",additionalProperties:false,required:["reason"],properties:{reason:{type:"string",minLength:3,maxLength:2000}}}},
+    server.post<{Params:{grantId:string};Body:{reason?:string;expectedReviewFingerprint?:string}}>(`/collaboration-grants/:grantId/${action}`,{
+      schema:{params:collaborationGrantParams,headers:idempotencyHeaders,body:action==="accept"?{type:"object",additionalProperties:false,properties:{expectedReviewFingerprint:{type:"string",pattern:"^[a-f0-9]{64}$"}}}:{type:"object",additionalProperties:false,required:["reason"],properties:{reason:{type:"string",minLength:3,maxLength:2000}}}},
     },(request,reply)=>{
       const principal=registryPrincipal(request);const grantId=request.params.grantId.toLowerCase();const reason=action==="revoke"?request.body.reason?.trim()??null:null;
       if(action==="revoke" && (!reason || reason.length<3 || /[\p{Cc}\p{Cs}]/u.test(reason)))throw new ApiError(400,"VALIDATION_FAILED","Enter a valid revocation reason.");
+      const expected=action==="accept"?request.body.expectedReviewFingerprint:null;
       const scope=[principal.organizationId,principal.membershipId,grantId,action];
-      return withCommand(request,reply.header("cache-control","no-store, private"),`collaboration.grant.${action}`,{grantId,reason},async client=>{
-        const result=await client.query<ResultRow>("SELECT eogp.staff_collaboration_grant_action($1::uuid,$2::uuid,$3::uuid,$4::text,$5::text) AS result",[...scope,reason]);
+      return withCommand(request,reply.header("cache-control","no-store, private"),`collaboration.grant.${action}`,{grantId,reason,...(expected?{expectedReviewFingerprint:expected}:{})},async client=>{
+        const result=expected
+          ?await client.query<ResultRow>("SELECT eogp.accept_reviewed_collaboration_grant($1::uuid,$2::uuid,$3::uuid,$4::text) AS result",[...scope.slice(0,3),expected])
+          :await client.query<ResultRow>("SELECT eogp.staff_collaboration_grant_action($1::uuid,$2::uuid,$3::uuid,$4::text,$5::text) AS result",[...scope,reason]);
         return (result.rows[0]?.result??{}) as Record<string,unknown>;
-      },async client=>{await client.query("SELECT eogp.assert_staff_collaboration_action($1::uuid,$2::uuid,$3::uuid,$4::text)",scope);},200);
+      },async client=>{
+        if(expected)await client.query("SELECT eogp.assert_reviewed_collaboration_acceptance($1::uuid,$2::uuid,$3::uuid,$4::text)",[...scope.slice(0,3),expected]);
+        else await client.query("SELECT eogp.assert_staff_collaboration_action($1::uuid,$2::uuid,$3::uuid,$4::text)",scope);
+      },200);
     });
   }
 

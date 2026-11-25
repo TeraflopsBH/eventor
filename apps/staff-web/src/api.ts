@@ -1274,7 +1274,7 @@ export interface GuestRegistryDirectory {
 }
 
 export interface StaffCollaborationGrant {
-  grantId:string;grantorOrganizationId:string;granteeOrganizationId:string;scopeKind:"venue"|"space"|"booking";
+  grantId:string;grantorOrganizationId:string;granteeOrganizationId:string;grantorDisplayName?:string|null;granteeDisplayName?:string|null;canAccept?:boolean;canRevoke?:boolean;scopeKind:"venue"|"space"|"booking";
   venueId:string|null;spaceId:string|null;bookingId:string|null;purpose:string;allowedActions:string[];
   status:"proposed"|"active"|"expired"|"revoked"|"declined";validFrom:string;validUntil:string|null;effective:boolean;
   acceptedAt:string|null;revokedAt:string|null;createdAt:string;projection?:Record<string,unknown>;
@@ -1667,8 +1667,8 @@ export interface RegistryLabel {labelId:string;label:string;retired:boolean}
 export interface RegistryPersonLabels {revision:number;canManage:boolean;labels:RegistryLabel[];assignedLabelIds:string[]}
 export const api = {
   listCollaborationGrants:(organizationId:string,offset=0)=>request<Envelope<{grants:StaffCollaborationGrant[];nextOffset:number|null}>>(`/organizations/${encodeURIComponent(organizationId)}/collaboration-grants?offset=${offset}`),
-  readCollaborationGrant:(grantId:string)=>request<Envelope<StaffCollaborationGrant & {projection:Record<string,unknown>}>>(`/collaboration-grants/${encodeURIComponent(grantId)}`),
-  acceptCollaborationGrant:(grantId:string)=>request<Envelope<StaffCollaborationGrant>>(`/collaboration-grants/${encodeURIComponent(grantId)}/accept`,{method:"POST",idempotent:true,body:{}}),
+  readCollaborationGrant:(grantId:string)=>request<Envelope<StaffCollaborationGrant & {projection:Record<string,unknown>;reviewFingerprint:string}>>(`/collaboration-grants/${encodeURIComponent(grantId)}`),
+  acceptCollaborationGrant:(grantId:string,expectedReviewFingerprint?:string)=>request<Envelope<StaffCollaborationGrant>>(`/collaboration-grants/${encodeURIComponent(grantId)}/accept`,{method:"POST",idempotent:true,body:expectedReviewFingerprint?{expectedReviewFingerprint}:{}}),
   revokeCollaborationGrant:(grantId:string,reason:string)=>request<Envelope<StaffCollaborationGrant>>(`/collaboration-grants/${encodeURIComponent(grantId)}/revoke`,{method:"POST",idempotent:true,body:{reason}}),
   searchBookingReferences:(organizationId:string,query:string,offset=0)=>request<Envelope<{bookings:DisruptionBooking[];nextOffset:number|null}>>(`/organizations/${encodeURIComponent(organizationId)}/booking-references/search`,{method:"POST",body:{query,offset}}),
   listEventDisruptionNotices:(eventId:string,offset=0)=>request<Envelope<{notices:EventDisruptionNotice[];nextOffset:number|null}>>(`/events/${encodeURIComponent(eventId)}/disruption-notices?offset=${offset}`),
@@ -2102,7 +2102,7 @@ export const api = {
     request<Envelope<{ csrfToken: string; expiresAt: string } | {organizationSelectionRequired:true;organizations:{organizationId:string;organizationName:string}[]}>>("/auth/session", { method: "POST", body }),
   switchStaffOrganization:(organizationId:string)=>request<Envelope<{organizationId:string}>>("/auth/session/organization",{method:"POST",body:{organizationId}}),
   me: () => request<Envelope<Principal>>("/me"),
-  getStaffWorkspaces: () => request<Envelope<{ workspaces: import("./features/application-shell/useStaffSession").StaffTab[] }>>("/me/workspaces"),
+  getStaffWorkspaces: () => request<Envelope<{ workspaces: import("./features/application-shell/useStaffSession").StaffTab[];capabilities?:{manageCollaboration:boolean} }>>("/me/workspaces"),
   updateUserLocale: (locale: "bs-BA" | "en" | null) => request<Envelope<{ userLocale: "bs-BA" | "en" | null }>>("/me/preferences", { method: "PATCH", body: { locale }, keepalive: true }),
   listOrganizationAccessRoles: (organizationId: string) =>
     request<Envelope<OrganizationAccessRole[]>>(`/organizations/${encodeURIComponent(organizationId)}/roles`),
