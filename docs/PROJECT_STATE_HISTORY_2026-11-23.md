@@ -632,3 +632,8 @@ Checked head `655c740891073b232f66edf5d1568b85b4f9ac0b` passed all five required
 ### Verified integration — Contextual bilingual workspace headings (#222), 2026-11-25
 
 Checked head `b99fbf6e7fa51244bccb32adcef4574d828ffb46` passed all five required checks with CLEAN merge state. Squash main `b6a3c94000fe26831f9997935fd0bcb9a07d33e3` matches the checked tree. Post-merge contracts `45617577494` and secrets `45617577661` passed. Headings/help follow the selected section in both languages; navigation, sessions and permissions retain their existing behavior. The user preview remains stopped.
+
+
+## 2026-11-25 — Booking/event association foundation (#223)
+
+Migration 194/ADR 0021 expose existing association commands under exact event and local booking/accepted partner-grant authority. Duplicate creation is serialized before audit, terminal meaning cannot be silently changed and cached retries recheck authority. Checked head `aded19004def37f11d78933bfa35b97c50b8fb26` passed all five checks/CLEAN; squash main `745b6d4b2b73a8f643f3aa9afc999485ed6c1df2` has the identical tree. Post-merge contracts `45620849659` and secret history `45620849359` passed. Full local application/fresh PostgreSQL migration, tenant, grant, retry and concurrency tests passed. Staff selectors and notification workflows were explicitly deferred to subsequent slices.

@@ -4009,6 +4009,11 @@ export function buildApi(dependencies: ApiDependencies): FastifyInstance {
       "SELECT eogp.list_booking_disruption_workspace($1::uuid,$2::uuid,$3::integer,$4::text) AS result",
       [request.body.offset ?? 0,request.body.query ?? ""]));
 
+  server.post<{Params:OrganizationAccessParams;Body:{offset?:number;query?:string}}>(`${organizationAccessPath}/booking-references/search`,{
+    schema:{params:organizationInquiryParams,body:{type:"object",additionalProperties:false,properties:{offset:{type:"integer",minimum:0,maximum:100000},query:{type:"string",maxLength:80}}}},
+  },(request,reply)=>withRegistryRead(reply,registryPrincipal(request,request.params.organizationId),
+    "SELECT eogp.list_booking_disruption_workspace($1::uuid,$2::uuid,$3::integer,$4::text) AS result",[request.body.offset??0,request.body.query??""]));
+
   const bookingNoticesPath = "/bookings/:bookingId/disruption-notices";
   const bookingNoticeParams = {
     type:"object",additionalProperties:false,required:["bookingId"],

@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import EventBookingLinksView from "./EventBookingLinksView.vue";
 import EventRsvpSettingsView from "./EventRsvpSettingsView.vue";
 import { sessionLocalTime, zonedLocalDateTimeToIso } from "../../local-date-time";
 import { formatDateTime } from "../../i18n/format";
@@ -10,7 +11,7 @@ import type { OrganizerEvent, OrganizerEventAction, OrganizerEventSessionAction,
 
 type Workspace = ReturnType<typeof useOrganizerEvents> & { busy: Ref<boolean> };
 
-const props = defineProps<{ workspace: Workspace; t: (key: string, params?: Record<string, string | number>) => string }>();
+const props = defineProps<{ organizationId:string; workspace: Workspace; t: (key: string, params?: Record<string, string | number>) => string }>();
 const t = props.t;
 const { locale } = useI18n();
 const {
@@ -28,6 +29,8 @@ const lifecycleActions: Partial<Record<OrganizerEvent["status"], OrganizerEventA
 const canEditEvent = (event: OrganizerEvent) =>
   !["ready_for_approval", "approved", "archived"].includes(event.status);
 const createOpen = ref(false);
+const bookingLinksEventId=ref("");
+const bookingLinksEvent=computed(()=>events.value.find(event=>event.eventId===bookingLinksEventId.value));
 const settingsEventId = ref("");
 const settingsEvent = computed(() => events.value.find(event => event.eventId === settingsEventId.value));
 const editingEventId = ref("");
@@ -319,6 +322,7 @@ async function submitUpdate(): Promise<void> {
                 </button>
                 <button class="button button-secondary button-small" type="button" :aria-expanded="settingsEventId === event.eventId"
                   @click="settingsEventId = settingsEventId === event.eventId ? '' : event.eventId">{{ t("events.rsvpSettings") }}</button>
+                <button type="button" class="button button-secondary button-small" :disabled="busy" :aria-label="t('eventBookingLinks.openNamed',{event:event.title})" :aria-expanded="bookingLinksEventId===event.eventId" @click="bookingLinksEventId=bookingLinksEventId===event.eventId?'':event.eventId">{{t("eventBookingLinks.open")}}</button>
                 <span v-if="event.guestRegistryEnabled" class="muted">{{ t("events.guestListEnabled") }}</span>
                 <button v-else-if="['draft', 'planned', 'scheduled', 'active'].includes(event.status)"
                   class="button button-secondary button-small" type="button" :disabled="busy" @click="enableGuestRegistry(event)">
@@ -347,6 +351,7 @@ async function submitUpdate(): Promise<void> {
         </tbody>
       </table>
     </div>
+    <EventBookingLinksView v-if="bookingLinksEvent" :key="bookingLinksEvent.eventId" :organization-id="organizationId" :event-id="bookingLinksEvent.eventId" :event-title="bookingLinksEvent.title" />
     <EventRsvpSettingsView v-if="settingsEvent" :key="settingsEvent.eventId" :event-id="settingsEvent.eventId" :event-title="settingsEvent.title" :read-only="['completed','cancelled','archived'].includes(settingsEvent.status)" :t="t" />
     <section v-if="sessionsEvent" class="event-form" aria-labelledby="organizer-sessions-heading">
       <h3 id="organizer-sessions-heading">{{ t("events.sessionsFor", { title: sessionsEvent.title }) }}</h3>

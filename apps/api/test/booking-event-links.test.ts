@@ -42,3 +42,19 @@ test("event association page passes selected tenant/actor and rejects invalid pa
   assert.equal((await app.inject({method:"POST",url:`/events/${eventId}/booking-links`,headers:{"idempotency-key":"invalid-link-fixture"},payload:{bookingOwnerOrganizationId:organizationId,bookingId,relationshipKind:"unsupported"}})).statusCode,400);
  }finally{await app.close();}
 });
+
+test("booking reference lookup forwards only selected-organization context and validates search bounds",async()=>{
+ let reads=0;
+ const client={async query(sql:string,values:readonly unknown[]=[]){
+  if(sql.includes("SELECT eogp.list_booking_disruption_workspace")){reads++;assert.deepEqual(values,[organizationId,membershipId,0,"Synthetic"]);return{rows:[{result:{bookings:[{bookingId,bookingCode:"Synthetic reference",status:"confirmed"}],nextOffset:null}}]};}
+  return{rows:[]};
+ },release(){}};
+ const app=buildApi({pool:{connect:async()=>client} as unknown as Pool,authenticateStaff:async()=>({organizationId,membershipId,userId:"20000000-0000-0000-0000-00000000000b"}),verifyMutationOrigin:async()=>true});
+ try{
+  const url=`/organizations/${organizationId}/booking-references/search`;
+  const response=await app.inject({method:"POST",url,payload:{query:"Synthetic"}});assert.equal(response.statusCode,200,response.body);assert.equal(response.json().data.bookings[0].bookingCode,"Synthetic reference");assert.match(response.headers["cache-control"]??"",/no-store/);
+  assert.equal((await app.inject({method:"POST",url,payload:{query:"x".repeat(81)}})).statusCode,400);
+  assert.equal((await app.inject({method:"POST",url,payload:{offset:-1}})).statusCode,400);
+  assert.equal((await app.inject({method:"POST",url:"/organizations/10000000-0000-0000-0000-00000000000a/booking-references/search",payload:{query:"Synthetic"}})).statusCode,403);assert.equal(reads,1);
+ }finally{await app.close();}
+});

@@ -286,7 +286,7 @@ onMounted(() => {
 
 
       <BookingFormsView v-else-if="activeTab === 'forms'" :workspace="bookingFormsWorkspace" />
-      <EventManagementView v-else-if="activeTab === 'events'" :workspace="organizerEventsWorkspace" :t="translate" />
+      <EventManagementView :organization-id="principal?.organizationId ?? ''" v-else-if="activeTab === 'events'" :workspace="organizerEventsWorkspace" :t="translate" />
 
       <BookingPriceListsView v-else-if="activeTab === 'prices'" :workspace="bookingPriceListsWorkspace" />
 
