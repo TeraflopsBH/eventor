@@ -38,6 +38,6 @@ export async function provisionStaffMembership(pool: Pick<Pool, "connect">, inpu
     const code = (failure as {code?: string}).code;
     if (code === "42501") throw new StaffMembershipError("OWNER_REQUIRED", "Use a privileged migration connection that can select eventor_owner.");
     if (code === "23505") throw new StaffMembershipError("MEMBERSHIP_EXISTS", "A membership already exists; review its current access separately.");
-    throw new StaffMembershipError("PROVISIONING_FAILED", "Provisioning failed; no membership was committed.");
+    throw new StaffMembershipError("PROVISIONING_FAILED", "Membership provisioning failed. Review the selected account's membership before retrying.");
   } finally { client.release(); }
 }
