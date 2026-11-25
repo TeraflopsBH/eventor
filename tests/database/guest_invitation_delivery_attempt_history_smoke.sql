@@ -324,6 +324,8 @@ $attempt_history_authorization$;
 -- A successor published policy with an expired deadline exercises the
 -- separate late-recording permission without changing the invitation's pinned
 -- policy revision used by the first participant.
+-- Fixture construction is privileged; runtime policy writes use the publication command.
+SET LOCAL ROLE eventor_owner;
 INSERT INTO eogp.rsvp_policy_revisions (
   id,organization_id,event_id,policy_id,revision_number,
   response_deadline,event_timezone,state,published_at,late_change_requires_staff

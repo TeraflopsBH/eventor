@@ -4106,6 +4106,65 @@ paths:
         '409': { $ref: '#/components/responses/Conflict' }
         '412': { $ref: '#/components/responses/PreconditionFailed' }
         '503': { $ref: '#/components/responses/ServiceUnavailable' }
+  "/events/{eventId}/rsvp-settings":
+    get:
+      tags: ["Events"]
+      operationId: getEventRsvpSettings
+      summary: Read the current published RSVP settings
+      description: Requires event.manage for the selected tenant and event.
+      security: [{ StaffSession: [] }]
+      parameters:
+        - $ref: '#/components/parameters/PEventId'
+      responses:
+        '200':
+          description: Current policy or null when no policy has been published.
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/EventRsvpSettingsEnvelope' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '404': { $ref: '#/components/responses/NotFound' }
+    post:
+      tags: ["Events"]
+      operationId: publishEventRsvpSettings
+      summary: Publish a new immutable event RSVP policy revision
+      description: Requires event.manage and an open event. Existing invitations retain their pinned policy. No modules or notifications are activated.
+      security: [{ StaffSession: [], StaffCsrf: [] }]
+      parameters:
+        - $ref: '#/components/parameters/PEventId'
+        - $ref: '#/components/parameters/IdempotencyKey'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              additionalProperties: false
+              required: [expectedRevisionId, allowedResponses, responseDeadline, responseChangeAllowed, expectedTimezoneName]
+              properties:
+                expectedTimezoneName: { type: string, minLength: 1, maxLength: 80 }
+                expectedRevisionId: { type: [string, 'null'], format: uuid }
+                allowedResponses:
+                  type: array
+                  minItems: 1
+                  maxItems: 3
+                  uniqueItems: true
+                  items: { type: string, enum: [accepted, declined, tentative] }
+                responseDeadline: { type: [string, 'null'], format: date-time }
+                responseChangeAllowed: { type: boolean }
+      responses:
+        '200':
+          description: Published settings; older policy snapshots remain unchanged.
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/EventRsvpSettingsEnvelope' }
+        '400': { $ref: '#/components/responses/BadRequest' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '404': { $ref: '#/components/responses/NotFound' }
+        '409': { $ref: '#/components/responses/Conflict' }
+        '412': { $ref: '#/components/responses/PreconditionFailed' }
+        '422': { $ref: '#/components/responses/UnprocessableEntity' }
   "/events/{eventId}/guest-registry/enable":
     post:
       tags: ["Event Participation"]
@@ -8794,6 +8853,32 @@ components:
         scopeName: { type: [string, 'null'] }
         eventId: { type: [string, 'null'], format: uuid }
         expiresAt: { type: [string, 'null'], format: date-time }
+    EventRsvpSettingsEnvelope:
+      type: object
+      required: [data]
+      properties:
+        data:
+          type: object
+          required: [eventId, timezoneName, policy]
+          properties:
+            eventId: { type: string, format: uuid }
+            timezoneName: { type: string }
+            policy:
+              oneOf:
+                - type: 'null'
+                - type: object
+                  required: [revisionId, revisionNumber, allowedResponses, responseDeadline, responseChangeAllowed]
+                  properties:
+                    revisionId: { type: string, format: uuid }
+                    revisionNumber: { type: integer, minimum: 1 }
+                    allowedResponses:
+                      type: array
+                      minItems: 1
+                      maxItems: 3
+                      uniqueItems: true
+                      items: { type: string, enum: [accepted, declined, tentative] }
+                    responseDeadline: { type: [string, 'null'], format: date-time }
+                    responseChangeAllowed: { type: boolean }
     OrganizationAccessMember:
       type: object
       required: [membershipId, revision, displayName, status, hostManaged, grants]

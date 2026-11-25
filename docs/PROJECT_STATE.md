@@ -4,7 +4,7 @@ Updated 2026-11-25. This page is the current development handoff. Detailed histo
 
 ## Verified integration baseline
 
-`main` was verified at `58e4c95e1c6923b437ea80cc1364e3ada80e8eb3`, after [email-first workspace access, PR #211](https://github.com/TeraflopsBH/eventor/pull/211). Post-merge [contracts/PostgreSQL](https://github.com/TeraflopsBH/eventor/actions/runs/45507846026) and [secret history](https://github.com/TeraflopsBH/eventor/actions/runs/45507846531) passed.
+`main` was verified at `ce17be1e3245a7f2dcac5d3ba5d7198058263cc5`, after [host-managed member controls #212](https://github.com/TeraflopsBH/eventor/pull/212) and [preview handoff correction #213](https://github.com/TeraflopsBH/eventor/pull/213). Post-merge [contracts/PostgreSQL](https://github.com/TeraflopsBH/eventor/actions/runs/45514104215) and [secret history](https://github.com/TeraflopsBH/eventor/actions/runs/45514104208) passed.
 
 This includes reviewed current-state restoration (#206), source-reference transfers with preserved encryption identity (#205), reviewed contact transfers (#204), public cancellation isolation (#203), the concise handoff (#202), provider notices (#201) and UUID compatibility (#200). Detailed receipts are in the linked archive.
 
@@ -16,7 +16,9 @@ Migration 187 adds an explicit, host-managed platform administrator flag (defaul
 
 Full application, native PostgreSQL, fresh isolated Docker database and Chromium/Firefox checks passed locally, including password-before-workspace disclosure, session rotation/lifetime, CSRF, normal tenant limits, explicit platform access and revocation. The live preview was verified separately. PR #211 passed exact-head CI and post-merge verification.
 
-The next slice adds a selected-tenant `hostManaged` member-directory field and labels host-managed platform access in both languages, omitting unsupported suspension controls. Migration 188 reuses the authorized search projection for both directory paths. The server membership guard remains authoritative. Full application checks, fresh PostgreSQL migration/RLS/concurrency/auth checks, and Chromium/Firefox staff-shell, Registry-label and workspace journeys passed locally. Exact-head CI remains required before integration.
+Host-managed member controls (#212, migration 188) are integrated and verified. Both member-directory paths identify host-managed platform access, with bilingual explanations instead of unsupported suspension controls. The database guard remains authoritative.
+
+The current slice adds event-level RSVP settings under scoped `event.manage`: allowed answers, optional deadline in the effective event time zone, and response-change permission. Publication creates a new immutable policy revision, checks the expected policy/time zone, and audits the actor. Existing invitations retain pinned revisions. No other event modules or messages are activated. Migration 189 and ADR 0016 define the boundary. Full application checks, a fresh PostgreSQL upgrade/migration/RLS/concurrency/auth-role suite and Chromium/Firefox RSVP journeys passed locally. Tests cover pinned invitation history, stale policy/time-zone edits, retirement, tenant permissions, CSRF, idempotent retries and unchanged deadline precision. Exact-head CI remains required before integration.
 
 The interactive preview was stopped at the owner’s request. Its disposable `--rm` database container was removed on stop: source, fixtures and build remain, but exploratory database edits were not retained. Recreate the next interactive preview with a persistent named volume and a local backup before shutdown.
 

@@ -19,7 +19,7 @@ test("event administration is mounted in the authenticated staff workspace", () 
 
 test("event creation interprets local times in the selected IANA time zone", () => {
   assert.ok(view.includes("zonedLocalDateTimeToIso"));
-  assert.ok(view.includes("new Intl.DateTimeFormat"));
+  assert.ok(view.includes('from "../../local-date-time"'));
   assert.ok(view.includes("event.scheduleTimezoneName ?? event.timezoneName"));
   assert.ok(view.includes("events.invalidSchedule"));
 });

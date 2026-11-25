@@ -1144,6 +1144,20 @@ export interface PageMeta {
   counts?: Record<string, number>;
 }
 
+export type RsvpAnswer = "accepted" | "declined" | "tentative";
+export interface EventRsvpSettings {
+  eventId: string;
+  timezoneName: string;
+  policy: null | { revisionId: string; revisionNumber: number; allowedResponses: RsvpAnswer[]; responseDeadline: string | null; responseChangeAllowed: boolean };
+}
+export interface PublishEventRsvpSettingsInput {
+  expectedTimezoneName: string;
+  expectedRevisionId: string | null;
+  allowedResponses: RsvpAnswer[];
+  responseDeadline: string | null;
+  responseChangeAllowed: boolean;
+}
+
 export interface OrganizerEvent {
   eventId: string;
   eventCode: string;
@@ -1630,6 +1644,9 @@ export const api = {
   setRegistryPersonLabels:(personId:string,expectedRevision:number,labelIds:string[])=>request<Envelope<{revision:number;assignedLabelIds:string[]}>>(`/persons/${encodeURIComponent(personId)}/labels`,{method:"PATCH",idempotent:true,body:{expectedRevision,labelIds}}),
   createRegistryLabel:(organizationId:string,label:string)=>request<Envelope<RegistryLabel>>(`/organizations/${encodeURIComponent(organizationId)}/persons/labels`,{method:"POST",idempotent:true,body:{label}}),
   retireRegistryLabel:(organizationId:string,labelId:string)=>request<Envelope<RegistryLabel>>(`/organizations/${encodeURIComponent(organizationId)}/persons/labels/${encodeURIComponent(labelId)}/retire`,{method:"POST",idempotent:true}),
+  getEventRsvpSettings: (eventId: string) => request<Envelope<EventRsvpSettings>>(`/events/${encodeURIComponent(eventId)}/rsvp-settings`),
+  publishEventRsvpSettings: (eventId: string, body: PublishEventRsvpSettingsInput) =>
+    request<Envelope<EventRsvpSettings>>(`/events/${encodeURIComponent(eventId)}/rsvp-settings`, { method: "POST", idempotent: true, body }),
   enableEventGuestRegistry: (eventId: string) =>
     request<Envelope<{ eventId: string; guestRegistryEnabled: boolean }>>(`/events/${encodeURIComponent(eventId)}/guest-registry/enable`, {
       method: "POST", idempotent: true,
