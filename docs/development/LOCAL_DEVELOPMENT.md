@@ -177,3 +177,13 @@ When an interactive preview is running, reserve its database for the user and ru
 The disposable database helper `.eventor-dev/start-compose-ci.sh` uses Docker `--rm`; stopping that container also removes its anonymous database volume. It is suitable for isolated acceptance runs, but must not be used as persistent storage for an interactive preview the owner may edit. The November 25 preview shutdown exposed this distinction; its exploratory edits were not retained.
 
 For future interactive previews, use a dedicated named PostgreSQL volume and a container without `--rm`. Record the container, volume, connection and build snapshot in ignored preview state. Before shutdown, take a privileged `pg_dump` into an ignored, access-restricted local directory and verify the dump is readable; keep sensitive data out of Git. Check container mounts and removal mode before claiming data is preserved. Stop only the preview's identified API/web processes and database container. Do not remove its volume during routine shutdown.
+
+### Bootstrap a new staff account on the host
+
+After migrations through 187 and an API build (`npm --prefix apps/api run build`), set the privileged `MIGRATOR_URL` and run:
+
+```bash
+scripts/admin/bootstrap-staff-account.sh --email staff@example.invalid --name 'Synthetic staff' --reason 'Initial account provisioning' --organization ORGANIZATION_UUID
+```
+
+Replace the synthetic identity and selected organization deliberately. The wrapper prompts twice without echoing the password. For noninteractive provisioning, pipe the password from a secure source through stdin; do not put it in command arguments, exported password variables or Git. This host tool accepts nonblank passwords of 12–1024 UTF-8 bytes. It refuses existing email identities, grants no roles, does not verify the mailbox and records the database operator in the private host journal. An organization membership still needs explicitly assigned roles. Omit `--organization` only when a global account without workspace membership is intended; the separate platform-admin command may subsequently grant platform authority. See ADR 0017.

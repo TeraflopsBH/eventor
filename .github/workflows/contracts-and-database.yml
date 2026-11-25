@@ -234,6 +234,9 @@ jobs:
           MIGRATOR_URL: ${{ env.MIGRATOR_URL }}
         run: node apps/api/scripts/prepare-notification-worker-fixture.mjs
 
+      - name: Verify host-only staff account bootstrap
+        run: node apps/api/scripts/staff-account-bootstrap-postgres-smoke.mjs
+
       - name: Verify guest invitation delivery attempt-history transitions
         run: |
           ADMIN_EVENTOR_URL="${ADMIN_URL%/postgres}/eventor"
