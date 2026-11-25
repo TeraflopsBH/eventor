@@ -597,3 +597,7 @@ Nullable grantor/recipient display names capture each party's own organization n
 ### Migration 200 — Accepted partner booking options
 
 The scoped event chooser reads only incoming active/accepted/effective booking grants with `booking.event.link`. It requires exact event management, omits all existing booking associations before pagination and projects only identities, captured provider name and shared purpose. No provider record/directory/configuration is queried. Current authority is independently checked by existing association creation. Reads are audited; runtime gets only function execution. SQL/browser regressions cover invalid windows/actions/status, exact event scope, source revocation between review/commit, terminal history, unchanged event/provider facts and denial cleanup. See ADR 0021.
+
+### Migration 201 — Narrow managed-booking proposals
+
+The proposal wrapper requires both organization collaboration management and organization/exact-booking management. It calls the existing proposal aggregate with fixed booking scope, only `booking.event.link` and an empty projection. Purpose and finite validity are validated; expiry is explicitly nullable. Existing name capture, initial revision and audit remain authoritative. Runtime receives only scoped function execution. HTTP idempotency normalizes IDs/text/times and rechecks both source authorities on cached creation receipts. Recipient acceptance stays separate, and no booking/event records change. See ADR 0023.

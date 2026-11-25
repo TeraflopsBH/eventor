@@ -4,11 +4,13 @@ Verified main: `f6039be2d630b7834fe19856660a051a17db2ec9` (#229), with post-merg
 
 ## Current slice
 
-`codex/partner-booking-selector` adds migration 200 and accepted partner booking choices in Events → Linked bookings. Exact event managers select captured provider/purpose and confirm without typing IDs. The server reads only incoming active/accepted/effective booking.event.link grant metadata, excludes all historical associations before pagination and audits the read. Existing creation rechecks current authority; source revocation after selection refuses linking. Provider booking records, directory/configuration, commercial/guest data and event/provider facts remain protected.
+`codex/booking-collaboration-proposals` adds migration 201 and a dedicated managed-booking proposal API. Both organization collaboration management and organization/exact-booking management are required. Scope/action/projection are fixed to this booking, `booking.event.link` and `{}`. Purpose, recipient and validity are explicit; nullable expiry is intentional. Existing proposal/revision/audit/name capture remain unchanged, recipient acceptance is separate and source booking/event facts do not change.
 
-Full application, final staff tests/build, fresh PostgreSQL upgrade/migration/RLS/concurrency/auth-role, Chromium/Firefox and inspected synthetic desktop/mobile screenshots passed (`partner-selector-*`). Browser tests cover cancelled confirmation, real source revocation before commit, explicit partner-scope POST, no source/guest access, ended-link exclusion, unchanged event facts, Bosnian labels/mobile and denied reload cleanup. Exact-head CI and post-merge verification are required before considering integration verified.
+Full application/fresh PostgreSQL upgrade/migration/RLS/concurrency/auth-role and real API concurrent proposal→recipient review/acceptance→link tests passed (`booking-proposal-*`). Concurrent retries create one proposal/revision/audit; removing either source permission denies cached replies. UUIDs/purpose/time representations normalize. Creation replies are historical receipts; grant detail provides current lifecycle.
 
-#229 Partner access passed exact-head all five/CLEAN at `08b510740e630564dff339aa7e7b95a0707a9d6b`; squash main and post-merge receipts are recorded above. Never rewrite published history. The owner reports about 6% weekly allowance remaining: reuse completed receipts and focused checks. Next: new proposal creation/discovery and cross-organization notice publication; these slices do not complete production installation or deployed acceptance.
+Parent #230 selector merged at `807378fc9e82fc1abe5a9590ea1b0218bc708ee5`, identical to checked head `bef6da065a76b086724999eba6504069ed550cd7` after all five checks/CLEAN. Post-merge verification is pending. Its full/fresh SQL/API/browser/mobile/screenshot acceptance passed. Inspect post-merge workflows and commit/rebase only unpublished proposal child commits onto merged main before publication. Never rewrite published history.
+
+Owner reports ~6% weekly allowance. Reuse completed receipts and focused checks. Next: staff proposal controls/recipient discovery and cross-organization notice publication; production installers/deployed acceptance remain open.
 
 The owner has a pending delegation-policy question: may organization administrators grant only permissions they hold, or any tenant permission? Do not implement organization-wide role grants until that answer arrives. Other independent #104 work can continue.
 
@@ -20,7 +22,7 @@ The preview is served from an ignored build snapshot so unfinished source edits 
 
 ## First resume actions
 
-1. Inspect Git status, fetch origin, inspect the exact PR head and required checks. The current slice follows integrated #223; inspect its post-merge receipts too. Rebase only while unpublished, with explicit Git identity and stop-on-error shell behavior. Never reapply older backup stashes: their changes are merged.
+1. Inspect Git status, fetch origin, inspect the exact PR head and required checks. Use the latest ignored checkpoint for receipts recorded after this tracked handoff. Rebase only while unpublished, with explicit Git identity and stop-on-error shell behavior. Never reapply older backup stashes: their changes are merged.
 2. Merge only after all five required checks pass and GitHub reports CLEAN. Squash using the exact checked head.
 3. Fast-forward main, inspect post-merge contracts and secret-history runs, then reconcile the active handoff/ignored verified receipt.
 4. Continue #104: relationship conflict/correction and remaining linked-record/initial-merge conflicts and broader user/member onboarding, event settings and remaining roster controls. Then #112 and #105–#108 in roadmap order. These slices do not complete the full product or production installers.

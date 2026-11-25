@@ -3357,6 +3357,40 @@ paths:
         '403': { $ref: '#/components/responses/Forbidden' }
         '404': { $ref: '#/components/responses/NotFound' }
         '409': { $ref: '#/components/responses/Conflict' }
+  "/bookings/{bookingId}/collaboration-grants":
+    post:
+      tags: ["Collaboration"]
+      operationId: proposeBookingCollaboration
+      summary: "Propose link access to one managed booking"
+      description: "Requires organization-scoped collaboration.manage plus exact booking.manage, including cached retries. Creates an unaccepted proposal with only booking.event.link and an empty data projection; no broad action/configuration payload is accepted. Validity is explicit, with null validUntil meaning no specified expiry. Recipient acceptance remains separate. Does not mutate booking/event facts or discover organizations. Cached creation returns its original receipt; read grant detail for current lifecycle state."
+      security: [{ StaffSession: [], StaffCsrf: [] }]
+      parameters:
+        - $ref: '#/components/parameters/PBookingId'
+        - $ref: '#/components/parameters/IdempotencyKey'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              additionalProperties: false
+              required: [granteeOrganizationId, purpose, validFrom, validUntil]
+              properties:
+                granteeOrganizationId: { type: string, format: uuid }
+                purpose: { type: string, minLength: 1, maxLength: 1000 }
+                validFrom: { type: string, format: date-time }
+                validUntil: { type: [string, 'null'], format: date-time }
+      responses:
+        '201':
+          description: "Original unaccepted grant proposal receipt."
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/CollaborationGrantEnvelope' }
+        '400': { $ref: '#/components/responses/BadRequest' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '404': { $ref: '#/components/responses/NotFound' }
+        '409': { $ref: '#/components/responses/Conflict' }
   "/events/{eventId}/partner-booking-options":
     get:
       tags: ["Collaboration"]
