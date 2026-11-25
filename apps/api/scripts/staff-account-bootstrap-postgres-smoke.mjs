@@ -1,0 +1,35 @@
+import assert from 'node:assert/strict';
+import {randomUUID} from 'node:crypto';
+import {spawnSync} from 'node:child_process';
+import {fileURLToPath} from 'node:url';
+import argon2 from 'argon2';
+import pg from 'pg';
+import {bootstrapStaffAccount} from '../dist/src/staff-account-bootstrap.js';
+import {PostgresStaffSessionAuth} from '../dist/src/session-auth.js';
+const pool=new pg.Pool({connectionString:process.env.MIGRATOR_URL});
+const runtime=new pg.Pool({connectionString:process.env.DATABASE_URL_RUNTIME??process.env.RUNTIME_URL});
+const auth=new pg.Pool({connectionString:process.env.AUTH_URL});
+const org='10000000-0000-0000-0000-00000000000a';
+const email=`bootstrap-${randomUUID()}@example.invalid`;const password='Synthetic-bootstrap-only-2026';
+const input={email,displayName:'Synthetic bootstrap account',password,organizationId:org,reason:'synthetic account bootstrap acceptance'};
+const inspect=async(sql,values=[])=>{const client=await pool.connect();try{await client.query('BEGIN');await client.query('SET LOCAL ROLE eventor_owner');await client.query("SELECT set_config('app.organization_id',$1,true)",[org]);const result=await client.query(sql,values);await client.query('ROLLBACK');return result.rows;}finally{client.release();}};
+try{
+ const created=await bootstrapStaffAccount(pool,input);assert.ok(created.userId);assert.ok(created.membershipId);
+ const [account]=await inspect('SELECT password_hash,is_platform_admin,email_verified_at FROM eogp.users WHERE id=$1',[created.userId]);assert.equal(await argon2.verify(account.password_hash,password),true);assert.equal(account.is_platform_admin,false);assert.equal(account.email_verified_at,null);
+ assert.equal((await inspect('SELECT id FROM eogp.user_role_grants WHERE organization_id=$1 AND membership_id=$2',[org,created.membershipId])).length,0);
+ const [audit]=await inspect("SELECT database_principal,reason FROM eogp.platform_admin_audit WHERE user_id=$1 AND action='staff_account_provisioned'",[created.userId]);const [operator]=await inspect('SELECT session_user AS name');assert.equal(audit.database_principal,operator.name);assert.equal(audit.reason,input.reason);
+ await assert.rejects(bootstrapStaffAccount(pool,{...input,email:email.toUpperCase(),password:'Replacement-bootstrap-2026',displayName:'Overwrite attempt'}),error=>error.code==='ACCOUNT_EXISTS');
+ assert.equal((await inspect('SELECT password_hash FROM eogp.users WHERE id=$1',[created.userId]))[0].password_hash,account.password_hash);
+ const missingEmail=`missing-${randomUUID()}@example.invalid`;
+ await assert.rejects(bootstrapStaffAccount(pool,{...input,email:missingEmail,organizationId:randomUUID()}),error=>error.code==='ORGANIZATION_UNAVAILABLE');assert.equal((await inspect('SELECT id FROM eogp.users WHERE email=$1',[missingEmail])).length,0);
+ await assert.rejects(bootstrapStaffAccount(runtime,{...input,email:`denied-${randomUUID()}@example.invalid`}),error=>error.code==='OWNER_REQUIRED');
+ const sessions=new PostgresStaffSessionAuth(auth,{allowedOrigins:['https://staff.example.test'],fingerprintKey:Buffer.alloc(32,9)});
+ const session=await sessions.createStaffSession({headers:{origin:'https://staff.example.test'},ip:'198.51.100.71'},{email,password});assert.equal(session.principal.userId,created.userId);assert.equal(session.principal.organizationId,org);
+ const global=await bootstrapStaffAccount(pool,{email:`unassigned-${randomUUID()}@example.invalid`,displayName:'Synthetic unassigned account',password,reason:'synthetic no-membership acceptance'});assert.equal(global.membershipId,null);
+ assert.equal((await inspect('SELECT id FROM eogp.organization_memberships WHERE user_id=$1',[global.userId])).length,0);
+ const script=fileURLToPath(new URL('../../../scripts/admin/bootstrap-staff-account.sh',import.meta.url));
+ const cli=spawnSync('bash',[script,'--email',`cli-${randomUUID()}@example.invalid`,'--name','Synthetic CLI account','--reason','synthetic stdin acceptance'],{env:process.env,input:password+'\n',encoding:'utf8'});
+ assert.equal(cli.status,0,cli.stderr);assert.equal(JSON.parse(cli.stdout).platformAdmin,false);assert.ok(!cli.stdout.includes(password)&&!cli.stderr.includes(password));
+ const refused=spawnSync('bash',[script,'--email',`cli-denied-${randomUUID()}@example.invalid`,'--name','Synthetic invalid password','--reason','synthetic rejection'],{env:process.env,input:'short\n',encoding:'utf8'});assert.equal(refused.status,1);assert.ok(!refused.stderr.includes('short'));
+ console.log('PASS host staff bootstrap: password hashing, normal login, host audit, no implicit grants, duplicate refusal, unavailable organization and runtime denial');
+}finally{await Promise.all([pool.end(),runtime.end(),auth.end()]);}
