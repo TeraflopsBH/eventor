@@ -79,3 +79,17 @@ test("ending event association canonicalizes identity and rechecks event authori
   assert.equal((await app.inject({...request,url:`/events/${eventId}/booking-links/invalid/end`})).statusCode,400);
  }finally{await app.close();}
 });
+
+test("partner booking choices retain selected event scope and bounded pages",async()=>{
+ let reads=0,denied=false;
+ const client={async query(sql:string,values:readonly unknown[]=[]){
+  if(sql.includes("SELECT eogp.list_event_partner_booking_options")){reads++;assert.deepEqual(values,[organizationId,membershipId,eventId,50]);if(denied)throw Object.assign(new Error("private grant detail"),{code:"42501"});return{rows:[{result:{options:[{grantId,bookingId,bookingOwnerOrganizationId:"10000000-0000-0000-0000-00000000000a",providerName:"Synthetic provider",purpose:"Synthetic accepted booking"}],nextOffset:null}}]};}
+  return{rows:[]};
+ },release(){}};
+ const app=buildApi({pool:{connect:async()=>client} as unknown as Pool,authenticateStaff:async()=>({organizationId,membershipId,userId:organizationId}),verifyMutationOrigin:async()=>true});
+ try{
+  const url=`/events/${eventId}/partner-booking-options?offset=50`;const response=await app.inject({method:"GET",url});assert.equal(response.statusCode,200,response.body);assert.equal(response.json().data.options[0].grantId,grantId);assert.match(response.headers["cache-control"]??"",/no-store/);
+  assert.equal((await app.inject({method:"GET",url:`/events/${eventId}/partner-booking-options?offset=100001`})).statusCode,400);assert.equal(reads,1);
+  denied=true;const refused=await app.inject({method:"GET",url});assert.equal(refused.statusCode,403);assert.ok(!refused.body.includes("private grant detail"));
+ }finally{await app.close();}
+});

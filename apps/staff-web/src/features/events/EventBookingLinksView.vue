@@ -1,12 +1,13 @@
 <script setup lang="ts">
 import {onMounted,ref} from "vue";
 import {useI18n} from "vue-i18n";
-import {api,ApiError,type DisruptionBooking,type EventBookingLink} from "../../api";
+import {api,ApiError,type DisruptionBooking,type EventBookingLink,type PartnerBookingOption} from "../../api";
 import {formatApiError} from "../../i18n/api-errors";
 import {formatDateTime} from "../../i18n/format";
 const props=defineProps<{organizationId:string;eventId:string;eventTitle:string}>();
 const {t,locale}=useI18n();
 const links=ref<EventBookingLink[]|null>(null),bookings=ref<DisruptionBooking[]>([]);
+const partners=ref<PartnerBookingOption[]>([]),selectedPartner=ref(""),partnerOffset=ref(0),nextPartners=ref<number|null>(null);
 const nextLinks=ref<number|null>(null),nextBookings=ref<number|null>(null),linksOffset=ref(0),bookingOffset=ref(0);
 const query=ref(""),appliedQuery=ref(""),selected=ref("");
 const kind=ref<EventBookingLink["relationshipKind"]>("venue_for_event");
@@ -17,14 +18,15 @@ async function run(operation:()=>Promise<void>){
  busy.value=true;error.value="";notice.value="";
  try{await operation();}
  catch(failure){
-  if(failure instanceof ApiError && [401,403].includes(failure.status)){links.value=null;bookings.value=[];selected.value="";}
+  if(failure instanceof ApiError && [401,403].includes(failure.status)){links.value=null;bookings.value=[];partners.value=[];selectedPartner.value="";selected.value="";}
   error.value=failure instanceof ApiError?formatApiError(failure,t):t("eventBookingLinks.failed");
  }finally{busy.value=false;}
 }
 async function loadLinks(offset=0){const {data}=await api.listEventBookingLinks(props.eventId,offset);links.value=data.links;nextLinks.value=data.nextOffset;linksOffset.value=offset;}
 async function findBookings(offset=0){const {data}=await api.searchBookingReferences(props.organizationId,appliedQuery.value,offset);bookings.value=data.bookings;nextBookings.value=data.nextOffset;bookingOffset.value=offset;selected.value="";}
 function reload(){void run(async()=>{
- const [current,available]=await Promise.all([api.listEventBookingLinks(props.eventId,0),api.searchBookingReferences(props.organizationId,appliedQuery.value,0)]);
+ const [current,available,shared]=await Promise.all([api.listEventBookingLinks(props.eventId,0),api.searchBookingReferences(props.organizationId,appliedQuery.value,0),api.listPartnerBookingOptions(props.eventId,0)]);
+ partners.value=shared.data.options;nextPartners.value=shared.data.nextOffset;partnerOffset.value=0;selectedPartner.value="";
  links.value=current.data.links;nextLinks.value=current.data.nextOffset;linksOffset.value=0;
  bookings.value=available.data.bookings;nextBookings.value=available.data.nextOffset;bookingOffset.value=0;selected.value="";
 });}
@@ -36,6 +38,16 @@ function save(){
  void run(async()=>{
   await api.createEventBookingLink(props.eventId,{bookingOwnerOrganizationId:props.organizationId,bookingId:booking.bookingId,relationshipKind:kind.value});
   selected.value="";await loadLinks();notice.value=t("eventBookingLinks.saved");
+ });
+}
+async function loadPartners(offset=0){const {data}=await api.listPartnerBookingOptions(props.eventId,offset);partners.value=data.options;nextPartners.value=data.nextOffset;partnerOffset.value=offset;selectedPartner.value="";}
+const partnerLabel=(option:PartnerBookingOption)=>`${option.providerName??t("eventBookingLinks.partnerFallback")} · ${option.purpose}`;
+function savePartner(){
+ const option=partners.value.find(item=>item.grantId===selectedPartner.value);
+ if(!option || busy.value || !window.confirm(t("eventBookingLinks.partnerConfirm",{partner:partnerLabel(option),event:props.eventTitle})))return;
+ void run(async()=>{
+  await api.createEventBookingLink(props.eventId,{bookingOwnerOrganizationId:option.bookingOwnerOrganizationId,bookingId:option.bookingId,collaborationGrantId:option.grantId,relationshipKind:kind.value});
+  await loadLinks();await loadPartners();notice.value=t("eventBookingLinks.saved");
  });
 }
 function endLink(link:EventBookingLink){
@@ -81,6 +93,18 @@ onMounted(reload);
     <button type="button" class="button button-secondary" :disabled="busy || bookingOffset===0" @click="run(()=>findBookings(Math.max(0,bookingOffset-50)))">{{t("registry.previous")}}</button>
     <button type="button" class="button button-secondary" :disabled="busy || nextBookings===null" @click="run(()=>findBookings(nextBookings??0))">{{t("registry.next")}}</button>
    </div>
+   <h4>{{t("eventBookingLinks.partnerTitle")}}</h4><p>{{t("eventBookingLinks.partnerHelp")}}</p>
+   <p v-if="!partners.length">{{t("eventBookingLinks.noPartners")}}</p>
+   <form v-else class="links-form" @submit.prevent="savePartner">
+    <label for="partner-booking-select">{{t("eventBookingLinks.partnerChoose")}}</label>
+    <select id="partner-booking-select" v-model="selectedPartner" required :disabled="busy"><option value="" disabled>{{t("eventBookingLinks.partnerChoose")}}</option><option v-for="option in partners" :key="option.grantId" :value="option.grantId">{{partnerLabel(option)}}</option></select>
+    <label for="partner-booking-kind">{{t("eventBookingLinks.kind")}}</label><select id="partner-booking-kind" v-model="kind" :disabled="busy"><option v-for="item in kinds" :key="item" :value="item">{{t(`eventBookingLinks.kinds.${item}`)}}</option></select>
+    <button type="submit" class="button button-primary" :disabled="busy || !selectedPartner">{{t("eventBookingLinks.partnerLink")}}</button>
+   </form>
+   <div v-if="partnerOffset || nextPartners!==null" class="links-toolbar">
+    <button type="button" class="button button-secondary" :disabled="busy || partnerOffset===0" @click="run(()=>loadPartners(Math.max(0,partnerOffset-50)))">{{t("registry.previous")}}</button>
+    <button type="button" class="button button-secondary" :disabled="busy || nextPartners===null" @click="run(()=>loadPartners(nextPartners??0))">{{t("registry.next")}}</button>
+   </div>
   </template>
  </section>
 </template>
@@ -89,6 +113,7 @@ onMounted(reload);
 .links-toolbar {display:flex;flex-wrap:wrap;align-items:end;gap:.6rem;min-width:0;}
 .links-toolbar input {max-width:24rem;}
 .links-form {display:grid;grid-template-columns:minmax(0,1fr);gap:.6rem;max-width:34rem;}
+.links-form select {min-width:0;max-width:100%;}
 .links-scroll {overflow-x:auto;min-width:0;max-width:100%;}
 table {width:100%;min-width:36rem;border-collapse:collapse;text-align:left;}
 th,td {padding:.65rem;border-bottom:1px solid var(--border);vertical-align:top;}

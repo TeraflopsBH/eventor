@@ -871,6 +871,14 @@ export default {
     }
 },
   eventBookingLinks: {
+    partnerTitle: "Rezervacije podijeljene s partnerima",
+    partnerHelp: "Odaberite opseg rezervacije iz prihvaćenih ovlasti partnera. Prikazuju se samo podijeljeni naziv pružaoca i svrha. Povezivanje ne mijenja odluke o rezervaciji ili događaju.",
+    partnerChoose: "Odaberite podijeljenu rezervaciju partnera",
+    partnerLink: "Poveži rezervaciju partnera",
+    partnerFallback: "Rezervacija partnera",
+    noPartners: "Na ovoj stranici nema dostupnih prihvaćenih ovlasti za rezervacije partnera. Postojeća povezivanja se izostavljaju, uključujući završena.",
+    partnerConfirm: "Povezati {partner} s događajem {event} pomoću ovih prihvaćenih ovlasti?",
+
     actions: "Radnje",
     end: "Završi povezivanje",
     endConfirm: "Završiti ovo povezivanje rezervacije za događaj {event}? Kroz njega se više ne mogu objavljivati nove obavijesti. Historija i objavljene obavijesti ostaju sačuvane; statusi rezervacije i događaja imaju zasebne postupke.",
@@ -879,7 +887,7 @@ export default {
     open: "Povezane rezervacije",
     openNamed: "Povezane rezervacije za {event}",
     title: "Rezervacije za {event}",
-    help: "Povežite postojeće rezervacije ove organizacije s događajem. Rezervacije resursa, promjene statusa i saradnja s drugim organizacijama vode se zasebno.",
+    help: "Povežite dostupne rezervacije ove organizacije ili podijeljene rezervacije partnera s događajem. Rezervacije resursa i promjene statusa rezervacije ili događaja vode se zasebno.",
     reload: "Ponovo učitaj povezane rezervacije",
     empty: "Nijedna rezervacija nije povezana s ovim događajem.",
     existing: "Evidentirane veze rezervacija",
