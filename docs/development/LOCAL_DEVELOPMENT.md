@@ -198,3 +198,13 @@ scripts/admin/bootstrap-staff-account.sh --email staff@example.invalid --name 'S
 ```
 
 Replace the synthetic identity and selected organization deliberately. The wrapper prompts twice without echoing the password. For noninteractive provisioning, pipe the password from a secure source through stdin; do not put it in command arguments, exported password variables or Git. This host tool accepts nonblank passwords of 12–1024 UTF-8 bytes. It refuses existing email identities, grants no roles, does not verify the mailbox and records the database operator in the private host journal. An organization membership still needs explicitly assigned roles. Omit `--organization` only when a global account without workspace membership is intended; the separate platform-admin command may subsequently grant platform authority. See ADR 0017.
+
+### Add an existing staff account to another workspace on the host
+
+With migrations through 187, the built API and privileged `MIGRATOR_URL`, run:
+
+```bash
+scripts/admin/provision-staff-membership.sh --email staff@example.invalid --organization ORGANIZATION_UUID --reason 'Explicit workspace onboarding'
+```
+
+This is a deliberate host operation for an existing active account and active organization. It creates one active membership and an operator-attributed private audit receipt, with no role grants or credential changes. Existing memberships in every state are refused; review suspension/restoration or invited/revoked access through its own workflow. After explicit role assignment, the person uses the same email/password and named workspace selector. Existing sessions and other memberships are retained. This tool does not send an invitation, prove mailbox ownership or set up missing credentials. See ADR 0020.
