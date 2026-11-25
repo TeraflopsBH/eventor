@@ -3462,7 +3462,7 @@ BEGIN
       jsonb_build_object('relationshipId',v_mutual,'direction','mutual','relatedPersonId',v_related))
     OR NOT (eogp.read_guest_registry_relationships(v_org,v_actor,v_related)->'relationships')
       @> jsonb_build_array(jsonb_build_object('relationshipId',v_directed,'direction','incoming','relatedPersonId',v_source))
-    OR eogp.preview_guest_registry_merge(v_org,v_actor,v_source,v_related)->>'blocker' IS DISTINCT FROM 'source_has_linked_records'
+    OR eogp.preview_guest_registry_merge(v_org,v_actor,v_source,v_related)->>'blocker' IS DISTINCT FROM 'relationship_self_link'
     OR has_table_privilege('eventor_runtime','eogp.person_relationships','SELECT,INSERT,UPDATE,DELETE') THEN
     RAISE EXCEPTION 'relationship direction, permissions or merge guard was incorrect';
   END IF;

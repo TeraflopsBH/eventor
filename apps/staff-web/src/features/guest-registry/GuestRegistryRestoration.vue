@@ -27,7 +27,7 @@ async function run(operation:()=>Promise<void>):Promise<void> {
   busy.value=true;error.value="";
   try {await operation();}
   catch(failure) {
-    if(failure instanceof ApiError && ([401,403].includes(failure.status) || failure.code==="MERGE_LABELS_CHANGED")) {
+    if(failure instanceof ApiError && ([401,403].includes(failure.status) || ["MERGE_LABELS_CHANGED","MERGE_RELATIONSHIPS_CHANGED"].includes(failure.code))) {
       review.value=null;contacts.value=[];references.value=[];selectedContacts.value=[];selectedReferences.value=[];
     }
     error.value=failure instanceof ApiError ? formatApiError(failure,t) : t("registry.restoration.failed");
@@ -92,6 +92,11 @@ onMounted(reload);
       <p>{{ t("registry.restoration.instructions") }}</p>
       <dl><dt>{{ t("registry.merge.source") }}</dt><dd>{{ label(review.source) }}</dd>
         <dt>{{ t("registry.merge.destination") }}</dt><dd>{{ label(review.destination) }}</dd></dl>
+      <section v-if="review.relationships.length" :aria-label="t('registry.merge.relationships')">
+        <h5>{{ t("registry.merge.relationships") }}</h5>
+        <p>{{ t("registry.restoration.relationshipsReturn") }}</p>
+        <ul><li v-for="link in review.relationships" :key="link.relationshipId">{{ link.relatedDisplayName }} · {{ t(`registry.relationships.kind.${link.kind}`) }} · {{ t(`registry.relationships.direction.${link.direction}`) }}</li></ul>
+      </section>
       <section v-if="review.labels.length" :aria-label="t('registry.merge.labels')">
         <h5>{{ t("registry.merge.labels") }}</h5>
         <p>{{ t("registry.restoration.labelsReturn") }}</p>

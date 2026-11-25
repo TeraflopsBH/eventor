@@ -30,5 +30,7 @@ psql "$MIGRATOR_URL" -X -v ON_ERROR_STOP=1 \
   -f "$ROOT_DIR/tests/database/event_guest_bulk_name_reset_smoke.sql"
 psql "$MIGRATOR_URL" -X -v ON_ERROR_STOP=1 \
   -f "$ROOT_DIR/tests/database/guest_registry_label_merge_smoke.sql"
+psql "$MIGRATOR_URL" -X -v ON_ERROR_STOP=1 \
+  -f "$ROOT_DIR/tests/database/guest_registry_relationship_merge_smoke.sql"
 bash "$ROOT_DIR/scripts/db/test-concurrency.sh"
 bash "$ROOT_DIR/scripts/db/test_revision_publication_concurrency.sh"

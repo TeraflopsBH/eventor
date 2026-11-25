@@ -1277,9 +1277,12 @@ export interface GuestRegistryMergePreview {
   reviewId: string;
   source: GuestRegistryProfile;
   destination: GuestRegistryProfile;
-  blocker: "inactive_profile" | "source_has_linked_records" | "event_history_access_required" | "event_history_overlap" | "contact_access_required" | "contact_conflict" | "reference_access_required" | "label_conflict" | "label_limit" | null;
+  blocker: "inactive_profile" | "source_has_linked_records" | "event_history_access_required" | "event_history_overlap" | "contact_access_required" | "contact_conflict" | "reference_access_required" | "label_conflict" | "label_limit" | "relationship_access_required" | "relationship_self_link" | "relationship_conflict" | null;
   contactCount: number;
   referenceCount: number;
+  relationshipCount: number;
+  sourceRelationships: GuestRegistryRelationship[];
+  destinationRelationships: GuestRegistryRelationship[];
   labelCount: number;
   sourceLabels: RegistryLabel[];
   destinationLabels: RegistryLabel[];
@@ -1299,6 +1302,7 @@ export interface GuestRegistryMergeHistory {
 }
 
 export interface GuestRegistryRestorationReview {
+  relationships:GuestRegistryRelationship[];
   labels:RegistryLabel[];
   reviewId:string;
   source:GuestRegistryProfile;
@@ -1909,7 +1913,7 @@ export const api = {
     request<Envelope<GuestRegistryMergePreview>>(`/persons/${encodeURIComponent(personId)}/merge-preview`, {
       method: "POST", body: { destinationPersonId },
     }),
-  commitGuestRegistryMerge: (preview: GuestRegistryMergePreview, transferContacts = false, transferReferences = false, transferLabels = false) =>
+  commitGuestRegistryMerge: (preview: GuestRegistryMergePreview, transferContacts = false, transferReferences = false, transferLabels = false, transferRelationships = false) =>
     request<Envelope<GuestRegistryMergeChange>>(`/persons/${encodeURIComponent(preview.source.personId)}/merge`, {
       method: "POST", idempotent: true,
       body: {
@@ -1919,6 +1923,7 @@ export const api = {
         ...(transferContacts ? {contactResolution:"move_to_destination"} : {}),
         ...(transferReferences ? {referenceResolution:"move_to_destination"} : {}),
         ...(transferLabels ? {labelResolution:"move_to_destination"} : {}),
+        ...(transferRelationships ? {relationshipResolution:"move_to_destination"} : {}),
       },
     }),
   restoreGuestRegistryMerge: (organizationId: string, mergeId: string) =>
