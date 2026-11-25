@@ -21,3 +21,10 @@ Migration 194 revokes direct application-role access to the association table an
 ## Delivery scope
 
 This is an API/command foundation with explicit OpenAPI/shared client types. The staff booking/event selector, association correction/lifecycle UI, disruption delivery, acknowledgement and event resolution remain separate work under #112. Creating an association sends no message and grants no guest-directory access. This does not complete collaboration or production acceptance.
+
+
+## Staff selector and display extension — migration 195
+
+The staff Events panel explicitly confirms selection from the selected organization's permitted booking references. Users never supply organization identifiers in this flow. The existing booking metadata lookup is exposed through a generic reference-search alias, retaining its server scope filtering. Same-organization reference labels require current booking management; external/restricted links remain generic. Membership in a second tenant does not grant cross-tenant reference access. The event-history projection index changes no lifecycle facts.
+
+The selector supports existing relationship kinds and paginated read-only history. It does not add partner discovery, association correction/reactivation, notice publication or event resolution. Failed authority clears private panel results; a multi-request reload publishes results only when both requests succeed. English/Bosnian controls, explicit confirmation, labeled inputs, keyboard-scrollable history and browser checks cover the user-visible boundary.

@@ -42,6 +42,51 @@ tags:
   - name: Jobs
   - name: Audit
 paths:
+  "/organizations/{organizationId}/booking-references/search":
+    post:
+      tags: ["Booking Cancellation"]
+      operationId: searchBookingReferences
+      summary: "Search booking references permitted to the selected organization member"
+      security: [{ StaffSession: [], StaffCsrf: [] }]
+      parameters:
+        - $ref: '#/components/parameters/POrganizationId'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              additionalProperties: false
+              properties:
+                query: { type: string, maxLength: 80 }
+                offset: { type: integer, minimum: 0, maximum: 100000 }
+      responses:
+        '200':
+          description: "A page of provider booking references."
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [data]
+                properties:
+                  data:
+                    type: object
+                    required: [bookings, nextOffset]
+                    properties:
+                      bookings:
+                        type: array
+                        maxItems: 50
+                        items:
+                          type: object
+                          required: [bookingId, bookingCode, status]
+                          properties:
+                            bookingId: { type: string, format: uuid }
+                            bookingCode: { type: string }
+                            status: { type: string }
+                      nextOffset: { type: [integer, 'null'], minimum: 0, maximum: 100000 }
+        '400': { $ref: '#/components/responses/BadRequest' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/Forbidden' }
   "/organizations/{organizationId}/disruption-bookings/search":
     post:
       tags: ["Booking Cancellation"]
@@ -9861,6 +9906,7 @@ components:
       type: object
       required: [linkId, eventId, bookingOwnerOrganizationId, bookingId, collaborationGrantId, relationshipKind, status, createdAt]
       properties:
+        bookingCode: { type: [string, 'null'], description: "Current local reference, only when the actor has booking.manage for that booking. External or restricted references remain null; the create response may omit this display field." }
         linkId: { type: string, format: uuid }
         eventId: { type: string, format: uuid }
         bookingOwnerOrganizationId: { type: string, format: uuid }

@@ -1,14 +1,14 @@
 # Development resume — 2026-11-25
 
-Verified main: `b6a3c94000fe26831f9997935fd0bcb9a07d33e3` (#222), with post-merge contracts `45617577494` and secrets `45617577661` passing. Prior receipts remain in the archive/ignored checkpoint.
+Verified main: `745b6d4b2b73a8f643f3aa9afc999485ed6c1df2` (#223), with post-merge contracts `45620849659` and secrets `45620849359` passing. Prior receipts remain in the archive/ignored checkpoint.
 
 ## Current slice
 
-`codex/booking-event-link-commands` adds migration 194/ADR 0021: create/list boundaries over existing associations with exact event management plus local booking management or active accepted cross-organization booking scope. Existing active identical links are reused; terminal/changed meaning is refused. Direct app-role table access is revoked. No booking/event status, snapshots or guest data change. This is an API foundation; staff selectors and disruption delivery/acknowledgement remain open.
+`codex/event-booking-link-workspace` adds the bilingual Events booking selector, a generic permission-filtered booking reference search API, and migration 195. Only local bookings are selectable; current booking authority controls reference labels. External/restricted associations retain generic historical metadata. Selection/confirmation creates the existing association without booking/event/guest-capability mutations. Server authority remains decisive; denial clears private panel rows.
 
-Full application and fresh PostgreSQL upgrade/migration/RLS/concurrency/role checks passed locally (`booking-link-*`). SQL/API regressions cover grant/event/tenant scope, revocation, normalized cached retries and retained provenance. Concurrent requests produce one link/audit; real PostgreSQL API retries recheck revoked booking authority. Exact-head CI remains required. The branch was rebased onto verified #222 main before publication; never rewrite published history.
+Full application checks and fresh PostgreSQL upgrade/migration/RLS/concurrency/role tests passed (`booking-link-workspace-*`). Chromium and Firefox cover search, cancelled confirmation, creation, unchanged event capabilities, mobile containment, Bosnian dates and denial cleanup. Synthetic desktop/mobile screenshots were inspected. Exact-head CI remains required. Rebase only unpublished commits onto verified #223 main before publication; never rewrite published history.
 
-#221 is verified at `946410af4ef2e4a621954ca613cd6fd6b32b8d02` (post-merge contracts `45616192807`, secrets `45616192184`). #222 contextual headings merged at `b6a3c94000fe26831f9997935fd0bcb9a07d33e3`, matching checked head `b99fbf6e7fa51244bccb32adcef4574d828ffb46` after all five checks passed. Post-merge contracts `45617577494` and secrets `45617577661` passed.
+#223 checked head `aded19004def37f11d78933bfa35b97c50b8fb26` passed all five required checks/CLEAN and matches the merged tree. The next independent #112 work is explicit safe notice publication to an event inbox and acknowledgement, reusing existing disruption aggregates; inspect collaboration/disruption design before implementing. Cross-organization delivery requires deliberate scoped-grant support.
 
 The owner has a pending delegation-policy question: may organization administrators grant only permissions they hold, or any tenant permission? Do not implement organization-wide role grants until that answer arrives. Other independent #104 work can continue.
 
@@ -20,7 +20,7 @@ The preview is served from an ignored build snapshot so unfinished source edits 
 
 ## First resume actions
 
-1. Inspect Git status, fetch origin, inspect the exact PR head and required checks. The current slice follows integrated #220; inspect its post-merge receipts too. Rebase only while unpublished, with explicit Git identity and stop-on-error shell behavior. Never reapply older backup stashes: their changes are merged.
+1. Inspect Git status, fetch origin, inspect the exact PR head and required checks. The current slice follows integrated #223; inspect its post-merge receipts too. Rebase only while unpublished, with explicit Git identity and stop-on-error shell behavior. Never reapply older backup stashes: their changes are merged.
 2. Merge only after all five required checks pass and GitHub reports CLEAN. Squash using the exact checked head.
 3. Fast-forward main, inspect post-merge contracts and secret-history runs, then reconcile the active handoff/ignored verified receipt.
 4. Continue #104: relationship conflict/correction and remaining linked-record/initial-merge conflicts and broader user/member onboarding, event settings and remaining roster controls. Then #112 and #105–#108 in roadmap order. These slices do not complete the full product or production installers.

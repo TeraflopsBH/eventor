@@ -1274,6 +1274,7 @@ export interface GuestRegistryDirectory {
 }
 
 export interface EventBookingLink {
+  bookingCode?:string|null;
   linkId:string;eventId:string;bookingOwnerOrganizationId:string;bookingId:string;collaborationGrantId:string|null;
   relationshipKind:"venue_for_event"|"service_for_event"|"other";status:"active"|"ended"|"revoked";createdAt:string;
 }
@@ -1653,6 +1654,7 @@ export interface GuestImportPreview {
 export interface RegistryLabel {labelId:string;label:string;retired:boolean}
 export interface RegistryPersonLabels {revision:number;canManage:boolean;labels:RegistryLabel[];assignedLabelIds:string[]}
 export const api = {
+  searchBookingReferences:(organizationId:string,query:string,offset=0)=>request<Envelope<{bookings:DisruptionBooking[];nextOffset:number|null}>>(`/organizations/${encodeURIComponent(organizationId)}/booking-references/search`,{method:"POST",body:{query,offset}}),
   listEventBookingLinks:(eventId:string,offset=0)=>request<Envelope<{links:EventBookingLink[];nextOffset:number|null}>>(`/events/${encodeURIComponent(eventId)}/booking-links?offset=${offset}`),
   createEventBookingLink:(eventId:string,body:Pick<EventBookingLink,"bookingOwnerOrganizationId"|"bookingId"|"relationshipKind"> & {collaborationGrantId?:string|null})=>request<Envelope<EventBookingLink>>(`/events/${encodeURIComponent(eventId)}/booking-links`,{method:"POST",idempotent:true,body}),
   getRegistryPersonLabels:(personId:string)=>request<Envelope<RegistryPersonLabels>>(`/persons/${encodeURIComponent(personId)}/labels`),
