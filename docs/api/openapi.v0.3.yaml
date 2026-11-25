@@ -2754,6 +2754,7 @@ paths:
       tags: ["Event Disruption"]
       operationId: acknowledgeEventDisruption
       summary: "Acknowledge a venue disruption notice"
+      description: "noticeId identifies the event-owned receipt, not the source provider notice. Current exact event management is required on retries. Acknowledgement does not resolve or cancel anything."
       security: [{ StaffSession: [], StaffCsrf: [] }]
       parameters:
         - $ref: '#/components/parameters/PNoticeId'
@@ -2762,13 +2763,13 @@ paths:
         required: true
         content:
           application/json:
-            schema: { $ref: '#/components/schemas/ReasonRequest' }
+            schema: { type: object, additionalProperties: false }
       responses:
-        '201':
+        '200':
           description: "Successful response."
           content:
             application/json:
-              schema: { $ref: '#/components/schemas/DataEnvelope' }
+              schema: { $ref: '#/components/schemas/EventDisruptionNoticeEnvelope' }
         '400': { $ref: '#/components/responses/BadRequest' }
         '401': { $ref: '#/components/responses/Unauthorized' }
         '403': { $ref: '#/components/responses/Forbidden' }
@@ -3494,16 +3495,19 @@ paths:
     get:
       tags: ["Event Disruption"]
       operationId: listEventDisruptionNotices
-      summary: "Read scoped provider disruption notices"
+      summary: "Read event-owned safe disruption receipts"
       security: [{ StaffSession: [] }]
       parameters:
         - $ref: '#/components/parameters/PEventId'
+        - in: query
+          name: offset
+          schema: { type: integer, minimum: 0, maximum: 100000, default: 0 }
       responses:
         '200':
           description: "Successful response."
           content:
             application/json:
-              schema: { $ref: '#/components/schemas/ListEnvelope' }
+              schema: { $ref: '#/components/schemas/EventDisruptionNoticesEnvelope' }
         '400': { $ref: '#/components/responses/BadRequest' }
         '401': { $ref: '#/components/responses/Unauthorized' }
         '403': { $ref: '#/components/responses/Forbidden' }
@@ -3514,6 +3518,37 @@ paths:
         '422': { $ref: '#/components/responses/UnprocessableEntity' }
         '429': { $ref: '#/components/responses/TooManyRequests' }
         '500': { $ref: '#/components/responses/InternalServerError' }
+    post:
+      tags: ["Event Disruption"]
+      operationId: publishLocalEventDisruption
+      summary: "Explicitly publish a local linked booking notice into an event inbox"
+      description: "Requires current exact event and booking management plus an active local association. Copies allowlisted public facts only. Does not send email or change booking/event status."
+      security: [{ StaffSession: [], StaffCsrf: [] }]
+      parameters:
+        - $ref: '#/components/parameters/PEventId'
+        - $ref: '#/components/parameters/IdempotencyKey'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              additionalProperties: false
+              required: [bookingId, sourceBookingNoticeId]
+              properties:
+                bookingId: { type: string, format: uuid }
+                sourceBookingNoticeId: { type: string, format: uuid }
+      responses:
+        '201':
+          description: "Original event receipt, including for an identical publication."
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/EventDisruptionNoticeEnvelope' }
+        '400': { $ref: '#/components/responses/BadRequest' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '404': { $ref: '#/components/responses/NotFound' }
+        '409': { $ref: '#/components/responses/Conflict' }
   "/events/{eventId}/invitations":
     post:
       tags: ["Invitations and RSVP"]
@@ -9902,6 +9937,46 @@ components:
         status: { type: string, enum: [not_started, in_progress, blocked, completed, cancelled, waived] }
         dueAt: { type: string, format: date-time }
         permittedProjection: { type: object, additionalProperties: true }
+    EventDisruptionNotice:
+      type: object
+      additionalProperties: false
+      required: [noticeId, eventId, sourceProviderOrganizationId, sourceBookingNoticeId, status, resolutionKind, createdAt, acknowledgedAt, sourceNotice]
+      properties:
+        noticeId: { type: string, format: uuid }
+        eventId: { type: string, format: uuid }
+        sourceProviderOrganizationId: { type: string, format: uuid }
+        sourceBookingNoticeId: { type: string, format: uuid }
+        status: { type: string, enum: [received, acknowledged, in_progress, resolved, dismissed] }
+        resolutionKind: { type: string, enum: [relocate, amend_booking, postpone, cancel_event, unresolved] }
+        createdAt: { type: string, format: date-time }
+        acknowledgedAt: { type: [string, 'null'], format: date-time }
+        sourceNotice:
+          type: [object, 'null']
+          description: "Versioned allowlisted public snapshot; null for unsupported legacy formats. No operational summary, booking reference, contacts or resolution notes."
+          additionalProperties: false
+          required: [noticeCode, reasonCategory, publicSummary, affectedFrom, affectedUntil, issuedAt]
+          properties:
+            noticeCode: { type: string }
+            reasonCategory: { type: string }
+            publicSummary: { type: string }
+            affectedFrom: { type: [string, 'null'], format: date-time }
+            affectedUntil: { type: [string, 'null'], format: date-time }
+            issuedAt: { type: string, format: date-time }
+    EventDisruptionNoticeEnvelope:
+      type: object
+      required: [data]
+      properties:
+        data: { $ref: '#/components/schemas/EventDisruptionNotice' }
+    EventDisruptionNoticesEnvelope:
+      type: object
+      required: [data]
+      properties:
+        data:
+          type: object
+          required: [notices, nextOffset]
+          properties:
+            notices: { type: array, maxItems: 50, items: { $ref: '#/components/schemas/EventDisruptionNotice' } }
+            nextOffset: { type: [integer, 'null'], minimum: 0, maximum: 100000 }
     EventBookingLink:
       type: object
       required: [linkId, eventId, bookingOwnerOrganizationId, bookingId, collaborationGrantId, relationshipKind, status, createdAt]

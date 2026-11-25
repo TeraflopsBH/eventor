@@ -488,6 +488,8 @@ jobs:
 
       - name: Verify concurrent booking/event association creation
         run: node apps/api/scripts/booking-event-link-concurrency-smoke.mjs
+      - name: Event disruption inbox concurrency and API authority
+        run: node apps/api/scripts/event-disruption-inbox-concurrency-smoke.mjs
       - name: Verify concurrent Registry relationship merge boundaries
         env:
           DATABASE_URL_RUNTIME: ${{ env.RUNTIME_URL }}
