@@ -27,6 +27,12 @@ const {
   openBookingCancellationPolicies, openBookingTaxProfiles, openBookingForms, openEvents,
 } = props.workspace;
 const canOpen = (tab: StaffTab) => props.workspace.workspaces.value.includes(tab);
+const sectionKeys: Record<StaffTab,string> = {
+  delivery:"delivery",campaign:"campaigns",inquiries:"inquiries",approvals:"approvals",prices:"prices",
+  cancellations:"cancellations",taxes:"taxes",forms:"bookingForms",events:"events",settings:"settings",
+  "event-guests":"eventGuests","guest-registry":"guestRegistry","guest-invitations":"guestInvitations",
+};
+const sectionKey = computed(() => sectionKeys[activeTab.value]);
 const selectedLocale = computed({
   get: () => locale.value as SupportedLocale,
   set: (value: SupportedLocale) => {
@@ -92,8 +98,8 @@ const selectedLocale = computed({
       <section class="welcome-row">
         <div>
           <p class="eyebrow">{{ $t("workspace.organization") }}</p>
-          <h1>{{ $t("workspace.overview") }}</h1>
-          <p class="muted">{{ $t("workspace.description") }}</p>
+          <h1>{{ $t("workspace.section", { section: $t(`navigation.${sectionKey}`) }) }}</h1>
+          <p class="muted">{{ $t(`workspace.sections.${sectionKey}`) }}</p>
         </div>
         <div class="session-chip"><span class="status-dot"></span> {{ $t("workspace.active") }}</div>
       </section>

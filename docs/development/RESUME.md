@@ -4,9 +4,9 @@ Verified main: `594468b7cee4294aa57faa46d72ac243c31ce5cb` (#220), with post-merg
 
 ## Current slice
 
-`codex/registry-classification-filters` adds migration 193 and the ADR 0014 extension: Registry search and CSV/XLSX export intersect an optional classification ID with name and active/archived state before pagination/limits. Read-only metadata includes retired options; unknown/foreign IDs return no matches. Separate Registry/export authority and public projection boundaries remain unchanged. Full application, fresh PostgreSQL migration/upgrade/RLS/concurrency/role, API and Chromium/Firefox acceptance passed locally (`label-filter-*` logs), including a 20,001-unrelated-profile export-cap case, mobile page containment and delayed-denial cleanup. Exact-head CI remains required.
+`codex/contextual-workspace-headings` updates the staff shell heading and help text for each selected section in both languages. No API/schema/permission behavior changes. Staff tests/build and Chromium/Firefox language/navigation/error-isolation journeys passed (`workspace-headings-*` logs). The branch was rebased onto #221 main before publication; never rewrite published history.
 
-Existing-account onboarding (#220/ADR 0020) merged at `594468b7cee4294aa57faa46d72ac243c31ce5cb`, matching checked head `76a7ff88dad20e1bbb4e1bcf70895215b5feb905` after all five required checks passed. Post-merge contracts `45576797145` and secrets `45576797109` passed. The filter branch was rebased onto verified main before publication. Never rewrite published history.
+#221 classification filtering merged at `946410af4ef2e4a621954ca613cd6fd6b32b8d02`, matching exact checked head `655c740891073b232f66edf5d1568b85b4f9ac0b` after all five checks passed and CLEAN. The repaired CI contracts run `45615199360` and secrets `45615198961` passed. Post-merge contracts `45616192807` and secrets `45616192184` are running. Migration 193 and the richer-navigation mobile browser repair are integrated.
 
 The owner has a pending delegation-policy question: may organization administrators grant only permissions they hold, or any tenant permission? Do not implement organization-wide role grants until that answer arrives. Other independent #104 work can continue.
 
