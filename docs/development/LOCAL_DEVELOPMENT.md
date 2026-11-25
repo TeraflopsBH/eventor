@@ -176,7 +176,18 @@ When an interactive preview is running, reserve its database for the user and ru
 
 The disposable database helper `.eventor-dev/start-compose-ci.sh` uses Docker `--rm`; stopping that container also removes its anonymous database volume. It is suitable for isolated acceptance runs, but must not be used as persistent storage for an interactive preview the owner may edit. The November 25 preview shutdown exposed this distinction; its exploratory edits were not retained.
 
-For future interactive previews, use a dedicated named PostgreSQL volume and a container without `--rm`. Record the container, volume, connection and build snapshot in ignored preview state. Before shutdown, take a privileged `pg_dump` into an ignored, access-restricted local directory and verify the dump is readable; keep sensitive data out of Git. Check container mounts and removal mode before claiming data is preserved. Stop only the preview's identified API/web processes and database container. Do not remove its volume during routine shutdown.
+For future interactive previews, use the tracked `scripts/dev/db.sh` named-volume database (or an explicitly isolated persistent project), with a container without `--rm`. Record the container, volume, connection and build snapshot in ignored preview state. Before shutdown, take a privileged `pg_dump` into an ignored, access-restricted local directory and verify the dump is readable; keep sensitive data out of Git. Check container mounts and removal mode before claiming data is preserved. Stop only the preview's identified API/web processes and database container. Do not remove its volume during routine shutdown.
+
+The tracked development helper now protects normal shutdown:
+
+```bash
+./scripts/dev/db.sh backup   # create a local custom-format dump and read the full archive
+./scripts/dev/db.sh down     # verify persistent storage, back up, then stop; retain the volume
+```
+
+Backups are stored under ignored `.eventor-dev/backups` with owner-only file/directory permissions. A failed dump, archive read or unexpected storage/removal mode prevents shutdown. No automatic pruning is applied. `reset --yes` remains an explicitly destructive volume removal; it is not a normal stop command. These development checks do not replace production backup/recovery acceptance under #108.
+
+For isolated development/acceptance, set `EVENTOR_DEV_STATE_DIR` to a private ignored directory, `EVENTOR_DEV_PROJECT_NAME` to a distinct lowercase Compose project and `EVENTOR_DEV_POSTGRES_PORT` before first initialization. Generated role URLs use that port. Existing environment files are retained. `scripts/dev/test-database-lifecycle.sh` uses its own project/port, verifies stop/restart retention and an actual restore into a separate database, checks failed-backup refusal, then removes only its synthetic test volumes. The user preview is not started by this test.
 
 ### Bootstrap a new staff account on the host
 

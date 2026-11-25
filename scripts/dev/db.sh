@@ -2,26 +2,32 @@
 set -Eeuo pipefail
 
 ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
-STATE_DIR="$ROOT_DIR/.eventor-dev"
+STATE_DIR="${EVENTOR_DEV_STATE_DIR:-$ROOT_DIR/.eventor-dev}"
 ENV_FILE="$STATE_DIR/dev.env"
 COMPOSE_FILE="$ROOT_DIR/compose.dev.yaml"
-PROJECT_NAME="eventor-dev"
+PROJECT_NAME="${EVENTOR_DEV_PROJECT_NAME:-eventor-dev}"
+[[ "$PROJECT_NAME" =~ ^[a-z0-9][a-z0-9_-]*$ ]] || { printf 'Use a lowercase Compose project name.\n' >&2; exit 2; }
 
 generate_environment() {
   mkdir -p "$STATE_DIR"
   if [[ -f "$ENV_FILE" ]]; then
     return
   fi
-  local password
+  local password pg_port
+  pg_port="${EVENTOR_DEV_POSTGRES_PORT:-55432}"
+  if ! [[ "$pg_port" =~ ^[0-9]{1,5}$ ]] || (( 10#$pg_port < 1 || 10#$pg_port > 65535 )); then
+    printf 'Choose a TCP port between 1 and 65535.\n' >&2; return 2
+  fi
+  pg_port="$((10#$pg_port))"
   password="$(openssl rand -hex 24)"
   umask 077
   {
     printf 'EVENTOR_DEV_POSTGRES_PASSWORD=%s\n' "$password"
-    printf 'EVENTOR_DEV_POSTGRES_PORT=55432\n'
-    printf 'EVENTOR_RUNTIME_DATABASE_URL=postgresql://eventor_runtime:%s@127.0.0.1:55432/eventor\n' "$password"
-    printf 'EVENTOR_AUTH_DATABASE_URL=postgresql://eventor_auth:%s@127.0.0.1:55432/eventor\n' "$password"
-    printf 'EVENTOR_WORKER_DATABASE_URL=postgresql://eventor_worker:%s@127.0.0.1:55432/eventor\n' "$password"
-    printf 'EVENTOR_MIGRATOR_DATABASE_URL=postgresql://eventor_migrator:%s@127.0.0.1:55432/eventor\n' "$password"
+    printf 'EVENTOR_DEV_POSTGRES_PORT=%s\n' "$pg_port"
+    printf 'EVENTOR_RUNTIME_DATABASE_URL=postgresql://eventor_runtime:%s@127.0.0.1:%s/eventor\n' "$password" "$pg_port"
+    printf 'EVENTOR_AUTH_DATABASE_URL=postgresql://eventor_auth:%s@127.0.0.1:%s/eventor\n' "$password" "$pg_port"
+    printf 'EVENTOR_WORKER_DATABASE_URL=postgresql://eventor_worker:%s@127.0.0.1:%s/eventor\n' "$password" "$pg_port"
+    printf 'EVENTOR_MIGRATOR_DATABASE_URL=postgresql://eventor_migrator:%s@127.0.0.1:%s/eventor\n' "$password" "$pg_port"
     printf 'EVENTOR_ALLOWED_ORIGINS=http://127.0.0.1:5173,http://localhost:5173\n'
     for key_name in AUTH_FINGERPRINT PUBLIC_INQUIRY_FINGERPRINT FIELD_ENCRYPTION CONTACT_ENCRYPTION DELIVERY_CREDENTIALS BOOKING_CAPABILITY; do
       printf 'EVENTOR_%s_KEY=%s\n' "$key_name" "$(openssl rand -base64 32 | tr -d '\n')"
@@ -78,6 +84,37 @@ SQL
   fi
 }
 
+verify_persistent_container() {
+  local container_id="$1" auto_remove storage
+  auto_remove="$(docker inspect --format '{{.HostConfig.AutoRemove}}' "$container_id")"
+  storage="$(docker inspect --format '{{range .Mounts}}{{if eq .Destination "/var/lib/postgresql"}}{{.Type}}:{{.Name}}{{end}}{{end}}' "$container_id")"
+  if [[ "$auto_remove" != false || "$storage" != "volume:${PROJECT_NAME}_eventor-dev-postgres" ]]; then
+    printf 'Refusing shutdown: PostgreSQL is not using the expected persistent named volume. Back up and investigate before stopping it.\n' >&2
+    return 1
+  fi
+}
+
+backup_database() {
+  local backup_file
+  umask 077
+  if ! mkdir -p "$STATE_DIR/backups" || ! chmod 700 "$STATE_DIR/backups"; then
+    printf 'Backup directory is unavailable; PostgreSQL has not been stopped.\n' >&2
+    return 1
+  fi
+  backup_file="$(mktemp "$STATE_DIR/backups/${PROJECT_NAME}-$(date -u +%Y%m%dT%H%M%SZ).XXXXXX.dump")"
+  if ! compose exec -T postgres pg_dump -U postgres -d eventor --format=custom > "$backup_file"; then
+    rm -f "$backup_file"
+    printf 'Database backup failed; PostgreSQL has not been stopped.\n' >&2
+    return 1
+  fi
+  if ! compose exec -T postgres pg_restore --file=/dev/null < "$backup_file" >/dev/null; then
+    rm -f "$backup_file"
+    printf 'Backup verification failed; PostgreSQL has not been stopped.\n' >&2
+    return 1
+  fi
+  printf 'Verified local backup: %s\n' "$backup_file"
+}
+
 command_name="${1:-status}"
 case "$command_name" in
   up)
@@ -111,7 +148,17 @@ case "$command_name" in
   down)
     [[ -f "$ENV_FILE" ]] || { printf 'Development database is already stopped.\n'; exit 0; }
     load_environment
+    container_id="$(compose ps --status running -q postgres)"
+    [[ -n "$container_id" ]] || { printf 'Development database is already stopped; its named volume is retained.\n'; exit 0; }
+    verify_persistent_container "$container_id"
+    backup_database
     compose stop postgres
+    printf 'Stopped PostgreSQL; named volume %s_eventor-dev-postgres is retained.\n' "$PROJECT_NAME"
+    ;;
+  backup)
+    [[ -f "$ENV_FILE" ]] || { printf 'Development database has not been initialized.\n' >&2; exit 2; }
+    load_environment
+    backup_database
     ;;
   psql)
     load_environment
@@ -133,13 +180,13 @@ case "$command_name" in
     printf '%s\n' "$ENV_FILE"
     ;;
   reset)
-    [[ "${2:-}" == "--yes" ]] || { printf 'Reset deletes only the eventor-dev PostgreSQL volume. Re-run with: %s reset --yes\n' "$0" >&2; exit 2; }
+    [[ "${2:-}" == "--yes" ]] || { printf 'Reset deletes only the %s PostgreSQL volume. Re-run with: %s reset --yes\n' "$PROJECT_NAME" "$0" >&2; exit 2; }
     load_environment
     compose down --volumes
-    printf 'Removed the disposable eventor-dev PostgreSQL volume. Local credentials were retained.\n'
+    printf 'Removed the selected development PostgreSQL volume. Local credentials were retained.\n'
     ;;
   *)
-    printf 'Usage: %s {up|status|down|psql [ROLE]|file ROLE SQL_FILE|env|reset --yes}\n' "$0" >&2
+    printf 'Usage: %s {up|status|backup|down|psql [ROLE]|file ROLE SQL_FILE|env|reset --yes}\n' "$0" >&2
     exit 2
     ;;
 esac
