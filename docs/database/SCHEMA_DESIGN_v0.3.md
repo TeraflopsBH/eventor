@@ -570,3 +570,9 @@ The list projection contains event-owned association IDs/kind/status/time and re
 ### Migration 195 — Permission-filtered booking references
 
 An event-history index supports stable association pagination. The existing list command adds an optional nullable `bookingCode` display field only for same-organization bookings under current organization/exact-booking `booking.manage`. External or restricted references return null; another membership in the booking owner organization does not widen the selected tenant projection. Create responses retain the original identity fields. ACLs, tenant context, read audits and terminal provenance remain unchanged. The staff picker uses the existing scoped metadata lookup through a generic API alias. No booking/event data backfill or lifecycle change occurs.
+
+### Migration 196 — Event disruption inbox commands
+
+The existing `event_disruption_resolutions` aggregate accepts same-organization null-grant receipts and retains matching provider grants for cross-organization receipts. A unique event/provider/source-notice key stops duplicate publication; incompatible legacy data requires explicit reconciliation. Provenance/snapshot and the first acknowledgement are immutable, and receipt deletion is refused. Direct runtime/auth/worker access is revoked.
+
+Scoped commands publish a local active-linked source notice under both exact booking/event management, list event-owned receipts under event management, and acknowledge only `received` receipts without rewinding advanced states. Publication snapshots allowlist public notice facts; unsupported legacy snapshots expose null source payload. Event/booking/resource/guest facts do not change. Both commands serialize concurrent duplicates and audit only the initial transition. API cached retries recheck current authority. See ADR 0022; partner publication, email delivery and resolution commands remain open.

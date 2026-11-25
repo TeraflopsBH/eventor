@@ -1273,6 +1273,12 @@ export interface GuestRegistryDirectory {
   nextOffset: number | null;
 }
 
+export interface EventDisruptionNotice {
+  noticeId:string;eventId:string;sourceProviderOrganizationId:string;sourceBookingNoticeId:string;
+  status:"received"|"acknowledged"|"in_progress"|"resolved"|"dismissed";
+  resolutionKind:"relocate"|"amend_booking"|"postpone"|"cancel_event"|"unresolved";
+  createdAt:string;acknowledgedAt:string|null;sourceNotice:Omit<BookingDisruptionNotice,"noticeId">|null;
+}
 export interface EventBookingLink {
   bookingCode?:string|null;
   linkId:string;eventId:string;bookingOwnerOrganizationId:string;bookingId:string;collaborationGrantId:string|null;
@@ -1655,6 +1661,9 @@ export interface RegistryLabel {labelId:string;label:string;retired:boolean}
 export interface RegistryPersonLabels {revision:number;canManage:boolean;labels:RegistryLabel[];assignedLabelIds:string[]}
 export const api = {
   searchBookingReferences:(organizationId:string,query:string,offset=0)=>request<Envelope<{bookings:DisruptionBooking[];nextOffset:number|null}>>(`/organizations/${encodeURIComponent(organizationId)}/booking-references/search`,{method:"POST",body:{query,offset}}),
+  listEventDisruptionNotices:(eventId:string,offset=0)=>request<Envelope<{notices:EventDisruptionNotice[];nextOffset:number|null}>>(`/events/${encodeURIComponent(eventId)}/disruption-notices?offset=${offset}`),
+  publishLocalEventDisruption:(eventId:string,body:{bookingId:string;sourceBookingNoticeId:string})=>request<Envelope<EventDisruptionNotice>>(`/events/${encodeURIComponent(eventId)}/disruption-notices`,{method:"POST",idempotent:true,body}),
+  acknowledgeEventDisruption:(noticeId:string)=>request<Envelope<EventDisruptionNotice>>(`/event-disruption-notices/${encodeURIComponent(noticeId)}/acknowledge`,{method:"POST",idempotent:true,body:{}}),
   listEventBookingLinks:(eventId:string,offset=0)=>request<Envelope<{links:EventBookingLink[];nextOffset:number|null}>>(`/events/${encodeURIComponent(eventId)}/booking-links?offset=${offset}`),
   createEventBookingLink:(eventId:string,body:Pick<EventBookingLink,"bookingOwnerOrganizationId"|"bookingId"|"relationshipKind"> & {collaborationGrantId?:string|null})=>request<Envelope<EventBookingLink>>(`/events/${encodeURIComponent(eventId)}/booking-links`,{method:"POST",idempotent:true,body}),
   getRegistryPersonLabels:(personId:string)=>request<Envelope<RegistryPersonLabels>>(`/persons/${encodeURIComponent(personId)}/labels`),
