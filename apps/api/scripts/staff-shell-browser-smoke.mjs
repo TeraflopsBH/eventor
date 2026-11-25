@@ -24,9 +24,11 @@ for(const engine of [chromium,firefox]) {
   assert.equal(await page.getByRole('button',{name:'Booking forms',exact:true}).count(),workspaces.includes('forms')?1:0,'navigation did not match current grants');
   assert.equal(await page.locator('.tabs').getByRole('button',{name:'Email delivery',exact:true}).count(),0,'SMTP remained in the main navigation');
   await page.getByRole('button',{name:'Settings',exact:true}).click();
+  await page.getByRole('heading',{level:1,name:'Settings workspace',exact:true}).waitFor();
   await page.getByRole('button',{name:'Email and SMTP settings',exact:true}).click();
   await page.getByRole('heading',{name:'SMTP configuration',exact:true}).waitFor();
   await page.getByRole('button',{name:'Events',exact:true}).click();
+  await page.getByRole('heading',{level:1,name:'Events workspace',exact:true}).waitFor();
   await page.getByRole('button',{name:'Create event',exact:true}).click();
   const eventTitle=`Automatic reference ${engine.name()} ${Date.now()}`;
   await page.getByLabel('Event title',{exact:true}).fill(eventTitle);
@@ -38,6 +40,7 @@ for(const engine of [chromium,firefox]) {
   assert.match(creation.request().postDataJSON().eventCode,/^EVT-[A-F0-9]{16}$/);
   const bosnian=page.waitForResponse(r=>r.request().method()==='PATCH'&&r.url().endsWith('/me/preferences'));
   await page.locator('.locale-picker select').selectOption('bs-BA');assert.equal((await bosnian).status(),200);
+  await page.getByRole('heading',{level:1,name:'Radni prostor: Događaji',exact:true}).waitFor();
   await page.getByRole('row').filter({hasText:eventTitle}).getByRole('cell').filter({hasText:'01.03.2027 10:00'}).waitFor();
   const english=page.waitForResponse(r=>r.request().method()==='PATCH'&&r.url().endsWith('/me/preferences'));
   await page.locator('.locale-picker select').selectOption('en');assert.equal((await english).status(),200);
@@ -57,6 +60,6 @@ for(const engine of [chromium,firefox]) {
   const me=await context.request.get(base+'/api/me');assert.equal((await me.json()).data.userLocale,'bs-BA');
   const restored=page.waitForResponse(r=>r.request().method()==='PATCH'&&r.url().endsWith('/me/preferences'));
   await page.locator('.locale-picker select').selectOption('en');assert.equal((await restored).status(),200);
-  await context.close();console.log(`PASS ${engine.name()} language refresh/retry and permission-aware navigation/error isolation`);
+  await context.close();console.log(`PASS ${engine.name()} language refresh/retry and permission-aware navigation/error isolation and contextual bilingual headings`);
  } finally {await browser.close();}
 }
