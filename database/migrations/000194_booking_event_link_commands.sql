@@ -57,7 +57,7 @@ BEGIN
  FROM(SELECT * FROM eogp.booking_event_links WHERE organization_id=p_org AND event_id=p_event ORDER BY created_at DESC,id LIMIT 51 OFFSET p_offset) link;
  INSERT INTO eogp.audit_events(organization_id,actor_organization_id,actor_membership_id,actor_kind,action,aggregate_type,aggregate_id)
  VALUES(p_org,p_org,p_actor,'membership','event.booking_links.viewed','event',p_event);
- RETURN jsonb_build_object('links',CASE WHEN jsonb_array_length(v_rows)>50 THEN v_rows-50 ELSE v_rows END,'nextOffset',CASE WHEN jsonb_array_length(v_rows)>50 AND p_offset<100000 THEN p_offset+50 END);
+ RETURN jsonb_build_object('links',CASE WHEN jsonb_array_length(v_rows)>50 THEN v_rows-50 ELSE v_rows END,'nextOffset',CASE WHEN jsonb_array_length(v_rows)>50 AND p_offset<=99950 THEN p_offset+50 END);
 END;
 $function$;
 REVOKE ALL ON FUNCTION eogp.assert_event_booking_link_permission(uuid,uuid,uuid,uuid,uuid,uuid),eogp.create_event_booking_link(uuid,uuid,uuid,uuid,uuid,uuid,text),eogp.list_event_booking_links(uuid,uuid,uuid,integer) FROM PUBLIC,eventor_auth,eventor_worker;
