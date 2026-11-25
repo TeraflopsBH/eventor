@@ -391,7 +391,10 @@ export default {
     exportLimit: "This export exceeds 20,000 guests. Narrow the search or filters.",
   },
   registry: {
+    searchResults: "Registry search results",
     labels: {
+      filter: "Registry classification",
+      all: "All classifications",
       title: "Registry labels",
       help: "Internal classifications such as VIP, speaker or partner. These labels belong to the persistent profile and are not published to guests. Event categories remain separate.",
       empty: "No Registry labels have been configured.",
@@ -525,7 +528,7 @@ export default {
     },
     exportCsv: "Export Registry as CSV",
     exportXlsx: "Export Registry as XLSX",
-    exportLimit: "This export exceeds 20,000 profiles. Narrow the name search.",
+    exportLimit: "This export exceeds 20,000 profiles. Narrow the name or classification filters.",
     contacts: {
       title: "Contacts",
       kind: "Contact type",

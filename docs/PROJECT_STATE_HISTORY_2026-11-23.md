@@ -616,3 +616,11 @@ Live inspection discovered existing PR #132 (event administration core), so deve
 ### Verified integration — Registry classifications (#218), 2026-11-25
 
 Checked head `9d39f214d021e352d5f75b3ba523b66afe4c4981` passed all five required checks with CLEAN merge state; PR contracts `45568313985` and secrets `45568313679` succeeded. Squash main `17e04c04bd11ee2099097c393dd990821faa9629` matches the checked tree. Post-merge contracts `45569418413` and secrets `45569418415` passed. Migration 191/ADR 0018 preserve reviewed disjoint classifications and guard both restoration paths. The user preview remains stopped.
+
+### Verified integration — Registry relationships (#219), 2026-11-25
+
+Checked head `d34d7121e4b1a114dfbb58970b2a09fe723c4739` passed all five required checks with CLEAN merge state; PR contracts `45574411482` and secrets `45574411315` succeeded. Squash main `b50da4a2fd5f82d71acb1b8c7d78fca87310c261` matches the checked tree. Post-merge contracts `45575310141` and secrets `45575309986` passed. Migration 192/ADR 0019 preserve reviewed active relationship direction/attribution and guard both restoration paths. The user preview remains stopped.
+
+### Verified integration — Existing-account membership onboarding (#220), 2026-11-25
+
+Checked head `76a7ff88dad20e1bbb4e1bcf70895215b5feb905` passed all five required checks with CLEAN merge state; PR contracts `45575664776` and secrets `45575664806` succeeded. Squash main `594468b7cee4294aa57faa46d72ac243c31ce5cb` matches the checked tree. Post-merge contracts `45576797145` and secrets `45576797109` passed. ADR 0020 defines explicit host provisioning without account/session/role changes. The user preview remains stopped.

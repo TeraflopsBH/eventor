@@ -16,9 +16,9 @@ async function run(operation:()=>Promise<void>) {
  } finally{busy.value=false;}
 }
 async function load(){directory.value=(await api.getRegistryPersonLabels(props.personId)).data;selected.value=[...directory.value.assignedLabelIds];}
-function create(){if(!name.value.trim())return;void run(async()=>{const label=(await api.createRegistryLabel(props.organizationId,name.value.trim())).data;directory.value?.labels.push(label);name.value="";});}
+function create(){if(!name.value.trim())return;void run(async()=>{const label=(await api.createRegistryLabel(props.organizationId,name.value.trim())).data;directory.value?.labels.push(label);name.value="";emit("changed");});}
 function save(){const current=directory.value;if(!current?.canManage||!changed.value)return;void run(async()=>{await api.setRegistryPersonLabels(props.personId,current.revision,selected.value);await load();notice.value=t("registry.labels.saved");emit("changed");});}
-function retire(label:RegistryLabel){if(!window.confirm(t("registry.labels.confirmRetire",{label:label.label})))return;void run(async()=>{const retired=(await api.retireRegistryLabel(props.organizationId,label.labelId)).data;Object.assign(label,retired);});}
+function retire(label:RegistryLabel){if(!window.confirm(t("registry.labels.confirmRetire",{label:label.label})))return;void run(async()=>{const retired=(await api.retireRegistryLabel(props.organizationId,label.labelId)).data;Object.assign(label,retired);emit("changed");});}
 onMounted(()=>run(load));
 </script>
 <template>

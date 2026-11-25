@@ -7004,7 +7004,7 @@ paths:
     post:
       tags: ["Guest Registry"]
       operationId: searchPersons
-      summary: "Search organizer-owned profiles by name"
+      summary: "Search organizer-owned profiles by name and classification"
       security: [{ StaffSession: [], StaffCsrf: [] }]
       parameters:
         - $ref: '#/components/parameters/POrganizationId'
@@ -7474,6 +7474,28 @@ paths:
         '409': { $ref: '#/components/responses/Conflict' }
         '412': { $ref: '#/components/responses/PreconditionFailed' }
   "/organizations/{organizationId}/persons/labels":
+    get:
+      tags: ["Guest Registry"]
+      operationId: listRegistryLabels
+      summary: "List internal active and retired Registry classifications"
+      description: "Requires Registry read access in the selected organization. No guest assignments or public projections are exposed."
+      security: [{ StaffSession: [] }]
+      parameters:
+        - $ref: '#/components/parameters/POrganizationId'
+      responses:
+        '200':
+          description: "Tenant-scoped stable label options, including retired classifications for historical filtering."
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [data]
+                properties:
+                  data:
+                    type: array
+                    items: { $ref: '#/components/schemas/RegistryLabel' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/Forbidden' }
     post:
       tags: ["Guest Registry"]
       operationId: createRegistryLabel
@@ -9873,6 +9895,7 @@ components:
       type: object
       additionalProperties: false
       properties:
+        labelId: { type: [string, 'null'], format: uuid, description: 'Optional internal classification ID. Intersects with name and profile-state filters; retired assignments remain searchable.' }
         query: { type: string, maxLength: 200 }
         archived: { type: boolean }
         offset: { type: integer, minimum: 0, maximum: 100000 }
@@ -9880,6 +9903,7 @@ components:
       type: object
       additionalProperties: false
       properties:
+        labelId: { type: [string, 'null'], format: uuid, description: 'Optional internal classification ID. Intersects with name and profile-state filters; retired assignments remain searchable.' }
         query: { type: string, maxLength: 200 }
         archived: { type: boolean }
     PersonArchiveRequest:

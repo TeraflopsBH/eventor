@@ -7,7 +7,7 @@ import GuestRegistryContacts from "./GuestRegistryContacts.vue";
 import GuestRegistryReferences from "./GuestRegistryReferences.vue";
 import GuestRegistryRelationships from "./GuestRegistryRelationships.vue";
 import GuestRegistryMerges from "./GuestRegistryMerges.vue";
-import { api, ApiError, type GuestRegistryDirectory, type GuestRegistryHistory, type GuestRegistryProfile, type ManagedParticipationStatus, type RegistryLinkableEvent } from "../../api";
+import { api, ApiError, type GuestRegistryDirectory, type GuestRegistryHistory, type GuestRegistryProfile, type ManagedParticipationStatus, type RegistryLinkableEvent, type RegistryLabel } from "../../api";
 import { formatApiError } from "../../i18n/api-errors";
 import { downloadGuestCsv, downloadGuestXlsx, formatGuestCsv } from "../../guest-export";
 
@@ -33,7 +33,9 @@ const error = ref("");
 const editing = ref(false);
 const query = ref("");
 const archived = ref(false);
-const filters = reactive({ query: "", archived: false, offset: 0 });
+const labelId = ref("");
+const labelOptions = ref<RegistryLabel[]>([]);
+const filters = reactive({ query: "", archived: false, offset: 0, labelId: null as string | null });
 const form = reactive({ firstName: "", lastName: "", displayName: "", preferredName: "" });
 
 const selectedProfiles = ref<string[]>([]);
@@ -50,6 +52,7 @@ async function run(operation: () => Promise<void>): Promise<void> {
   } catch (failure) {
     if (failure instanceof ApiError && [401, 403].includes(failure.status)) {
       directory.value = null;
+      labelOptions.value = [];
       selectedProfiles.value = [];
       archivedCount.value = null;
       profile.value = null;
@@ -71,9 +74,14 @@ async function run(operation: () => Promise<void>): Promise<void> {
   }
 }
 
-async function load(offset: number): Promise<void> {
-  const result = await api.searchGuestRegistry(props.organizationId, { ...filters, offset });
+async function load(offset: number, refreshLabels = false): Promise<void> {
+  const [result, labels] = await Promise.all([
+    api.searchGuestRegistry(props.organizationId, { ...filters, offset }),
+    refreshLabels ? api.listRegistryLabels(props.organizationId) : Promise.resolve(null),
+  ]);
+  // Publish both reads together so a late successful response cannot repopulate data after a denial.
   directory.value = result.data;
+  if (labels) labelOptions.value = labels.data;
   selectedProfiles.value = [];
   archivedCount.value = null;
   filters.offset = offset;
@@ -89,14 +97,14 @@ function search(): Promise<void> {
   editingParticipation.value = null;
   linkableEvents.value = null;
   editing.value = false;
-  Object.assign(filters, { query: query.value.trim(), archived: archived.value });
-  return run(() => load(0));
+  Object.assign(filters, { query: query.value.trim(), archived: archived.value, labelId: labelId.value || null });
+  return run(() => load(0,true));
 }
 
 function downloadRegistry(format: "csv" | "xlsx"): Promise<void> {
   return run(async () => {
-    const { query, archived } = filters;
-    const { data } = await api.exportGuestRegistry(props.organizationId, { query, archived });
+    const { query, archived, labelId } = filters;
+    const { data } = await api.exportGuestRegistry(props.organizationId, { query, archived, labelId });
     const rows = [
       ["first_name", "last_name", "display_name", "preferred_name", "profile_status"],
       ...data.people.map((person) => [person.firstName, person.lastName, person.displayName, person.preferredName, person.status]),
@@ -128,7 +136,7 @@ function refreshProfileLabels(personId: string): Promise<void> {
   return run(async () => {
     const { data } = await api.getGuestRegistryProfile(personId);
     if (profile.value?.personId === personId) profile.value = data;
-    await load(filters.offset);
+    await load(filters.offset,true);
   });
 }
 
@@ -196,7 +204,7 @@ function refreshAfterMerge(): Promise<void> {
     closeProfile();
     showMergeHistory.value = true;
   }
-  return run(() => load(0));
+  return run(() => load(0,true));
 }
 
 function loadHistory(personId: string, offset = 0): Promise<void> {
@@ -283,6 +291,11 @@ onMounted(search);
     <h2>{{ t("navigation.guestRegistry") }}</h2>
     <form class="registry-toolbar" @submit.prevent="search">
       <label>{{ t("registry.nameSearch") }}<input v-model="query" maxlength="200"></label>
+      <div class="registry-label-filter"><label for="registry-label-filter">{{ t("registry.labels.filter") }}</label>
+      <select id="registry-label-filter" v-model="labelId" :disabled="busy">
+        <option value="">{{ t("registry.labels.all") }}</option>
+        <option v-for="label in labelOptions" :key="label.labelId" :value="label.labelId">{{ label.label }}{{ label.retired ? ` (${t("registry.labels.retired")})` : "" }}</option>
+      </select></div>
       <label><input v-model="archived" type="checkbox"> {{ t("registry.archived") }}</label>
       <button class="button button-secondary" type="submit" :disabled="busy || editing">{{ t("registry.search") }}</button>
       <button v-if="directory?.canManage" class="button button-primary" type="button" :disabled="busy" @click="edit(null)">
@@ -425,7 +438,7 @@ onMounted(search);
     </div>
     <p v-if="archivedCount" role="status">{{ t("registry.bulkArchive.result", { count: archivedCount }) }}</p>
     <p v-if="directory && !directory.people.length" class="muted">{{ t("registry.empty") }}</p>
-    <div v-else-if="directory" class="table-scroll">
+    <div v-else-if="directory" class="table-scroll" tabindex="0" role="region" :aria-label="t('registry.searchResults')">
       <table class="data-table">
         <thead><tr>
           <th v-if="canSelectProfiles" scope="col">
@@ -454,7 +467,11 @@ onMounted(search);
 </template>
 
 <style scoped>
-.registry, .registry-form { display: grid; gap: 1rem; }
-.registry-toolbar { display: flex; align-items: end; flex-wrap: wrap; gap: 0.75rem; }
+.registry, .registry-form { display: grid; gap: 1rem; min-width: 0; }
+.registry { grid-template-columns: minmax(0, 1fr); }
+.registry-toolbar { min-width: 0; max-width: 100%; display: flex; align-items: end; flex-wrap: wrap; gap: 0.75rem; }
+.registry-label-filter { display: grid; gap: 0.25rem; flex: 0 1 28rem; min-width: 0; max-width: 100%; }
+.registry-label-filter select { width: 100%; min-width: 0; }
+.table-scroll { min-width: 0; max-width: 100%; overflow-x: auto; }
 .registry-form { max-width: 34rem; }
 </style>

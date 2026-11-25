@@ -10,6 +10,10 @@ case "${1:-}" in
     script='registry-relationship-merge-browser-smoke.mjs'
     base_url_env='EVENTOR_RELATIONSHIP_MERGE_BROWSER_BASE_URL'
     ;;
+  registry-label-filter)
+    script='registry-label-filter-browser-smoke.mjs'
+    base_url_env='EVENTOR_LABEL_FILTER_BROWSER_BASE_URL'
+    ;;
   registry-label-merge)
     script='registry-label-merge-browser-smoke.mjs'
     base_url_env='EVENTOR_LABEL_MERGE_BROWSER_BASE_URL'
@@ -71,7 +75,7 @@ case "${1:-}" in
     base_url_env='EVENTOR_RESTORATION_BROWSER_BASE_URL'
     ;;
   *)
-    printf 'Usage: bash scripts/dev/run-browser-smoke.sh {registry-relationship-merge|registry-label-merge|event-guest-bulk-name-reset|event-rsvp-settings|workspace-access|registry-labels|staff-shell|session|guest-invitation|organization-access|booking-disruption|public-booking-cancellation|registry-contact-merge|registry-reference-merge|registry-restoration|event-guest-bulk-groups}\n' >&2
+    printf 'Usage: bash scripts/dev/run-browser-smoke.sh {registry-label-filter|registry-relationship-merge|registry-label-merge|event-guest-bulk-name-reset|event-rsvp-settings|workspace-access|registry-labels|staff-shell|session|guest-invitation|organization-access|booking-disruption|public-booking-cancellation|registry-contact-merge|registry-reference-merge|registry-restoration|event-guest-bulk-groups}\n' >&2
     exit 2
     ;;
 esac

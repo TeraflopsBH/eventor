@@ -496,6 +496,12 @@ jobs:
         env:
           EVENTOR_RELATIONSHIP_MERGE_BROWSER_BASE_URL: http://localhost:4173
         run: bash scripts/dev/run-browser-smoke.sh registry-relationship-merge
+      - name: Seed Registry classification filter export access
+        run: psql "$MIGRATOR_URL" -X -v ON_ERROR_STOP=1 -f tests/database/registry_label_filter_browser_fixture.sql
+      - name: Verify Registry classification search and CSV/XLSX export
+        env:
+          EVENTOR_LABEL_FILTER_BROWSER_BASE_URL: http://localhost:4173
+        run: bash scripts/dev/run-browser-smoke.sh registry-label-filter
       - name: Stop the staff web preview
         if: always()
         run: |
