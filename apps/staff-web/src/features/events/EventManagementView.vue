@@ -1,4 +1,6 @@
 <script setup lang="ts">
+import EventRsvpSettingsView from "./EventRsvpSettingsView.vue";
+import { sessionLocalTime, zonedLocalDateTimeToIso } from "../../local-date-time";
 import { formatDateTime } from "../../i18n/format";
 import { useI18n } from "vue-i18n";
 import { generatedReferenceCode } from "../../reference-code";
@@ -26,6 +28,8 @@ const lifecycleActions: Partial<Record<OrganizerEvent["status"], OrganizerEventA
 const canEditEvent = (event: OrganizerEvent) =>
   !["ready_for_approval", "approved", "archived"].includes(event.status);
 const createOpen = ref(false);
+const settingsEventId = ref("");
+const settingsEvent = computed(() => events.value.find(event => event.eventId === settingsEventId.value));
 const editingEventId = ref("");
 const formError = ref("");
 const createForm = reactive({
@@ -90,17 +94,6 @@ async function toggleSessions(eventId: string): Promise<void> {
   await showSessions(eventId);
 }
 
-function sessionLocalTime(value: string | null, timeZone: string): string {
-  if (!value) return "";
-  const instant = new Date(value);
-  if (Number.isNaN(instant.getTime())) return "";
-  const formatter = new Intl.DateTimeFormat("en-US", {
-    timeZone, year: "numeric", month: "2-digit", day: "2-digit",
-    hour: "2-digit", minute: "2-digit", hourCycle: "h23",
-  });
-  const parts = Object.fromEntries(formatter.formatToParts(instant).map((part) => [part.type, part.value]));
-  return `${parts.year}-${parts.month}-${parts.day}T${parts.hour}:${parts.minute}`;
-}
 
 function startSessionEdit(session: OrganizerEventSessionDetails): void {
   editingSession.value = session;
@@ -146,36 +139,7 @@ async function submitSession(event: OrganizerEvent): Promise<void> {
   if (saved) resetSessionForm();
 }
 
-function zonedLocalDateTimeToIso(value: string, timeZone: string): string {
-  const [datePart, timePart] = value.split("T");
-  if (!datePart || !timePart) throw new Error(props.t("events.invalidSchedule"));
-  const [year, month, day] = datePart.split("-").map(Number);
-  const [hour, minute] = timePart.split(":").map(Number);
-  if (![year, month, day, hour, minute].every(Number.isFinite)) throw new Error(props.t("events.invalidSchedule"));
-  const wallClock = Date.UTC(year, month - 1, day, hour, minute, 0);
-  const formatter = new Intl.DateTimeFormat("en-US", {
-    timeZone, year: "numeric", month: "2-digit", day: "2-digit",
-    hour: "2-digit", minute: "2-digit", second: "2-digit", hourCycle: "h23",
-  });
-  let instant = wallClock;
-  for (let attempt = 0; attempt < 4; attempt += 1) {
-    const parts = Object.fromEntries(formatter.formatToParts(new Date(instant)).map((part) => [part.type, part.value]));
-    const represented = Date.UTC(
-      Number(parts.year), Number(parts.month) - 1, Number(parts.day),
-      Number(parts.hour), Number(parts.minute), Number(parts.second),
-    );
-    instant = wallClock - (represented - instant);
-  }
-  const finalParts = Object.fromEntries(formatter.formatToParts(new Date(instant)).map((part) => [part.type, part.value]));
-  if (
-    Number(finalParts.year) !== year || Number(finalParts.month) !== month ||
-    Number(finalParts.day) !== day || Number(finalParts.hour) !== hour ||
-    Number(finalParts.minute) !== minute
-  ) {
-    throw new Error(props.t("events.invalidSchedule"));
-  }
-  return new Date(instant).toISOString();
-}
+
 function formatDate(value?: string | null, timeZone?: string): string {
   if (!value) return "—";
   const date = new Date(value);
@@ -353,6 +317,8 @@ async function submitUpdate(): Promise<void> {
                 >
                   {{ t(`events.lifecycle.${action}`) }}
                 </button>
+                <button class="button button-secondary button-small" type="button" :aria-expanded="settingsEventId === event.eventId"
+                  @click="settingsEventId = settingsEventId === event.eventId ? '' : event.eventId">{{ t("events.rsvpSettings") }}</button>
                 <span v-if="event.guestRegistryEnabled" class="muted">{{ t("events.guestListEnabled") }}</span>
                 <button v-else-if="['draft', 'planned', 'scheduled', 'active'].includes(event.status)"
                   class="button button-secondary button-small" type="button" :disabled="busy" @click="enableGuestRegistry(event)">
@@ -381,6 +347,7 @@ async function submitUpdate(): Promise<void> {
         </tbody>
       </table>
     </div>
+    <EventRsvpSettingsView v-if="settingsEvent" :key="settingsEvent.eventId" :event-id="settingsEvent.eventId" :event-title="settingsEvent.title" :read-only="['completed','cancelled','archived'].includes(settingsEvent.status)" :t="t" />
     <section v-if="sessionsEvent" class="event-form" aria-labelledby="organizer-sessions-heading">
       <h3 id="organizer-sessions-heading">{{ t("events.sessionsFor", { title: sessionsEvent.title }) }}</h3>
       <div v-if="sessions?.length" class="table-scroll">

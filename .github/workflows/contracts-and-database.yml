@@ -465,6 +465,11 @@ jobs:
           EVENTOR_WORKSPACE_BROWSER_BASE_URL: http://localhost:4173
         run: bash scripts/dev/run-browser-smoke.sh workspace-access
 
+      - name: Verify event RSVP settings in Chromium and Firefox
+        env:
+          EVENTOR_RSVP_SETTINGS_BROWSER_BASE_URL: http://localhost:4173
+        run: bash scripts/dev/run-browser-smoke.sh event-rsvp-settings
+
       - name: Stop the staff web preview
         if: always()
         run: |

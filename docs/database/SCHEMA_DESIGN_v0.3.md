@@ -535,3 +535,7 @@ The guarded auth-only refresh helper reconciles an active platform administrator
 ### Migration 188 — Host-managed membership controls
 
 Both organization member directory commands return `hostManaged`, derived from the selected membership's user platform flag under existing organization-management authorization. No table or permission grants change. The unfiltered directory delegates to the searched directory with an empty query so pagination, tenant checks and projections remain consistent. The staff UI labels host-managed access and omits unsupported tenant suspension controls; migration 187's server guard still rejects those commands.
+
+### Migration 189 — Event RSVP policy publication
+
+`get_event_rsvp_settings` reads the effective event time zone and current published RSVP revision under scoped `event.manage`. `publish_event_rsvp_settings` locks the event, validates answer codes, finite deadline, expected policy ID and effective time zone, then inserts a published revision and audit. Existing policy IDs are reused; event-wide increasing revision numbers avoid ambiguity with legacy multiple-policy data. Issued invitations keep their original policy references. Runtime direct policy-table writes are revoked; no new tables or mandatory services are introduced. See ADR 0016.

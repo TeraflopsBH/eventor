@@ -4581,6 +4581,33 @@ export function buildApi(dependencies: ApiDependencies): FastifyInstance {
     type: "object", required: ["eventId"], properties: { eventId: { type: "string", pattern: uuidPattern } },
   };
 
+  server.get<{ Params: { eventId: string } }>("/events/:eventId/rsvp-settings", {
+    schema: { params: participationEventParams },
+  }, (request, reply) => withRegistryRead(reply, registryPrincipal(request),
+    "SELECT eogp.get_event_rsvp_settings($1::uuid,$3::uuid,$2::uuid) AS result", [request.params.eventId]));
+
+  type RsvpSettingsBody = JsonRequestBody<"/events/{eventId}/rsvp-settings", "post">;
+  server.post<{ Params: { eventId: string }; Body: RsvpSettingsBody }>("/events/:eventId/rsvp-settings", {
+    schema: { params: participationEventParams, headers: idempotencyHeaders, body: {
+      type: "object", additionalProperties: false, required: ["expectedRevisionId", "allowedResponses", "responseDeadline", "responseChangeAllowed", "expectedTimezoneName"],
+      properties: {
+        expectedTimezoneName: { type: "string", minLength: 1, maxLength: 80 },
+        expectedRevisionId: { anyOf: [{ type: "string", pattern: uuidPattern }, { type: "null" }] },
+        allowedResponses: { type: "array", minItems: 1, maxItems: 3, uniqueItems: true, items: { type: "string", enum: ["accepted", "declined", "tentative"] } },
+        responseDeadline: { anyOf: [{ type: "string", format: "date-time" }, { type: "null" }] },
+        responseChangeAllowed: { type: "boolean" },
+      },
+    } },
+  }, (request, reply) => {
+    const principal = registryPrincipal(request); const { eventId } = request.params;
+    return withCommand(request, reply, "event.rsvp_policy.publish", { eventId, ...request.body }, async (client) => {
+      const result = await client.query<ResultRow>(
+        "SELECT eogp.publish_event_rsvp_settings($1::uuid,$2::uuid,$3::uuid,$4::uuid,$5::jsonb,$6::timestamptz,$7::boolean,$8::text) AS result",
+        [principal.organizationId,eventId,principal.membershipId,request.body.expectedRevisionId,JSON.stringify(request.body.allowedResponses),request.body.responseDeadline,request.body.responseChangeAllowed,request.body.expectedTimezoneName]);
+      return (result.rows[0]?.result ?? {}) as Record<string,unknown>;
+    }, (client) => assertEventManagePermission(client, principal, eventId), 200);
+  });
+
   server.post<{ Params: { eventId: string } }>("/events/:eventId/guest-registry/enable", {
     schema: { params: participationEventParams, headers: idempotencyHeaders },
   }, (request, reply) => {

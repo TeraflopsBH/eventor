@@ -1,16 +1,12 @@
 # Development resume — 2026-11-25
 
-The interruption is reconciled. PR #209–#211 are merged. Last recorded verified main: `58e4c95e1c6923b437ea80cc1364e3ada80e8eb3`, with post-merge contracts `45507846026` and secret history `45507846531` passing. Current state and its linked archive retain the prior receipts.
+Verified main: `ce17be1e3245a7f2dcac5d3ba5d7198058263cc5`, after PRs #212/#213; post-merge contracts `45514104215` and secret history `45514104208` passed. The current state archive retains older receipts.
 
 ## Current slice
 
-`codex/platform-member-controls` adds a scoped `hostManaged` member-directory flag and bilingual host-management labels, omitting unsupported tenant suspension controls. Migration 188 unifies directory projections; the existing server guard remains unchanged. Full application and fresh PostgreSQL checks passed, plus Chromium/Firefox staff-shell, Registry-label and focused workspace/member-control checks. Exact-head CI remains required before integration.
+`codex/event-rsvp-settings` adds event-level RSVP policy read/publication using existing policy tables. Migration 189 and ADR 0016 define scoped `event.manage`, immutable revisions, pinned historical invitations, stale policy/time-zone rejection and explicit publication. The bilingual event UI shares the scheduler's local-time conversion. No notifications or other modules are enabled. Full application checks and fresh PostgreSQL migration/upgrade/RLS/concurrency/auth checks passed. Chromium/Firefox verified publication, local deadlines, refresh, idempotent retry, stale revisions, CSRF and permissions, including unchanged deadline precision. Inspect ignored `rsvp-settings-*` logs and Git status before resuming. Exact-head CI remains required.
 
-Previous completed slice:
-
-`feat/email-first-workspace-access` implements email/password-only sign-in, named choices for multiple active memberships, audited atomic workspace switching with original session expiry, and explicit host-managed platform administration. Migration 187 and ADR 0015 define its boundaries. Existing organization managers retain tenant limits; auth/runtime cannot set the global flag. Host CLI: `scripts/admin/platform-admin.sh`.
-
-Full application, native PostgreSQL, fresh Docker upgrade/RLS/concurrency/auth checks and Chromium/Firefox staff-shell/Registry-label/workspace journeys passed. Final browser execution was resumed after the limit interruption. Logs: `.eventor-dev/logs/workspace-access-full.log`, `workspace-access-native.log`, `workspace-access-browser.log`, and `staff-shell-compose-tests.log`. Exact-head CI must be checked before merging. Do not rewrite published history.
+PR #211 email-first access and #212 host-managed member controls are already merged and verified. Never reapply their old changes or rewrite published history.
 
 ## Interactive preview
 
@@ -20,7 +16,7 @@ The preview is served from an ignored build snapshot so unfinished source edits 
 
 ## First resume actions
 
-1. Inspect Git status, fetch origin, inspect the exact PR head and required checks. The current branch follows the verified #211 tree. Rebase only while unpublished, with explicit Git identity and stop-on-error shell behavior. Never reapply older backup stashes: their changes are merged.
+1. Inspect Git status, fetch origin, inspect the exact PR head and required checks. The current branch follows verified #213. Rebase only while unpublished, with explicit Git identity and stop-on-error shell behavior. Never reapply older backup stashes: their changes are merged.
 2. Merge only after all five required checks pass and GitHub reports CLEAN. Squash using the exact checked head.
 3. Fast-forward main, inspect post-merge contracts and secret-history runs, then reconcile the active handoff/ignored verified receipt.
 4. Continue #104: remaining linked-record/initial-merge conflicts and broader user/member onboarding, event settings and remaining roster controls. Then #112 and #105–#108 in roadmap order. These slices do not complete the full product or production installers.
