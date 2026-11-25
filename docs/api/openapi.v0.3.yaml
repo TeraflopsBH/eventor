@@ -2599,11 +2599,38 @@ paths:
         '422': { $ref: '#/components/responses/UnprocessableEntity' }
         '429': { $ref: '#/components/responses/TooManyRequests' }
         '500': { $ref: '#/components/responses/InternalServerError' }
+  "/collaboration-grants/{grantId}":
+    get:
+      tags: ["Collaboration"]
+      operationId: readCollaborationGrant
+      summary: "Review an incoming or outgoing collaboration grant"
+      description: "Requires selected-party organization-scoped collaboration.manage. Includes the intentionally shared projection configuration for review, not underlying provider data or private source revisions. Read is audited."
+      security: [{ StaffSession: [] }]
+      parameters:
+        - $ref: '#/components/parameters/PGrantId'
+      responses:
+        '200':
+          description: "Private party-scoped grant configuration."
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [data]
+                properties:
+                  data:
+                    allOf:
+                      - $ref: '#/components/schemas/StaffCollaborationGrant'
+                      - required: [projection]
+        '400': { $ref: '#/components/responses/BadRequest' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '404': { $ref: '#/components/responses/NotFound' }
   "/collaboration-grants/{grantId}/accept":
     post:
       tags: ["Collaboration"]
       operationId: acceptCollaborationGrant
       summary: "Accept a grant as the grantee organization"
+      description: "Requires recipient organization-scoped collaboration.manage and a currently available acceptance window. Replays recheck role, recipient, grant status/window and original accepting actor. Revoked or expired authority cannot return a cached active response."
       security: [{ StaffSession: [], StaffCsrf: [] }]
       parameters:
         - $ref: '#/components/parameters/PGrantId'
@@ -2614,11 +2641,11 @@ paths:
           application/json:
             schema: { $ref: '#/components/schemas/GrantAcceptanceRequest' }
       responses:
-        '201':
+        '200':
           description: "Successful response."
           content:
             application/json:
-              schema: { $ref: '#/components/schemas/DataEnvelope' }
+              schema: { $ref: '#/components/schemas/CollaborationGrantEnvelope' }
         '400': { $ref: '#/components/responses/BadRequest' }
         '401': { $ref: '#/components/responses/Unauthorized' }
         '403': { $ref: '#/components/responses/Forbidden' }
@@ -2634,6 +2661,7 @@ paths:
       tags: ["Collaboration"]
       operationId: revokeCollaborationGrant
       summary: "Revoke future use of a grant"
+      description: "Requires grantor organization-scoped collaboration.manage, including cached retries. Proposed grants may be revoked without fabricating acceptance. Original accepted facts and first revocation/audit remain. No booking/event record is cancelled."
       security: [{ StaffSession: [], StaffCsrf: [] }]
       parameters:
         - $ref: '#/components/parameters/PGrantId'
@@ -2642,13 +2670,13 @@ paths:
         required: true
         content:
           application/json:
-            schema: { $ref: '#/components/schemas/ReasonRequest' }
+            schema: { type: object, additionalProperties: false, required: [reason], properties: { reason: { type: string, minLength: 3, maxLength: 2000 } } }
       responses:
-        '201':
+        '200':
           description: "Successful response."
           content:
             application/json:
-              schema: { $ref: '#/components/schemas/DataEnvelope' }
+              schema: { $ref: '#/components/schemas/CollaborationGrantEnvelope' }
         '400': { $ref: '#/components/responses/BadRequest' }
         '401': { $ref: '#/components/responses/Unauthorized' }
         '403': { $ref: '#/components/responses/Forbidden' }
@@ -6958,15 +6986,19 @@ paths:
       tags: ["Collaboration"]
       operationId: listCollaborationGrants
       summary: "List grants involving the current organization"
+      description: "Requires organization-scoped collaboration.manage. Includes only incoming/outgoing grant metadata for the selected organization; no tenant directory, provider records, grant revisions or raw projection configuration."
       security: [{ StaffSession: [] }]
       parameters:
         - $ref: '#/components/parameters/POrganizationId'
+        - in: query
+          name: offset
+          schema: { type: integer, minimum: 0, maximum: 100000, default: 0 }
       responses:
         '200':
           description: "Successful response."
           content:
             application/json:
-              schema: { $ref: '#/components/schemas/ListEnvelope' }
+              schema: { $ref: '#/components/schemas/CollaborationGrantsEnvelope' }
         '400': { $ref: '#/components/responses/BadRequest' }
         '401': { $ref: '#/components/responses/Unauthorized' }
         '403': { $ref: '#/components/responses/Forbidden' }
@@ -10040,6 +10072,46 @@ components:
       properties:
         resolutionKind: { type: string, enum: [relocate, amend_booking, postpone, cancel_event, unresolved] }
         notes: { type: string, maxLength: 4000 }
+    StaffCollaborationGrant:
+      type: object
+      additionalProperties: false
+      required: [grantId, grantorOrganizationId, granteeOrganizationId, scopeKind, venueId, spaceId, bookingId, purpose, allowedActions, status, validFrom, validUntil, effective, acceptedAt, revokedAt, createdAt]
+      properties:
+        grantId: { type: string, format: uuid }
+        grantorOrganizationId: { type: string, format: uuid }
+        granteeOrganizationId: { type: string, format: uuid }
+        scopeKind: { type: string, enum: [venue, space, booking] }
+        venueId: { type: [string, 'null'], format: uuid }
+        spaceId: { type: [string, 'null'], format: uuid }
+        bookingId: { type: [string, 'null'], format: uuid }
+        purpose: { type: string }
+        allowedActions: { type: array, items: { type: string } }
+        status: { type: string, enum: [proposed, active, expired, revoked, declined] }
+        validFrom: { type: string, format: date-time }
+        validUntil: { type: [string, 'null'], format: date-time }
+        effective: { type: boolean }
+        acceptedAt: { type: [string, 'null'], format: date-time }
+        revokedAt: { type: [string, 'null'], format: date-time }
+        createdAt: { type: string, format: date-time }
+        projection:
+          type: object
+          additionalProperties: true
+          description: "Intentionally shared scope configuration, present only in the detailed review."
+    CollaborationGrantEnvelope:
+      type: object
+      required: [data]
+      properties:
+        data: { $ref: '#/components/schemas/StaffCollaborationGrant' }
+    CollaborationGrantsEnvelope:
+      type: object
+      required: [data]
+      properties:
+        data:
+          type: object
+          required: [grants, nextOffset]
+          properties:
+            grants: { type: array, maxItems: 50, items: { $ref: '#/components/schemas/StaffCollaborationGrant' } }
+            nextOffset: { type: [integer, 'null'], minimum: 0, maximum: 100000 }
     CollaborationGrantCreateRequest:
       type: object
       required: [granteeOrganizationId, scope, purpose, allowedActions]
@@ -10052,8 +10124,7 @@ components:
         validUntil: { type: string, format: date-time }
     GrantAcceptanceRequest:
       type: object
-      properties:
-        acknowledgement: { type: string, maxLength: 1000 }
+      additionalProperties: false
     VenueSnapshotShareRequest:
       type: object
       required: [eventOwnerOrganizationId, eventId, venueSpaceRevisionId, collaborationGrantId, sourceContentSha256]
