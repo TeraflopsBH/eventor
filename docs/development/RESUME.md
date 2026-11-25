@@ -4,9 +4,9 @@ Verified main: `594468b7cee4294aa57faa46d72ac243c31ce5cb` (#220), with post-merg
 
 ## Current slice
 
-`codex/contextual-workspace-headings` updates the staff shell heading and help text for each selected section in both languages. No API/schema/permission behavior changes. Staff tests/build and Chromium/Firefox language/navigation/error-isolation journeys passed (`workspace-headings-*` logs). The branch remains unpublished on the pending #221 candidate; rebase only its own commits onto resulting main before publication.
+`codex/contextual-workspace-headings` updates the staff shell heading and help text for each selected section in both languages. No API/schema/permission behavior changes. Staff tests/build and Chromium/Firefox language/navigation/error-isolation journeys passed (`workspace-headings-*` logs). The branch was rebased onto #221 main before publication; never rewrite published history.
 
-#221 classification filtering is open at `655c740891073b232f66edf5d1568b85b4f9ac0b`. Its first CI run failed the mobile containment assertion because earlier fixtures grant extra booking navigation. This was reproduced using provider/bulk-group fixtures, fixed by containing horizontal navigation, and verified in both browsers and the staff build. Exact-head contracts `45615199360` and secrets `45615198961` are running; merge only after all five checks pass and CLEAN. Migration 193 and all earlier local filter/application/PostgreSQL receipts remain valid; no schema change was needed for the navigation fix.
+#221 classification filtering merged at `946410af4ef2e4a621954ca613cd6fd6b32b8d02`, matching exact checked head `655c740891073b232f66edf5d1568b85b4f9ac0b` after all five checks passed and CLEAN. The repaired CI contracts run `45615199360` and secrets `45615198961` passed. Post-merge contracts `45616192807` and secrets `45616192184` are running. Migration 193 and the richer-navigation mobile browser repair are integrated.
 
 The owner has a pending delegation-policy question: may organization administrators grant only permissions they hold, or any tenant permission? Do not implement organization-wide role grants until that answer arrives. Other independent #104 work can continue.
 
