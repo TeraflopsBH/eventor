@@ -1667,6 +1667,7 @@ export interface GuestImportPreview {
 export interface RegistryLabel {labelId:string;label:string;retired:boolean}
 export interface RegistryPersonLabels {revision:number;canManage:boolean;labels:RegistryLabel[];assignedLabelIds:string[]}
 export const api = {
+  proposeBookingCollaboration:(bookingId:string,body:{granteeOrganizationId:string;purpose:string;validFrom:string;validUntil:string|null})=>request<Envelope<StaffCollaborationGrant>>(`/bookings/${encodeURIComponent(bookingId)}/collaboration-grants`,{method:"POST",idempotent:true,body}),
   listCollaborationGrants:(organizationId:string,offset=0)=>request<Envelope<{grants:StaffCollaborationGrant[];nextOffset:number|null}>>(`/organizations/${encodeURIComponent(organizationId)}/collaboration-grants?offset=${offset}`),
   readCollaborationGrant:(grantId:string)=>request<Envelope<StaffCollaborationGrant & {projection:Record<string,unknown>;reviewFingerprint:string}>>(`/collaboration-grants/${encodeURIComponent(grantId)}`),
   acceptCollaborationGrant:(grantId:string,expectedReviewFingerprint?:string)=>request<Envelope<StaffCollaborationGrant>>(`/collaboration-grants/${encodeURIComponent(grantId)}/accept`,{method:"POST",idempotent:true,body:expectedReviewFingerprint?{expectedReviewFingerprint}:{}}),

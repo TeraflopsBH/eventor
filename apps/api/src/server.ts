@@ -4054,6 +4054,24 @@ export function buildApi(dependencies: ApiDependencies): FastifyInstance {
     "SELECT eogp.read_booking_disruption_notices($1::uuid,$3::uuid,$2::uuid,$4::integer) AS result",
     [request.params.bookingId,request.query.offset ?? 0]));
 
+  type BookingCollaborationBody=JsonRequestBody<"/bookings/{bookingId}/collaboration-grants","post">;
+  server.post<{Params:{bookingId:string};Body:BookingCollaborationBody}>("/bookings/:bookingId/collaboration-grants",{
+    schema:{params:bookingNoticeParams,headers:idempotencyHeaders,body:{type:"object",additionalProperties:false,required:["granteeOrganizationId","purpose","validFrom","validUntil"],properties:{
+      granteeOrganizationId:{type:"string",pattern:uuidPattern},purpose:{type:"string",minLength:1,maxLength:1000},validFrom:{type:"string",format:"date-time"},validUntil:{type:["string","null"],format:"date-time"},
+    }}},
+  },(request,reply)=>{
+    const principal=registryPrincipal(request);const purpose=request.body.purpose.trim();
+    if(!purpose || /[\p{Cc}\p{Cs}]/u.test(purpose))throw new ApiError(400,"VALIDATION_FAILED","Enter a valid collaboration purpose.");
+    const input={bookingId:request.params.bookingId.toLowerCase(),granteeOrganizationId:request.body.granteeOrganizationId.toLowerCase(),purpose,
+      validFrom:new Date(request.body.validFrom).toISOString(),validUntil:request.body.validUntil===null?null:new Date(request.body.validUntil).toISOString()};
+    if(input.granteeOrganizationId===principal.organizationId || (input.validUntil!==null && Date.parse(input.validUntil)<=Date.parse(input.validFrom)))throw new ApiError(400,"VALIDATION_FAILED","Enter another recipient organization and a valid period.");
+    const scope=[principal.organizationId,input.bookingId,principal.membershipId];const grantId=randomUUID();
+    return withCommand(request,reply.header("cache-control","no-store, private"),"booking.collaboration.propose",input,async client=>{
+      const result=await client.query<ResultRow>("SELECT eogp.propose_booking_collaboration($1::uuid,$2::uuid,$3::uuid,$4::uuid,$5::uuid,$6::text,$7::timestamptz,$8::timestamptz) AS result",[...scope,grantId,input.granteeOrganizationId,purpose,input.validFrom,input.validUntil]);
+      return (result.rows[0]?.result??{}) as Record<string,unknown>;
+    },async client=>{await client.query("SELECT eogp.assert_booking_collaboration_proposal_permission($1::uuid,$2::uuid,$3::uuid)",scope);},201);
+  });
+
   type RecordDisruptionNoticeBody = JsonRequestBody<"/bookings/{bookingId}/disruption-notices","post">;
   server.post<{ Params:{bookingId:string}; Body:RecordDisruptionNoticeBody }>(bookingNoticesPath, {
     schema: {params:bookingNoticeParams,headers:idempotencyHeaders,body:{
