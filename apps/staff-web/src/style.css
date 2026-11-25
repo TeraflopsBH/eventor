@@ -59,8 +59,8 @@ input::placeholder { color: #777; }
 .welcome-row { display: flex; justify-content: space-between; align-items: end; padding: 48px 0 28px; }
 .welcome-row .muted { margin-bottom: 0; }
 .session-chip { display: flex; align-items: center; gap: 9px; color: #b8b8b8; border: 1px solid var(--border); border-radius: 99px; padding: 9px 13px; font-size: 11px; white-space: nowrap; }
-.tabs { display: flex; gap: 22px; border-bottom: 1px solid var(--border); margin-bottom: 24px; }
-.tabs button { color: var(--muted); background: transparent; border: 0; border-bottom: 2px solid transparent; padding: 13px 2px; font-size: 12px; font-weight: 700; }
+.tabs { display: flex; min-width: 0; max-width: 100%; overflow-x: auto; gap: 22px; border-bottom: 1px solid var(--border); margin-bottom: 24px; }
+.tabs button { flex-shrink: 0; white-space: nowrap; color: var(--muted); background: transparent; border: 0; border-bottom: 2px solid transparent; padding: 13px 2px; font-size: 12px; font-weight: 700; }
 .tabs button.active { color: #fff; border-color: var(--accent); }
 .content-grid { display: grid; grid-template-columns: minmax(0, 1.55fr) minmax(260px, .75fr); gap: 20px; align-items: start; }
 .main-panel, .side-panel, .campaign-panel { padding: 26px; }
