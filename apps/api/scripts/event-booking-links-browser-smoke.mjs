@@ -24,8 +24,12 @@ for(const engine of [chromium,firefox]){
   await page.setViewportSize({width:375,height:812});const box=await panel.boundingBox();assert.ok(box && box.x>=0 && box.x+box.width<=375);await page.setViewportSize({width:1280,height:720});
   await write('/me/preferences',{locale:'bs-BA'},'patch');await page.reload();await page.getByRole('button',{name:`Povezane rezervacije za ${title}`,exact:true}).click();await panel.getByRole('heading',{name:`Rezervacije za ${title}`,exact:true}).waitFor();
   await panel.getByRole('cell',{name:'Usluga za događaj',exact:true}).waitFor();await panel.getByRole('cell',{name:/^\d{2}\.\d{2}\.\d{4} \d{2}:\d{2}$/,exact:true}).waitFor();
+  await page.setViewportSize({width:375,height:812});
+  page.once('dialog',dialog=>dialog.dismiss());await panel.getByRole('button',{name:'Završi povezivanje',exact:true}).click();assert.equal((await get(`/events/${event.eventId}/booking-links`)).links[0].status,'active');
+  const ended=page.waitForResponse(r=>r.request().method()==='POST'&&r.url().endsWith('/end'));page.once('dialog',dialog=>dialog.accept());await panel.getByRole('button',{name:'Završi povezivanje',exact:true}).click();assert.equal((await ended).status(),200);await panel.getByRole('cell',{name:'Završena',exact:true}).waitFor();assert.equal(await panel.getByRole('button',{name:'Završi povezivanje',exact:true}).count(),0);
+  const final=(await get(`/organizations/${org}/events`)).find(item=>item.eventId===event.eventId);for(const key of ['status','detailsRevision','scheduleRevision','guestRegistryEnabled'])assert.equal(final[key],before[key]);
   await page.route(`**/api/events/${event.eventId}/booking-links*`,route=>route.fulfill({status:403,contentType:'application/json',body:JSON.stringify({code:'FORBIDDEN',message:'Synthetic revoked event scope'})}));
   await panel.getByRole('button',{name:'Ponovo učitaj povezane rezervacije',exact:true}).click();await panel.getByRole('alert').waitFor();assert.equal(await panel.getByRole('cell',{name:target.bookingCode,exact:true}).count(),0);
-  await context.close();console.log(`PASS ${engine.name()} permitted booking selection, cancelled confirmation, association creation, unchanged event capabilities, mobile layout, Bosnian labels/dates and denial cleanup`);
+  await context.close();console.log(`PASS ${engine.name()} permitted booking selection, cancelled confirmation, association creation, unchanged event capabilities, mobile layout, Bosnian labels/dates, cancelled/confirmed ending and denial cleanup`);
  }finally{await browser.close();}
 }

@@ -1664,6 +1664,7 @@ export const api = {
   listEventDisruptionNotices:(eventId:string,offset=0)=>request<Envelope<{notices:EventDisruptionNotice[];nextOffset:number|null}>>(`/events/${encodeURIComponent(eventId)}/disruption-notices?offset=${offset}`),
   publishLocalEventDisruption:(eventId:string,body:{bookingId:string;sourceBookingNoticeId:string})=>request<Envelope<EventDisruptionNotice>>(`/events/${encodeURIComponent(eventId)}/disruption-notices`,{method:"POST",idempotent:true,body}),
   acknowledgeEventDisruption:(noticeId:string)=>request<Envelope<EventDisruptionNotice>>(`/event-disruption-notices/${encodeURIComponent(noticeId)}/acknowledge`,{method:"POST",idempotent:true,body:{}}),
+  endEventBookingLink:(eventId:string,linkId:string)=>request<Envelope<EventBookingLink>>(`/events/${encodeURIComponent(eventId)}/booking-links/${encodeURIComponent(linkId)}/end`,{method:"POST",idempotent:true,body:{}}),
   listEventBookingLinks:(eventId:string,offset=0)=>request<Envelope<{links:EventBookingLink[];nextOffset:number|null}>>(`/events/${encodeURIComponent(eventId)}/booking-links?offset=${offset}`),
   createEventBookingLink:(eventId:string,body:Pick<EventBookingLink,"bookingOwnerOrganizationId"|"bookingId"|"relationshipKind"> & {collaborationGrantId?:string|null})=>request<Envelope<EventBookingLink>>(`/events/${encodeURIComponent(eventId)}/booking-links`,{method:"POST",idempotent:true,body}),
   getRegistryPersonLabels:(personId:string)=>request<Envelope<RegistryPersonLabels>>(`/persons/${encodeURIComponent(personId)}/labels`),

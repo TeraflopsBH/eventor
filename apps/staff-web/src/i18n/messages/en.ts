@@ -821,6 +821,11 @@ export default {
     }
 },
   eventBookingLinks: {
+    actions: "Actions",
+    end: "End link",
+    endConfirm: "End this booking link for {event}? New notices cannot be published through it. Historical links and published notices are retained; booking and event status use separate workflows.",
+    ended: "Link ended. Its history and published notices are retained.",
+
     open: "Linked bookings",
     openNamed: "Linked bookings for {event}",
     title: "Bookings for {event}",
