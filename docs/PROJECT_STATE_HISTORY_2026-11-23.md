@@ -652,3 +652,12 @@ Migration 196/ADR 0022 reuse event-owned disruption receipts. Senders need exact
 ## 2026-11-25 — Bilingual disruption inbox (#226)
 
 Staff preview a public local source notice, confirm publication and acknowledge event-owned receipts. Event-only managers can acknowledge intentionally shared facts while source reads/publication remain denied. Source selection shows dates/summary text, summaries are escaped and denial clears private rows. Checked head `dc57cc615ccf0c5f72c9fa4f02a623a4362dbb93` passed all five checks/CLEAN; squash main `13f323190aceeb3d301632418b31035e167489e1` has the identical tree. Post-merge contracts `45626497026` and secrets `45626497096` passed. Full local application/Chromium/Firefox and synthetic desktop/mobile inspection passed; partner/email delivery and resolution remain open.
+
+
+## 2026-11-25 — Attributed link ending (#227)
+
+Migration 197 exposes the existing one-way association ending under exact event management, including after source-grant revocation. Previous receipts remain; new publication is blocked, and source booking/event/grant facts remain unchanged. Checked head `f76f429ff487d03149113fd528cfa262b0e78d93` passed all five checks/CLEAN; squash main `8c32544ab9714c9c8861fd1b945b765c1289d223` has the identical tree. Post-merge contracts `45628197700` and secrets `45628197752` passed. Full/fresh SQL/API concurrency and Chromium/Firefox cancelled/confirmed mobile ending acceptance passed.
+
+## 2026-11-25 — Permissioned collaboration lifecycle APIs (#228)
+
+Migration 198/ADR 0023 expose party-scoped list/detail and recipient acceptance/grantor revocation while revoking direct runtime reads. Current role/state/window/actor authority is checked on retries. The old proposed-revocation constraint failure was reproduced and fixed without fictitious acceptance. Checked head `52a6f826b952bb53cd7a42081171e95e3a483dff` passed all five checks/CLEAN; squash main `449ce2cb0ca2c22be8f711731dcf0fdcd5d4ab88` has the identical tree. Post-merge contracts `45631105545` and secrets `45631105546` passed. Full application/fresh PostgreSQL/real API and both acceptance-revocation race orders passed. Staff controls, new proposals/discovery and partner delivery were deferred to following slices.

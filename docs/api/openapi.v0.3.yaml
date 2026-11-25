@@ -588,8 +588,14 @@ paths:
                 properties:
                   data:
                     type: object
-                    required: [workspaces]
+                    required: [workspaces, capabilities]
                     properties:
+                      capabilities:
+                        type: object
+                        additionalProperties: false
+                        required: [manageCollaboration]
+                        properties:
+                          manageCollaboration: { type: boolean, description: "Navigation hint for organization-scoped collaboration management; all grant commands retain server authority." }
                       workspaces:
                         type: array
                         uniqueItems: true
@@ -2620,7 +2626,7 @@ paths:
                   data:
                     allOf:
                       - $ref: '#/components/schemas/StaffCollaborationGrant'
-                      - required: [projection]
+                      - required: [projection, reviewFingerprint]
         '400': { $ref: '#/components/responses/BadRequest' }
         '401': { $ref: '#/components/responses/Unauthorized' }
         '403': { $ref: '#/components/responses/Forbidden' }
@@ -10075,11 +10081,16 @@ components:
     StaffCollaborationGrant:
       type: object
       additionalProperties: false
-      required: [grantId, grantorOrganizationId, granteeOrganizationId, scopeKind, venueId, spaceId, bookingId, purpose, allowedActions, status, validFrom, validUntil, effective, acceptedAt, revokedAt, createdAt]
+      required: [grantId, grantorOrganizationId, granteeOrganizationId, grantorDisplayName, granteeDisplayName, canAccept, canRevoke, scopeKind, venueId, spaceId, bookingId, purpose, allowedActions, status, validFrom, validUntil, effective, acceptedAt, revokedAt, createdAt]
       properties:
         grantId: { type: string, format: uuid }
         grantorOrganizationId: { type: string, format: uuid }
         granteeOrganizationId: { type: string, format: uuid }
+        grantorDisplayName: { type: [string, 'null'], description: "Name published at proposal; null for uncaptured legacy grants." }
+        granteeDisplayName: { type: [string, 'null'], description: "Name published at acceptance; null before acceptance or for uncaptured legacy grants." }
+        canAccept: { type: boolean, description: "Current party/state/window hint; the command rechecks authority." }
+        canRevoke: { type: boolean, description: "Current grantor/state hint; the command rechecks authority." }
+        reviewFingerprint: { type: string, pattern: '^[a-f0-9]{64}$', description: "Detail-only fingerprint of reviewed scope/configuration; not a credential." }
         scopeKind: { type: string, enum: [venue, space, booking] }
         venueId: { type: [string, 'null'], format: uuid }
         spaceId: { type: [string, 'null'], format: uuid }
@@ -10125,6 +10136,11 @@ components:
     GrantAcceptanceRequest:
       type: object
       additionalProperties: false
+      properties:
+        expectedReviewFingerprint:
+          type: string
+          pattern: '^[a-f0-9]{64}$'
+          description: "Interactive clients send the detailed review fingerprint. A changed scope/configuration refuses acceptance atomically. Omission preserves existing programmatic acceptance and idempotency semantics."
     VenueSnapshotShareRequest:
       type: object
       required: [eventOwnerOrganizationId, eventId, venueSpaceRevisionId, collaborationGrantId, sourceContentSha256]

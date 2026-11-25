@@ -24,6 +24,7 @@ export function useStaffSession({
   const principal = ref<Principal | null>(null);
   const loadingSession = ref(true);
   const workspaces = ref<StaffTab[]>([]);
+  const canManageCollaboration=ref(false);
   let preferenceWrites: Promise<void> = Promise.resolve();
   const loginForm = reactive({ email: "", password: "", organizationId: "" });
   const loginOrganizations=ref<{organizationId:string;organizationName:string}[]>([]);
@@ -49,6 +50,7 @@ export function useStaffSession({
 
   async function refreshSession(): Promise<void> {
     loadingSession.value = true;
+    canManageCollaboration.value=false;
     try {
       const result = await api.me();
       principal.value = result.data;
@@ -66,6 +68,7 @@ export function useStaffSession({
       rememberStaffLocale(preferred);
       const available = await api.getStaffWorkspaces();
       workspaces.value = available.data.workspaces;
+      canManageCollaboration.value=available.data.capabilities?.manageCollaboration===true;
       applyWorkspaces(workspaces.value);
 
     } catch (error) {
@@ -165,5 +168,5 @@ export function useStaffSession({
     }
   }
 
-  return { principal, loadingSession, workspaces, loginOrganizations, clearLoginSelection, switchOrganization, loginForm, selectedOrganization, showError, refreshSession, signIn, signOut, saveLocalePreference, useOrganizationLocalePreference };
+  return { principal, loadingSession, workspaces, canManageCollaboration, loginOrganizations, clearLoginSelection, switchOrganization, loginForm, selectedOrganization, showError, refreshSession, signIn, signOut, saveLocalePreference, useOrganizationLocalePreference };
 }

@@ -20,3 +20,7 @@ export function availableStaffWorkspaces(grants: readonly WorkspaceGrant[]): Sta
   };
   return staffWorkspaces.filter(workspace => allowed[workspace]);
 }
+
+export function availableStaffCapabilities(grants:readonly WorkspaceGrant[]):{manageCollaboration:boolean}{
+  return{manageCollaboration:grants.some(grant=>grant.scope_kind==="organization" && grant.permission_code==="collaboration.manage")};
+}

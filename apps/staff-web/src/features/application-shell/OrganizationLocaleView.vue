@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import { onMounted, ref, type Ref } from "vue";
 import { api } from "../../api";
+import CollaborationGrantsView from "../collaboration/CollaborationGrantsView.vue";
 import OrganizationProfileView from "../organization-settings/OrganizationProfileView.vue";
 import OrganizationAccessView from "../organization-access/OrganizationAccessView.vue";
 import type { SupportedLocale } from "../../i18n";
@@ -8,6 +9,7 @@ import type { SupportedLocale } from "../../i18n";
 const props = defineProps<{
   organizationId: string;
   canConfigureDelivery?: boolean;
+  canManageCollaboration?:boolean;
   loadDelivery: () => Promise<void>;
   onProfileChanged: () => Promise<void>;
   busy: Ref<boolean>;
@@ -21,6 +23,7 @@ const defaultLocale = ref<SupportedLocale>("en");
 const canManage = ref(false);
 const loading = ref(false);
 const showAccess = ref(false);
+const showCollaboration=ref(false);
 const showDelivery = ref(false);
 async function toggleDelivery(): Promise<void> {
   showDelivery.value = !showDelivery.value;
@@ -88,6 +91,8 @@ onMounted(() => { void load(); });
     <button v-if="canConfigureDelivery" type="button" class="button button-secondary" :aria-expanded="showDelivery" @click="toggleDelivery">
       {{ $t("localeSettings.emailSettings") }}
     </button>
+    <button v-if="canManageCollaboration" type="button" class="button button-secondary" :aria-expanded="showCollaboration" aria-controls="collaboration-grant-workspace" @click="showCollaboration=!showCollaboration">{{ $t("collaborationGrants.title") }}</button>
+    <CollaborationGrantsView v-if="canManageCollaboration && showCollaboration" :key="organizationId" :organization-id="organizationId" />
     <slot v-if="showDelivery && canConfigureDelivery" name="delivery" />
     <OrganizationAccessView v-if="canManage && showAccess" :key="organizationId" :organization-id="organizationId" />
   </section>
