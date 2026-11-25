@@ -1650,6 +1650,7 @@ export interface RegistryPersonLabels {revision:number;canManage:boolean;labels:
 export const api = {
   getRegistryPersonLabels:(personId:string)=>request<Envelope<RegistryPersonLabels>>(`/persons/${encodeURIComponent(personId)}/labels`),
   setRegistryPersonLabels:(personId:string,expectedRevision:number,labelIds:string[])=>request<Envelope<{revision:number;assignedLabelIds:string[]}>>(`/persons/${encodeURIComponent(personId)}/labels`,{method:"PATCH",idempotent:true,body:{expectedRevision,labelIds}}),
+  listRegistryLabels:(organizationId:string)=>request<Envelope<RegistryLabel[]>>(`/organizations/${encodeURIComponent(organizationId)}/persons/labels`),
   createRegistryLabel:(organizationId:string,label:string)=>request<Envelope<RegistryLabel>>(`/organizations/${encodeURIComponent(organizationId)}/persons/labels`,{method:"POST",idempotent:true,body:{label}}),
   retireRegistryLabel:(organizationId:string,labelId:string)=>request<Envelope<RegistryLabel>>(`/organizations/${encodeURIComponent(organizationId)}/persons/labels/${encodeURIComponent(labelId)}/retire`,{method:"POST",idempotent:true}),
   getEventRsvpSettings: (eventId: string) => request<Envelope<EventRsvpSettings>>(`/events/${encodeURIComponent(eventId)}/rsvp-settings`),
@@ -1901,9 +1902,9 @@ export const api = {
       `/events/${encodeURIComponent(eventId)}/participations/${encodeURIComponent(participationId)}`,
       { method: "PATCH", body: { status, expectedRevision }, idempotent: true },
     ),
-  searchGuestRegistry: (organizationId: string, body: { query: string; archived: boolean; offset: number }) =>
+  searchGuestRegistry: (organizationId: string, body: { query: string; archived: boolean; offset: number; labelId?: string | null }) =>
     request<Envelope<GuestRegistryDirectory>>(`/organizations/${encodeURIComponent(organizationId)}/persons/search`, { method: "POST", body }),
-  exportGuestRegistry: (organizationId: string, body: { query: string; archived: boolean }) =>
+  exportGuestRegistry: (organizationId: string, body: { query: string; archived: boolean; labelId?: string | null }) =>
     request<Envelope<{ people: (GuestRegistryNames & { status: GuestRegistryProfile["status"] })[] }>>(
       `/organizations/${encodeURIComponent(organizationId)}/persons/export`, { method: "POST", body },
     ),

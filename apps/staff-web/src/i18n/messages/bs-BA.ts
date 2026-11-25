@@ -391,7 +391,10 @@ export default {
     exportLimit: "Izvoz prelazi 20.000 gostiju. Suzite pretragu ili filtere.",
   },
   registry: {
+    searchResults: "Rezultati pretrage Registra",
     labels: {
+      filter: "Klasifikacija Registra",
+      all: "Sve klasifikacije",
       title: "Oznake registra",
       help: "Interne klasifikacije poput VIP, govornik ili partner. Oznake pripadaju trajnom profilu i ne objavljuju se gostima. Kategorije događaja ostaju odvojene.",
       empty: "Oznake registra još nisu postavljene.",
@@ -525,7 +528,7 @@ export default {
     },
     exportCsv: "Izvezi registar kao CSV",
     exportXlsx: "Izvezi registar kao XLSX",
-    exportLimit: "Izvoz prelazi 20.000 profila. Suzite pretragu po imenu.",
+    exportLimit: "Izvoz prelazi 20.000 profila. Suzite pretragu po imenu ili klasifikaciji.",
     contacts: {
       title: "Kontakti",
       kind: "Vrsta kontakta",

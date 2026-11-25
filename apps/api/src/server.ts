@@ -3742,6 +3742,7 @@ export function buildApi(dependencies: ApiDependencies): FastifyInstance {
   type PersonArchiveBody = JsonRequestBody<"/persons/{personId}/archive", "post">;
   const registryPath = "/organizations/:organizationId/persons";
   const registryFilterFields = {
+    labelId: { type: ["string", "null"], pattern: uuidPattern },
     query: { type: "string", maxLength: 200 },
     archived: { type: "boolean" },
   };
@@ -4055,8 +4056,8 @@ export function buildApi(dependencies: ApiDependencies): FastifyInstance {
     reply: FastifyReply, principal: StaffPrincipal, personId: string | null, filter: PersonSearchBody = {},
   ) {
     return withRegistryRead(reply, principal,
-      "SELECT eogp.read_guest_registry($1::uuid,$2::uuid,$3::uuid,$4::text,$5::boolean,$6::integer) AS result",
-      [personId, filter.query ?? "", filter.archived ?? false, filter.offset ?? 0]);
+      "SELECT eogp.read_guest_registry($1::uuid,$2::uuid,$3::uuid,$4::text,$5::boolean,$6::integer,$7::uuid) AS result",
+      [personId, filter.query ?? "", filter.archived ?? false, filter.offset ?? 0,filter.labelId ?? null]);
   }
 
   async function writeRegistry(
@@ -4398,11 +4399,11 @@ export function buildApi(dependencies: ApiDependencies): FastifyInstance {
       body: { type: "object", additionalProperties: false, properties: registryFilterFields },
     },
   }, (request, reply) => withRegistryRead(reply, registryPrincipal(request, request.params.organizationId),
-    "SELECT eogp.read_guest_registry_export($1::uuid,$2::uuid,$3::text,$4::boolean) AS result",
-    [request.body.query ?? "", request.body.archived ?? false], (value) => {
+    "SELECT eogp.read_guest_registry_export($1::uuid,$2::uuid,$3::text,$4::boolean,$5::uuid) AS result",
+    [request.body.query ?? "", request.body.archived ?? false,request.body.labelId ?? null], (value) => {
       const result = value as { limitExceeded?: boolean };
       if (result.limitExceeded) {
-        throw new ApiError(422, "GUEST_REGISTRY_EXPORT_LIMIT", "The export exceeds 20,000 profiles. Narrow the name search.");
+        throw new ApiError(422, "GUEST_REGISTRY_EXPORT_LIMIT", "The export exceeds 20,000 profiles. Narrow the name or classification filters.");
       }
       return result;
     }));
@@ -4496,6 +4497,8 @@ export function buildApi(dependencies: ApiDependencies): FastifyInstance {
       return registryLabelCommand(request,reply,registryPrincipal(request),"guest.registry.labels.set",{personId:request.params.personId,expectedRevision:request.body.expectedRevision,labelIds},
         "SELECT eogp.set_registry_person_labels($1::uuid,$2::uuid,$3::uuid,$4::integer,$5::uuid[]) AS result",[request.params.personId,request.body.expectedRevision,labelIds]);
   });
+  server.get<{Params:{organizationId:string}}>(`${registryPath}/labels`,{schema:{params:registryOrgParams}},(request,reply)=>
+    withRegistryRead(reply,registryPrincipal(request,request.params.organizationId),"SELECT eogp.list_registry_labels($1::uuid,$2::uuid) AS result",[]));
   type RegistryLabelCreateBody=JsonRequestBody<"/organizations/{organizationId}/persons/labels","post">;
   server.post<{Params:{organizationId:string};Body:RegistryLabelCreateBody}>(`${registryPath}/labels`,{schema:{params:registryOrgParams,headers:idempotencyHeaders,
     body:{type:"object",additionalProperties:false,required:["label"],properties:{label:{type:"string",minLength:1,maxLength:80}}}}},(request,reply)=>
