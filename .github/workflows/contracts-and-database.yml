@@ -237,6 +237,9 @@ jobs:
       - name: Verify host-only staff account bootstrap
         run: node apps/api/scripts/staff-account-bootstrap-postgres-smoke.mjs
 
+      - name: Verify host provisioning of existing-account memberships
+        run: node apps/api/scripts/staff-membership-provisioning-postgres-smoke.mjs
+
       - name: Verify guest invitation delivery attempt-history transitions
         run: |
           ADMIN_EVENTOR_URL="${ADMIN_URL%/postgres}/eventor"
