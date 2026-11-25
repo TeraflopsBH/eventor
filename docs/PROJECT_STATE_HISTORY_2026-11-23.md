@@ -647,3 +647,8 @@ Migration 195 projects local reference labels only under current booking authori
 ## 2026-11-25 — Explicit local disruption inbox APIs (#225)
 
 Migration 196/ADR 0022 reuse event-owned disruption receipts. Senders need exact booking/event management and an active local link; event managers read/acknowledge allowlisted published public facts without source access. Original snapshots, provenance and acknowledgement survive retries/concurrency; internal notes remain private. Checked head `b7b7df823049abb7affdbaeb129832c48389043d` passed all five checks/CLEAN; squash main `1d6a585bbe83a800ac90aeb0196fcd52ae1ec919` has the identical tree. Post-merge contracts `45625280596` and secrets `45625280632` passed. Full/fresh PostgreSQL/real API concurrency and revocation acceptance passed; partner delivery, email and resolution remain open.
+
+
+## 2026-11-25 — Bilingual disruption inbox (#226)
+
+Staff preview a public local source notice, confirm publication and acknowledge event-owned receipts. Event-only managers can acknowledge intentionally shared facts while source reads/publication remain denied. Source selection shows dates/summary text, summaries are escaped and denial clears private rows. Checked head `dc57cc615ccf0c5f72c9fa4f02a623a4362dbb93` passed all five checks/CLEAN; squash main `13f323190aceeb3d301632418b31035e167489e1` has the identical tree. Post-merge contracts `45626497026` and secrets `45626497096` passed. Full local application/Chromium/Firefox and synthetic desktop/mobile inspection passed; partner/email delivery and resolution remain open.

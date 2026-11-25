@@ -30,3 +30,8 @@ A common real-world case is GHB owning a venue and booking record while an indep
 - RLS and authorization must remain tenant-isolated; collaboration uses explicit scoped projections.
 - Historical venue snapshots and operational records remain auditable after grant expiry/revocation; new access is blocked.
 - The product owner accepted this model on 2026-11-10. Schema/API implementation remains subject to review and tests, but the ownership and collaboration approach is the accepted architecture.
+
+
+## Implementation integrity correction — migration 198
+
+The existing authorized revocation command accepts proposed as well as active grants. A proposal withdrawn before acceptance must retain null acceptance actor/time. Migration 198 reconciles the original constraint with that command: active/expired grants still require genuine acceptance, revoked grants preserve whichever acceptance history actually occurred, and actor/time plus revocation/time pairing remain mandatory. This fixes an unreachable existing command path without inventing acceptance or changing collaboration permissions.

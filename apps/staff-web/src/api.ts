@@ -1273,6 +1273,12 @@ export interface GuestRegistryDirectory {
   nextOffset: number | null;
 }
 
+export interface StaffCollaborationGrant {
+  grantId:string;grantorOrganizationId:string;granteeOrganizationId:string;scopeKind:"venue"|"space"|"booking";
+  venueId:string|null;spaceId:string|null;bookingId:string|null;purpose:string;allowedActions:string[];
+  status:"proposed"|"active"|"expired"|"revoked"|"declined";validFrom:string;validUntil:string|null;effective:boolean;
+  acceptedAt:string|null;revokedAt:string|null;createdAt:string;projection?:Record<string,unknown>;
+}
 export interface EventDisruptionNotice {
   noticeId:string;eventId:string;sourceProviderOrganizationId:string;sourceBookingNoticeId:string;
   status:"received"|"acknowledged"|"in_progress"|"resolved"|"dismissed";
@@ -1660,6 +1666,10 @@ export interface GuestImportPreview {
 export interface RegistryLabel {labelId:string;label:string;retired:boolean}
 export interface RegistryPersonLabels {revision:number;canManage:boolean;labels:RegistryLabel[];assignedLabelIds:string[]}
 export const api = {
+  listCollaborationGrants:(organizationId:string,offset=0)=>request<Envelope<{grants:StaffCollaborationGrant[];nextOffset:number|null}>>(`/organizations/${encodeURIComponent(organizationId)}/collaboration-grants?offset=${offset}`),
+  readCollaborationGrant:(grantId:string)=>request<Envelope<StaffCollaborationGrant & {projection:Record<string,unknown>}>>(`/collaboration-grants/${encodeURIComponent(grantId)}`),
+  acceptCollaborationGrant:(grantId:string)=>request<Envelope<StaffCollaborationGrant>>(`/collaboration-grants/${encodeURIComponent(grantId)}/accept`,{method:"POST",idempotent:true,body:{}}),
+  revokeCollaborationGrant:(grantId:string,reason:string)=>request<Envelope<StaffCollaborationGrant>>(`/collaboration-grants/${encodeURIComponent(grantId)}/revoke`,{method:"POST",idempotent:true,body:{reason}}),
   searchBookingReferences:(organizationId:string,query:string,offset=0)=>request<Envelope<{bookings:DisruptionBooking[];nextOffset:number|null}>>(`/organizations/${encodeURIComponent(organizationId)}/booking-references/search`,{method:"POST",body:{query,offset}}),
   listEventDisruptionNotices:(eventId:string,offset=0)=>request<Envelope<{notices:EventDisruptionNotice[];nextOffset:number|null}>>(`/events/${encodeURIComponent(eventId)}/disruption-notices?offset=${offset}`),
   publishLocalEventDisruption:(eventId:string,body:{bookingId:string;sourceBookingNoticeId:string})=>request<Envelope<EventDisruptionNotice>>(`/events/${encodeURIComponent(eventId)}/disruption-notices`,{method:"POST",idempotent:true,body}),
