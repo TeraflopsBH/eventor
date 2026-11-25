@@ -1254,6 +1254,7 @@ function databaseError(error: unknown): ApiError {
   const code = typeof error === "object" && error !== null && "code" in error
     ? String((error as { code?: unknown }).code ?? "") : "";
   switch (code) {
+    case "P1921": return new ApiError(409, "MERGE_RELATIONSHIPS_CHANGED", "Transferred Registry relationships changed. Investigate them before restoring the profile.");
     case "P1911": return new ApiError(409, "MERGE_LABELS_CHANGED", "Transferred Registry labels changed or were removed. Investigate their assignments before restoring the profile.");
     case "P1841": return new ApiError(412, "MERGE_RESTORATION_REVIEW_STALE", "The merge or its records changed. Reload the restoration review before applying your choices.");
     case "P1831": return new ApiError(409, "MERGE_REFERENCES_CHANGED", "A transferred source reference changed or was removed. Review its correction before restoring the source profile.");
@@ -4461,7 +4462,7 @@ export function buildApi(dependencies: ApiDependencies): FastifyInstance {
   function withRegistryMergeCommand(
     request: FastifyRequest, reply: FastifyReply, principal: StaffPrincipal, operation: string,
     body: Record<string, unknown>, query: string, args: readonly unknown[], statusCode = 200,
-    mergePermissions?: { transfer?: boolean; references?: boolean } | { restoreMergeId: string },
+    mergePermissions?: { transfer?: boolean; references?: boolean; relationships?: boolean } | { restoreMergeId: string },
   ) {
     const identity = [principal.organizationId, principal.membershipId];
     return withCommand(request, reply.header("cache-control", "no-store, private"), operation, body, async (client) => {
@@ -4474,6 +4475,7 @@ export function buildApi(dependencies: ApiDependencies): FastifyInstance {
           [...identity,mergePermissions.restoreMergeId]);
       } else if (mergePermissions) {
         if (mergePermissions.transfer) await client.query("SELECT eogp.assert_guest_contact_permission($1::uuid,$2::uuid,true)",identity);
+        if (mergePermissions.relationships) await client.query("SELECT eogp.assert_guest_registry_relationship_permission($1::uuid,$2::uuid,true)",identity);
         if (mergePermissions.references) await client.query("SELECT eogp.assert_guest_reference_permission($1::uuid,$2::uuid,true)",identity);
       }
     }, statusCode);
@@ -4517,17 +4519,18 @@ export function buildApi(dependencies: ApiDependencies): FastifyInstance {
           contactResolution: { type: "string", const: "move_to_destination" },
           referenceResolution: { type: "string", const: "move_to_destination" },
           labelResolution: { type: "string", const: "move_to_destination" },
+          relationshipResolution: { type: "string", const: "move_to_destination" },
         },
       },
     },
   }, (request, reply) => {
     const { personId } = request.params;
-    const { destinationPersonId, sourceRevision, destinationRevision, reason, reviewId, contactResolution, referenceResolution, labelResolution } = request.body;
+    const { destinationPersonId, sourceRevision, destinationRevision, reason, reviewId, contactResolution, referenceResolution, labelResolution, relationshipResolution } = request.body;
     return withRegistryMergeCommand(request, reply, registryPrincipal(request), "guest.registry.merge",
       { personId, ...request.body },
-      "SELECT eogp.commit_guest_registry_merge($1::uuid,$2::uuid,$3::uuid,$4::uuid,$5::integer,$6::integer,$7::text,$8::uuid,$9::text,$10::text,$11::text) AS result",
-      [personId, destinationPersonId, sourceRevision, destinationRevision, reason, reviewId, contactResolution ?? null, referenceResolution ?? null, labelResolution ?? null], 201,
-      contactResolution || referenceResolution ? {transfer:!!contactResolution,references:!!referenceResolution} : undefined);
+      "SELECT eogp.commit_guest_registry_merge($1::uuid,$2::uuid,$3::uuid,$4::uuid,$5::integer,$6::integer,$7::text,$8::uuid,$9::text,$10::text,$11::text,$12::text) AS result",
+      [personId, destinationPersonId, sourceRevision, destinationRevision, reason, reviewId, contactResolution ?? null, referenceResolution ?? null, labelResolution ?? null, relationshipResolution ?? null], 201,
+      contactResolution || referenceResolution || relationshipResolution ? {transfer:!!contactResolution,references:!!referenceResolution,relationships:!!relationshipResolution} : undefined);
   });
 
   server.post<{ Params: { organizationId: string; mergeId: string } }>(`${registryPath}/merges/:mergeId/restore`, {

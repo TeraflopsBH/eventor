@@ -483,6 +483,16 @@ jobs:
           EVENTOR_LABEL_MERGE_BROWSER_BASE_URL: http://localhost:4173
         run: bash scripts/dev/run-browser-smoke.sh registry-label-merge
 
+      - name: Verify concurrent Registry relationship merge boundaries
+        env:
+          DATABASE_URL_RUNTIME: ${{ env.RUNTIME_URL }}
+        run: node apps/api/scripts/registry-relationship-merge-concurrency-smoke.mjs
+      - name: Seed reviewed Registry relationship merge access
+        run: psql "$MIGRATOR_URL" -X -v ON_ERROR_STOP=1 -f tests/database/registry_relationship_merge_browser_fixture.sql
+      - name: Verify reviewed Registry relationship transfer and restoration
+        env:
+          EVENTOR_RELATIONSHIP_MERGE_BROWSER_BASE_URL: http://localhost:4173
+        run: bash scripts/dev/run-browser-smoke.sh registry-relationship-merge
       - name: Stop the staff web preview
         if: always()
         run: |

@@ -10,13 +10,14 @@ const destination = "79000000-0000-4000-8000-000000000002";
 const review = "79000000-0000-4000-8000-000000000003";
 const mergeId = "79000000-0000-4000-8000-000000000004";
 
-for (const operation of ["contact-transfer","reference-transfer","combined-transfer","label-transfer","all-transfers","restore","reviewed-restore"] as const) {
+for (const operation of ["contact-transfer","reference-transfer","combined-transfer","label-transfer","relationship-transfer","all-transfers","restore","reviewed-restore"] as const) {
   const restoring = operation==="restore" || operation==="reviewed-restore";
   const referenceTransfer = operation==="reference-transfer" || operation==="combined-transfer" || operation==="all-transfers";
   const contactTransfer = operation==="contact-transfer" || operation==="combined-transfer" || operation==="all-transfers";
+  const relationshipTransfer = operation==="relationship-transfer" || operation==="all-transfers";
   const labelTransfer = operation==="label-transfer" || operation==="all-transfers";
   test(`cached Registry ${operation} rechecks current linked-data permission`, async () => {
-    let revokedPermission: "contacts" | "references" | "registry" | null = null;
+    let revokedPermission: "contacts" | "references" | "registry" | "relationships" | null = null;
     let commandCalls = 0;
     let stored: {request_sha256:unknown;response_status:unknown;response_body:unknown} | null = null;
     const permissionCalls: {sql:string;values:readonly unknown[]}[] = [];
@@ -30,17 +31,18 @@ for (const operation of ["contact-transfer","reference-transfer","combined-trans
         if (sql.startsWith("UPDATE eogp.idempotency_records")) {
           stored = {request_sha256:values[4],response_status:values[5],response_body:values[6]};
         }
-        if ((labelTransfer && sql.includes("assert_guest_registry_merge_permission")) || sql.includes("assert_guest_contact_permission") || sql.includes("assert_guest_reference_permission") || sql.includes("assert_guest_registry_merge_restore_permission")) {
+        if ((labelTransfer && sql.includes("assert_guest_registry_merge_permission")) || sql.includes("assert_guest_contact_permission") || sql.includes("assert_guest_registry_relationship_permission") || sql.includes("assert_guest_reference_permission") || sql.includes("assert_guest_registry_merge_restore_permission")) {
           permissionCalls.push({sql,values});
           const restoringPermission = sql.includes("assert_guest_registry_merge_restore_permission");
           if ((revokedPermission==="registry" && sql.includes("assert_guest_registry_merge_permission")) || (revokedPermission==="contacts" && (restoringPermission || sql.includes("assert_guest_contact_permission")))
-            || (revokedPermission==="references" && (restoringPermission || sql.includes("assert_guest_reference_permission")))) {
+            || (revokedPermission==="relationships" && (restoringPermission || sql.includes("assert_guest_registry_relationship_permission")))
+            || (revokedPermission==="references" && (restoringPermission || sql.includes("assert_guest_registry_relationship_permission") || sql.includes("assert_guest_reference_permission")))) {
             throw Object.assign(new Error("permission revoked"),{code:"42501"});
           }
         }
         if (sql.includes("SELECT eogp.commit_guest_registry_merge(")) {
           commandCalls++;
-          assert.deepEqual(values,[organizationId,membershipId,source,destination,1,1,"duplicate_profile",review,contactTransfer ? "move_to_destination" : null,referenceTransfer ? "move_to_destination" : null,labelTransfer ? "move_to_destination" : null]);
+          assert.deepEqual(values,[organizationId,membershipId,source,destination,1,1,"duplicate_profile",review,contactTransfer ? "move_to_destination" : null,referenceTransfer ? "move_to_destination" : null,labelTransfer ? "move_to_destination" : null,relationshipTransfer ? "move_to_destination" : null]);
           return {rows:[{result:{mergeId,status:"merged"}}]};
         }
         if (sql.includes("SELECT eogp.restore_guest_registry_merge_reviewed(")) {
@@ -67,7 +69,7 @@ for (const operation of ["contact-transfer","reference-transfer","combined-trans
       headers:{"idempotency-key":`contact-${operation}-replay-fixture`},
       ...(operation==="reviewed-restore" ? {payload:{reviewId:review,returnContactIds:[destination,source],returnReferenceIds:[],keepRemovedReferences:false,resolution:"return_selected_current_records"}} : {}),
       ...(!restoring ? {payload:{reviewId:review,destinationPersonId:destination,sourceRevision:1,
-        destinationRevision:1,reason:"duplicate_profile",...(labelTransfer ? {labelResolution:"move_to_destination"} : {}),...(referenceTransfer ? {referenceResolution:"move_to_destination"} : {}),...(contactTransfer ? {contactResolution:"move_to_destination"} : {})}} : {}),
+        destinationRevision:1,reason:"duplicate_profile",...(relationshipTransfer ? {relationshipResolution:"move_to_destination"} : {}),...(labelTransfer ? {labelResolution:"move_to_destination"} : {}),...(referenceTransfer ? {referenceResolution:"move_to_destination"} : {}),...(contactTransfer ? {contactResolution:"move_to_destination"} : {})}} : {}),
     };
     try {
       const first = await app.inject(request);
@@ -75,9 +77,9 @@ for (const operation of ["contact-transfer","reference-transfer","combined-trans
       const replay = await app.inject(operation==="reviewed-restore" ? {...request,payload:{...request.payload,returnContactIds:[source,destination]}} : request);
       assert.equal(replay.statusCode,first.statusCode,replay.body);
       assert.equal(commandCalls,1);
-      assert.equal(permissionCalls.length,restoring ? 1 : Number(contactTransfer)+Number(referenceTransfer)+Number(labelTransfer));
+      assert.equal(permissionCalls.length,restoring ? 1 : Number(contactTransfer)+Number(referenceTransfer)+Number(labelTransfer)+Number(relationshipTransfer));
       assert.deepEqual(permissionCalls[0]!.values,!restoring ? [organizationId,membershipId] : [organizationId,membershipId,mergeId]);
-      revokedPermission = labelTransfer ? "registry" : referenceTransfer ? "references" : "contacts";
+      revokedPermission = relationshipTransfer ? "relationships" : labelTransfer ? "registry" : referenceTransfer ? "references" : "contacts";
       const revoked = await app.inject(request);
       assert.equal(revoked.statusCode,403,revoked.body);
       assert.equal(commandCalls,1,"a denied retry executed the contact mutation");
@@ -87,7 +89,7 @@ for (const operation of ["contact-transfer","reference-transfer","combined-trans
   });
 }
 
-for (const [sqlState,code,status] of [["P1911","MERGE_LABELS_CHANGED",409],["P1821","MERGE_CONTACTS_CHANGED",409],["P1831","MERGE_REFERENCES_CHANGED",409],["P1841","MERGE_RESTORATION_REVIEW_STALE",412]] as const) {
+for (const [sqlState,code,status] of [["P1921","MERGE_RELATIONSHIPS_CHANGED",409],["P1911","MERGE_LABELS_CHANGED",409],["P1821","MERGE_CONTACTS_CHANGED",409],["P1831","MERGE_REFERENCES_CHANGED",409],["P1841","MERGE_RESTORATION_REVIEW_STALE",412]] as const) {
 test(`${code} produces a specific restoration conflict without exposing private state`, async () => {
   const client = {
     async query(sql:string) {

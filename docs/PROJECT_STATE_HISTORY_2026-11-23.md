@@ -612,3 +612,7 @@ Live inspection discovered existing PR #132 (event administration core), so deve
 
 - PR #216: checked head `bf2093255549d74cc25ccd39dd5e9ae9727b397c`; contracts `45519272108` and secrets `45519274974`, all five required checks/CLEAN. Merged main `cb1d15831f4a9a51536a8e74c308f0249ad4fa6b`; post-merge contracts `45520048707` and secrets `45520048589` passed. Host-only account provisioning preserves the existing identity/privilege boundary; no HTTP route or schema migration was introduced.
 - PR #217: checked head `ae2ae4e6729696c546afd18be9d9581d5c163fa3`; contracts `45520932614` and secrets `45520932562`, all five required checks/CLEAN. Merged main `25bb314ab3ca09c2c766bb593cd98dfa45fe47fc`; post-merge contracts `45521624367` and secrets `45521624406` passed. Isolated lifecycle acceptance verified a real backup restore and failed-backup refusal without touching the stopped user preview/default development database. The obsolete pre-wording-fix CI run was cancelled; the final exact head completed successfully.
+
+### Verified integration — Registry classifications (#218), 2026-11-25
+
+Checked head `9d39f214d021e352d5f75b3ba523b66afe4c4981` passed all five required checks with CLEAN merge state; PR contracts `45568313985` and secrets `45568313679` succeeded. Squash main `17e04c04bd11ee2099097c393dd990821faa9629` matches the checked tree. Post-merge contracts `45569418413` and secrets `45569418415` passed. Migration 191/ADR 0018 preserve reviewed disjoint classifications and guard both restoration paths. The user preview remains stopped.

@@ -7377,16 +7377,23 @@ paths:
                 properties:
                   data:
                     type: object
-                    required: [reviewId, source, destination, blocker, historicalEvents, historicalCount, contactCount, referenceCount, labelCount, sourceLabels, destinationLabels]
+                    required: [reviewId, source, destination, blocker, historicalEvents, historicalCount, contactCount, referenceCount, labelCount, sourceLabels, destinationLabels, relationshipCount, sourceRelationships, destinationRelationships]
                     properties:
                       reviewId: { type: string, format: uuid }
                       source: { $ref: '#/components/schemas/GuestRegistryProfile' }
                       destination: { $ref: '#/components/schemas/GuestRegistryProfile' }
                       blocker:
                         type: [string, 'null']
-                        enum: [inactive_profile, source_has_linked_records, event_history_access_required, event_history_overlap, contact_access_required, contact_conflict, reference_access_required, label_conflict, label_limit, null]
+                        enum: [inactive_profile, source_has_linked_records, event_history_access_required, event_history_overlap, contact_access_required, contact_conflict, reference_access_required, label_conflict, label_limit, relationship_access_required, relationship_self_link, relationship_conflict, null]
                       contactCount: { type: integer, minimum: 0 }
                       referenceCount: { type: integer, minimum: 0 }
+                      relationshipCount: { type: integer, minimum: 0 }
+                      sourceRelationships:
+                        type: array
+                        items: { $ref: '#/components/schemas/GuestRegistryRelationship' }
+                      destinationRelationships:
+                        type: array
+                        items: { $ref: '#/components/schemas/GuestRegistryRelationship' }
                       labelCount: { type: integer, minimum: 0 }
                       sourceLabels:
                         type: array
@@ -7549,6 +7556,7 @@ paths:
                 reason: { type: string, const: duplicate_profile }
                 contactResolution: { type: string, const: move_to_destination, description: "Required when the reviewed source has transferable contacts. Requires contact management permission." }
                 referenceResolution: { type: string, const: move_to_destination, description: "Required when the reviewed source has source-system references. Requires reference management permission." }
+                relationshipResolution: { type: string, const: move_to_destination, description: "Explicitly reviewed reassignment of non-conflicting active source relationships, preserving attribution and direction. Requires Registry relationship management." }
                 labelResolution: { type: string, const: move_to_destination, description: "Required when the reviewed source has non-overlapping Registry labels. Preserves the original assignment metadata, including retired classifications." }
       responses:
         '201':
@@ -9926,8 +9934,12 @@ components:
             nextOffset: { type: [integer, 'null'], minimum: 0 }
     GuestRegistryRestorationReview:
       type: object
-      required: [reviewId, source, destination, contacts, references, missingReferenceCount, labels]
+      required: [reviewId, source, destination, contacts, references, missingReferenceCount, labels, relationships]
       properties:
+        relationships:
+          type: array
+          description: Unchanged transferred relationships that return to the source automatically, shown relative to the current destination.
+          items: { $ref: '#/components/schemas/GuestRegistryRelationship' }
         labels:
           type: array
           description: Unchanged classification assignments that return to the source with restoration.
@@ -10072,6 +10084,17 @@ components:
     GuestRegistryRelationshipKind:
       type: string
       enum: [household, family, assistant, delegate, colleague, partner, other]
+    GuestRegistryRelationship:
+      type: object
+      required: [relationshipId, relatedPersonId, relatedDisplayName, relatedStatus, kind, direction, endedAt]
+      properties:
+        relationshipId: { type: string, format: uuid }
+        relatedPersonId: { type: string, format: uuid }
+        relatedDisplayName: { type: string }
+        relatedStatus: { type: string, enum: [active, archived, merged] }
+        kind: { $ref: '#/components/schemas/GuestRegistryRelationshipKind' }
+        direction: { type: string, enum: [mutual, incoming, outgoing] }
+        endedAt: { type: [string, 'null'], format: date-time }
     GuestRegistryRelationshipsEnvelope:
       type: object
       required: [data]
@@ -10084,16 +10107,7 @@ components:
             relationships:
               type: array
               items:
-                type: object
-                required: [relationshipId, relatedPersonId, relatedDisplayName, relatedStatus, kind, direction, endedAt]
-                properties:
-                  relationshipId: { type: string, format: uuid }
-                  relatedPersonId: { type: string, format: uuid }
-                  relatedDisplayName: { type: string }
-                  relatedStatus: { type: string, enum: [active, archived, merged] }
-                  kind: { $ref: '#/components/schemas/GuestRegistryRelationshipKind' }
-                  direction: { type: string, enum: [mutual, incoming, outgoing] }
-                  endedAt: { type: [string, 'null'], format: date-time }
+                $ref: '#/components/schemas/GuestRegistryRelationship'
     GuestRegistryRelationshipChangeEnvelope:
       type: object
       required: [data]

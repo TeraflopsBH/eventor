@@ -20,6 +20,7 @@ const correctionMergeId=ref<string|null>(null);
 const transferContacts = ref(false);
 const transferReferences = ref(false);
 const transferLabels = ref(false);
+const transferRelationships = ref(false);
 const sourceReferences = ref<GuestRegistryReference[]>([]);
 const destinationReferences = ref<GuestRegistryReference[]>([]);
 const referenceRows = computed(() => [
@@ -57,6 +58,7 @@ async function run(operation: () => Promise<void>): Promise<void> {
       transferContacts.value = false;
       transferReferences.value = false;
       transferLabels.value = false;
+      transferRelationships.value = false;
       sourceReferences.value = [];
       destinationReferences.value = [];
     }
@@ -92,6 +94,7 @@ async function loadReview(destination: GuestRegistryProfile): Promise<void> {
   transferContacts.value = false;
   transferReferences.value = false;
   transferLabels.value = false;
+  transferRelationships.value = false;
   sourceReferences.value = [];
   destinationReferences.value = [];
   sourceContacts.value = [];
@@ -145,10 +148,10 @@ function clearPrimary(contact: MergeContactRow): void {
 
 function merge(): void {
   const resolution = preview.value;
-  if (!resolution || resolution.blocker || (resolution.contactCount>0 && !transferContacts.value) || (resolution.referenceCount>0 && !transferReferences.value) || (resolution.labelCount>0 && !transferLabels.value) ||
+  if (!resolution || resolution.blocker || (resolution.contactCount>0 && !transferContacts.value) || (resolution.referenceCount>0 && !transferReferences.value) || (resolution.labelCount>0 && !transferLabels.value) || (resolution.relationshipCount>0 && !transferRelationships.value) ||
       !window.confirm(t("registry.merge.confirm", { source: fullName(resolution.source), destination: fullName(resolution.destination) }))) return;
   void run(async () => {
-    await api.commitGuestRegistryMerge(resolution,transferContacts.value,transferReferences.value,transferLabels.value);
+    await api.commitGuestRegistryMerge(resolution,transferContacts.value,transferReferences.value,transferLabels.value,transferRelationships.value);
     emit("changed");
   });
 }
@@ -220,6 +223,14 @@ onMounted(() => run(() => load(0)));
               <td><ul><li v-for="label in preview.destinationLabels" :key="label.labelId">{{ label.label }}<span v-if="label.retired"> · {{ t("registry.labels.retired") }}</span></li></ul></td></tr></tbody>
           </table>
         </section>
+        <section v-if="preview.sourceRelationships.length" :aria-label="t('registry.merge.relationships')">
+          <h4>{{ t("registry.merge.relationships") }}</h4>
+          <p>{{ t("registry.merge.relationshipImpact") }}</p>
+          <table class="data-table"><thead><tr><th scope="col">{{ t("registry.merge.source") }}</th><th scope="col">{{ t("registry.merge.destination") }}</th></tr></thead>
+            <tbody><tr><td><ul><li v-for="link in preview.sourceRelationships" :key="link.relationshipId">{{ link.relatedDisplayName }} · {{ t(`registry.relationships.kind.${link.kind}`) }} · {{ t(`registry.relationships.direction.${link.direction}`) }}</li></ul></td>
+              <td><ul><li v-for="link in preview.destinationRelationships" :key="link.relationshipId">{{ link.relatedDisplayName }} · {{ t(`registry.relationships.kind.${link.kind}`) }} · {{ t(`registry.relationships.direction.${link.direction}`) }}</li></ul></td></tr></tbody>
+          </table>
+        </section>
         <p v-if="preview.blocker" role="status">{{ t(`registry.merge.blocker.${preview.blocker}`) }}</p>
         <section v-if="preview.blocker === 'contact_conflict'" aria-labelledby="merge-contact-conflict-heading">
           <h4 id="merge-contact-conflict-heading">{{ t("registry.merge.contactConflictReview") }}</h4>
@@ -287,6 +298,10 @@ onMounted(() => run(() => load(0)));
             <label><input v-model="transferReferences" type="checkbox" :disabled="busy"> {{ t("registry.merge.transferReferences") }}</label>
             <p>{{ t("registry.merge.referenceCorrection") }}</p>
           </template>
+          <template v-if="preview.relationshipCount">
+            <label><input v-model="transferRelationships" type="checkbox" :disabled="busy"> {{ t("registry.merge.transferRelationships") }}</label>
+            <p>{{ t("registry.merge.relationshipCorrection") }}</p>
+          </template>
           <template v-if="preview.labelCount">
             <label><input v-model="transferLabels" type="checkbox" :disabled="busy"> {{ t("registry.merge.transferLabels") }}</label>
             <p>{{ t("registry.merge.labelCorrection") }}</p>
@@ -305,7 +320,7 @@ onMounted(() => run(() => load(0)));
               {{ t("registry.merge.moreHistoricalEvents", { shown: preview.historicalEvents.length, total: preview.historicalCount }) }}
             </p>
           </template>
-          <button class="button button-primary" type="button" :disabled="busy || (preview.contactCount>0 && !transferContacts) || (preview.referenceCount>0 && !transferReferences) || (preview.labelCount>0 && !transferLabels)" @click="merge">{{ t("registry.merge.commit") }}</button>
+          <button class="button button-primary" type="button" :disabled="busy || (preview.contactCount>0 && !transferContacts) || (preview.referenceCount>0 && !transferReferences) || (preview.labelCount>0 && !transferLabels) || (preview.relationshipCount>0 && !transferRelationships)" @click="merge">{{ t("registry.merge.commit") }}</button>
         </template>
       </div>
     </template>

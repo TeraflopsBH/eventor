@@ -1,12 +1,12 @@
 # Development resume — 2026-11-25
 
-Verified main: `25bb314ab3ca09c2c766bb593cd98dfa45fe47fc` (#217), with post-merge contracts `45521624367` and secrets `45521624406` passing. PRs #214–#217 are integrated and verified; the ignored checkpoint/archive retain prior receipts.
+Verified main: `17e04c04bd11ee2099097c393dd990821faa9629` (#218), with post-merge contracts `45569418413` and secrets `45569418415` passing. Prior receipts remain in the archive/ignored checkpoint.
 
 ## Current slice
 
-`codex/reviewed-registry-label-merges` adds migration 191/ADR 0018: actor-reviewed, explicit transfer of non-overlapping classification assignments with their original metadata. Overlaps and the existing 100-label limit remain guarded. A private append-only journal protects both strict and reviewed current-contact/reference restoration. The correction preview shows returning labels read-only; edited/removed assignments block all restoration paths without partial effects. Legacy merge overloads cannot bypass label acknowledgement, and renamed helpers remain private.
+`codex/reviewed-registry-relationship-merges` adds migration 192/ADR 0019: actor-reviewed transfer of non-conflicting active Registry relationships with separate management authority and acknowledgement. Self-links/duplicates remain blocked. Original IDs, direction, kind and attribution are preserved; ended history and unrelated destination links are untouched. Both restoration paths return unchanged links, and refuse changed/ended/missing links before partial effects. Returning links are read-only in current-state correction.
 
-Full application, fresh PostgreSQL upgrade/migration/RLS/concurrency/role and Chromium/Firefox acceptance passed locally. The suite includes retired assignments, stale definition reviews, metadata preservation, combined contact/reference transfer, edited-contact/reference correction, changed-label refusal, old overloads, permission revocation and journal immutability. Logs are `registry-label-merge-*` and `label-merge-compose-tests.log`; exact-head CI remains required before merging. Inspect Git status before switching. Never rewrite published history.
+Full application, fresh PostgreSQL upgrade/migration/RLS/concurrency/role and Chromium/Firefox acceptance passed locally. Deterministic concurrent-end and destination-create tests passed. Logs are `relationship-*`; exact-head CI remains required before merging. All legacy overloads route through acknowledgement; private helpers/journal are not exposed to app roles. Inspect Git status before switching; never rewrite published history.
 
 ## Interactive preview
 
@@ -16,10 +16,10 @@ The preview is served from an ignored build snapshot so unfinished source edits 
 
 ## First resume actions
 
-1. Inspect Git status, fetch origin, inspect the exact PR head and required checks. The current slice follows verified #217. Rebase only while unpublished, with explicit Git identity and stop-on-error shell behavior. Never reapply older backup stashes: their changes are merged.
+1. Inspect Git status, fetch origin, inspect the exact PR head and required checks. The current slice follows verified #218. Rebase only while unpublished, with explicit Git identity and stop-on-error shell behavior. Never reapply older backup stashes: their changes are merged.
 2. Merge only after all five required checks pass and GitHub reports CLEAN. Squash using the exact checked head.
 3. Fast-forward main, inspect post-merge contracts and secret-history runs, then reconcile the active handoff/ignored verified receipt.
-4. Continue #104: remaining linked-record/initial-merge conflicts and broader user/member onboarding, event settings and remaining roster controls. Then #112 and #105–#108 in roadmap order. These slices do not complete the full product or production installers.
+4. Continue #104: relationship conflict/correction and remaining linked-record/initial-merge conflicts and broader user/member onboarding, event settings and remaining roster controls. Then #112 and #105–#108 in roadmap order. These slices do not complete the full product or production installers.
 
 ## Workstation
 
