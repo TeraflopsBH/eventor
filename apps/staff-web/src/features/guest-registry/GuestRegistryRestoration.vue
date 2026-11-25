@@ -27,7 +27,7 @@ async function run(operation:()=>Promise<void>):Promise<void> {
   busy.value=true;error.value="";
   try {await operation();}
   catch(failure) {
-    if(failure instanceof ApiError && [401,403].includes(failure.status)) {
+    if(failure instanceof ApiError && ([401,403].includes(failure.status) || failure.code==="MERGE_LABELS_CHANGED")) {
       review.value=null;contacts.value=[];references.value=[];selectedContacts.value=[];selectedReferences.value=[];
     }
     error.value=failure instanceof ApiError ? formatApiError(failure,t) : t("registry.restoration.failed");
@@ -92,6 +92,11 @@ onMounted(reload);
       <p>{{ t("registry.restoration.instructions") }}</p>
       <dl><dt>{{ t("registry.merge.source") }}</dt><dd>{{ label(review.source) }}</dd>
         <dt>{{ t("registry.merge.destination") }}</dt><dd>{{ label(review.destination) }}</dd></dl>
+      <section v-if="review.labels.length" :aria-label="t('registry.merge.labels')">
+        <h5>{{ t("registry.merge.labels") }}</h5>
+        <p>{{ t("registry.restoration.labelsReturn") }}</p>
+        <ul><li v-for="entry in review.labels" :key="entry.labelId">{{ entry.label }}<span v-if="entry.retired"> · {{ t("registry.labels.retired") }}</span></li></ul>
+      </section>
       <h5 v-if="contacts.length">{{ t("registry.contacts.title") }}</h5>
       <ul v-if="contacts.length">
         <li v-for="contact in contacts" :key="contact.contactId">

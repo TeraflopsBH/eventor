@@ -1277,9 +1277,12 @@ export interface GuestRegistryMergePreview {
   reviewId: string;
   source: GuestRegistryProfile;
   destination: GuestRegistryProfile;
-  blocker: "inactive_profile" | "source_has_linked_records" | "event_history_access_required" | "event_history_overlap" | "contact_access_required" | "contact_conflict" | "reference_access_required" | null;
+  blocker: "inactive_profile" | "source_has_linked_records" | "event_history_access_required" | "event_history_overlap" | "contact_access_required" | "contact_conflict" | "reference_access_required" | "label_conflict" | "label_limit" | null;
   contactCount: number;
   referenceCount: number;
+  labelCount: number;
+  sourceLabels: RegistryLabel[];
+  destinationLabels: RegistryLabel[];
   historicalCount: number;
   historicalEvents: {
     eventId: string;
@@ -1296,6 +1299,7 @@ export interface GuestRegistryMergeHistory {
 }
 
 export interface GuestRegistryRestorationReview {
+  labels:RegistryLabel[];
   reviewId:string;
   source:GuestRegistryProfile;
   destination:GuestRegistryProfile;
@@ -1905,7 +1909,7 @@ export const api = {
     request<Envelope<GuestRegistryMergePreview>>(`/persons/${encodeURIComponent(personId)}/merge-preview`, {
       method: "POST", body: { destinationPersonId },
     }),
-  commitGuestRegistryMerge: (preview: GuestRegistryMergePreview, transferContacts = false, transferReferences = false) =>
+  commitGuestRegistryMerge: (preview: GuestRegistryMergePreview, transferContacts = false, transferReferences = false, transferLabels = false) =>
     request<Envelope<GuestRegistryMergeChange>>(`/persons/${encodeURIComponent(preview.source.personId)}/merge`, {
       method: "POST", idempotent: true,
       body: {
@@ -1914,6 +1918,7 @@ export const api = {
         destinationRevision: preview.destination.revision, reason: "duplicate_profile",
         ...(transferContacts ? {contactResolution:"move_to_destination"} : {}),
         ...(transferReferences ? {referenceResolution:"move_to_destination"} : {}),
+        ...(transferLabels ? {labelResolution:"move_to_destination"} : {}),
       },
     }),
   restoreGuestRegistryMerge: (organizationId: string, mergeId: string) =>

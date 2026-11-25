@@ -35,8 +35,8 @@ BEGIN
  BEGIN PERFORM eogp.list_registry_person_labels(v_org,v_actor,v_person);RAISE EXCEPTION 'revoked Registry permission ignored';EXCEPTION WHEN insufficient_privilege THEN NULL;END;
  INSERT INTO eogp.role_permissions SELECT v_org,v_role,code FROM unnest(ARRAY['guest.registry.read','guest.registry.manage']) code;
  v_review:=eogp.preview_guest_registry_merge(v_org,v_actor,v_person,v_destination);
- IF v_review->>'blocker'<>'source_has_linked_records' THEN RAISE EXCEPTION 'labelled merge silently allowed';END IF;
- BEGIN PERFORM eogp.commit_guest_registry_merge(v_org,v_actor,v_person,v_destination,2,1,'duplicate_profile',(v_review->>'reviewId')::uuid);RAISE EXCEPTION 'labelled source merged';EXCEPTION WHEN object_not_in_prerequisite_state THEN NULL;END;
+ IF v_review->'blocker' IS DISTINCT FROM 'null'::jsonb OR v_review->>'labelCount' IS DISTINCT FROM '1' THEN RAISE EXCEPTION 'labelled merge review unavailable';END IF;
+ BEGIN PERFORM eogp.commit_guest_registry_merge(v_org,v_actor,v_person,v_destination,2,1,'duplicate_profile',(v_review->>'reviewId')::uuid);RAISE EXCEPTION 'labelled source merged without explicit resolution';EXCEPTION WHEN invalid_parameter_value THEN NULL;END;
  PERFORM eogp.write_registry_label(v_org,v_actor,v_label,NULL);
  PERFORM eogp.set_registry_person_labels(v_org,v_actor,v_person,2,ARRAY[v_label]);
  PERFORM eogp.set_registry_person_labels(v_org,v_actor,v_person,2,ARRAY[]::uuid[]);

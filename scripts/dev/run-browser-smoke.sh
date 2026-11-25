@@ -6,6 +6,10 @@ repo="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
 playwright_image='mcr.microsoft.com/playwright:v1.56.1-noble@sha256:f1e7e01021efd65dd1a2c56064be399f3e4de00fd021ac561325f2bfbb2b837a'
 
 case "${1:-}" in
+  registry-label-merge)
+    script='registry-label-merge-browser-smoke.mjs'
+    base_url_env='EVENTOR_LABEL_MERGE_BROWSER_BASE_URL'
+    ;;
   event-guest-bulk-name-reset)
     script='event-guest-bulk-name-reset-browser-smoke.mjs'
     base_url_env='EVENTOR_BULK_NAME_RESET_BROWSER_BASE_URL'
@@ -63,7 +67,7 @@ case "${1:-}" in
     base_url_env='EVENTOR_RESTORATION_BROWSER_BASE_URL'
     ;;
   *)
-    printf 'Usage: bash scripts/dev/run-browser-smoke.sh {event-guest-bulk-name-reset|event-rsvp-settings|workspace-access|registry-labels|staff-shell|session|guest-invitation|organization-access|booking-disruption|public-booking-cancellation|registry-contact-merge|registry-reference-merge|registry-restoration|event-guest-bulk-groups}\n' >&2
+    printf 'Usage: bash scripts/dev/run-browser-smoke.sh {registry-label-merge|event-guest-bulk-name-reset|event-rsvp-settings|workspace-access|registry-labels|staff-shell|session|guest-invitation|organization-access|booking-disruption|public-booking-cancellation|registry-contact-merge|registry-reference-merge|registry-restoration|event-guest-bulk-groups}\n' >&2
     exit 2
     ;;
 esac
