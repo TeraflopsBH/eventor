@@ -1,5 +1,7 @@
 # Architecture overview
 
+> **Approved consolidated baseline — 2026-11-27:** [Technical Blueprint v1.3](blueprint/v1.3/README.md) governs product and engineering scope in conjunction with accepted ADRs and runtime contracts. It reconciles the twelve approved addenda, including shared domain ownership, optional capabilities and adaptive complexity, without replacing the modular monolith, canonical aggregates or security boundaries. Older proposal and no-consolidation wording below describes historical revisions; approval does not change current implementation or acceptance status.
+
 **Status:** proposed baseline, pending reconciliation with Implementation Design v0.2 and subsequent ADRs.
 
 ## Shape

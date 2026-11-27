@@ -1,5 +1,7 @@
 # Eventor delivery roadmap
 
+> **Approved design baseline update — 2026-11-27:** [Technical Blueprint v1.3](blueprint/v1.3/README.md) is the consolidated design baseline. All current phases, issue ownership, dependencies and existing implementation priorities remain unchanged. The historical v1.2 baseline and prior dated no-consolidation notes below are retained as history. Do not add new closure gates, restart the current slice or advance final acceptance ahead of Phase 9.
+
 **Baseline date:** 2026-11-16  
 **Product/design baseline:** Technical Blueprint v1.2 and accepted v0.3 domain/architecture decisions.  
 **Implementation baseline:** `main` at `06d47b255c7107b94201c191da562ea2612e57c1` (PR #201). See [current state](PROJECT_STATE.md) for verification receipts.

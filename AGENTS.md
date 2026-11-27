@@ -1,5 +1,7 @@
 # Agent and contributor instructions
 
+> **Current approved design baseline (2026-11-27):** [Eventor Technical Blueprint v1.3 reading guide](docs/blueprint/v1.3/README.md). Read its relevant consolidated requirements and original source traceability alongside current `PROJECT_STATE.md`, applicable ADRs, runtime contracts and tests. Preserve the existing development sequence; the blueprint does not authorize a new implementation track, environment republication or early final acceptance.
+
 These instructions apply repository-wide unless a more specific `AGENTS.md` is added in a subdirectory.
 
 ## Working principles

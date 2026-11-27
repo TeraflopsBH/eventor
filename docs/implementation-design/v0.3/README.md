@@ -1,5 +1,7 @@
 # Implementation Design v0.3 — domain design addenda
 
+> **Consolidation approved — 2026-11-27:** [Technical Blueprint v1.3](../../blueprint/v1.3/README.md) is the approved consolidated design baseline. It preserves all twelve original review annexes and all 61 pinned repository documents, including this index's prior revision and all 24 accepted ADRs. This index and every individual approved specification remain detailed source references; original approval and checksum records are unchanged. The earlier no-consolidation wording records historical scope restrictions before separate owner approval. No new runtime or acceptance claim or change in implementation priority.
+
 **Status:** proposed detailed domain/API designs; successor migrations, API contract validation and implementation remain open.
 
 This directory contains successor design addenda that refine the historical v0.2 design snapshot. They do not modify or replace the v0.2 SQL/OpenAPI artifacts.
