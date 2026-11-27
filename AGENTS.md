@@ -47,3 +47,7 @@ These instructions apply repository-wide unless a more specific `AGENTS.md` is a
 - For user-visible workflows, include authorization, audit, validation, failure and accessibility considerations.
 - Add tests for behavior and regression cases. Document any tests not run and why.
 - Use an ADR for decisions that materially affect architecture, security, data model, deployment, or product behavior.
+
+## Design consistency companion — 2026-11-27
+
+Read [Blueprint v1.3 consistency reconciliation](docs/blueprint/v1.3/DESIGN_CONSISTENCY_RECONCILIATION_v1.0.md) and [shared engineering registers](docs/blueprint/v1.3/ENGINEERING_REGISTERS_v1.0.md) with the relevant detailed source. Respect pending OD-01/02 decisions; do not infer new sensitive authority, automatic supersession or waived acceptance. Existing ADRs/runtime contracts and current roadmap remain in force. No parallel development track.
