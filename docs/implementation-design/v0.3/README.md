@@ -44,3 +44,11 @@ This directory contains successor design addenda that refine the historical v0.2
 - Booking cancellation and event-disruption design/contract alignment: [Issue #21](https://github.com/TeraflopsBH/eventor/issues/21).
 
 Do not alter the v0.2 SQL/OpenAPI snapshots to implement these designs. The successor schema and API contracts must be reviewed together and validated against PostgreSQL/OpenAPI tooling before application implementation.
+
+## Approved AGIS scope and source integrity — 2026-11-27
+
+- [Admission, Guest Information and Station Management v1.0](ADMISSION_GUEST_INFORMATION_AND_STATION_MANAGEMENT_DESIGN_v1.0.md) — approved AGIS-01–20, AGIS-M0–M6, AGIS-AC-01–40; six station modes, configurable station layouts, admission QR, verified Info Pult, hardware, printing, device authorization, offline validation/reconciliation, live Cockpit and acceptance. Primary issue [#107](https://github.com/TeraflopsBH/eventor/issues/107), dependencies [#105](https://github.com/TeraflopsBH/eventor/issues/105), [#106](https://github.com/TeraflopsBH/eventor/issues/106), [#111](https://github.com/TeraflopsBH/eventor/issues/111).
+
+The owner approved integration of the full AGIS source on 2026-11-27. Its original review-status language remains verbatim; this approval record establishes scope status, not approval of exact API/DDL/library/hardware/security choices or completion of any test. Original source size: 136,735 bytes. SHA-256: `7db8e410c879e74790f08180698a0d430b297ee0b857677a51c27bae05c3efd1`. Git blob: `e3c5d4c3340fe7f1de21b7cd67386f0e1e6c9e29`.
+
+The earlier OAC/UX/OLA checksum table above records the original reviewed bytes preserved at [PR #234 merge revision](https://github.com/TeraflopsBH/eventor/tree/a5cfcf0ad9d86dbf06ebb7599cc97e2070f64b01/docs/implementation-design/v0.3). This AGIS integration appends dated cross-references to those documents without changing any of their original text; their complete current file digests therefore differ from the historical originals. This is an approved scope clarification, not a runtime implementation claim or instruction to interrupt the existing #104/#112 → #105–107 sequence. Preserve accepted ADRs, historical Blueprint v1.2, existing domain commands and issue criteria; final integrated acceptance remains Phase 9.
