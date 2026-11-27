@@ -74,3 +74,7 @@ The C++ OR-Tools CP-SAT process receives a validated, versioned allocation probl
 ## Deployment
 
 Target is self-hosted Linux. Deployment may use native packages/systemd and a reverse proxy. Containers may be used optionally, but no architectural requirement depends on Docker, Redis/Valkey or a cloud service. Exact deployment topology, backup/restore and observability standards require separate implementation decisions.
+
+## Planned Template Design Studio (Phase 7)
+
+See [Template Design Studio v1.0](implementation-design/v0.3/TEMPLATE_DESIGN_STUDIO_DESIGN_v1.0.md) and [#111](https://github.com/TeraflopsBH/eventor/issues/111). Three authoring modes share revisioned templates, brand/assets, locale variants, typed purpose-specific data bindings and audit. Extend existing notification template identities and delivery paths; do not create a competing email aggregate. Server-authoritative rendering uses a bounded isolated worker with private artifacts and no general network or database access. Preview, render and publication never issue credentials or trigger delivery; existing domain commands remain authoritative. Specific editor/renderer libraries and schema/API design require the M0 review and ADR. This is planned functionality, not current runtime or a change to implementation order.

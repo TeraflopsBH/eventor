@@ -212,3 +212,7 @@ Native deployment has systemd unit templates, role bootstrap, migration and back
 - The GHB reference venue workbook, venue capacities, physical hierarchy, branding assets and operational policies still require validation with authorized venue representatives.
 - No independent human reviewer was available for this audit. It is an implementation inventory and planning artifact, not an independent security or product certification.
 - The audit baseline is the exact `main` commit stated at the top. Re-run/reconcile it as features merge.
+
+## Dated scope clarification — 2026-11-27 (not a new runtime audit)
+
+The owner-approved [Template Design Studio v1.0](implementation-design/v0.3/TEMPLATE_DESIGN_STUDIO_DESIGN_v1.0.md) clarifies #111 / Phase 7. Existing notification templates/revisions, campaign review and delivery infrastructure remain foundations. Rich-text WYSIWYG authoring, visual responsive block email authoring, graphical invitation/card canvas and print PDF pipeline are **missing as product workflows** at the inspected 2026-11-25 main baseline. Shared branding/asset/component and typed binding infrastructure is planned. Track TDS-M0–M6 and AC-01–25 separately; do not infer implementation or change completion scores merely from documentation. Preserve all previous gaps and current #104/#112 → #105–#107 priorities. Specialized seating, admission and maps wait for owning domains; no final VM acceptance before coherent release and both installers.

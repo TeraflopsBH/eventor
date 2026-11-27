@@ -11,6 +11,8 @@ This directory contains successor design addenda that refine the historical v0.2
 - [OpenAPI v0.3 contract](../../api/openapi.v0.3.yaml) — concrete contract draft aligned to the API design and the v0.3 domain addenda.
 - [Cancellation and Event Disruption Design v0.3](CANCELLATION_AND_EVENT_DISRUPTION_DESIGN_v0.3.md) — booking cancellation by customer or venue provider, event cancellation/postponement by organizer, notification audiences, cross-organization boundaries, audit and acceptance scenarios.
 
+- [Template Design Studio v1.0](TEMPLATE_DESIGN_STUDIO_DESIGN_v1.0.md) — approved Phase 7 scope for rich-text WYSIWYG, responsive block email and graphical invitation/card design; implementation/library decisions deferred to #111. No change to current coding priorities.
+
 ## Parent documents and decisions
 
 - [Technical Blueprint v1.2](../../blueprint/v1.2/Event_Operations_Platform_Technical_Blueprint_v1.2.md)
