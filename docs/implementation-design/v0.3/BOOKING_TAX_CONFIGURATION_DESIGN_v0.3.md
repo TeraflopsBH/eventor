@@ -67,3 +67,7 @@ The staff API exposes organization tax-profile listing/creation, revision create
 ## Validation status
 
 Static inspection only. Migration 000063 has not been executed against PostgreSQL. CI is intentionally deferred while the monthly GitHub Actions allowance is exhausted. No PostgreSQL migration execution, API tests, TypeScript build, OpenAPI validation or browser tests were run for this change.
+
+## Approved coordinated reporting and setup boundary — 2026-11-27
+
+[AES v1.0](ADAPTIVE_EXPERIENCE_AND_SETUP_DESIGN_v1.0.md), [HPG v1.0](HOSPITALITY_PROTOCOL_AND_GUEST_SERVICES_DESIGN_v1.0.md) and [RAI v1.0](REPORTING_ANALYTICS_AND_INTELLIGENCE_STUDIO_DESIGN_v1.0.md) preserve existing tax profile authority and immutable commercial snapshots. Defaults or service arrangements are not new tax determinations or contracted charges. Reports use recorded currency, tax and commercial facts with defined aggregation semantics; no guessed rates, cross-currency totals without explicit reviewed conversion policy, tax recalculation of historic snapshots or implied payment. Approved additive scope only; retain existing requirements, accepted ADRs, Blueprint v1.2, PROJECT_STATE and the #104/#112 → #105–107 → #110/#111/#108 development sequence. No immediate implementation, unrelated closure gates, environment republication or Blueprint v1.3 consolidation. Final integrated acceptance remains Phase 9.
