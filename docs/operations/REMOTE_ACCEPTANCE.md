@@ -1,5 +1,7 @@
 # Remote acceptance and verification boundaries
 
+> **Release versus CI clarification — 2026-11-27:** Optional external probe workflow configuration is not a waiver of the approved release contract. [ER-07/G8](../blueprint/v1.3/ENGINEERING_REGISTERS_v1.0.md) and [OLA](../implementation-design/v0.3/ORGANIZATION_LIFECYCLE_ACCEPTANCE_SCENARIOS_v1.0.md) require actual intended public HTTPS and external SMTP sandbox evidence at final integrated acceptance, together with advertised supported adapters and hardware evidence. Missing targets/credentials or skipped probes remain unverified. Conditional extensions may be N/A only under explicit reviewed applicability; no silent release waiver. A successful probe supplies only its documented evidence, not full business, delivery or production acceptance. Both installers and Phase 9 remain required.
+
 This document distinguishes repeatable GitHub-hosted checks from acceptance that requires a real, separately approved environment. CI is not production certification.
 
 ## Automated on the integration branch

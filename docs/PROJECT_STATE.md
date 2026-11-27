@@ -1,5 +1,7 @@
 # Eventor project state
 
+> **Design authority update — 2026-11-27:** [Blueprint v1.3 and companions](blueprint/v1.3/README.md), [documentation authority](DOCUMENTATION_AUTHORITY.md) and [ADR index](decisions/README.md) govern the approved design. PR #239 merged at `3941f87200bcc28f74267d403ef06cf42c70551d` with [all five post-merge checks passed](https://github.com/TeraflopsBH/eventor/actions/runs/46067011709). This is the verified documentation integration baseline, not a replacement for the application development checkpoint below. Verify actual checkout, unpublished changes and live GitHub before resuming; no scope, priority, code or environment change.
+
 Updated 2026-11-25. This page is the current development handoff. Detailed historical entries and older CI receipts are preserved in the [state archive](PROJECT_STATE_HISTORY_2026-11-23.md).
 
 ## Verified integration baseline
@@ -63,4 +65,4 @@ Docker is optional for development PostgreSQL; the native regression runner can 
 
 ## Product boundaries
 
-Keep the API-first modular monolith, tenant/field-level permissions, immutable commercial/event history and optional event capabilities. Venue providers do not gain organizer guest access through booking ownership. Solver proposals require human review/commit. Configurable policies, venue measurements and reference-deployment operational/legal facts require evidence rather than assumptions. The [blueprint](blueprint/v1.2/Event_Operations_Platform_Technical_Blueprint_v1.2.md), [architecture](ARCHITECTURE.md) and accepted ADRs own the detailed rules.
+Keep the API-first modular monolith, tenant/field-level permissions, immutable commercial/event history and optional event capabilities. Venue providers do not gain organizer guest access through booking ownership. Solver proposals require human review/commit. Configurable policies, venue measurements and reference-deployment operational/legal facts require evidence rather than assumptions. The [approved Blueprint v1.3](blueprint/v1.3/README.md), [architecture](ARCHITECTURE.md), [authority register](DOCUMENTATION_AUTHORITY.md) and [accepted ADRs](decisions/README.md) own the detailed design rules; current implementation is verified against actual code, contracts and tests.

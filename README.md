@@ -1,5 +1,7 @@
 # Eventor
 
+> **Current design navigation — 2026-11-27:** [Documentation authority register](docs/DOCUMENTATION_AUTHORITY.md) and [ADR status index](docs/decisions/README.md) distinguish the 24 ADRs embedded in the archived Blueprint v1.3 from all 25 currently accepted decisions including ADR 0025, approved TDS/PAC v1.1 and R1–R9. Older design references below are historical; see the authority register for current design and verified implementation boundaries.
+
 > **Approved technical design:** [Technical Blueprint v1.3](docs/blueprint/v1.3/README.md) consolidates Blueprint v1.2, all twelve approved specifications, all 24 accepted ADRs and the detailed repository designs. This is the approved product/engineering baseline, not a claim that the planned features are already implemented. Current delivery status and priorities remain in [Project state](docs/PROJECT_STATE.md) and [Roadmap](docs/ROADMAP.md).
 
 **Event Operations & Guest Logistics Platform (EOGP)**

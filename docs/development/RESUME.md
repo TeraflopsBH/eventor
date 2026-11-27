@@ -1,5 +1,7 @@
 # Development resume — 2026-11-25
 
+> **Current resumption guidance — 2026-11-27:** This document records a dated 2026-11-25 checkpoint, not a live assertion of branch state or pending CI. Read [project state](../PROJECT_STATE.md), [authority register](../DOCUMENTATION_AUTHORITY.md), [Codex handoff](../CODEX_HANDOFF.md) and [roadmap](../ROADMAP.md), then inspect actual checkout, ignored local checkpoint and current GitHub PR/CI state. Approved design integration #239 at `3941f872` has passed post-merge CI. Do not replay old commits, rebase published branches, discard local work or infer unpublished progress. Continue the existing #104/#112 → #105–107 → #110/#111/#108 sequence, Phase 9 final acceptance.
+
 Verified main: `f6039be2d630b7834fe19856660a051a17db2ec9` (#229), with post-merge contracts `45671121922` and secrets `45671121975` passing. Prior receipts remain in the archive/ignored checkpoint.
 
 ## Current slice
