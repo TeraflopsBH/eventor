@@ -1,5 +1,7 @@
 # Self-hosted deployment and operations runbook
 
+> **Current capability clarification — 2026-11-27:** Repository foundations include [systemd API/worker templates](../../deploy/systemd/README.md), [development Compose](../../compose.dev.yaml), role bootstrap and checksum-verified migrations, plus isolated CI logical backup/restore and systemd syntax/identity checks. PR #239 [post-merge checks](https://github.com/TeraflopsBH/eventor/actions/runs/46067011709) passed. These do not establish complete production native or Compose installers, tested target-host reverse proxy/TLS, off-host backup/PITR/key recovery or production readiness. Both installers remain required; Docker is not mandatory to run Eventor. See [authority register](../DOCUMENTATION_AUTHORITY.md) and [release evidence](../blueprint/v1.3/ENGINEERING_REGISTERS_v1.0.md). Final integrated acceptance remains Phase 9.
+
 **Status:** deployment procedure draft; not a production certification.  
 **Scope:** the current Fastify API, notification worker, Vue staff web and PostgreSQL database. This runbook deliberately separates repository-verifiable steps from environment-specific operational controls that have not yet been exercised.
 

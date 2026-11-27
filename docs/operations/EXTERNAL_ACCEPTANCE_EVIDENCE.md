@@ -1,5 +1,7 @@
 ## Current integration result — 2026-11-15
 
+> **Release evidence clarification — 2026-11-27:** This file's older receipts remain dated historical evidence. [ER-07/G8](../blueprint/v1.3/ENGINEERING_REGISTERS_v1.0.md), [OLA](../implementation-design/v0.3/ORGANIZATION_LIFECYCLE_ACCEPTANCE_SCENARIOS_v1.0.md) and [authority register](../DOCUMENTATION_AUTHORITY.md) govern release acceptance. Actual intended public HTTPS and external SMTP sandbox evidence is required for final release; optional CI probe configuration, skipped jobs or local capture cannot substitute. Record exact release candidate, actual target/adapter/device evidence and accountable owner. Conditional extension N/A requires reviewed applicability. Both native and Compose installers, recovery and final Phase 9 acceptance remain unverified. PR #239 documentation CI passed but supplies no new external acceptance evidence.
+
 - Merged PR: [#85](https://github.com/TeraflopsBH/eventor/pull/85)
 - Squash merge commit on `main`: `3377fe0ab9016c57884d15a5353242dfa876bfa5`
 - Merged PR head: `69cb8a44882b7ece99ba9be987a345a5bd569395`
