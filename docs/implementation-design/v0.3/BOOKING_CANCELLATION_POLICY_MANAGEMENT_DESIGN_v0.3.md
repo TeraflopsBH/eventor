@@ -42,3 +42,7 @@ The staff API exposes organization-scoped list/create operations plus revision c
 ## Validation status
 
 Static inspection only. CI is intentionally deferred while the monthly GitHub Actions allowance is exhausted. No PostgreSQL migration execution, API tests, TypeScript build or browser tests were run for this change.
+
+## Approved coordinated policy interoperability — 2026-11-27
+
+[AES v1.0](ADAPTIVE_EXPERIENCE_AND_SETUP_DESIGN_v1.0.md), [EPW v1.0](EVENT_PLANNING_PRODUCTION_AND_OPERATIONAL_WORKFLOWS_DESIGN_v1.0.md) and [RAI v1.0](REPORTING_ANALYTICS_AND_INTELLIGENCE_STUDIO_DESIGN_v1.0.md) preserve current published cancellation policy revisions and pinned commercial snapshots. Simplified setup and configurable review steps cannot bypass mandatory decision or execution authority; repeated event templates do not copy confirmed bookings or historical policies as new current decisions. Reports distinguish requested, approved, executed and recorded settlement evidence. No automatic refund or financial movement. Approved additive scope only; retain existing requirements, accepted ADRs, Blueprint v1.2, PROJECT_STATE and the #104/#112 → #105–107 → #110/#111/#108 development sequence. No immediate implementation, unrelated closure gates, environment republication or Blueprint v1.3 consolidation. Final integrated acceptance remains Phase 9.
