@@ -29,7 +29,7 @@ The original detailed specification in Part II and integrated version plus subse
 
 ### Paired acceptance obligations
 
-Both full original and integrated criterion conditions must be satisfied; no shorter paraphrase removes evidence. All 40 IDs paired; no test credited by this document. Original crosswalk retains line references. Source alias TDS-AC-n refers to original AC-n.
+Both full original and integrated criterion conditions must be satisfied; no shorter paraphrase removes evidence. All 40 IDs paired; no test credited by this document. Original crosswalk retains line references. Source alias PAC-AC-n refers to the same PAC-AC-n in both editions.
 
 ### PAC-AC-01
 
@@ -1157,3 +1157,7 @@ References: [Project state](../../PROJECT_STATE.md), [Roadmap](../../ROADMAP.md)
 [AES v1.0](ADAPTIVE_EXPERIENCE_AND_SETUP_DESIGN_v1.0.md), [EPW v1.0](EVENT_PLANNING_PRODUCTION_AND_OPERATIONAL_WORKFLOWS_DESIGN_v1.0.md), [FRS v1.0](FORMS_REGISTRATION_AND_SUBMISSION_STUDIO_DESIGN_v1.0.md), [HPG v1.0](HOSPITALITY_PROTOCOL_AND_GUEST_SERVICES_DESIGN_v1.0.md), [RAI v1.0](REPORTING_ANALYTICS_AND_INTELLIGENCE_STUDIO_DESIGN_v1.0.md) retain PAC authority ceilings. AES installer and setup defaults use typed policies and explicit protected host commands, never arbitrary remote execution. EPW workflow configuration cannot delegate platform rights or bypass domain approvals. FRS publication/attachment policy, HPG restricted service-data handling and RAI governed metric/report artifacts require tenant scope, bounded retention, scoped support and actual actor audit. PAC may provide safe operational health/usage metrics, never a universal guest or supplier directory. Recover jobs, encrypted artifacts, reviewed state and CID uncertain submissions without blind replay in both installers. Approved additive scope only; retain existing requirements, accepted ADRs, Blueprint v1.2, PROJECT_STATE and the #104/#112 → #105–107 → #110/#111/#108 development sequence. No immediate implementation, unrelated closure gates, environment republication or Blueprint v1.3 consolidation. Final integrated acceptance remains Phase 9.
 
 <!-- END EXACT INTEGRATED PAC -->
+
+## Subsequent review note — 2026-11-27
+
+The [clause disposition and authority review](../../blueprint/v1.3/TDS_PAC_CLAUSE_DISPOSITIONS_v1.0.md) now proposes explicit R1–R9 interpretations, cumulative original and integrated clause authority, and exhaustive source-line/range coverage. The review note does not certify sentence-by-sentence equivalence. Both full source editions and paired acceptance conditions remain intact; proposed technical choices retain their qualifications. Final owner decision on the proposed interpretations and ADR wording remains required; no current implementation, grant or roadmap change.
