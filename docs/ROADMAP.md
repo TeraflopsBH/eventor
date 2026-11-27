@@ -64,6 +64,8 @@ The product remains an API-first modular monolith:
 - [x] Verify signed-in provider isolation and event-scoped guest access, including grant revocation and Registry restrictions.
 - [ ] Complete organizer/venue collaboration acceptance across booking, disruption and operational workflows.
 
+**Planned platform administration refinement:** [PAC v1.0](implementation-design/v0.3/PLATFORM_ADMINISTRATION_CENTER_DESIGN_v1.0.md) defines PAC-M0–M2 for reviewed authority, organization/global account administration and a dedicated control-plane workspace, reusing #104. No immediate authentication rewrite; ADR 0015/0017/0020 remain in force until a reviewed successor decision and migration. Existing #104/#112 → #105–107 priorities remain unchanged.
+
 ## Phase 3 — Venue model and spatial editor
 
 - [ ] Implement reusable venue/building/level/room/space hierarchy and versioned venue templates.
@@ -125,6 +127,8 @@ The product remains an API-first modular monolith:
 - [ ] Complete localization and accessibility across all user-facing modules.
 - [ ] Add configurable reporting and document templates.
 
+**PAC coordination:** PAC-M3/M4 add owner-controlled platform-default identity/theming, typed policy/module controls, data governance, scoped support and communications, sharing TDS brand/assets and existing domain commands under #111. Specialized interventions wait for owning workflows. No separate brand or delivery subsystem.
+
 ## Phase 8 — Installation, upgrade and operations
 
 One release artifact must support two equivalent installation modes.
@@ -152,6 +156,8 @@ One release artifact must support two equivalent installation modes.
 - [ ] Idempotent install/upgrade behavior and safe failure recovery.
 - [ ] Document supported Linux versions, resource sizing, networking, SMTP and DNS/TLS options.
 - [ ] Local email capture (for example, Mailpit) supported for development/testing; external SMTP is configurable, not mandatory for local development.
+
+**PAC operations integration:** PAC-M5 under #108 covers measured health, backup manifests/restore drills, typed host-operation requests, local host maintenance/release recovery, same secure native and Compose procedures. PAC-M6 contributes AC-01–40 to Phase 9; no earlier VM requirement. The application must never receive arbitrary host privileges.
 
 ## Phase 9 — Integrated release candidate and final acceptance
 
