@@ -15,6 +15,18 @@ This directory contains successor design addenda that refine the historical v0.2
 
 - [Platform Administration Center v1.0](PLATFORM_ADMINISTRATION_CENTER_DESIGN_v1.0.md) — approved owner/Superadmin control-plane scope; global governance, platform identity, support and host operations. Successor authority decisions and implementation remain pending; coordinates #104/#108/#111 and TDS, without changing current priorities.
 
+- [Organization Administration Center v1.0](ORGANIZATION_ADMINISTRATION_CENTER_DESIGN_v1.0.md) — approved organization self-service, onboarding and administration scope.
+- [Eventor User Experience and Navigation v1.0](EVENTOR_USER_EXPERIENCE_AND_NAVIGATION_v1.0.md) — approved shared experience contract for PAC/OAC/EOC and specialist surfaces.
+- [Organization Lifecycle Acceptance Scenarios v1.0](ORGANIZATION_LIFECYCLE_ACCEPTANCE_SCENARIOS_v1.0.md) — approved future verification contract (not executed tests).
+
+**Approval record — 2026-11-27:** Owner approved the three v1.0 scopes for documentation integration on 2026-11-27. The three reviewed source files are preserved verbatim, including their historical proposed-status text; this approval record governs their integration status, not approval of exact engineering decisions or immediate implementation. Existing accepted ADRs, historical Blueprint v1.2/v0.2 snapshots, issue obligations and current #104/#112 → #105–107 priorities remain unchanged. No runtime implementation or acceptance results are implied.
+
+| Reviewed source file | SHA-256 (original bytes) |
+|---|---|
+| ORGANIZATION_ADMINISTRATION_CENTER_DESIGN_v1.0.md | `3b6155e76b6b848d044a991220b9d669b35b8b620f192fac6decfd741788d5e7` |
+| EVENTOR_USER_EXPERIENCE_AND_NAVIGATION_v1.0.md | `0c9f3c469e92815f2a8794391906382ff09d5b952d775b212f2e9fc977100b5a` |
+| ORGANIZATION_LIFECYCLE_ACCEPTANCE_SCENARIOS_v1.0.md | `1db1625cb44196eed5f25e0dd77df0f1cdc859cbc309f23b0f6ac6c9adc8c260` |
+
 ## Parent documents and decisions
 
 - [Technical Blueprint v1.2](../../blueprint/v1.2/Event_Operations_Platform_Technical_Blueprint_v1.2.md)
