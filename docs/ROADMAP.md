@@ -113,7 +113,11 @@ The product remains an API-first modular monolith:
 
 ## Phase 7 — Communications, branding and configuration
 
-- [ ] Build a real email template composer/editor (not merely campaign review).
+- [ ] Deliver the [Template Design Studio v1.0](implementation-design/v0.3/TEMPLATE_DESIGN_STUDIO_DESIGN_v1.0.md) under #111: shared library, rich-text WYSIWYG, visual responsive drag-and-drop email design and precision graphical invitation/card design.
+- [ ] Implement typed purpose-specific variables, reusable components/assets, versioned branding/locale variants, reviewed publication, secure server rendering and individual/bulk PDF/print layouts (TDS-M0–M6; AC-01–25). Admission/seating/map outputs depend on their owning workflows; basic invitation authoring does not.
+
+**Scope clarification (2026-11-27):** this adds requirements to Phase 7, not a change of current priorities. Continue #104/#112, then #105–#107 as planned. Do not start Studio implementation merely because this documentation is merged. Preserve all existing Phase 7 acceptance requirements.
+
 - [ ] Support plain text and HTML, variables, validation, preview, test-send, localization and revision history.
 - [ ] Support approved bulk send, reminders, audience selection, retries and ambiguous-outcome reconciliation.
 - [ ] Implement organization → venue → event branding inheritance and pinned asset/template revisions.
