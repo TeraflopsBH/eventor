@@ -1,5 +1,7 @@
 # Eventor
 
+> **Approved technical design:** [Technical Blueprint v1.3](docs/blueprint/v1.3/README.md) consolidates Blueprint v1.2, all twelve approved specifications, all 24 accepted ADRs and the detailed repository designs. This is the approved product/engineering baseline, not a claim that the planned features are already implemented. Current delivery status and priorities remain in [Project state](docs/PROJECT_STATE.md) and [Roadmap](docs/ROADMAP.md).
+
 **Event Operations & Guest Logistics Platform (EOGP)**
 
 Eventor is a self-hosted, API-first platform that can be used for venue booking/resource management alone, full event organization and operations, or a configurable combination. Guest records, invitations/RSVP, seating, check-in and event-day operations are optional capabilities—not requirements for every venue booking.

@@ -1,5 +1,7 @@
 # Implementation Design v0.3 — domain design addenda
 
+> **Consolidation approved — 2026-11-27:** [Technical Blueprint v1.3](../../blueprint/v1.3/README.md) is the approved consolidated design baseline. It preserves all twelve original review annexes and all 61 pinned repository documents, including this index's prior revision and all 24 accepted ADRs. This index and every individual approved specification remain detailed source references; original approval and checksum records are unchanged. The earlier no-consolidation wording records historical scope restrictions before separate owner approval. No new runtime or acceptance claim or change in implementation priority.
+
 **Status:** proposed detailed domain/API designs; successor migrations, API contract validation and implementation remain open.
 
 This directory contains successor design addenda that refine the historical v0.2 design snapshot. They do not modify or replace the v0.2 SQL/OpenAPI artifacts.
@@ -74,3 +76,7 @@ The owner approved the entire five-document package. Original draft-status wordi
 | [RAI v1.0](REPORTING_ANALYTICS_AND_INTELLIGENCE_STUDIO_DESIGN_v1.0.md) | RAI-01–16 | M0–M6 | AC-01–35 | 54,406 | `6eb0054488220f877dfad553c46ad9d3a69fafe6bc3bce6317d3b36721095e2b` | `8be378c17d4b2b94dcf8bccbbd916cd7c30b8e2e` |
 
 Primary issue ownership: AES #104 (cross-cutting UX/OAC), EPW and HPG #110, FRS and RAI #111; dependencies #105–108/#112 and existing domain designs as specified in each §10. All 79 requirement groups, 161 acceptance criteria and 32 milestones have bidirectional requirement-to-test traceability. Existing approved addenda retain all prior text and their historical source checksum references (OAC/UX/OLA #234, AGIS #235, CID #236); the original CID source at [e0fa44203f785284d597f69dae8510c91bada0d6](https://github.com/TeraflopsBH/eventor/tree/e0fa44203f785284d597f69dae8510c91bada0d6/docs/implementation-design/v0.3) is immutable, and subsequent cross-reference appends change complete-file digests without altering original bytes. Approved additive scope only; retain existing requirements, accepted ADRs, Blueprint v1.2, PROJECT_STATE and the #104/#112 → #105–107 → #110/#111/#108 development sequence. No immediate implementation, unrelated closure gates, environment republication or Blueprint v1.3 consolidation. Final integrated acceptance remains Phase 9.
+
+## Coordinated consistency companion — 2026-11-27
+
+[Reconciliation](../../blueprint/v1.3/DESIGN_CONSISTENCY_RECONCILIATION_v1.0.md), [shared engineering registers](../../blueprint/v1.3/ENGINEERING_REGISTERS_v1.0.md) and [TDS/PAC source reconciliation](../../blueprint/v1.3/TDS_PAC_SOURCE_RECONCILIATION_v1.0.md) clarify source precedence, preserve original and integrated editions, and record pending material authority decisions. All prior approved requirements and original acceptance cases remain retained; nonidentical clauses are not automatically adjudicated. Historical source hashes and accepted ADRs unchanged. No change to implementation priorities.

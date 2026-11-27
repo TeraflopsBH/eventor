@@ -1,5 +1,7 @@
 # Codex Project Handoff — EVENTOR
 
+> **Current design handoff — 2026-11-27 (supersedes earlier design-reference wording, not engineering priorities):** Product owner approved [Technical Blueprint v1.3](blueprint/v1.3/README.md) for integration. Read the guide and the relevant sections of the complete [consolidated Markdown](blueprint/v1.3/Eventor_Technical_Blueprint_v1.3.md) from the checkout, then follow `PROJECT_STATE.md`, `ROADMAP.md`, current issue/PR status, actual code, OpenAPI/migrations and accepted ADRs. Parts II–V provide traceability and complete sources; do not load the entire archival file unnecessarily. The design baseline is source-complete and approved; implementation/acceptance remain separate. Continue the established #104/#112 → #105–107 → #110/#111/#108 sequence; do not restart or fork current work, republish the environment, or run final acceptance before the integrated release candidate. Historical facts and old CI receipts in this handoff remain historical.
+
 **Purpose:** Persistent takeover brief for OpenAI Codex in the desktop app, including sessions or accounts that do not have access to the previous ChatGPT conversation.  
 **Repository:** `TeraflopsBH/eventor`  
 **Default branch:** `main`  
@@ -226,3 +228,7 @@ Live inspection discovered existing PR #132 (event administration core), so deve
 
 
 Latest work is on local branch `fix/event-administration-ci`, pushed to PR #132 (`integrate/event-administration-main-2026-11-16`). Follow-up commits bind update/archive idempotency to event ID (regression reproduced before fix) and pin definer search paths via 000123. Local auth-role security and event administration SQL tests passed after applying 000123. Check the latest PR head and CI before merging; earlier checkpoints describing an unimplemented event-admin slice are superseded by this open PR.
+
+## Dated consistency clarification — 2026-11-27
+
+Use the [Blueprint v1.3 consistency companion](blueprint/v1.3/DESIGN_CONSISTENCY_RECONCILIATION_v1.0.md), [engineering registers](blueprint/v1.3/ENGINEERING_REGISTERS_v1.0.md) and [TDS/PAC source crosswalk](blueprint/v1.3/TDS_PAC_SOURCE_RECONCILIATION_v1.0.md) for affected design work. OD-01/02 are open material authority decisions, not accepted changes; do not expand legacy platform-managed sensitive permissions or silently drop original approved detail. Other clarifications preserve existing admission, delivery, offline, reporting, booking and acceptance rules. Preserve the current #104/#112 → #105–107 → #110/#111/#108 implementation sequence, existing branches, and Phase 9 final acceptance. Do not start a new development track or rewrite approved archival sources. CI is not product acceptance.

@@ -1,5 +1,7 @@
 # Eventor operating model
 
+> **Approved design baseline — 2026-11-27:** [Technical Blueprint v1.3](blueprint/v1.3/README.md) consolidates the operating model, including the independent provider/organizer/hybrid profiles and adaptive experience. No change to existing party responsibility, collaboration scope, optional capabilities or owning command authority.
+
 This document describes how Eventor can support venue providers, event organizers and collaborative operations without making every deployment use every module.
 
 See [ADR 0004](decisions/0004-optional-event-operations-scope.md) and [Issue #8](https://github.com/TeraflopsBH/eventor/issues/8).

@@ -1,5 +1,7 @@
 # Blueprint-to-repository gap analysis — v1.0
 
+> **Design baseline update — 2026-11-27 (not a new runtime audit):** [Technical Blueprint v1.3](blueprint/v1.3/README.md) consolidates the approved design scope and source-to-requirement traceability. Preserve the dated evidence and existing gap analysis; the document-only integration does not change any implemented/gap status. Use live code, tests, issue status and `PROJECT_STATE.md` for subsequent implementation assessment.
+
 **Audit baseline:** `main` at `a0a346268016079d58756bd95e7af2b87ccc4fec` (2026-11-18).
 
 **Blueprint:** Technical Blueprint v1.2  
