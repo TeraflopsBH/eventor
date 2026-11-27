@@ -1,9 +1,11 @@
 # ADR 0025 — Platform governance, tenant authority and controlled support access
 
+> **Owner-approved design resolution — 2026-11-27 (PR #239):** This ADR is accepted as the future authority architecture; [R1–R9 and clause dispositions](../blueprint/v1.3/TDS_PAC_CLAUSE_DISPOSITIONS_v1.0.md) and the source-complete [TDS v1.1](../implementation-design/v0.3/TEMPLATE_DESIGN_STUDIO_DESIGN_v1.1.md) / [PAC v1.1](../implementation-design/v0.3/PLATFORM_ADMINISTRATION_CENTER_DESIGN_v1.1.md) contract are approved. OD-01 is resolved at design-direction level; OD-02 is resolved by cumulative retention and explicit interpretations, not a formal sentence-level equivalence proof. This approval supersedes earlier pending/proposed approval wording for these decisions only. Exact permission allowlist, implementation/migration activation, affected-access inventory, owner/approval policy, recovery and M0 technical choices remain separately reviewed. ADR 0015 continues to govern current implemented behavior until the reviewed successor is safely activated; do not expand legacy grants. No change to runtime, other outstanding decisions, source bytes, acceptance results or existing #104/#112 → #105–107 → #110/#111/#108 priorities; final integrated acceptance remains Phase 9.
+
 - Date: 2026-11-27
-- Status: **Proposed for final owner review.** Least-privilege direction agreed; concrete permission inventory and migration not approved or implemented.
+- Status: **Accepted (design decision, 2026-11-27).** Concrete permission inventory, exact allowlist and migration activation remain separately reviewed and are not implemented.
 - Resolves OD-01 in [consistency reconciliation](../blueprint/v1.3/DESIGN_CONSISTENCY_RECONCILIATION_v1.0.md).
-- On acceptance supersedes only the blanket managed grant rule in [ADR 0015](0015-email-first-login-and-platform-administration.md), retaining credential-first authentication, host-only designation, selected-tenant RLS, actual actor, workspace rotation and independent grant provenance. ADRs 0010, 0017, 0020, 0023 and 0024 remain unchanged.
+- Supersedes the future design of the blanket managed grant rule in [ADR 0015](0015-email-first-login-and-platform-administration.md), retaining credential-first authentication, host-only designation, selected-tenant RLS, actual actor, workspace rotation and independent grant provenance. ADRs 0010, 0017, 0020, 0023 and 0024 remain unchanged.
 - Implementation gate PAC M0/M1, current roadmap; no new track.
 
 ## Context and decision
@@ -44,7 +46,7 @@ Preserve email-first proof before workspace disclosure, Argon2id, rate limits, o
 
 ## Alternatives and consequences
 
-Blanket inheritance retains compatibility but conflicts with least privilege. Sensitivity-only is insufficient; separate application/database per tenant is unnecessary. Positive allowlist plus separate authority gives explicit, testable boundaries at cost of inventory, migration and granular checks. No concrete allowlist, scope change or runtime permission change approved by this draft; owner review and implementation evidence still required.
+Blanket inheritance retains compatibility but conflicts with least privilege. Sensitivity-only is insufficient; separate application/database per tenant is unnecessary. Positive allowlist plus separate authority gives explicit, testable boundaries at cost of inventory, migration and granular checks. No concrete allowlist or runtime permission change is approved by this decision; implementation review and evidence still required.
 
 ## Subsequent review note — 2026-11-27
 
