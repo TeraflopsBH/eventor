@@ -13,6 +13,8 @@ This directory contains successor design addenda that refine the historical v0.2
 
 - [Template Design Studio v1.0](TEMPLATE_DESIGN_STUDIO_DESIGN_v1.0.md) — approved Phase 7 scope for rich-text WYSIWYG, responsive block email and graphical invitation/card design; implementation/library decisions deferred to #111. No change to current coding priorities.
 
+- [Platform Administration Center v1.0](PLATFORM_ADMINISTRATION_CENTER_DESIGN_v1.0.md) — approved owner/Superadmin control-plane scope; global governance, platform identity, support and host operations. Successor authority decisions and implementation remain pending; coordinates #104/#108/#111 and TDS, without changing current priorities.
+
 ## Parent documents and decisions
 
 - [Technical Blueprint v1.2](../../blueprint/v1.2/Event_Operations_Platform_Technical_Blueprint_v1.2.md)
